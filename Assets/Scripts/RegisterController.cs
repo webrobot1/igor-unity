@@ -57,6 +57,7 @@ public class RegisterController : MonoBehaviour
             try {
                 Debug.Log("Ответ авторизации: "+recive);
                 SiginJson response = JsonUtility.FromJson<SiginJson>(recive);
+
                 StartCoroutine(LoadMain(response));
             }
             catch

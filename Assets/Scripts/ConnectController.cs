@@ -10,6 +10,11 @@ using UnityEngine.SceneManagement;
 public abstract class ConnectController : MonoBehaviour
 {
 	/// <summary>
+	/// не null если идет загрузка сцены
+	/// </summary>
+	private bool loading;	
+	
+	/// <summary>
 	/// Ссылка на конектор
 	/// </summary>
 	protected Protocol connect;
@@ -62,9 +67,10 @@ public abstract class ConnectController : MonoBehaviour
 	private void Update()
 	{
 		if (Protocol.error != null)
+		{
 			StartCoroutine(LoadRegister(Protocol.error));
-
-		if (Protocol.recives != null)
+		}
+		else if (Protocol.recives != null)
 		{
 			for (int i = 0; i < Protocol.recives.Count; i++)
 			{
@@ -76,7 +82,9 @@ public abstract class ConnectController : MonoBehaviour
 				catch (Exception ex)
 				{
 					StartCoroutine(LoadRegister(ex.Message + ": " + Protocol.recives[i]));
+					break;
 				}
+				
 				Protocol.recives.RemoveAt(i);
 			}
 		}
@@ -228,7 +236,15 @@ public abstract class ConnectController : MonoBehaviour
 	/// <param name="error">сама ошибка</param>
 	private IEnumerator LoadRegister(string error)
 	{
+		Protocol.error = null;
+		Protocol.recives.Clear();
+
+		if (loading)
+			yield break;
+
+		loading = true;
 		Debug.LogError(error);
+
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{
 			//SceneManager.UnloadScene("MainScene");
@@ -240,8 +256,6 @@ public abstract class ConnectController : MonoBehaviour
 				yield return null;
 			}
 		}
-		Protocol.error = null;
-		Protocol.recives.Clear();
 		SceneManager.UnloadScene("MainScene");
 		Camera.main.GetComponent<RegisterController>().Error(error);
 	}
