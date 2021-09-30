@@ -99,10 +99,11 @@ public abstract class ConnectController : MonoBehaviour
 	{
 		this.id = data.id;
 		this.token = data.token;
+		Time.fixedDeltaTime = data.time;
 
-		Debug.Log("протокол - "+ data.protocol);
+		Debug.Log("FixedTime = " + data.time);
 
-		connect = (Protocol)Activator.CreateInstance(Type.GetType(data.protocol));
+		connect = new Websocket();
 		connect.Send("{\"token\": \"" + data.token + "\", \"action\": \"api/load\"}");
 	}
 

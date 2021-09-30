@@ -73,9 +73,15 @@ public class EnemyModel : ObjectModel
 	/// <param name="position">куда движемя</param>
 	private IEnumerator Move(Vector2 position)
 	{
-		while (Vector2.Distance(transform.position, position) >= distancePerUpdate)
+
+		float distance;
+
+		while ((distance = Vector2.Distance(transform.position, position)) > 0)
 		{
-			transform.position = Vector2.MoveTowards(transform.position, position, distancePerUpdate);
+			// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
+			// в ином случае - дистанцию с учетом скорости проходим целиком
+
+			transform.position = Vector2.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
 			yield return new WaitForFixedUpdate();
 		}
 		moveCoroutine = null;

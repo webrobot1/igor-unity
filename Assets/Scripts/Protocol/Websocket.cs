@@ -27,7 +27,6 @@ public class Websocket: Protocol
 	private void OnOpen()
 	{
 		Debug.Log("Соединение с севрером установлено");
-		reconnect = 0;
 	}
 
 	private void OnError(string errMsg)
@@ -44,18 +43,7 @@ public class Websocket: Protocol
 
 	private void OnClose(WebSocketCloseCode code)
 	{
-		/*if (reconnect < 5 && !e.WasClean)
-		{
-			Debug.Log("Соединение с сервером закрыто: " + e.Reason + ", устанавливаю новое");
-			if (!connect.IsAlive)
-			{
-				Thread.Sleep(5000);
-				reconnect++;
-				connect.Connect();
-			}
-		}
-		else*/
-			error = "Соединение с сервером закрыто (" + code.ToString() + ")";
+		error = "Соединение с сервером закрыто (" + code.ToString() + ")";
 	}
 
 
