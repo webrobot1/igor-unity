@@ -27,7 +27,7 @@ public abstract class ConnectController : MonoBehaviour
 	/// <summary>
 	/// Префаб Sprite Render на котором расположим карту
 	/// </summary>
-	public GameObject map;
+	private GameObject map;
 
 	/// <summary>
 	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте
@@ -48,8 +48,7 @@ public abstract class ConnectController : MonoBehaviour
 	/// <summary>
 	/// время от нажатия кнопки идти до ответа сервера
 	/// </summary>
-	[SerializeField]
-	protected double pingTime = 0.2;
+	protected double pingTime;
 
 	/// <summary>
 	/// время последнего шага нашего игрока
@@ -127,6 +126,9 @@ public abstract class ConnectController : MonoBehaviour
 			// если есть объекты
 			if (recive.map.data != null)
 			{
+				if(map == null)
+					map = GameObject.Find("Map");
+
 				map.GetComponent<SpriteRenderer>().sprite = ImageToSpriteModel.Base64ToSprite(recive.map.data);
 			}
 

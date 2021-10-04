@@ -55,7 +55,14 @@ public class MainController : ConnectController
     {
         return
 
-            true;
+            (DateTime.Compare(this.lastMove.AddMilliseconds(1000), DateTime.Now) < 1) // Todo заменить 1000 на скорость анимации с учетом скорости игрока)
+                 ||
+            (
+                base.pingTime > 0
+                    &&
+                // или оставшееся дистанция меньще или равна растоянию что можно пройти за время запрос-ответа от серера (с учетом нашего пинга) 
+                Vector2.Distance(player.transform.position, target) <= base.pingTime / Time.fixedDeltaTime * player.distancePerUpdate
+            );
     }
 
     // Update is called once per frame
