@@ -13,7 +13,7 @@ public abstract class ConnectController : MonoBehaviour
 	/// <summary>
 	/// true - загружается сцена регистрации (выходим из игры)
 	/// </summary>
-	public bool exit;
+	private bool exit;
 
 	/// <summary>
 	/// Ссылка на конектор
@@ -269,5 +269,10 @@ public abstract class ConnectController : MonoBehaviour
 
 		connect.Close();
 		connect = null;
+	}
+
+	void OnApplicationQuit()
+	{
+		connect.Close();
 	}
 }
