@@ -66,24 +66,27 @@ public abstract class ConnectController : MonoBehaviour
 	/// </summary>
 	private void Update()
 	{
-		if (connect.error != null)
-		{
-			StartCoroutine(LoadRegister(connect.error));
-		}
-		else if (connect.recives != null)
-		{
-			for (int i = 0; i < connect.recives.Count; i++)
+		if(connect != null) 
+		{ 
+			if (connect.error != null)
 			{
-				try
+				StartCoroutine(LoadRegister(connect.error));
+			}
+			else if (connect.recives != null)
+			{
+				for (int i = 0; i < connect.recives.Count; i++)
 				{
-					Debug.Log(DateTime.Now.Millisecond + ": "+ connect.recives[i]);
-					HandleData(JsonUtility.FromJson<ReciveJson>(connect.recives[i]));
-					connect.recives.RemoveAt(i);
-				}
-				catch (Exception ex)
-				{
-					StartCoroutine(LoadRegister(ex.Message + ": " + connect.recives[i]));
-					break;
+					try
+					{
+						Debug.Log(DateTime.Now.Millisecond + ": "+ connect.recives[i]);
+						HandleData(JsonUtility.FromJson<ReciveJson>(connect.recives[i]));
+						connect.recives.RemoveAt(i);
+					}
+					catch (Exception ex)
+					{
+						StartCoroutine(LoadRegister(ex.Message + ": " + connect.recives[i]));
+						break;
+					}
 				}
 			}
 		}
@@ -251,6 +254,7 @@ public abstract class ConnectController : MonoBehaviour
 			Debug.LogError("уже закрываем игру");
 			yield break;
 		}
+		connect = null;
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{
@@ -266,9 +270,6 @@ public abstract class ConnectController : MonoBehaviour
 
 		SceneManager.UnloadScene("MainScene");
 		Camera.main.GetComponent<RegisterController>().Error(error);
-
-		connect.Close();
-		connect = null;
 	}
 
 	void OnApplicationQuit()
