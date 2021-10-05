@@ -22,6 +22,26 @@ public class Websocket: Protocol
 		{
 			error = "Ошибка соединения " + ex.Message;
 		}
+	}	
+	
+	public override void Close()
+	{
+		connect.Close(WebSocketCloseCode.ProtocolError);
+		Debug.LogError("Соединение закрыто");
+	}
+
+	public override void Send(string data)
+	{
+		try
+		{
+			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + data);
+			byte[] sendBytes = Encoding.UTF8.GetBytes(data);
+			connect.Send(sendBytes);
+		}
+		catch (Exception ex)
+		{
+			error = ex.Message;
+		}
 	}
 
 	private void OnOpen()
@@ -44,20 +64,5 @@ public class Websocket: Protocol
 	private void OnClose(WebSocketCloseCode code)
 	{
 		error = "Соединение с сервером закрыто (" + code.ToString() + ")";
-	}
-
-
-	public override void Send(string data)
-	{
-		try
-		{
-			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + data);
-			byte[] sendBytes = Encoding.UTF8.GetBytes(data);
-			connect.Send(sendBytes);
-		}
-		catch (Exception ex)
-		{
-			error = ex.Message;
-		}
 	}
 }

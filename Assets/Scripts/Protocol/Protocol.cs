@@ -4,8 +4,8 @@ using UnityEngine;
 
 abstract public class Protocol
 {
-	public static string error;
-	public static List<string> recives = new List<string>();
+	public string error;
+	public List<string> recives = new List<string>();
 
 	public Protocol()
 	{
@@ -14,5 +14,6 @@ abstract public class Protocol
 	}
 
 	protected abstract void Connect();
+	public abstract void Close();
 	public abstract void Send(string data);
 }

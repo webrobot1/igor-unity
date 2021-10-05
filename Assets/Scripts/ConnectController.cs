@@ -9,11 +9,12 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public abstract class ConnectController : MonoBehaviour
 {
+
 	/// <summary>
-	/// не null если идет загрузка сцены
+	/// true - загружается сцена регистрации (выходим из игры)
 	/// </summary>
-	private bool loading;	
-	
+	public bool exit;
+
 	/// <summary>
 	/// Ссылка на конектор
 	/// </summary>
@@ -65,26 +66,25 @@ public abstract class ConnectController : MonoBehaviour
 	/// </summary>
 	private void Update()
 	{
-		if (Protocol.error != null)
+		if (connect.error != null)
 		{
-			StartCoroutine(LoadRegister(Protocol.error));
+			StartCoroutine(LoadRegister(connect.error));
 		}
-		else if (Protocol.recives != null)
+		else if (connect.recives != null)
 		{
-			for (int i = 0; i < Protocol.recives.Count; i++)
+			for (int i = 0; i < connect.recives.Count; i++)
 			{
 				try
 				{
-					Debug.Log(DateTime.Now.Millisecond + ": "+Protocol.recives[i]);
-					HandleData(JsonUtility.FromJson<ReciveJson>(Protocol.recives[i]));
+					Debug.Log(DateTime.Now.Millisecond + ": "+ connect.recives[i]);
+					HandleData(JsonUtility.FromJson<ReciveJson>(connect.recives[i]));
+					connect.recives.RemoveAt(i);
 				}
 				catch (Exception ex)
 				{
-					StartCoroutine(LoadRegister(ex.Message + ": " + Protocol.recives[i]));
+					StartCoroutine(LoadRegister(ex.Message + ": " + connect.recives[i]));
 					break;
 				}
-				
-				Protocol.recives.RemoveAt(i);
 			}
 		}
 	}
@@ -98,7 +98,7 @@ public abstract class ConnectController : MonoBehaviour
 	{
 		this.id = data.id;
 		this.token = data.token;
-		Time.fixedDeltaTime = data.time;
+		pingTime = Time.fixedDeltaTime = data.time;
 
 		Debug.Log("FixedTime = " + data.time);
 
@@ -112,16 +112,18 @@ public abstract class ConnectController : MonoBehaviour
 	/// <param name="recive">JSON сигнатура согласно стрктуре ReciveJson</param>
 	private void HandleData(ReciveJson recive)
 	{
-		if (recive.action == "screen")
+        switch (recive.action)
+        {
+			case "screen":
+				StartCoroutine(Screen());
+			return;
+        }
+
+		if (recive.error != null)
 		{
-			StartCoroutine(Screen());
-		}		
-		else if (recive.error != null)
-		{
-			// todo можно не сбраывать соединение а просто выводить что ошибка
 			StartCoroutine(LoadRegister("Ошибка сервера:" + recive.error));
 		}
-		else
+		else if(!exit) // обновляем мир только если в не выходим из игры (занмиает какое то время)
 		{
 			// если есть объекты
 			if (recive.map.data != null)
@@ -239,14 +241,16 @@ public abstract class ConnectController : MonoBehaviour
 	/// <param name="error">сама ошибка</param>
 	private IEnumerator LoadRegister(string error)
 	{
-		Protocol.error = null;
-		Protocol.recives.Clear();
-
-		if (loading)
-			yield break;
-
-		loading = true;
 		Debug.LogError(error);
+
+		connect.error = null;
+		connect.recives.Clear();
+
+		if (exit)
+		{
+			Debug.LogError("уже закрываем игру");
+			yield break;
+		}
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{
@@ -259,7 +263,11 @@ public abstract class ConnectController : MonoBehaviour
 				yield return null;
 			}
 		}
+
 		SceneManager.UnloadScene("MainScene");
 		Camera.main.GetComponent<RegisterController>().Error(error);
+
+		connect.Close();
+		connect = null;
 	}
 }

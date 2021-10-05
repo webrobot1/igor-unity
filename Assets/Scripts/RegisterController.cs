@@ -7,23 +7,9 @@ using UnityEngine.Networking;
 
 public class RegisterController : MonoBehaviour
 {
-    public static RegisterController instance;
-
     public InputField login;
     public InputField password;
 
-    private void Awake()
-    {
-        if (instance == null)
-        {
-           instance = this;
-        }
-        else if (instance != null)
-        {
-            Debug.LogError("Instance already exists, destroying object!");
-            Destroy(this);
-        }
-    }
     public void Register()
     {
         StartCoroutine(SendRequest("register"));
