@@ -11,7 +11,7 @@ public class ObjectModel : MonoBehaviour
 	protected Animator anim;
 	private static Dictionary<string, bool> trigers;
 
-	protected void Start()
+	protected void Awake()
 	{
 		anim = GetComponent<Animator>();
 
@@ -28,7 +28,7 @@ public class ObjectModel : MonoBehaviour
 
 	public void SetData(ObjectJson data)
 	{
-		if (data.action.Length > 0 && this.action != data.action && trigers.ContainsKey(data.action))
+		if (data.action!=null && data.action.Length > 0 && this.action != data.action && trigers.ContainsKey(data.action))
 		{
 			Debug.Log("Обновляем анимацию " + data.action);
 			this.action = data.action;
@@ -38,7 +38,7 @@ public class ObjectModel : MonoBehaviour
 		if (data.map_id > 0)
 			this.map_id = data.map_id;
 
-		if (data.position.Length > 0 && this.id == 0)
+		if (data.position != null && data.position.Length > 0 && this.id == 0)
 		{	
 			transform.position = new Vector2(data.position[0], data.position[1]);
 		}

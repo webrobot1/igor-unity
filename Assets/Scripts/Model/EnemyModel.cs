@@ -22,10 +22,6 @@ public class EnemyModel : ObjectModel
 	/// </summary>
 	public float distancePerUpdate;   	
 
-	new void Start()
-	{
-		base.Start();
-	}
 
 	// Update is called once per frame
 	void FixedUpdate()
@@ -54,7 +50,7 @@ public class EnemyModel : ObjectModel
 			distancePerUpdate = this.speed * Time.fixedDeltaTime;
 		}
 
-		if (this.id != 0 && data.position.Length>0)
+		if (this.id != 0 && data.position!=null && data.position.Length>0)
 		{
 			if (moveCoroutine != null)
 				StopCoroutine(moveCoroutine);

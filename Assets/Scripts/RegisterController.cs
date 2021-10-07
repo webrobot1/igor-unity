@@ -15,9 +15,9 @@ public class RegisterController : MonoBehaviour
         StartCoroutine(SendRequest("register"));
     }
 
-    public void Sigin()
+    public void Auth()
     {
-		StartCoroutine(SendRequest("signin"));     
+		StartCoroutine(SendRequest("auth"));     
     }
 
 	private IEnumerator SendRequest(string action)
@@ -32,7 +32,7 @@ public class RegisterController : MonoBehaviour
         formData.AddField("login", login.text);
         formData.AddField("password", password.text);
 
-        UnityWebRequest request = UnityWebRequest.Post("http://95.216.204.181:8080/game/signin/" + action, formData);
+        UnityWebRequest request = UnityWebRequest.Post("http://95.216.204.181:8080/api/signin/" + action, formData);
 
         yield return request.SendWebRequest();
 

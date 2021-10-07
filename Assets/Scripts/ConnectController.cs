@@ -106,7 +106,7 @@ public abstract class ConnectController : MonoBehaviour
 		Debug.Log("FixedTime = " + data.time);
 
 		connect = new Websocket();
-		connect.Send("{\"token\": \"" + data.token + "\", \"action\": \"api/load\"}");
+		connect.Send("{\"token\": \"" + data.token + "\", \"action\": \"load\"}");
 	}
 
 	/// <summary>
@@ -156,7 +156,13 @@ public abstract class ConnectController : MonoBehaviour
 						}
 					}
 
-					prefab.GetComponent<PlayerModel>().SetData(player);
+                    try { 
+						prefab.GetComponent<PlayerModel>().SetData(player);
+					}
+					catch (Exception ex)
+					{
+						StartCoroutine(LoadRegister("Не удалось загрузить игрока:" + ex));
+                    }
 
 					// если на сцене и есть position - значит куда то движтся. запишем куда
 					if (player.position != null && player.id == this.id)
@@ -185,8 +191,15 @@ public abstract class ConnectController : MonoBehaviour
 						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "enemy_" + enemy.id;
 					}
-
-					prefab.GetComponent<EnemyModel>().SetData(enemy);
+					
+					try
+					{
+						prefab.GetComponent<EnemyModel>().SetData(enemy);
+					}
+					catch (Exception ex)
+					{
+						StartCoroutine(LoadRegister("Не удалось загрузить NPC:" + ex));
+					}
 				}
 			}
 
@@ -202,7 +215,14 @@ public abstract class ConnectController : MonoBehaviour
 						prefab.name = "object_" + obj.id;
 					}
 
-					prefab.GetComponent<ObjectModel>().SetData(obj);
+					try
+					{
+						prefab.GetComponent<ObjectModel>().SetData(obj);
+					}
+					catch (Exception ex)
+					{
+						StartCoroutine(LoadRegister("Не удалось загрузить объект:" + ex));
+					}
 				}
 			}
 		}
