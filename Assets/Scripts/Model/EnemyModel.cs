@@ -27,9 +27,9 @@ public class EnemyModel : ObjectModel
 	void FixedUpdate()
 	{
 		// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
-		if (action != "idle" && moveCoroutine == null && DateTime.Compare(_pingLast.AddMilliseconds(1000), DateTime.Now) < 1)
+		if (action != "idle" && moveCoroutine == null && DateTime.Compare(_pingLast.AddMilliseconds(200), DateTime.Now) < 1)
 		{
-			Debug.LogError("останавливаемы");
+			Debug.LogError("останавливаем "+this.id);
 			action = "idle";
 			base.anim.SetTrigger(action);
 		}
@@ -69,7 +69,6 @@ public class EnemyModel : ObjectModel
 	/// <param name="position">куда движемя</param>
 	private IEnumerator Move(Vector2 position)
 	{
-
 		float distance;
 
 		while ((distance = Vector2.Distance(transform.position, position)) > 0)
@@ -80,6 +79,7 @@ public class EnemyModel : ObjectModel
 			transform.position = Vector2.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
 			yield return new WaitForFixedUpdate();
 		}
+		_pingLast = DateTime.Now;
 		moveCoroutine = null;
 	}
 }

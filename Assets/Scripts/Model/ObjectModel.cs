@@ -4,10 +4,10 @@ using UnityEngine;
 
 public class ObjectModel : MonoBehaviour
 {
-    protected int id;
-    protected int map_id;
-	protected string action = "idle";
-
+    protected string action = "idle";
+	
+	protected int id;
+	protected int map_id;
 	protected Animator anim;
 	private static Dictionary<string, bool> trigers;
 
