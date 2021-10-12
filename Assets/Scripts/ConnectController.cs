@@ -9,7 +9,6 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public abstract class ConnectController : MonoBehaviour
 {
-
 	/// <summary>
 	/// true - загружается сцена регистрации (выходим из игры)
 	/// </summary>
@@ -50,6 +49,11 @@ public abstract class ConnectController : MonoBehaviour
 	/// время от нажатия кнопки идти до ответа сервера
 	/// </summary>
 	protected double pingTime;
+
+	/// <summary>
+	/// сколько пикселей на 1 Unit должно считаться
+	/// </summary>
+	private float PixelsPerUnit;
 
 	/// <summary>
 	/// время последнего шага нашего игрока
@@ -101,10 +105,10 @@ public abstract class ConnectController : MonoBehaviour
 	{
 		this.id = data.id;
 		this.token = data.token;
-		pingTime = Time.fixedDeltaTime = data.time;
+		this.PixelsPerUnit = data.pixels;
+		this.pingTime = Time.fixedDeltaTime = data.time;
 
 		Debug.Log("FixedTime = " + data.time);
-
 		connect = new Websocket();
 		connect.Send("{\"token\": \"" + data.token + "\", \"action\": \"load\"}");
 	}
@@ -134,7 +138,7 @@ public abstract class ConnectController : MonoBehaviour
 				if(map == null)
 					map = GameObject.Find("Map");
 
-				map.GetComponent<SpriteRenderer>().sprite = ImageToSpriteModel.Base64ToSprite(recive.map.data);
+				map.GetComponent<SpriteRenderer>().sprite = ImageToSpriteModel.Base64ToSprite(recive.map.data, PixelsPerUnit);
 			}
 
 			if (recive.players != null)

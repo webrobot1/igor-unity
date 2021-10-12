@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class EnemyModel : ObjectModel
 {
-	public float speed;
+	protected float speed;
 	protected int hp;
 	protected int mp;
 

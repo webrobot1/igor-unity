@@ -6,7 +6,7 @@ public class ObjectModel : MonoBehaviour
 {
     protected int id;
     protected int map_id;
-	public string action = "idle";
+	protected string action = "idle";
 
 	protected Animator anim;
 	private static Dictionary<string, bool> trigers;

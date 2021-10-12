@@ -14,6 +14,7 @@ public static class ImageToSpriteModel
         // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
         byte[] imageBytes = System.Convert.FromBase64String(base64);
         Texture2D SpriteTexture = new Texture2D(2, 2);
+        SpriteTexture.filterMode = FilterMode.Point;
         SpriteTexture.LoadImage(imageBytes);
         Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 0), PixelsPerUnit, 0, spriteType);
 
@@ -42,6 +43,7 @@ public static class ImageToSpriteModel
         {
             FileData = File.ReadAllBytes(FilePath);
             Tex2D = new Texture2D(2, 2);             // Create new "empty" texture
+            Tex2D.filterMode = FilterMode.Point;
             if (Tex2D.LoadImage(FileData))           // Load the imagedata into the texture (size is set automatically)
                 return Tex2D;                        // If data = readable -> return texture
         }
