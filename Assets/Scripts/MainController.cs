@@ -92,11 +92,12 @@ public class MainController : ConnectController
                     {
                         action = "move/left";
                     }
-
+					
+					// если мы сделали шаг то нужнотобнулить время пинга
+					pingTime = 0;
                     connect.Send(JsonUtility.ToJson(this));
 
-                    // если мы сделали шаг то нужнотобнулить время пинга и записать время последнего шага
-                    pingTime = 0;
+                    // и записать время последнего шага
                     base.lastMove = DateTime.Now;
                 }
             }
