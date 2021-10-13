@@ -60,9 +60,8 @@ public class MainController : ConnectController
             (
                 base.pingTime > 0
                     &&
-                // или оставшееся дистанция меньще или равна растоянию что можно пройти за время запрос-ответа от серера (с учетом нашего пинга) 
-                // минимум за 1 шаг до конца разрешаем слать запрос
-                Vector2.Distance(player.transform.position, target) <= (base.pingTime< Time.fixedDeltaTime? Time.fixedDeltaTime: base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate
+                // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено)
+                Vector2.Distance(player.transform.position, target) <= (base.pingTime+fixedDeltaTime) / Time.fixedDeltaTime * player.distancePerUpdate
             );
     }
 
