@@ -61,7 +61,7 @@ public class MainController : ConnectController
                 base.pingTime > 0
                     &&
                 // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено что команду шлем за 1 шаг минимум)
-                Vector2.Distance(player.transform.position, target) <= (base.pingTime+fixedDeltaTime) / Time.fixedDeltaTime * player.distancePerUpdate
+                Vector2.Distance(player.transform.position, target) - player.distancePerUpdate <= (base.pingTime< Time.fixedDeltaTime? Time.fixedDeltaTime: base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate
             );
     }
 
