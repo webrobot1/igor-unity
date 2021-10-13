@@ -48,6 +48,7 @@ public abstract class ConnectController : MonoBehaviour
 	/// <summary>
 	/// время от нажатия кнопки идти до ответа сервера
 	/// </summary>
+	[SerializeField]
 	protected double pingTime;
 
 	/// <summary>
