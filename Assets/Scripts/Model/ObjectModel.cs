@@ -26,7 +26,7 @@ public class ObjectModel : MonoBehaviour
 		}
 	}
 
-	public void SetData(ObjectJson data)
+	public void SetData(ObjectRecive data)
 	{
 		if (data.action!=null && data.action.Length > 0 && this.action != data.action && trigers.ContainsKey(data.action))
 		{

@@ -76,7 +76,7 @@ public class MainController : ConnectController
             {
                if ((vertical = Input.GetAxis("Vertical")) != 0 || (vertical = variableJoystick.Vertical) != 0 || (horizontal = Input.GetAxis("Horizontal")) != 0 || (horizontal = variableJoystick.Horizontal) != 0) 
                {
-                    ResponseJson response = new ResponseJson(); 
+                    MoveResponse response = new MoveResponse(); 
 
                     if (vertical > 0)
                     {

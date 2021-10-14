@@ -42,7 +42,7 @@ public class RegisterController : MonoBehaviour
         {
             try {
                 Debug.Log("Ответ авторизации: "+recive);
-                SiginJson response = JsonUtility.FromJson<SiginJson>(recive);
+                SiginRecive response = JsonUtility.FromJson<SiginRecive>(recive);
 
                 StartCoroutine(LoadMain(response));
             }
@@ -61,7 +61,7 @@ public class RegisterController : MonoBehaviour
         GameObject.Find("error").GetComponent<Text>().text = error;
     }
 
-    private IEnumerator LoadMain(SiginJson data)
+    private IEnumerator LoadMain(SiginRecive data)
     {
         Debug.Log("Загрузка главной сцены");
 

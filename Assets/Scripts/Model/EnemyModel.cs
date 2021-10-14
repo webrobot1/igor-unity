@@ -35,7 +35,7 @@ public class EnemyModel : ObjectModel
 		}
 	}
 
-	public void SetData(EnemyJson data)
+	public void SetData(EnemyRecive data)
 	{
 		activeLast = DateTime.Now;
 

@@ -3,7 +3,7 @@
 /// </summary>
 
 [System.Serializable]
-public class MapJson
+public abstract class MapRecive
 {
 	public string data;
 }

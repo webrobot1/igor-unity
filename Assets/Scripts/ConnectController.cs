@@ -77,7 +77,7 @@ public abstract class ConnectController : MonoBehaviour
 					try
 					{
 						Debug.Log(DateTime.Now.Millisecond + ": "+ connect.recives[i]);
-						HandleData(JsonUtility.FromJson<ReciveJson>(connect.recives[i]));
+						HandleData(JsonUtility.FromJson<Recive>(connect.recives[i]));
 						connect.recives.RemoveAt(i);
 					}
 					catch (Exception ex)
@@ -95,7 +95,7 @@ public abstract class ConnectController : MonoBehaviour
 	/// Звпускается после авторизации - заполяет id и token 
 	/// </summary>
 	/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-	public void SetPlayer(SiginJson data)
+	public void SetPlayer(SiginRecive data)
 	{
 		this.id = data.id;
 		this.token = data.token;
@@ -106,7 +106,7 @@ public abstract class ConnectController : MonoBehaviour
 		connect = new Websocket();
 
 
-		ResponseJson response = new ResponseJson();
+		SigninResponse response = new SigninResponse();
 		response.token = data.token;
 		response.action = "load";
 
@@ -117,7 +117,7 @@ public abstract class ConnectController : MonoBehaviour
 	/// Обработка пришедших от сервера значений
 	/// </summary>
 	/// <param name="recive">JSON сигнатура согласно стрктуре ReciveJson</param>
-	private void HandleData(ReciveJson recive)
+	private void HandleData(Recive recive)
 	{
         switch (recive.action)
         {
@@ -143,7 +143,7 @@ public abstract class ConnectController : MonoBehaviour
 
 			if (recive.players != null)
 			{
-				foreach (PlayerJson player in recive.players)
+				foreach (PlayerRecive player in recive.players)
 				{
 					GameObject prefab = GameObject.Find("player_" + player.id);
 
@@ -187,7 +187,7 @@ public abstract class ConnectController : MonoBehaviour
 			// если есть враги
 			if (recive.enemys != null)
 			{
-				foreach (EnemyJson enemy in recive.enemys)
+				foreach (EnemyRecive enemy in recive.enemys)
 				{
 					GameObject prefab = GameObject.Find("enemy_" + enemy.id);
 					if (prefab == null)
@@ -210,7 +210,7 @@ public abstract class ConnectController : MonoBehaviour
 			// если есть объекты
 			if (recive.objects != null)
 			{
-				foreach (ObjectJson obj in recive.objects)
+				foreach (ObjectRecive obj in recive.objects)
 				{
 					GameObject prefab = GameObject.Find("enemy_" + obj.id);
 					if (prefab == null)

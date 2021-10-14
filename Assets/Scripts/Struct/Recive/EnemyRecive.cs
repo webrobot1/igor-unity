@@ -3,7 +3,7 @@
 /// </summary>
 
 [System.Serializable]
-public class EnemyJson : ObjectJson
+public abstract class EnemyRecive : ObjectRecive
 {
 	public int hp;
 	public int mp;

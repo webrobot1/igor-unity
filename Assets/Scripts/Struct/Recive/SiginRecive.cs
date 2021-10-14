@@ -3,7 +3,7 @@
 /// </summary>
 
 [System.Serializable]
-public class SiginJson
+public class SiginRecive
 {
 	public int id;
 	public string token;

@@ -15,5 +15,5 @@ abstract public class Protocol
 
 	protected abstract void Connect();
 	public abstract void Close();
-	public abstract void Send(ResponseJson data);
+	public abstract void Send(Response data);
 }

@@ -30,12 +30,13 @@ public class Websocket: Protocol
 		Debug.LogError("Соединение закрыто");
 	}
 
-	public override void Send(ResponseJson data)
-	{
+	public override void Send(Response data)
+	{	
 		try
 		{
-			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + data);
-			byte[] sendBytes = Encoding.UTF8.GetBytes(JsonUtility.ToJson(data));
+			string json = JsonUtility.ToJson(data);
+			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 			connect.Send(sendBytes);
 		}
 		catch (Exception ex)
@@ -53,7 +54,6 @@ public class Websocket: Protocol
 	{
 		error = "Ошибка соединения " + errMsg;
 	}
-
 
 	public void OnMessage(byte[] msg)
 	{

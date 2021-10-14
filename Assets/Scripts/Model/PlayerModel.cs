@@ -3,7 +3,7 @@ public class PlayerModel : EnemyModel
 {
 	private string login;
 
-	public void SetData(PlayerJson data)
+	public void SetData(PlayerRecive data)
 	{
 		if (base.id == 0)
 		{

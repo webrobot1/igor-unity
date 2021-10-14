@@ -3,12 +3,12 @@
 /// </summary>
 
 [System.Serializable]
-public class ReciveJson
+public class Recive
 {   
-    public PlayerJson[] players;
-    public EnemyJson[] enemys;
-    public ObjectJson[] objects;
-    public MapJson map;
+    public PlayerRecive[] players;
+    public EnemyRecive[] enemys;
+    public ObjectRecive[] objects;
+    public MapRecive map;
 
     public string action;
     public string error;

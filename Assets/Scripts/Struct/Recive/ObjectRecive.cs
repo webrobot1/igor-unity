@@ -3,7 +3,7 @@
 /// </summary>
 
 [System.Serializable]
-public class ObjectJson
+public abstract class ObjectRecive
 {
 	public int id;
 	public int map_id;
