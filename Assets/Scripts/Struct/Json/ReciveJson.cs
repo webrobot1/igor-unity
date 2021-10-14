@@ -1,3 +1,7 @@
+/// <summary>
+/// —труктура получаемых данных данных
+/// </summary>
+
 [System.Serializable]
 public class ReciveJson
 {   

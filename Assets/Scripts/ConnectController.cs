@@ -5,7 +5,7 @@ using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Соединение с сервером, заполнение данными переменных, обработка запросов
+/// Класс для обработки запросов, конект
 /// </summary>
 public abstract class ConnectController : MonoBehaviour
 {
@@ -40,15 +40,8 @@ public abstract class ConnectController : MonoBehaviour
 	private string token;
 
 	/// <summary>
-	/// действие нашего игрока
+	/// время от нажатия кнопки идти до ответа сервера (переделать в List)
 	/// </summary>
-	[SerializeField]
-	protected string action;
-
-	/// <summary>
-	/// время от нажатия кнопки идти до ответа сервера
-	/// </summary>
-	[SerializeField]
 	protected double pingTime;
 
 	/// <summary>
@@ -111,7 +104,13 @@ public abstract class ConnectController : MonoBehaviour
 
 		Debug.Log("FixedTime = " + data.time);
 		connect = new Websocket();
-		connect.Send("{\"token\": \"" + data.token + "\", \"action\": \"load\"}");
+
+
+		ResponseJson response = new ResponseJson();
+		response.token = data.token;
+		response.action = "load";
+
+		connect.Send(response);
 	}
 
 	/// <summary>

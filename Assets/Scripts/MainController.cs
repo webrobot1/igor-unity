@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// Управление персонажем и его действиями
+/// Класс для отправки данных (действий игрока)
 /// </summary>
 public class MainController : ConnectController
 {
@@ -76,27 +76,30 @@ public class MainController : ConnectController
             {
                if ((vertical = Input.GetAxis("Vertical")) != 0 || (vertical = variableJoystick.Vertical) != 0 || (horizontal = Input.GetAxis("Horizontal")) != 0 || (horizontal = variableJoystick.Horizontal) != 0) 
                {
+                    ResponseJson response = new ResponseJson(); 
+
                     if (vertical > 0)
                     {
-                        action = "move/up";
+                        response.action = "move/up";
                     }
                     else if (vertical < 0)
                     {
-                        action = "move/down";
+                        response.action = "move/down";
                     }
                     else if (horizontal > 0)
                     {
-                        action = "move/right";
+                        response.action = "move/right";
                     }
                     else if (horizontal < 0)
                     {
-                        action = "move/left";
+                        response.action = "move/left";
                     }
-					
-                    connect.Send(JsonUtility.ToJson(this));
-					
-					// если мы сделали шаг то нужнотобнулить время пинга
-					pingTime = 0;
+
+                    response.ping = pingTime - Time.fixedDeltaTime;
+
+                    // если мы сделали шаг то нужнотобнулить время пинга
+                    pingTime = 0;
+                    connect.Send(response);
 					
                     // и записать время последнего шага
                     base.lastMove = DateTime.Now;

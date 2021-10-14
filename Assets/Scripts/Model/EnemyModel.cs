@@ -8,8 +8,8 @@ public class EnemyModel : ObjectModel
 	protected int hp;
 	protected int mp;
 
-	// когда был последний пинг
-	private DateTime _pingLast = DateTime.Now;
+	// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
+	private DateTime activeLast = DateTime.Now;
 
 	/// <summary>
 	/// если не null - движемся
@@ -27,7 +27,7 @@ public class EnemyModel : ObjectModel
 	void FixedUpdate()
 	{
 		// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
-		if (action != "idle" && moveCoroutine == null && DateTime.Compare(_pingLast.AddMilliseconds(200), DateTime.Now) < 1)
+		if (action != "idle" && moveCoroutine == null && DateTime.Compare(activeLast.AddMilliseconds(200), DateTime.Now) < 1)
 		{
 			Debug.LogError("останавливаем "+this.id);
 			action = "idle";
@@ -37,7 +37,7 @@ public class EnemyModel : ObjectModel
 
 	public void SetData(EnemyJson data)
 	{
-		_pingLast = DateTime.Now;
+		activeLast = DateTime.Now;
 
 		if (data.hp > 0)
 			this.hp = data.hp;
@@ -79,7 +79,7 @@ public class EnemyModel : ObjectModel
 			transform.position = Vector2.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
 			yield return new WaitForFixedUpdate();
 		}
-		_pingLast = DateTime.Now;
+		activeLast = DateTime.Now;
 		moveCoroutine = null;
 	}
 }

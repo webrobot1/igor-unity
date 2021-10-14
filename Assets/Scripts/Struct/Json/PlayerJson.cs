@@ -1,4 +1,6 @@
-using UnityEngine;
+/// <summary>
+/// Структура полученных данных - игрок
+/// </summary>
 
 [System.Serializable]
 public class PlayerJson : EnemyJson
