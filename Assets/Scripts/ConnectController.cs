@@ -153,6 +153,8 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "player_" + player.id;
+						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x * 100 / PixelsPerUnit, prefab.transform.localScale.y * 100 / PixelsPerUnit, prefab.transform.localScale.z * 100 / PixelsPerUnit);
+
 						if (player.id == this.id)
 						{
 							transform.SetParent(prefab.transform);
@@ -195,6 +197,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "enemy_" + enemy.id;
+						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x * 100 / PixelsPerUnit, prefab.transform.localScale.y * 100 / PixelsPerUnit, prefab.transform.localScale.z * 100 / PixelsPerUnit);
 					}
 					
 					try
@@ -218,6 +221,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + obj.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "object_" + obj.id;
+						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x * 100 / PixelsPerUnit, prefab.transform.localScale.y * 100 / PixelsPerUnit, prefab.transform.localScale.z * 100 / PixelsPerUnit);
 					}
 
 					try
