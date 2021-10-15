@@ -105,6 +105,7 @@ public abstract class ConnectController : MonoBehaviour
 		Debug.Log("FixedTime = " + data.time);
 		connect = new Websocket();
 
+		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize * 100/data.pixels;
 
 		SigninResponse response = new SigninResponse();
 		response.token = data.token;

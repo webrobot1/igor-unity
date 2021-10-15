@@ -7,11 +7,6 @@ using UnityEngine;
 public class MainController : ConnectController
 {
     /// <summary>
-    /// наша камера
-    /// </summary>
-    private Camera camera;
-
-    /// <summary>
     /// наш джойстик
     /// </summary>
     private VariableJoystick variableJoystick;      
@@ -32,9 +27,6 @@ public class MainController : ConnectController
 
     private void Start()
     {
-        //path = new NavMeshPath();
-        camera = GetComponent<Camera>();
-
         // продолжать принимать данные и обновляться в фоновом режиме
         Application.runInBackground = true;
 
