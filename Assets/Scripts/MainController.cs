@@ -53,7 +53,8 @@ public class MainController : ConnectController
                 base.pingTime > 0
                     &&
                 // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено что команду шлем за 1 шаг минимум)
-                Vector2.Distance(player.transform.position, target) - player.distancePerUpdate <= (base.pingTime< Time.fixedDeltaTime? Time.fixedDeltaTime: base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate
+                // учитываем +0.5 к координатам по X которые мы заложили на анимацию движения в центр клетки 
+                Vector2.Distance(player.transform.position - new Vector3(0.5f, 0, 0), target) - player.distancePerUpdate <= (base.pingTime< Time.fixedDeltaTime? Time.fixedDeltaTime: base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate
             );
     }
 
