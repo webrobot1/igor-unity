@@ -16,7 +16,7 @@ public static class ImageToSpriteModel
         Texture2D SpriteTexture = new Texture2D(2, 2);
         SpriteTexture.filterMode = FilterMode.Point;
         SpriteTexture.LoadImage(imageBytes);
-        Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 0), PixelsPerUnit, 0, spriteType);
+        Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 1f), PixelsPerUnit, 0, spriteType);
 
         return NewSprite;
     }    

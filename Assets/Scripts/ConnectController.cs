@@ -45,7 +45,7 @@ public abstract class ConnectController : MonoBehaviour
 	protected double pingTime;
 
 	/// <summary>
-	/// сколько пикселей на 1 Unit должно считаться
+	/// сколько пикселей на 1 Unit должно считаться (размер клетки)
 	/// </summary>
 	private float PixelsPerUnit;
 
@@ -105,7 +105,7 @@ public abstract class ConnectController : MonoBehaviour
 		Debug.Log("FixedTime = " + data.time);
 		connect = new Websocket();
 
-		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize * 100/data.pixels;
+		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize;
 
 		SigninResponse response = new SigninResponse();
 		response.token = data.token;
@@ -153,7 +153,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "player_" + player.id;
-						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x * 100 / PixelsPerUnit, prefab.transform.localScale.y * 100 / PixelsPerUnit, prefab.transform.localScale.z * 100 / PixelsPerUnit);
+						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
 
 						if (player.id == this.id)
 						{
@@ -197,7 +197,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "enemy_" + enemy.id;
-						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x * 100 / PixelsPerUnit, prefab.transform.localScale.y * 100 / PixelsPerUnit, prefab.transform.localScale.z * 100 / PixelsPerUnit);
+						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
 					}
 					
 					try
@@ -221,7 +221,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + obj.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "object_" + obj.id;
-						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x * 100 / PixelsPerUnit, prefab.transform.localScale.y * 100 / PixelsPerUnit, prefab.transform.localScale.z * 100 / PixelsPerUnit);
+						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
 					}
 
 					try
