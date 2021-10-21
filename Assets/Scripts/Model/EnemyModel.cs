@@ -71,9 +71,6 @@ public class EnemyModel : ObjectModel
 	{
 		float distance;
 
-		// анимаци€ движетс€ на пол клетки дальше по X что бы бы остановитс€ посредине нее а не в начале (”„»“џ¬ј“№ Ё“ќ)
-		position = position + new Vector2(0.5f, 0);
-
 		while ((distance = Vector2.Distance(transform.position, position)) > 0)
 		{
 			// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимс€ это отрезок
