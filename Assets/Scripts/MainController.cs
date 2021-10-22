@@ -61,6 +61,7 @@ public class MainController : ConnectController
    private void Update()
    {
         base.Update();
+
         if (player != null)
         {
             // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней

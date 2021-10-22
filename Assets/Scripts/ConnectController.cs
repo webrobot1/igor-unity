@@ -69,7 +69,8 @@ public abstract class ConnectController : MonoBehaviour
 	/// </summary>
 	protected void Update()
 	{
-		if(connect != null) 
+
+		if (connect != null) 
 		{ 
 			if (connect.error != null)
 			{
