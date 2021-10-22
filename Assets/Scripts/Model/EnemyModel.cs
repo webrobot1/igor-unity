@@ -57,7 +57,7 @@ public class EnemyModel : ObjectModel
 
 			moveCoroutine = StartCoroutine(Move(new Vector2(data.position[0], data.position[1])));
 		}
-		
+
 		base.SetData(data);
 	}
 

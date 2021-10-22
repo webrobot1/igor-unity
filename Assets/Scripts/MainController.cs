@@ -19,7 +19,7 @@ public class MainController : ConnectController
     /// <summary>
     /// нажата кнопка двигаться по вертикали
     /// </summary>
-    private double vertical;
+    private double vertical;    
 
     // поиск пути                     	
     //private NavMeshPath path;						
@@ -58,33 +58,55 @@ public class MainController : ConnectController
     }
 
     // Update is called once per frame
-    void FixedUpdate()
-    {
+   private void Update()
+   {
+        base.Update();
         if (player != null)
         {
+            // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
+            if (Input.GetMouseButtonDown(0))
+            {
+                player.moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+            }
+             
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
             // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
             if (CanMove())
             {
-               if ((vertical = Input.GetAxis("Vertical")) != 0 || (vertical = variableJoystick.Vertical) != 0 || (horizontal = Input.GetAxis("Horizontal")) != 0 || (horizontal = variableJoystick.Horizontal) != 0) 
-               {
-                    MoveResponse response = new MoveResponse(); 
+                if ((vertical = Input.GetAxis("Vertical")) != 0 || (vertical = variableJoystick.Vertical) != 0 || (horizontal = Input.GetAxis("Horizontal")) != 0 || (horizontal = variableJoystick.Horizontal) != 0 || player.moveTo != Vector2.zero) 
+                {
+                    MoveResponse response = new MoveResponse();
 
-                    if (vertical > 0)
+                    if (vertical != 0 || horizontal != 0)
                     {
-                        response.action = "move/up";
+                        player.moveTo = Vector2.zero;
+
+                        if (vertical > 0)
+                        {
+                            response.action = "move/up";
+                        }
+                        else if (vertical < 0)
+                        {
+                            response.action = "move/down";
+                        }
+                        else if (horizontal > 0)
+                        {
+                            response.action = "move/right";
+                        }
+                        else if (horizontal < 0)
+                        {
+                            response.action = "move/left";
+                        }
                     }
-                    else if (vertical < 0)
+                    else if (Vector2.Distance(player.transform.position, player.moveTo) >= 1)
                     {
-                        response.action = "move/down";
+                        response.action = "move/to";
+                        response.to = player.moveTo.x.ToString() + ',' + player.moveTo.y.ToString();
                     }
-                    else if (horizontal > 0)
+                    else
                     {
-                        response.action = "move/right";
-                    }
-                    else if (horizontal < 0)
-                    {
-                        response.action = "move/left";
+                        player.moveTo = Vector2.zero;
+                        return;
                     }
 
                     response.ping = pingTime - Time.fixedDeltaTime;

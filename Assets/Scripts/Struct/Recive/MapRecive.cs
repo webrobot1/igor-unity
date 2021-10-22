@@ -5,5 +5,10 @@
 [System.Serializable]
 public class MapRecive
 {
-	public string data;
+	public string resource;
+
+	public float x;
+	public float y;
+
+	public MapRecive[] objects;
 }

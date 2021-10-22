@@ -1,3 +1,4 @@
+using UnityEngine;
 
 public class PlayerModel : EnemyModel
 {
@@ -8,7 +9,8 @@ public class PlayerModel : EnemyModel
 		if (base.id == 0)
 		{
 			this.login = data.login;
-		}
+		}		
+
 		base.SetData(data);
 	}	
 }

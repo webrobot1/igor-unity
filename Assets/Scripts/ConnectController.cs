@@ -57,12 +57,17 @@ public abstract class ConnectController : MonoBehaviour
 	/// <summary>
 	/// Позиция к которой движется наш персонаж (пришла от сервера)
 	/// </summary>
-	protected Vector2 target;
+	protected Vector2 target;	
+	
+	/// <summary>
+	/// Позиция к которой движется наш персонаж (пришла от сервера)
+	/// </summary>
+	public GameObject camera;
 
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
 	/// </summary>
-	private void Update()
+	protected void Update()
 	{
 		if(connect != null) 
 		{ 
@@ -105,7 +110,14 @@ public abstract class ConnectController : MonoBehaviour
 		Debug.Log("FixedTime = " + data.time);
 		connect = new Websocket();
 
-		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize;
+
+		// настройки size камеры менять бессмысленно тк есть PixelPerfect
+		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
+		/*
+		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize * 16 / this.PixelsPerUnit;
+		GetComponent<UnityEngine.U2D.PixelPerfectCamera>().assetsPPU = (int)this.PixelsPerUnit;
+		*/
+
 
 		SigninResponse response = new SigninResponse();
 		response.token = data.token;
@@ -134,12 +146,13 @@ public abstract class ConnectController : MonoBehaviour
 		else if(!exit) // обновляем мир только если в не выходим из игры (занмиает какое то время)
 		{
 			// если есть объекты
-			if (recive.map.data != null)
+			if (recive.map.resource != null)
 			{
 				if(map == null)
 					map = GameObject.Find("Map");
 
-				map.GetComponent<SpriteRenderer>().sprite = ImageToSpriteModel.Base64ToSprite(recive.map.data, PixelsPerUnit);
+				map.GetComponent<SpriteRenderer>().sprite = ImageToSpriteModel.Base64ToSprite(recive.map.resource, PixelsPerUnit);
+				map.AddComponent<BoxCollider2D>().usedByComposite = true;
 			}
 
 			if (recive.players != null)
@@ -157,8 +170,9 @@ public abstract class ConnectController : MonoBehaviour
 
 						if (player.id == this.id)
 						{
-							transform.SetParent(prefab.transform);
-							transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
+							//transform.SetParent(prefab.transform);
+							//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
+							camera.GetComponent<Cinemachine.CinemachineVirtualCamera>().Follow = prefab.transform;
 							this.player = prefab.GetComponent<PlayerModel>();
 						}
 					}
