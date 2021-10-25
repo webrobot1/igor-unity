@@ -62,7 +62,8 @@ public abstract class ConnectController : MonoBehaviour
 	/// <summary>
 	/// Позиция к которой движется наш персонаж (пришла от сервера)
 	/// </summary>
-	public GameObject camera;
+	[SerializeField]
+	private Cinemachine.CinemachineVirtualCamera camera;
 
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
@@ -111,14 +112,12 @@ public abstract class ConnectController : MonoBehaviour
 		Debug.Log("FixedTime = " + data.time);
 		connect = new Websocket();
 
-
 		// настройки size камеры менять бессмысленно тк есть PixelPerfect
 		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
 		/*
 		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize * 16 / this.PixelsPerUnit;
 		GetComponent<UnityEngine.U2D.PixelPerfectCamera>().assetsPPU = (int)this.PixelsPerUnit;
 		*/
-
 
 		SigninResponse response = new SigninResponse();
 		response.token = data.token;
@@ -154,6 +153,8 @@ public abstract class ConnectController : MonoBehaviour
 
 				map.GetComponent<SpriteRenderer>().sprite = ImageToSpriteModel.Base64ToSprite(recive.map.resource, PixelsPerUnit);
 				map.AddComponent<BoxCollider2D>().usedByComposite = true;
+
+				//camera.m_Lens.OrthographicSize = map.GetComponent<SpriteRenderer>().bounds.size.y * 16 / this.PixelsPerUnit;
 			}
 
 			if (recive.players != null)
@@ -173,7 +174,7 @@ public abstract class ConnectController : MonoBehaviour
 						{
 							//transform.SetParent(prefab.transform);
 							//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
-							camera.GetComponent<Cinemachine.CinemachineVirtualCamera>().Follow = prefab.transform;
+							camera.Follow = prefab.transform;
 							this.player = prefab.GetComponent<PlayerModel>();
 						}
 					}
