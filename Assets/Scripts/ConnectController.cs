@@ -3,6 +3,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
+using UnityEngine.Tilemaps;
 
 /// <summary>
 /// Класс для обработки запросов, конект
@@ -23,11 +24,6 @@ public abstract class ConnectController : MonoBehaviour
 	/// Префаб нашего игрока
 	/// </summary>
 	protected PlayerModel player;
-
-	/// <summary>
-	/// Префаб Sprite Render на котором расположим карту
-	/// </summary>
-	private GameObject map;
 
 	/// <summary>
 	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте
@@ -63,7 +59,13 @@ public abstract class ConnectController : MonoBehaviour
 	/// Позиция к которой движется наш персонаж (пришла от сервера)
 	/// </summary>
 	[SerializeField]
-	private Cinemachine.CinemachineVirtualCamera camera;
+	private Cinemachine.CinemachineVirtualCamera camera;	
+	
+	/// <summary>
+	/// Позиция к которой движется наш персонаж (пришла от сервера)
+	/// </summary>
+	[SerializeField]
+	private GameObject grid;
 
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
@@ -148,13 +150,18 @@ public abstract class ConnectController : MonoBehaviour
 			// если есть объекты
 			if (recive.map.resource != null)
 			{
-				if(map == null)
-					map = GameObject.Find("Map");
+				Sprite sprite = ImageToSpriteModel.Base64ToSprite(recive.map.resource, PixelsPerUnit);
 
-				map.GetComponent<SpriteRenderer>().sprite = ImageToSpriteModel.Base64ToSprite(recive.map.resource, PixelsPerUnit);
-				map.AddComponent<BoxCollider2D>().usedByComposite = true;
+				Tile tile = new Tile();
+				tile.sprite = sprite;
+				Tilemap map = grid.GetComponentInChildren<Tilemap>();
 
-				//camera.m_Lens.OrthographicSize = map.GetComponent<SpriteRenderer>().bounds.size.y * 16 / this.PixelsPerUnit;
+				map.SetTile(new Vector3Int(-181, 83, 0), tile);
+
+				map.RefreshAllTiles();
+
+
+				//grid.AddComponent<TilemapCollider2D>().usedByComposite = true;
 			}
 
 			if (recive.players != null)
