@@ -6,21 +6,22 @@ public class CameraController : MonoBehaviour
     private void Update()
     {
         float screenRation = (float)Screen.width / (float)Screen.height;
-        float targetRation = 16 / 32;
+
+        /// <summary>
+        /// зона видимости вокруг игрока
+        /// </summary>
+        float targetRation = 16 / 16;
          
         if (screenRation != float.NaN) 
         {
-            Debug.Log(screenRation);
-            Debug.Log(targetRation);
             if (screenRation >= targetRation)
             { 
-                GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = 32 / 2;
+                GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = 16 / 2;
             }
             else
             {
                 float defferenceSize = targetRation / screenRation;
-                Debug.Log(defferenceSize+"ddd");
-                GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = 32 / 2 * defferenceSize;
+                GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = 16 / 2 * defferenceSize;
             }
         }
     }
