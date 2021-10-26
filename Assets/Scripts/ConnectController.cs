@@ -150,7 +150,7 @@ public abstract class ConnectController : MonoBehaviour
 			// если есть объекты
 			if (recive.map != null)
 			{
-				MapRecive map = MapModel.getInstance().decode(recive.map);
+				Map map = MapModel.getInstance().decode(recive.map);
 
 				Debug.Log(map.tileheight);
 				/*			

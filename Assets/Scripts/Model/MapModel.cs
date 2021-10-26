@@ -20,14 +20,14 @@ public class MapModel
     /// <summary>
 	/// декодирование из Bzip2 в объект MapRecive
 	/// </summary>
-    public MapRecive decode(string base64)
+    public Map decode(string base64)
     {
         using (MemoryStream source = new MemoryStream(System.Convert.FromBase64String(base64)))
         {
             using (MemoryStream target = new MemoryStream())
             {
                 BZip2.Decompress(source, target, true);
-                return JsonUtility.FromJson<MapRecive>(Encoding.UTF8.GetString(target.ToArray()));
+                return JsonUtility.FromJson<Map>(Encoding.UTF8.GetString(target.ToArray()));
             }
         }
     }
