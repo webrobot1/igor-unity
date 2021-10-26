@@ -8,7 +8,7 @@ public class Recive
     public PlayerRecive[] players;
     public EnemyRecive[] enemys;
     public ObjectRecive[] objects;
-    public MapRecive map;
+    public string map;
 
     public string action;
     public string error;

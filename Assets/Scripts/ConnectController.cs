@@ -148,17 +148,21 @@ public abstract class ConnectController : MonoBehaviour
 		else if(!exit) // обновляем мир только если в не выходим из игры (занмиает какое то время)
 		{
 			// если есть объекты
-			if (recive.map.resource != null)
+			if (recive.map != null)
 			{
+				MapRecive map = MapModel.getInstance().decode(recive.map);
+
+				Debug.Log(map.tileheight);
+				/*			
 				Sprite sprite = ImageToSpriteModel.Base64ToSprite(recive.map.resource, PixelsPerUnit);
 
 				Tile tile = new Tile();
 				tile.sprite = sprite;
 				Tilemap map = grid.GetComponentInChildren<Tilemap>();
 
-				map.SetTile(new Vector3Int(-181, 83, 0), tile);
+				map.SetTile(new Vector3Int(-181, 83, 0), tile);*/
 
-				map.RefreshAllTiles();
+				//map.RefreshAllTiles();
 
 
 				//grid.AddComponent<TilemapCollider2D>().usedByComposite = true;
