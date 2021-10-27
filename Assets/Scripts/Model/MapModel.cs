@@ -74,13 +74,13 @@ public class MapModel
 		foreach (KeyValuePair<int, Layer> layer in map.layer)
 		{
 			// если есть в слое набор тайлов
-			for (int i = 0; i < layer.Value.tiles.Length; i++)
+			foreach (KeyValuePair<int, LayerTile> tile in layer.Value.tiles)
 			{
 				// если указанный тайл (клетка) не пустая
-				if (layer.Value.tiles[i].tile_id>0)
+				if (tile.Value.tile_id>0)
 				{
-					layer.Value.tiles[i].x = i % (int)columns;
-					layer.Value.tiles[i].y = (int)(i / columns)*-1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+					tile.Value.x = tile.Key % (int)columns;
+					tile.Value.y = (int)(tile.Key / columns)*-1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
 				}
 			}
 		}

@@ -16,6 +16,6 @@ public class Layer
 
 	public string resource;
 
-	public LayerTile[] tiles; 
+	public Dictionary<int, LayerTile> tiles = new Dictionary<int, LayerTile> { } ;
 	public Dictionary<int, LayerObject> objects = new Dictionary<int, LayerObject> { } ;
 }

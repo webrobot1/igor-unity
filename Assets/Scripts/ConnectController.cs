@@ -189,16 +189,16 @@ public abstract class ConnectController : MonoBehaviour
 					tilemap.transform.SetParent(grid.transform, false);
 
 					// если есть в слое набор тайлов
-					if (layer.Value.tiles.Length > 0)
+					if (layer.Value.tiles.Count > 0)
 					{
-						foreach (LayerTile tile in layer.Value.tiles)
+						foreach (KeyValuePair<int, LayerTile> tile in layer.Value.tiles)
 						{
-							if (tile.tile_id > 0)
+							if (tile.Value.tile_id > 0)
 							{
 								Tile _tile = Tile.CreateInstance<Tile>();
-								_tile.sprite = map.tileset[tile.tileset_id].tile[tile.tile_id].sprite;
+								_tile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
 
-								tilemap.GetComponent<Tilemap>().SetTile(new Vector3Int(tile.x, tile.y, 0), _tile);
+								tilemap.GetComponent<Tilemap>().SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), _tile);
 							}
 						}
 					}
