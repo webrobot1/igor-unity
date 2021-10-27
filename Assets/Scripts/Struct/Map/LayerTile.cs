@@ -1,5 +1,3 @@
-
-using UnityEngine;
 /// <summary>
 /// тайловая карта на слое
 /// </summary>
@@ -12,12 +10,7 @@ public class LayerTile
 	public int vertical;
 	public int diagonal;
 
-	public Sprite sprite;
 	public int x;
 	public int y;
 
-	public LayerTile(Sprite sprite)
-	{
-		this.sprite = sprite;
-	}
 }
