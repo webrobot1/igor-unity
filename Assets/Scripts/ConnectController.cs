@@ -1,5 +1,7 @@
+using Newtonsoft.Json;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
@@ -62,11 +64,11 @@ public abstract class ConnectController : MonoBehaviour
 	private Cinemachine.CinemachineVirtualCamera camera;	
 	
 	/// <summary>
-	/// Позиция к которой движется наш персонаж (пришла от сервера)
+	/// тайловая сетка карты
 	/// </summary>
 	[SerializeField]
-	private GameObject grid;
-
+	private GameObject grid;	
+	
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
 	/// </summary>
@@ -86,7 +88,7 @@ public abstract class ConnectController : MonoBehaviour
 					try
 					{
 						Debug.Log(DateTime.Now.Millisecond + ": "+ connect.recives[i]);
-						HandleData(JsonUtility.FromJson<Recive>(connect.recives[i]));
+						HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
 						connect.recives.RemoveAt(i);
 					}
 					catch (Exception ex)
@@ -150,22 +152,67 @@ public abstract class ConnectController : MonoBehaviour
 			// если есть объекты
 			if (recive.map != null)
 			{
-				Map map = MapModel.getInstance().decode(recive.map);
+				for (int i = 0; i < grid.transform.childCount; i++)
+				{
+					Destroy(grid.transform.GetChild(i).gameObject);
+				}
 
-				Debug.Log(map.tileheight);
-				/*			
-				Sprite sprite = ImageToSpriteModel.Base64ToSprite(recive.map.resource, PixelsPerUnit);
+				Map map = MapModel.getInstance().decode(recive.map, PixelsPerUnit);
 
-				Tile tile = new Tile();
-				tile.sprite = sprite;
-				Tilemap map = grid.GetComponentInChildren<Tilemap>();
+				/*				
+				foreach (KeyValuePair<int, Tileset> tileset in map.tileset)
+					{
+						var tilemap = new GameObject("ggg");
+						tilemap.AddComponent<Tilemap>();
+						tilemap.AddComponent<TilemapRenderer>();
+						tilemap.transform.SetParent(grid.transform);
 
-				map.SetTile(new Vector3Int(-181, 83, 0), tile);*/
+						for (int i = 0; i < tileset.Value.tilecount; i++)
+						{
+							// если есть в слое набор тайлов
+							Tile _tile = Tile.CreateInstance<Tile>();
+							_tile.sprite = tileset.Value.tile[tileset.Value.firstgid+i].sprite;
 
-				//map.RefreshAllTiles();
 
+							tilemap.GetComponent<Tilemap>().SetTile(new Vector3Int(i, 0, 0), _tile);
+						}
+					}
+				*/
 
-				//grid.AddComponent<TilemapCollider2D>().usedByComposite = true;
+				bool ground = false;
+				foreach (KeyValuePair<int, Layer> layer in map.layer)
+				{
+					// создадим тайловую сетку как новый слой
+					var tilemap = new GameObject(layer.Value.name);
+					tilemap.AddComponent<Tilemap>();
+					tilemap.AddComponent<TilemapRenderer>();
+					tilemap.transform.SetParent(grid.transform, false);
+
+					// если есть в слое набор тайлов
+					if (layer.Value.tiles.Length > 0)
+					{
+						foreach (LayerTile tile in layer.Value.tiles)
+						{
+							if (tile.tile_id > 0)
+							{
+								Tile _tile = Tile.CreateInstance<Tile>();
+								_tile.sprite = map.tileset[tile.tileset_id].tile[tile.tile_id].sprite;
+
+								tilemap.GetComponent<Tilemap>().SetTile(new Vector3Int(tile.x, tile.y, 0), _tile);
+							}
+						}
+					}
+
+                    if (!ground)
+                    {
+						ground = true;
+						tilemap.AddComponent<TilemapCollider2D>().usedByComposite = true;
+						tilemap.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+						CompositeCollider2D colider = tilemap.AddComponent<CompositeCollider2D>();
+						colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
+						camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
+					}
+				}
 			}
 
 			if (recive.players != null)

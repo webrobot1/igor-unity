@@ -1,6 +1,6 @@
 using UnityEngine;
 using System.IO;
-
+using System;
 
 public static class ImageToSpriteModel 
 {
@@ -9,14 +9,19 @@ public static class ImageToSpriteModel
     // Usage from any other script:
     // MySprite = ImageToSpriteModel.LoadNewSprite(FilePath, [PixelsPerUnit (optional)], [spriteType(optional)])
 
-    public static Sprite Base64ToSprite(string base64, float PixelsPerUnit = 100.0f, SpriteMeshType spriteType = SpriteMeshType.FullRect)
+    public static Texture2D Base64ToTexture(string base64)
     {
         // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
         byte[] imageBytes = System.Convert.FromBase64String(base64);
-        Texture2D SpriteTexture = new Texture2D(2, 2);
-        SpriteTexture.filterMode = FilterMode.Point;
-        SpriteTexture.LoadImage(imageBytes);
-        Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 1f), PixelsPerUnit, 0, spriteType);
+        return LoadTexture(imageBytes); 
+    }
+
+
+    public static Sprite Base64ToSprite(string base64, float PixelsPerUnit = 100.0f, SpriteMeshType spriteType = SpriteMeshType.FullRect)
+    {
+        // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
+        Texture2D SpriteTexture = Base64ToTexture(base64);
+        Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 0), PixelsPerUnit, 0, spriteType);
 
         return NewSprite;
     }    
@@ -24,29 +29,22 @@ public static class ImageToSpriteModel
     public static Sprite LoadNewSprite(string FilePath, float PixelsPerUnit = 100.0f, SpriteMeshType spriteType = SpriteMeshType.FullRect)
     {
         // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
-        Texture2D SpriteTexture = LoadTexture(FilePath);
+        if (!File.Exists(FilePath))
+            throw new Exception("Ќе удаетс€ найти указанный путь к картинке " + FilePath);
+
+        byte[] FileData = File.ReadAllBytes(FilePath);
+        Texture2D SpriteTexture = LoadTexture(FileData);
         Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 0), PixelsPerUnit, 0, spriteType);
 
         return NewSprite;
     }
 
-    public static  Texture2D LoadTexture(string FilePath)
+    public static Texture2D LoadTexture(byte[] imageBytes)
     {
+        Texture2D texture = new Texture2D(2, 2);
+        texture.filterMode = FilterMode.Point;
+        texture.LoadImage(imageBytes);
 
-        // Load a PNG or JPG file from disk to a Texture2D
-        // Returns null if load fails
-
-        Texture2D Tex2D;
-        byte[] FileData;
-
-        if (File.Exists(FilePath))
-        {
-            FileData = File.ReadAllBytes(FilePath);
-            Tex2D = new Texture2D(2, 2);             // Create new "empty" texture
-            Tex2D.filterMode = FilterMode.Point;
-            if (Tex2D.LoadImage(FileData))           // Load the imagedata into the texture (size is set automatically)
-                return Tex2D;                        // If data = readable -> return texture
-        }
-        return null;                                 // Return null if load failed
+        return texture;
     }
 }

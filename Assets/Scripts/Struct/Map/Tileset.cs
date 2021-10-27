@@ -6,7 +6,7 @@ using System.Collections.Generic;
 [System.Serializable]
 public class Tileset
 {
-	public string resource;
+	public int tileset_id;
 	public int firstgid;
 	public int columns;
 	public int tilecount;
@@ -18,6 +18,7 @@ public class Tileset
 	public int margin;
 	public string trans;
 
+	public string resource;
 
-	public Dictionary <int, TilesetTile> tile;
+	public Dictionary<int, TilesetTile> tile = new Dictionary<int, TilesetTile> { };
 }

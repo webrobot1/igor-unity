@@ -13,7 +13,6 @@ public class Map
 	public int tileheight;
 
 
-	public Dictionary<int, Tileset> tileset;
-	public Dictionary<int, Layer> layer;
-
+	public Dictionary<int, Tileset> tileset = new Dictionary<int, Tileset> {};
+	public Dictionary<int, Layer> layer = new Dictionary<int, Layer> {};
 }

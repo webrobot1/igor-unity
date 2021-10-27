@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using UnityEngine;
 using HybridWebSocket;
+using Newtonsoft.Json;
 
 public class Websocket: Protocol
 {
@@ -34,7 +35,7 @@ public class Websocket: Protocol
 	{	
 		try
 		{
-			string json = JsonUtility.ToJson(data);
+			string json = JsonConvert.SerializeObject(data);
 			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 			connect.Send(sendBytes);

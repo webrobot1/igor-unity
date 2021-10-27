@@ -1,4 +1,5 @@
 using System;
+using Newtonsoft.Json;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
@@ -42,7 +43,7 @@ public class RegisterController : MonoBehaviour
         {
             try {
                 Debug.Log("Ответ авторизации: "+recive);
-                SiginRecive response = JsonUtility.FromJson<SiginRecive>(recive);
+                SiginRecive response = JsonConvert.DeserializeObject<SiginRecive>(recive);
 
                 StartCoroutine(LoadMain(response));
             }
