@@ -216,15 +216,15 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
 						{
-							GameObject newObject = new GameObject(obj.Value.name != "" ? obj.Value.name : "Object #"+obj.);
+							GameObject newObject = new GameObject(obj.Value.name != "" ? obj.Value.name : "Object #"+obj.Key);
 							// если указанный тайл (клетка) не пустая
 							if (obj.Value.tile_id > 0)
 							{
-								newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.Value.tile_id].sprite;
+								newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
 							}
 
 							newObject.transform.SetParent(newLayer.transform, false);
-							newObject.transform.position = new Vector2(obj.Value.x / PixelsPerUnit + newLayer.transform.position.x, obj.y / PixelsPerUnit*-1 + newLayer.transform.position.y);
+							newObject.transform.position = new Vector2(obj.Value.x / PixelsPerUnit + newLayer.transform.position.x, obj.Value.y / PixelsPerUnit*-1 + newLayer.transform.position.y);
 						}
 					}
 
