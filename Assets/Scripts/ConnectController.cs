@@ -228,6 +228,22 @@ public abstract class ConnectController : MonoBehaviour
 						}
 					}
 
+					// полупрозрачность слоя
+                    if (layer.opacity < 1f)
+                    {
+						Renderer[] mRenderers = newLayer.GetComponentsInChildren<Renderer>();
+						Debug.Log(mRenderers.Length);
+						for (int i = 0; i < mRenderers.Length; i++)
+						{
+							for (int j = 0; j < mRenderers[i].materials.Length; j++)
+							{
+								Color matColor = mRenderers[i].materials[j].color;
+								matColor.a = layer.opacity;
+								mRenderers[i].materials[j].color = matColor;
+							}
+						}
+					}
+
 					if (!ground)
                     {
 						ground = true;

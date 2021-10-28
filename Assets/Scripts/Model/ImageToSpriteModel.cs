@@ -9,6 +9,13 @@ public static class ImageToSpriteModel
     // Usage from any other script:
     // MySprite = ImageToSpriteModel.LoadNewSprite(FilePath, [PixelsPerUnit (optional)], [spriteType(optional)])
 
+    /// <summary>
+    /// —оздание спрайта из фаила текстуры
+    /// </summary>
+    /// <param name="FilePath"></param>
+    /// <param name="PixelsPerUnit"></param>
+    /// <param name="spriteType"></param>
+    /// <returns></returns>
     public static Sprite LoadNewSprite(string FilePath, float PixelsPerUnit = 100.0f, SpriteMeshType spriteType = SpriteMeshType.FullRect)
     {
         // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
@@ -22,6 +29,12 @@ public static class ImageToSpriteModel
         return NewSprite;
     }
 
+    /// <summary>
+    /// «агрузка текстуры из байтов
+    /// </summary>
+    /// <param name="imageBytes">байты</param>
+    /// <param name="transparent">HEX код прозрачности </param>
+    /// <returns></returns>
     public static Texture2D LoadTexture(byte[] imageBytes, string transparent = null)
     {
         Texture2D texture = new Texture2D(2, 2); //, TextureFormat.RGBA32, false
@@ -34,8 +47,6 @@ public static class ImageToSpriteModel
         {
             Color color;
             ColorUtility.TryParseHtmlString("#"+transparent, out color);
-
-            Debug.Log(color);
 
             Color[] pix = texture.GetPixels();       // get pixel colors
             for (int i = 0; i < pix.Length; i++)
