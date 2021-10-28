@@ -52,14 +52,14 @@ public class MapModel
 				for (int i = 0; i < tileset.Value.tilecount; i++)
 				{
 					// посчитаем где находится необходимая область тайла
-					int x = (int)(i % tileset.Value.columns * (tileset.Value.tilewidth + tileset.Value.spacing)) + tileset.Value.margin;
-					
+					float x = (i % tileset.Value.columns * (tileset.Value.tilewidth + tileset.Value.spacing)) + tileset.Value.margin;
+
 					// что бы не снизу вверх брал отрезки (тайлы) а сверху вниз? при этом не менять рендеринг Vector2(0,0) в NewSprite (из за смены оторого появляются полоски)
-					int y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin; 
+					float y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin; 
 
 					// вырежем необходимую область
 					//new Vector2(0, 1f)  означает что на карте первый спрат с нулевой координаты рисуется вниз, но с ним появляются полосы так что оставим 0,0 и вычитыем высоту и координат yb;t
-					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin ), new Vector2(0, 0), PixelsPerUnit, 0, SpriteMeshType.FullRect);
+					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0, 0), PixelsPerUnit, 0, SpriteMeshType.FullRect);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
 					if (tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))
