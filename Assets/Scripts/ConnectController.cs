@@ -224,7 +224,7 @@ public abstract class ConnectController : MonoBehaviour
 							}
 
 							newObject.transform.SetParent(newLayer.transform, false);
-							newObject.transform.position = new Vector2(obj.Value.x / PixelsPerUnit + newLayer.transform.position.x, obj.Value.y / PixelsPerUnit*-1 + newLayer.transform.position.y);
+							newObject.transform.position = new Vector2(obj.Value.x / PixelsPerUnit + newLayer.transform.position.x, (obj.Value.y - obj.Value.height) / PixelsPerUnit*-1 + newLayer.transform.position.y);
 						}
 					}
 

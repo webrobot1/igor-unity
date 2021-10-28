@@ -56,7 +56,8 @@ public class MapModel
 					int y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin; // что бы не снизу вверх брал отрезки (тайлы) а сверху вниз
 
 					// вырежем необходимую область
-					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin ), new Vector2(0, 0), PixelsPerUnit, 0, SpriteMeshType.FullRect);
+					//new Vector2(0, 1f)  означает что на карте первый спрат с нулевой координаты рисуется вниз
+					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin ), new Vector2(0, 1f), PixelsPerUnit, 0, SpriteMeshType.FullRect);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
 					if (tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))

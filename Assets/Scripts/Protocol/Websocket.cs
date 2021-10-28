@@ -35,7 +35,12 @@ public class Websocket: Protocol
 	{	
 		try
 		{
-			string json = JsonConvert.SerializeObject(data);
+			string json = JsonConvert.SerializeObject(data,
+													  Newtonsoft.Json.Formatting.None,
+													  new JsonSerializerSettings
+													  {
+														NullValueHandling = NullValueHandling.Ignore
+													  });
 			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 			connect.Send(sendBytes);

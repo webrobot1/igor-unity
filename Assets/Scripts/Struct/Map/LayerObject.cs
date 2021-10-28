@@ -8,7 +8,7 @@ public class LayerObject
 	public int tile_id;
 	public int tileset_id;
 
-	public string name;
+	public string name = "";
 
 	public int horizontal;
 	public int vertical;
