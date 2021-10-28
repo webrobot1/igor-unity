@@ -9,23 +9,6 @@ public static class ImageToSpriteModel
     // Usage from any other script:
     // MySprite = ImageToSpriteModel.LoadNewSprite(FilePath, [PixelsPerUnit (optional)], [spriteType(optional)])
 
-    public static Texture2D Base64ToTexture(string base64)
-    {
-        // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
-        byte[] imageBytes = System.Convert.FromBase64String(base64);
-        return LoadTexture(imageBytes); 
-    }
-
-
-    public static Sprite Base64ToSprite(string base64, float PixelsPerUnit = 100.0f, SpriteMeshType spriteType = SpriteMeshType.FullRect)
-    {
-        // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
-        Texture2D SpriteTexture = Base64ToTexture(base64);
-        Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 0), PixelsPerUnit, 0, spriteType);
-
-        return NewSprite;
-    }    
-    
     public static Sprite LoadNewSprite(string FilePath, float PixelsPerUnit = 100.0f, SpriteMeshType spriteType = SpriteMeshType.FullRect)
     {
         // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
@@ -39,21 +22,32 @@ public static class ImageToSpriteModel
         return NewSprite;
     }
 
-    public static Texture2D LoadTexture(byte[] imageBytes)
+    public static Texture2D LoadTexture(byte[] imageBytes, string transparent = null)
     {
-        Texture2D texture = new Texture2D(2, 2);
+        Texture2D texture = new Texture2D(2, 2); //, TextureFormat.RGBA32, false
         texture.filterMode = FilterMode.Point;
         texture.LoadImage(imageBytes);
 
 
         // прозрачность - взято с форума https://forum.unity.com/threads/solved-create-a-texture-with-a-png-at-runtime-how-to-make-it-transparent.511818/
+        if (transparent!=null) 
+        {
+            Color color;
+            ColorUtility.TryParseHtmlString("#"+transparent, out color);
 
-     /*   Color[] pix = texture.GetPixels();       // get pixel colors
-        for (int i = 0; i < pix.Length; i++)
-            pix[i].a = pix[i].grayscale;         // set the alpha of each pixel to the grayscale value
-        texture.SetPixels(pix);                  // set changed pixel alphas
-        texture.Apply();                         // upload texture to GPU
-*/
+            Debug.Log(color);
+
+            Color[] pix = texture.GetPixels();       // get pixel colors
+            for (int i = 0; i < pix.Length; i++)
+            {
+              if(color == pix[i]){
+                pix[i].a = 0;
+              }
+                //pix[i].a = pix[i].grayscale;         // set the alpha of each pixel to the grayscale value
+            }
+            texture.SetPixels(pix);                  // set changed pixel alphas
+            texture.Apply();                         // upload texture to GPU
+        }
 
         return texture;
     }

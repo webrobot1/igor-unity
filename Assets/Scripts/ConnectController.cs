@@ -180,11 +180,11 @@ public abstract class ConnectController : MonoBehaviour
 				*/
 
 				bool ground = false;
+				
+				// инициализируем новый слой 
+				GameObject newLayer;
 				foreach (Layer layer in map.layer)
 				{
-					// инициализируем новый слой 
-					GameObject newLayer;
-
 					// если есть в слое набор тайлов
 					if (layer.tiles.Count > 0)
 					{
