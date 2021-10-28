@@ -6,6 +6,9 @@
 public class LayerObject
 {
 	public int tile_id;
+	public int tileset_id;
+
+	public string name;
 
 	public int horizontal;
 	public int vertical;
@@ -17,7 +20,7 @@ public class LayerObject
 	public float height;
 
 	public float rotation;
-	public int visible;
+	public int visible = 1;
 
 	public int ellipse;
 	public string polygon;

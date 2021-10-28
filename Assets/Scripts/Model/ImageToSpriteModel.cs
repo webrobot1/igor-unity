@@ -43,7 +43,18 @@ public static class ImageToSpriteModel
     {
         Texture2D texture = new Texture2D(2, 2);
         texture.filterMode = FilterMode.Point;
+        texture.alphaIsTransparency = true;
         texture.LoadImage(imageBytes);
+
+
+        // прозрачность - взято с форума https://forum.unity.com/threads/solved-create-a-texture-with-a-png-at-runtime-how-to-make-it-transparent.511818/
+
+     /*   Color[] pix = texture.GetPixels();       // get pixel colors
+        for (int i = 0; i < pix.Length; i++)
+            pix[i].a = pix[i].grayscale;         // set the alpha of each pixel to the grayscale value
+        texture.SetPixels(pix);                  // set changed pixel alphas
+        texture.Apply();                         // upload texture to GPU
+*/
 
         return texture;
     }

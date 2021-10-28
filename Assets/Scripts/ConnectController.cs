@@ -180,35 +180,60 @@ public abstract class ConnectController : MonoBehaviour
 				*/
 
 				bool ground = false;
-				foreach (KeyValuePair<int, Layer> layer in map.layer)
+				foreach (Layer layer in map.layer)
 				{
-					// создадим тайловую сетку как новый слой
-					var tilemap = new GameObject(layer.Value.name);
-					tilemap.AddComponent<Tilemap>();
-					tilemap.AddComponent<TilemapRenderer>();
-					tilemap.transform.SetParent(grid.transform, false);
+					// инициализируем новый слой 
+					GameObject newLayer;
 
 					// если есть в слое набор тайлов
-					if (layer.Value.tiles.Count > 0)
+					if (layer.tiles.Count > 0)
 					{
-						foreach (KeyValuePair<int, LayerTile> tile in layer.Value.tiles)
+						// создадим тайловую сетку как новый слой
+						newLayer = new GameObject(layer.name);
+						newLayer.AddComponent<Tilemap>().tileAnchor = new Vector3(0,0,0);
+						newLayer.AddComponent<TilemapRenderer>().sortingOrder = -1;
+						newLayer.transform.SetParent(grid.transform, false);
+
+						foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 						{
 							if (tile.Value.tile_id > 0)
 							{
-								Tile _tile = Tile.CreateInstance<Tile>();
-								_tile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
-
-								tilemap.GetComponent<Tilemap>().SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), _tile);
+								Tile newTile = Tile.CreateInstance<Tile>();
+								newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
+								newLayer.GetComponent<Tilemap>().SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 							}
 						}
 					}
+					else
+					{
+						// или создадим пустйо объект как слой
+						newLayer = new GameObject(layer.name);
+						newLayer.transform.SetParent(grid.transform.parent.transform, false);
+					}
 
-                    if (!ground)
+
+					if (layer.objects.Count > 0)
+					{
+						foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
+						{
+							GameObject newObject = new GameObject(obj.Value.name != "" ? obj.Value.name : "Object #"+obj.);
+							// если указанный тайл (клетка) не пустая
+							if (obj.Value.tile_id > 0)
+							{
+								newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.Value.tile_id].sprite;
+							}
+
+							newObject.transform.SetParent(newLayer.transform, false);
+							newObject.transform.position = new Vector2(obj.Value.x / PixelsPerUnit + newLayer.transform.position.x, obj.y / PixelsPerUnit*-1 + newLayer.transform.position.y);
+						}
+					}
+
+					if (!ground)
                     {
 						ground = true;
-						tilemap.AddComponent<TilemapCollider2D>().usedByComposite = true;
-						tilemap.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
-						CompositeCollider2D colider = tilemap.AddComponent<CompositeCollider2D>();
+						newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
+						newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+						CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
 						colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
 						camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 					}

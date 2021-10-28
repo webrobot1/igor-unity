@@ -71,18 +71,27 @@ public class MapModel
 
 		// заполним слой с тайловыми координатами на сетке
 		int columns = (int)Decimal.Round(map.width * map.tilewidth / map.tilewidth);
-		foreach (KeyValuePair<int, Layer> layer in map.layer)
+		foreach (Layer layer in map.layer)
 		{
 			// если есть в слое набор тайлов
-			foreach (KeyValuePair<int, LayerTile> tile in layer.Value.tiles)
+			foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 			{
 				// если указанный тайл (клетка) не пустая
-				if (tile.Value.tile_id>0)
+				if (tile.Value.tile_id > 0)
 				{
 					tile.Value.x = tile.Key % (int)columns;
-					tile.Value.y = (int)(tile.Key / columns)*-1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+					tile.Value.y = (int)(tile.Key / columns) * -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
 				}
 			}
+
+			/*foreach (LayerObject obj in layer.objects)
+			{
+				// если указанный тайл (клетка) не пустая
+				if (obj.tile_id > 0)
+				{
+					
+				}
+			}*/
 		}
 
 		return map;

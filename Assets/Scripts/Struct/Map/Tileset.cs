@@ -20,5 +20,6 @@ public class Tileset
 
 	public string resource;
 
+	// всегда словарь тк его ключ нужен для доступа через tileset из layer 
 	public Dictionary<int, TilesetTile> tile = new Dictionary<int, TilesetTile> { };
 }
