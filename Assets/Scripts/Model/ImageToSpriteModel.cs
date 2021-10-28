@@ -43,7 +43,6 @@ public static class ImageToSpriteModel
     {
         Texture2D texture = new Texture2D(2, 2);
         texture.filterMode = FilterMode.Point;
-        texture.alphaIsTransparency = true;
         texture.LoadImage(imageBytes);
 
 
