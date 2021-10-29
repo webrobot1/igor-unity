@@ -191,7 +191,7 @@ public abstract class ConnectController : MonoBehaviour
 						// создадим тайловую сетку как новый слой
 						newLayer = new GameObject(layer.name);
 						newLayer.AddComponent<Tilemap>().tileAnchor = new Vector3(0,0,0);
-						newLayer.AddComponent<TilemapRenderer>().sortingOrder = -1;
+						newLayer.AddComponent<TilemapRenderer>().sortingOrder = layer.sort*-1;
 						newLayer.transform.SetParent(grid.transform, false);
 
 						foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
@@ -225,6 +225,7 @@ public abstract class ConnectController : MonoBehaviour
 
 							newObject.transform.SetParent(newLayer.transform, false);
 							newObject.transform.position = new Vector2(obj.Value.x / PixelsPerUnit + newLayer.transform.position.x, (obj.Value.y - obj.Value.height) / PixelsPerUnit*-1 + newLayer.transform.position.y);
+							newObject.GetComponent<SpriteRenderer>().sortingOrder = layer.sort * -1;
 						}
 					}
 
