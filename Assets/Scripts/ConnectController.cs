@@ -192,7 +192,7 @@ public abstract class ConnectController : MonoBehaviour
 									var m = newTile.transform;
 									m.SetTRS(Vector3.zero, Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
 									newTile.transform = m;
-								}							
+								}
 
 								if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites !=null)
 								{
@@ -219,13 +219,20 @@ public abstract class ConnectController : MonoBehaviour
 								// если указанный тайл (клетка) не пустая
 								if (obj.Value.tile_id > 0)
 								{
-									newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
-									newObject.GetComponent<SpriteRenderer>().sortingOrder = sort;
-
+									
 									if (obj.Value.horizontal > 0 || obj.Value.vertical > 0)
 									{
 										newObject.transform.rotation = Quaternion.Euler(obj.Value.vertical * 180, obj.Value.horizontal * 180, 0f);
 									}
+
+									//if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites != null)
+									//{
+									//	newTile.sprites = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites;
+									//}
+									//else
+										newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
+
+									newObject.GetComponent<SpriteRenderer>().sortingOrder = sort;
 								}
 
 								newObject.transform.SetParent(newLayer.transform, false);

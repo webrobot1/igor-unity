@@ -13,7 +13,6 @@ namespace UnityEngine.Tilemaps
         {
             if (sprites != null)
             {
-                Debug.Log(sprites.Length);
                 tileAnimationData.animatedSprites = sprites;
                 tileAnimationData.animationSpeed = 1;
                 tileAnimationData.animationStartTime = 1;
