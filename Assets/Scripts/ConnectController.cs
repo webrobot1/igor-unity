@@ -245,7 +245,8 @@ public abstract class ConnectController : MonoBehaviour
 						}
 					}
 
-					if (!ground)
+					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
+					if (!ground && layer.sort>=0)
                     {
 						ground = true;
 						newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
