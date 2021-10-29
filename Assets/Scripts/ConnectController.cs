@@ -67,8 +67,14 @@ public abstract class ConnectController : MonoBehaviour
 	/// тайловая сетка карты
 	/// </summary>
 	[SerializeField]
-	private GameObject grid;	
-	
+	private GameObject grid;
+
+	/// <summary>
+	/// на каком уровне слоя размещать новых персонажей и npc 
+	/// </summary>
+	private int? ground_sort = null;
+
+
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
 	/// </summary>
@@ -152,85 +158,86 @@ public abstract class ConnectController : MonoBehaviour
 			// если есть объекты
 			if (recive.map != null)
 			{
-				for (int i = 0; i < grid.transform.childCount; i++)
+				// удалим  все слои что были ранее
+				for (int i = 0; i < grid.transform.parent.childCount; i++)
 				{
-					Destroy(grid.transform.GetChild(i).gameObject);
+					if(grid.transform.parent.GetChild(i).gameObject.GetInstanceID()!=grid.GetInstanceID())
+						Destroy(grid.transform.parent.GetChild(i).gameObject);
 				}
 
 				Map map = MapModel.getInstance().decode(recive.map, PixelsPerUnit);
 
-				/*				
-				foreach (KeyValuePair<int, Tileset> tileset in map.tileset)
-					{
-						var tilemap = new GameObject("ggg");
-						tilemap.AddComponent<Tilemap>();
-						tilemap.AddComponent<TilemapRenderer>();
-						tilemap.transform.SetParent(grid.transform);
-
-						for (int i = 0; i < tileset.Value.tilecount; i++)
-						{
-							// если есть в слое набор тайлов
-							Tile _tile = Tile.CreateInstance<Tile>();
-							_tile.sprite = tileset.Value.tile[tileset.Value.firstgid+i].sprite;
-
-
-							tilemap.GetComponent<Tilemap>().SetTile(new Vector3Int(i, 0, 0), _tile);
-						}
-					}
-				*/
-
-				bool ground = false;
-				
 				// инициализируем новый слой 
 				GameObject newLayer;
+				int sort = 0;
 				foreach (Layer layer in map.layer)
 				{
 					// если есть в слое набор тайлов
-					if (layer.tiles.Count > 0)
+					if (layer.tiles !=null)
 					{
-						// создадим тайловую сетку как новый слой
-						newLayer = new GameObject(layer.name);
-						newLayer.AddComponent<Tilemap>().tileAnchor = new Vector3(0,0,0);
-						newLayer.AddComponent<TilemapRenderer>().sortingOrder = layer.sort*-1;
+						newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 						newLayer.transform.SetParent(grid.transform, false);
+						newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
 
+						Tilemap tilemap = newLayer.GetComponent<Tilemap>();
+						
 						foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 						{
 							if (tile.Value.tile_id > 0)
 							{
-								Tile newTile = Tile.CreateInstance<Tile>();
-								newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
-								newLayer.GetComponent<Tilemap>().SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
+								TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
+								
+								if (tile.Value.horizontal > 0 || tile.Value.vertical > 0)
+								{
+									var m = newTile.transform;
+									m.SetTRS(Vector3.zero, Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
+									newTile.transform = m;
+								}							
+
+								if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites !=null)
+								{
+									newTile.sprites = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites;
+								}
+								else
+									newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
+
+								tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 							}
 						}
 					}
-					else
-					{
-						// или создадим пустйо объект как слой
+                    else
+                    {
+						// создадим новый слой
 						newLayer = new GameObject(layer.name);
 						newLayer.transform.SetParent(grid.transform.parent.transform, false);
-					}
-
-
-					if (layer.objects.Count > 0)
-					{
-						foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
+				
+						if (layer.objects !=null)
 						{
-							GameObject newObject = new GameObject(obj.Value.name != "" ? obj.Value.name : "Object #"+obj.Key);
-							// если указанный тайл (клетка) не пустая
-							if (obj.Value.tile_id > 0)
+							foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
 							{
-								newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
-							}
+								GameObject newObject = new GameObject((obj.Value.name != "" ? obj.Value.name : "Object")+" #"+obj.Key);
+								// если указанный тайл (клетка) не пустая
+								if (obj.Value.tile_id > 0)
+								{
+									newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
+									newObject.GetComponent<SpriteRenderer>().sortingOrder = sort;
 
-							newObject.transform.SetParent(newLayer.transform, false);
-							newObject.transform.position = new Vector2(obj.Value.x / PixelsPerUnit + newLayer.transform.position.x, (obj.Value.y - obj.Value.height) / PixelsPerUnit*-1 + newLayer.transform.position.y);
-							newObject.GetComponent<SpriteRenderer>().sortingOrder = layer.sort * -1;
+									if (obj.Value.horizontal > 0 || obj.Value.vertical > 0)
+									{
+										newObject.transform.rotation = Quaternion.Euler(obj.Value.vertical * 180, obj.Value.horizontal * 180, 0f);
+									}
+								}
+
+								newObject.transform.SetParent(newLayer.transform, false);
+
+								// сместим координаты абсолютные на расположение главного слоя Map (у нас ноль идет от -180 для GEO расчетов) для получения относительных
+								newObject.transform.position = new Vector2(obj.Value.x + newLayer.transform.position.x, obj.Value.y + newLayer.transform.position.y);						
+							}
 						}
 					}
 
 					// полупрозрачность слоя
-                    if (layer.opacity < 1f)
+					if (layer.opacity < 1f)
                     {
 						Renderer[] mRenderers = newLayer.GetComponentsInChildren<Renderer>();
 						Debug.Log(mRenderers.Length);
@@ -246,15 +253,19 @@ public abstract class ConnectController : MonoBehaviour
 					}
 
 					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
-					if (!ground && layer.sort>=0)
+					if (ground_sort == null && layer.sort>=0)
                     {
-						ground = true;
+						// если текущий слой на котором будем ставить игроков то следующий слой идет ЧЕРЕЗ что бы не было конфликтов
+						sort++;
+						ground_sort = sort;
+
 						newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
 						newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
 						CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
 						colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
 						camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 					}
+					sort ++;
 				}
 			}
 
@@ -270,6 +281,7 @@ public abstract class ConnectController : MonoBehaviour
 						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "player_" + player.id;
 						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
 
 						if (player.id == this.id)
 						{
@@ -315,6 +327,7 @@ public abstract class ConnectController : MonoBehaviour
 						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "enemy_" + enemy.id;
 						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
 					}
 					
 					try
@@ -339,6 +352,7 @@ public abstract class ConnectController : MonoBehaviour
 						prefab = Instantiate(Resources.Load("Prefabs/" + obj.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "object_" + obj.id;
 						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
 					}
 
 					try

@@ -40,6 +40,9 @@ public class MapModel
         }
 
 
+		// флаг стоит ли проверять повтрно набор Tileset на анмиации
+		bool animationCheck = false;
+		
 		// порежим изображение на плитку (тайлы)
 		foreach (KeyValuePair<int, Tileset> tileset in map.tileset)
 		{
@@ -59,16 +62,34 @@ public class MapModel
 
 					// вырежем необходимую область
 					//new Vector2(0, 1f)  означает что на карте первый спрат с нулевой координаты рисуется вниз, но с ним появляются полосы так что оставим 0,0 и вычитыем высоту и координат yb;t
-					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0, 0), PixelsPerUnit, 0, SpriteMeshType.FullRect);
+					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0.5f, 0.5f), PixelsPerUnit, 0, SpriteMeshType.FullRect);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
 					if (tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))
 					{
 						tileset.Value.tile[i + tileset.Value.firstgid].sprite = NewSprite;
+						if (!animationCheck && tileset.Value.tile[i + tileset.Value.firstgid].frame!=null)
+							animationCheck = true;
 					}
 					else
 						tileset.Value.tile[i + tileset.Value.firstgid] = new TilesetTile(NewSprite);
 				}
+
+
+                // теперь когда мы заполнили спрайтами весь набор Tileset ghjqltvcz еще раз тк может быть в нем анимация
+                if (animationCheck) { 
+					foreach(KeyValuePair<int, TilesetTile> tile in tileset.Value.tile)
+					{
+						if (tile.Value.frame!=null)
+						{
+							tile.Value.sprites = new Sprite[tile.Value.frame.Length];
+							for (int i= 0; i < tile.Value.frame.Length; i++)
+                            {
+								tile.Value.sprites[i] = tileset.Value.tile[tile.Value.frame[i].tileid].sprite;
+							}
+						}
+					}			
+				}			
 			}
 		}
 
@@ -76,25 +97,32 @@ public class MapModel
 		int columns = (int)Decimal.Round(map.width * map.tilewidth / map.tilewidth);
 		foreach (Layer layer in map.layer)
 		{
-			// если есть в слое набор тайлов
-			foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
+			if (layer.tiles != null)
 			{
-				// если указанный тайл (клетка) не пустая
-				if (tile.Value.tile_id > 0)
+				// если есть в слое набор тайлов
+				foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 				{
-					tile.Value.x = tile.Key % (int)columns;
-					tile.Value.y = (int)(tile.Key / columns) * -1 - 1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+					// если указанный тайл (клетка) не пустая
+					if (tile.Value.tile_id > 0)
+					{
+						tile.Value.x = tile.Key % (int)columns;
+						tile.Value.y = (int)(tile.Key / columns) * -1 - 1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+					}
 				}
 			}
 
-			/*foreach (LayerObject obj in layer.objects)
-			{
-				// если указанный тайл (клетка) не пустая
-				if (obj.tile_id > 0)
+            if (layer.objects != null) 
+			{ 
+				foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
 				{
-					
+					// если указанный тайл (клетка) не пустая
+					if (obj.Value.tile_id > 0)
+					{
+						obj.Value.x = obj.Value.x / PixelsPerUnit;
+						obj.Value.y = obj.Value.y / PixelsPerUnit * -1;
+					}
 				}
-			}*/
+			}
 		}
 
 		return map;

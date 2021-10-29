@@ -27,6 +27,7 @@ public class Layer
     {
 		if (tiles != null)
 		{
+			this.tiles = new Dictionary<int, LayerTile> { };
 			if (tiles.GetType() == typeof(JArray))
 			{
 				JArray jarray = tiles;
@@ -41,6 +42,6 @@ public class Layer
 	}
 
 	// строго словарь так ключ это порядковый номер на карте и при отправке пакета мы пустые клчи удаляем так что они могу  не порядку идти хотя изначально по прдяку с пустыми клетками
-	public dynamic tiles = new Dictionary<int, LayerTile> { };
-	public Dictionary<int, LayerObject> objects = new Dictionary<int, LayerObject> { };
+	public dynamic tiles;
+	public Dictionary<int, LayerObject> objects;
 }

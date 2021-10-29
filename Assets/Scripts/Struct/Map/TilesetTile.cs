@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -9,7 +10,9 @@ public class TilesetTile
 	public int tile_id;
 	public string resource;
 	public Sprite sprite;
+	public Sprite[] sprites;
 
+	public TilesetTileAnimation[] frame;
 
 	public TilesetTile(Sprite sprite)
     {
