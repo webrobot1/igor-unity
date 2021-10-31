@@ -30,7 +30,7 @@ public abstract class ConnectController : MonoBehaviour
 	/// <summary>
 	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте
 	/// </summary>
-	private int id;
+	private int? id = null;
 
 	/// <summary>
 	/// Токен , требуется при первом конекте для Tcp и Ws, и постоянно при Udp
@@ -74,9 +74,8 @@ public abstract class ConnectController : MonoBehaviour
 	/// </summary>
 	protected void Update()
 	{
-
-		if (connect != null) 
-		{ 
+		if (connect != null)
+		{
 			if (connect.error != null)
 			{
 				StartCoroutine(LoadRegister(connect.error));
@@ -87,7 +86,7 @@ public abstract class ConnectController : MonoBehaviour
 				{
 					try
 					{
-						Debug.Log(DateTime.Now.Millisecond + ": "+ connect.recives[i]);
+						Debug.Log(DateTime.Now.Millisecond + ": " + connect.recives[i]);
 						HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
 						connect.recives.RemoveAt(i);
 					}
@@ -99,6 +98,8 @@ public abstract class ConnectController : MonoBehaviour
 				}
 			}
 		}
+		else if(this.id == null)
+			LoadRegister("Неверный порядок запуска сцен");
 	}
 
 
@@ -291,7 +292,7 @@ public abstract class ConnectController : MonoBehaviour
 					}
 
 					// игрок всегда чуть ниже всех остальных по сортировке (те стоит всегда за объектами находящимися на его же координатах)
-					player.position[1] += 0.01f;
+					//player.position[1] += 0.01f;
 
 					try
 					{ 
