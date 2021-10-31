@@ -55,7 +55,7 @@ public class EnemyModel : ObjectModel
 			if (moveCoroutine != null)
 				StopCoroutine(moveCoroutine);
 
-			moveCoroutine = StartCoroutine(Move(new Vector2(data.position[0], data.position[1])));
+			moveCoroutine = StartCoroutine(Move(new Vector3(data.position[0], data.position[1], transform.position.z)));
 		}
 
 		base.SetData(data);
@@ -67,7 +67,7 @@ public class EnemyModel : ObjectModel
 	/// анимация движения NPC или игрока к точки с учетом х-ки их скорости
 	/// </summary>
 	/// <param name="position">куда движемя</param>
-	private IEnumerator Move(Vector2 position)
+	private IEnumerator Move(Vector3 position)
 	{
 		float distance;
 
@@ -76,7 +76,7 @@ public class EnemyModel : ObjectModel
 			// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 			// в ином случае - дистанцию с учетом скорости проходим целиком
 
-			transform.position = Vector2.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
+			transform.position = Vector3.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
 			yield return new WaitForFixedUpdate();
 		}
 		activeLast = DateTime.Now;

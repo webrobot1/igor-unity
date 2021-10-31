@@ -70,12 +70,6 @@ public abstract class ConnectController : MonoBehaviour
 	private GameObject grid;
 
 	/// <summary>
-	/// на каком уровне слоя размещать новых персонажей и npc 
-	/// </summary>
-	private int? ground_sort = null;
-
-
-	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
 	/// </summary>
 	protected void Update()
@@ -169,16 +163,16 @@ public abstract class ConnectController : MonoBehaviour
 
 				// инициализируем новый слой 
 				GameObject newLayer;
-				int sort = 0;
+				bool ground = false;
 				foreach (Layer layer in map.layer)
 				{
 					// если есть в слое набор тайлов
 					if (layer.tiles !=null)
 					{
 						newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
+						newLayer.name = layer.name;
 						newLayer.transform.SetParent(grid.transform, false);
-						newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
-
+						
 						Tilemap tilemap = newLayer.GetComponent<Tilemap>();
 						
 						foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
@@ -208,6 +202,7 @@ public abstract class ConnectController : MonoBehaviour
                     else
                     {
 						// создадим новый слой
+						// todo делать так же tilemap
 						newLayer = new GameObject(layer.name);
 						newLayer.transform.SetParent(grid.transform.parent.transform, false);
 				
@@ -231,8 +226,6 @@ public abstract class ConnectController : MonoBehaviour
 									//}
 									//else
 										newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
-
-									newObject.GetComponent<SpriteRenderer>().sortingOrder = sort;
 								}
 
 								newObject.transform.SetParent(newLayer.transform, false);
@@ -260,11 +253,11 @@ public abstract class ConnectController : MonoBehaviour
 					}
 
 					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
-					if (ground_sort == null && layer.sort>=0)
-                    {
+					if (ground == false) //&& layer.sort>=0
+					{
 						// если текущий слой на котором будем ставить игроков то следующий слой идет ЧЕРЕЗ что бы не было конфликтов
-						sort++;
-						ground_sort = sort;
+						ground = true;
+						newLayer.GetComponent<TilemapRenderer>().sortingOrder -= 1;
 
 						newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
 						newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
@@ -272,7 +265,6 @@ public abstract class ConnectController : MonoBehaviour
 						colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
 						camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 					}
-					sort ++;
 				}
 			}
 
@@ -287,9 +279,8 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "player_" + player.id;
-						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
-
+						//prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
+						
 						if (player.id == this.id)
 						{
 							//transform.SetParent(prefab.transform);
@@ -299,7 +290,11 @@ public abstract class ConnectController : MonoBehaviour
 						}
 					}
 
-                    try { 
+					// игрок всегда чуть ниже всех остальных по сортировке (те стоит всегда за объектами находящимися на его же координатах)
+					player.position[1] += 0.01f;
+
+					try
+					{ 
 						prefab.GetComponent<PlayerModel>().SetData(player);
 					}
 					catch (Exception ex)
@@ -333,8 +328,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "enemy_" + enemy.id;
-						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
+						//prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
 					}
 					
 					try
@@ -358,8 +352,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + obj.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "object_" + obj.id;
-						prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
+					//	prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
 					}
 
 					try

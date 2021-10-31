@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
 /// Класс для отправки данных (действий игрока)
@@ -34,6 +35,9 @@ public class MainController : ConnectController
         variableJoystick = GameObject.Find("joystick").GetComponent<VariableJoystick>();
         variableJoystick.SnapX = true;
         variableJoystick.SnapY = true;
+
+        GraphicsSettings.transparencySortMode = TransparencySortMode.CustomAxis;
+        GraphicsSettings.transparencySortAxis = new Vector3(0, 1f, -1f);
     }
 
     /// <summary>

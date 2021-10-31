@@ -58,10 +58,10 @@ public class MapModel
 					float x = (i % tileset.Value.columns * (tileset.Value.tilewidth + tileset.Value.spacing)) + tileset.Value.margin;
 
 					// что бы не снизу вверх брал отрезки (тайлы) а сверху вниз? при этом не менять рендеринг Vector2(0,0) в NewSprite (из за смены оторого появляются полоски)
-					float y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin; 
+					float y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin;
 
 					// вырежем необходимую область
-					//new Vector2(0, 1f)  означает что на карте первый спрат с нулевой координаты рисуется вниз, но с ним появляются полосы так что оставим 0,0 и вычитыем высоту и координат yb;t
+					// для манипуляции с поворотами и отражением спрайта (что бы спрайт не сьезжал в сторону при этом) делаем точку опоры спрайта в центре Vector2(0.5f, 0.5f)
 					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0.5f, 0.5f), PixelsPerUnit, 0, SpriteMeshType.FullRect);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
@@ -76,7 +76,7 @@ public class MapModel
 				}
 
 
-                // теперь когда мы заполнили спрайтами весь набор Tileset ghjqltvcz еще раз тк может быть в нем анимация
+                // теперь когда мы заполнили спрайтами весь набор Tileset пройдем еще раз тк может быть в нем анимация
                 if (animationCheck) { 
 					foreach(KeyValuePair<int, TilesetTile> tile in tileset.Value.tile)
 					{
