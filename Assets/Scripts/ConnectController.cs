@@ -100,6 +100,8 @@ public abstract class ConnectController : MonoBehaviour
 		}
 		else if(this.id == null)
 			LoadRegister("Неверный порядок запуска сцен");
+		else
+			LoadRegister("Соединение потеряно");
 	}
 
 
@@ -160,11 +162,14 @@ public abstract class ConnectController : MonoBehaviour
 						Destroy(grid.transform.parent.GetChild(i).gameObject);
 				}
 
+				// приведем координаты в сответсвие с сеткой Unity
 				Map map = MapModel.getInstance().decode(recive.map, PixelsPerUnit);
 
 				// инициализируем новый слой 
 				GameObject newLayer;
 				bool ground = false;
+
+			    // расставим на сцене данные карты
 				foreach (Layer layer in map.layer)
 				{
 					// если есть в слое набор тайлов
@@ -181,11 +186,12 @@ public abstract class ConnectController : MonoBehaviour
 							if (tile.Value.tile_id > 0)
 							{
 								TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-								
-								if (tile.Value.horizontal > 0 || tile.Value.vertical > 0)
+
+								// если tile отражен по горизонтали или вертикали или у него z параметр (нужно где слои лежить друг за другом по Y)
+								if (tile.Value.horizontal > 0 || tile.Value.vertical > 0 || tile.Value.z!=0)
 								{
 									var m = newTile.transform;
-									m.SetTRS(Vector3.zero, Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
+									m.SetTRS(new Vector3(0, 0, tile.Value.z), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
 									newTile.transform = m;
 								}
 
@@ -195,10 +201,11 @@ public abstract class ConnectController : MonoBehaviour
 								}
 								else
 									newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
-
+								
 								tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 							}
 						}
+						Debug.LogError(newLayer.name + " раставлены tile");		
 					}
                     else
                     {
@@ -254,17 +261,22 @@ public abstract class ConnectController : MonoBehaviour
 					}
 
 					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
-					if (ground == false) //&& layer.sort>=0
-					{
-						// если текущий слой на котором будем ставить игроков то следующий слой идет ЧЕРЕЗ что бы не было конфликтов
-						ground = true;
+					// слоев земли может быть несколько (например вода , а следом слой грунта) с сервера
+					if (layer.ground)
+					{	
+						// слой земля ниже всех остальных слоев
 						newLayer.GetComponent<TilemapRenderer>().sortingOrder -= 1;
 
-						newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
-						newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
-						CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
-						colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
-						camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
+						// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
+						if (ground == false)
+						{
+							newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
+							newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+							CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
+							colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
+							camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
+							ground = true;
+						}
 					}
 				}
 			}

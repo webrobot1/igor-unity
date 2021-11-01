@@ -10,6 +10,9 @@ using System;
 using UnityEditor;
 #endif
 
+/// <summary>
+/// Класс используется для обработки пришедших данных Карты с сервера (что могли быть урезаны и сжаты с целью экономии трафика и еще не приведены в соответсвии с Unity сеткой) 
+/// </summary>
 public class MapModel 
 {
     private static MapModel instance;
@@ -95,6 +98,7 @@ public class MapModel
 
 		// заполним слой с тайловыми координатами на сетке
 		int columns = (int)Decimal.Round(map.width * map.tilewidth / map.tilewidth);
+		LayerTile d_tile;
 		foreach (Layer layer in map.layer)
 		{
 			if (layer.tiles != null)
@@ -105,8 +109,35 @@ public class MapModel
 					// если указанный тайл (клетка) не пустая
 					if (tile.Value.tile_id > 0)
 					{
-						tile.Value.x = tile.Key % (int)columns;
+						int z = 0;
+						tile.Value.x = tile.Key % columns;
 						tile.Value.y = (int)(tile.Key / columns) * -1 - 1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+
+						// чтоы герой заходил ЗА объект а внизу полностью выходил из него в последнем нижнем Tile с учетом что герой выше одной клетки сделаем вычисления z позиции
+						// если снизу тайлов нет то z = 0 (те мы встанем на спрайт)
+						// если это конечно не базовый слой земли
+						if(!layer.ground)
+                        {
+							if (!layer.tiles.TryGetValue(tile.Key + columns, out d_tile) || d_tile.tile_id == 0)
+							{
+								z = 0;
+							}
+							// если там есть спрайт и ниже еще один то z = 2 (скроет персонажа когда он полностью зайдет)
+							else if (layer.tiles.TryGetValue(tile.Key + columns * 2, out d_tile) && d_tile.tile_id > 0)
+							{
+								z = 2;
+							}
+							// в ином случае там лишь один спрайт ниже тогда сделаем z = 1 те голова не будет спратана когда туловище на нижнем спрайте удет отображено 
+							else
+							{
+								z = 1;
+							}
+
+							if (z > 0)
+							{
+								tile.Value.z = z;
+							}
+						}
 					}
 				}
 			}
@@ -128,6 +159,8 @@ public class MapModel
 		return map;
 	}
 
+
+	// todo посмотреть a AssetBundels (+ пришедшее на смену его Adressable)  , что работает без UNITY_EDITOR и служит для упаковки загруженных данных
 #if UNITY_EDITOR
 	static Sprite SaveSpriteAsAsset(Sprite sprite, string proj_path)
 	{

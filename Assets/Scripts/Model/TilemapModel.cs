@@ -1,6 +1,3 @@
-using UnityEngine.Scripting;
-using UnityEngine.Tilemaps;
-using UnityEngine.Scripting;
 
 namespace UnityEngine.Tilemaps
 {
@@ -19,6 +16,16 @@ namespace UnityEngine.Tilemaps
                 return true;
             }
             return false;
+        }
+
+        public override void GetTileData(Vector3Int position, ITilemap tilemap, ref TileData tileData)
+        {
+            base.GetTileData(position, tilemap, ref tileData);
+        }
+
+        public override void RefreshTile(Vector3Int position, ITilemap tilemap)
+        {
+            base.RefreshTile(position, tilemap);
         }
     }
 }
