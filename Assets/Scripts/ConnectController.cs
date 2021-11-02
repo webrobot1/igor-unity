@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
 
@@ -68,6 +69,11 @@ public abstract class ConnectController : MonoBehaviour
 	/// </summary>
 	[SerializeField]
 	private GameObject grid;
+
+	/// <summary>
+	/// на каком уровне слоя размещать новых персонажей и npc 
+	/// </summary>
+	private int? ground_sort = null;
 
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
@@ -167,9 +173,9 @@ public abstract class ConnectController : MonoBehaviour
 
 				// инициализируем новый слой 
 				GameObject newLayer;
-				bool ground = false;
+				int sort = 0;
 
-			    // расставим на сцене данные карты
+				// расставим на сцене данные карты
 				foreach (Layer layer in map.layer)
 				{
 					// если есть в слое набор тайлов
@@ -178,9 +184,11 @@ public abstract class ConnectController : MonoBehaviour
 						newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 						newLayer.name = layer.name;
 						newLayer.transform.SetParent(grid.transform, false);
-						
+						newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
+
 						Tilemap tilemap = newLayer.GetComponent<Tilemap>();
 						
+
 						foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 						{
 							if (tile.Value.tile_id > 0)
@@ -188,10 +196,10 @@ public abstract class ConnectController : MonoBehaviour
 								TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 
 								// если tile отражен по горизонтали или вертикали или у него z параметр (нужно где слои лежить друг за другом по Y)
-								if (tile.Value.horizontal > 0 || tile.Value.vertical > 0 || tile.Value.z!=0)
+								if (tile.Value.horizontal > 0 || tile.Value.vertical > 0)
 								{
 									var m = newTile.transform;
-									m.SetTRS(new Vector3(0, 0, tile.Value.z), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
+									m.SetTRS(Vector3.zero, Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
 									newTile.transform = m;
 								}
 
@@ -213,7 +221,8 @@ public abstract class ConnectController : MonoBehaviour
 						// todo делать так же tilemap
 						newLayer = new GameObject(layer.name);
 						newLayer.transform.SetParent(grid.transform.parent.transform, false);
-				
+						newLayer.AddComponent<SortingGroup>().sortingOrder = sort;
+
 						if (layer.objects !=null)
 						{
 							foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
@@ -221,8 +230,7 @@ public abstract class ConnectController : MonoBehaviour
 								GameObject newObject = new GameObject((obj.Value.name != "" ? obj.Value.name : "Object")+" #"+obj.Key);
 								// если указанный тайл (клетка) не пустая
 								if (obj.Value.tile_id > 0)
-								{
-									
+								{									
 									if (obj.Value.horizontal > 0 || obj.Value.vertical > 0)
 									{
 										newObject.transform.rotation = Quaternion.Euler(obj.Value.vertical * 180, obj.Value.horizontal * 180, 0f);
@@ -260,29 +268,25 @@ public abstract class ConnectController : MonoBehaviour
 						}
 					}
 
-					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
-					// слоев земли может быть несколько (например вода , а следом слой грунта) с сервера
-					if (layer.ground)
+					// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
+					if (sort == 0)
 					{
-						TilemapRenderer render = newLayer.GetComponent<TilemapRenderer>();
-						
-						// слой земля ниже всех остальных слоев
-						render.sortingOrder -= 1;
-						// на нем нет нужды индивидуально каждый тайл рендирить тк мы ходим сверху их
-						render.mode  = TilemapRenderer.Mode.Chunk;
-
-						// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
-						if (ground == false)
-						{
-							
-							newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
-							newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
-							CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
-							colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
-							camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
-							ground = true;
-						}
+						newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
+						newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+						CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
+						colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
+						camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 					}
+
+					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
+					// todo - на сервере иметь параметр "Слой игрока" 
+					if (ground_sort == null)
+					{
+						// если текущий слой на котором будем ставить игроков то следующий слой идет ЧЕРЕЗ что бы не было конфликтов
+						sort++;
+						ground_sort = sort;
+					}
+					sort++;
 				}
 			}
 
@@ -297,8 +301,8 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "player_" + player.id;
-						//prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
-						
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
+					
 						if (player.id == this.id)
 						{
 							//transform.SetParent(prefab.transform);
@@ -309,7 +313,7 @@ public abstract class ConnectController : MonoBehaviour
 					}
 
 					// игрок всегда чуть ниже всех остальных по сортировке (те стоит всегда за объектами находящимися на его же координатах)
-					//player.position[1] += 0.01f;
+					player.position[1] += 0.01f;
 
 					try
 					{ 
@@ -346,7 +350,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "enemy_" + enemy.id;
-						//prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
 					}
 					
 					try
@@ -370,7 +374,7 @@ public abstract class ConnectController : MonoBehaviour
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + obj.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "object_" + obj.id;
-					//	prefab.transform.localScale = new Vector3(prefab.transform.localScale.x, prefab.transform.localScale.y, prefab.transform.localScale.z);
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
 					}
 
 					try

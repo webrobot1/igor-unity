@@ -12,6 +12,4 @@ public class LayerTile
 
 	public int x;
 	public int y;
-	public int z = 0;
-
 }

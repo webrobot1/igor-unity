@@ -3,6 +3,14 @@ using UnityEngine;
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {
+    float last_size;
+
+    private void Start()
+    {
+        last_size = GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize;
+    }
+
+
     private void Update()
     {
         float screenRation = (float)Screen.width / (float)Screen.height;
@@ -10,18 +18,23 @@ public class CameraController : MonoBehaviour
         /// <summary>
         /// зона видимости вокруг игрока
         /// </summary>
-        float targetRation = 16 / 16;
-         
+        float targetRation = 12 / 12;
+        float size;
         if (screenRation != float.NaN) 
         {
             if (screenRation >= targetRation)
             { 
-                GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = 16 / 2;
+                size = 12 / 2;
             }
             else
             {
                 float defferenceSize = targetRation / screenRation;
-                GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = 16 / 2 * defferenceSize;
+                size = 12 / 2 * defferenceSize;
+            }
+
+            if(this.last_size != size)
+            {
+                this.last_size = GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = size;
             }
         }
     }
