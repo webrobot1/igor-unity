@@ -263,13 +263,18 @@ public abstract class ConnectController : MonoBehaviour
 					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
 					// слоев земли может быть несколько (например вода , а следом слой грунта) с сервера
 					if (layer.ground)
-					{	
+					{
+						TilemapRenderer render = newLayer.GetComponent<TilemapRenderer>();
+						
 						// слой земля ниже всех остальных слоев
-						newLayer.GetComponent<TilemapRenderer>().sortingOrder -= 1;
+						render.sortingOrder -= 1;
+						// на нем нет нужды индивидуально каждый тайл рендирить тк мы ходим сверху их
+						render.mode  = TilemapRenderer.Mode.Chunk;
 
 						// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
 						if (ground == false)
 						{
+							
 							newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
 							newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
 							CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
