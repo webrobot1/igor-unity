@@ -284,7 +284,7 @@ public abstract class ConnectController : MonoBehaviour
 							camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 
 							// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
-							newLayer.AddComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
+							newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
 						}
 
 						//  текущий слой на котором будем ставить игроков		
@@ -315,9 +315,6 @@ public abstract class ConnectController : MonoBehaviour
 						}
 					}
 
-					// игрок всегда чуть ниже всех остальных по сортировке (те стоит всегда за объектами находящимися на его же координатах)
-					player.position[1] += 0.01f;
-
 					try
 					{ 
 						prefab.GetComponent<PlayerModel>().SetData(player);
@@ -328,16 +325,21 @@ public abstract class ConnectController : MonoBehaviour
                     }
 
 					// если на сцене и есть position - значит куда то движтся. запишем куда
-					if (player.position != null && player.id == this.id)
+					if (player.position != null)
 					{
-						this.target = new Vector2(player.position[0], player.position[1]);
+						// игрок всегда чуть ниже всех остальных по сортировке (те стоит всегда за объектами находящимися на его же координатах)
+						player.position[1] += 0.01f;
 
-						// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
-						// Todo сравнить что координаты изменены (может это не про движения данные пришли)
-						if (pingTime == 0)
-						{
-							TimeSpan ts = DateTime.Now - this.lastMove;
-							pingTime = Math.Round(ts.TotalSeconds, 2);
+						if (player.id == this.id) { 
+							this.target = new Vector2(player.position[0], player.position[1]);
+
+							// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
+							// Todo сравнить что координаты изменены (может это не про движения данные пришли)
+							if (pingTime == 0)
+							{
+								TimeSpan ts = DateTime.Now - this.lastMove;
+								pingTime = Math.Round(ts.TotalSeconds, 2);
+							}
 						}
 					}
 				}
