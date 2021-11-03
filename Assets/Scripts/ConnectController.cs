@@ -302,6 +302,10 @@ public abstract class ConnectController : MonoBehaviour
 					// если игрока нет на сцене
 					if (prefab == null)
 					{
+
+						// если это не полная загрузка мира и игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
+						if (recive.action != "load" && player.action != "online") continue;
+
 						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "player_" + player.id;
 						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
