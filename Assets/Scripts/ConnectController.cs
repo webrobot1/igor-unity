@@ -268,25 +268,28 @@ public abstract class ConnectController : MonoBehaviour
 						}
 					}
 
-					// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
-					if (sort == 0)
-					{
-						newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
-						newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
-						CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
-						colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
-						camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
-					}
+					sort++;
 
-					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля)
+					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля, а следующий - тот на котром надо генеирить игроков и npc)
 					// todo - на сервере иметь параметр "Слой игрока" 
 					if (ground_sort == null)
 					{
-						// если текущий слой на котором будем ставить игроков то следующий слой идет ЧЕРЕЗ что бы не было конфликтов
-						sort++;
+						// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
+						if (sort == 1)
+						{
+							newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
+							newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+							CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
+							colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
+							camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
+
+							// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
+							newLayer.AddComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
+						}
+
+						//  текущий слой на котором будем ставить игроков		
 						ground_sort = sort;
-					}
-					sort++;
+					}					
 				}
 			}
 
