@@ -37,7 +37,7 @@ public class MainController : ConnectController
         variableJoystick.SnapY = true;
 
         GraphicsSettings.transparencySortMode = TransparencySortMode.CustomAxis;
-        GraphicsSettings.transparencySortAxis = new Vector3(0, 1f, 0);
+        GraphicsSettings.transparencySortAxis = new Vector3(0, 1f, -1f);
     }
 
     /// <summary>
