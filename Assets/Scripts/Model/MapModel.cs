@@ -114,7 +114,7 @@ public class MapModel
 				}
 			}
 
-            if (layer.objects != null) 
+			if (layer.objects != null) 
 			{ 
 				foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
 				{

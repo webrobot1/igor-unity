@@ -178,17 +178,17 @@ public abstract class ConnectController : MonoBehaviour
 				// расставим на сцене данные карты
 				foreach (Layer layer in map.layer)
 				{
+					
+					newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
+					newLayer.name = layer.name;
+					newLayer.transform.SetParent(grid.transform, false);
+					newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
+
+					Tilemap tilemap = newLayer.GetComponent<Tilemap>();
+
 					// если есть в слое набор тайлов
-					if (layer.tiles !=null)
+					if (layer.tiles != null)
 					{
-						newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
-						newLayer.name = layer.name;
-						newLayer.transform.SetParent(grid.transform, false);
-						newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
-
-						Tilemap tilemap = newLayer.GetComponent<Tilemap>();
-						
-
 						foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 						{
 							if (tile.Value.tile_id > 0)
@@ -215,41 +215,33 @@ public abstract class ConnectController : MonoBehaviour
 						}
 						Debug.LogError(newLayer.name + " раставлены tile");		
 					}
-                    else
-                    {
-						// создадим новый слой
-						// todo делать так же tilemap
-						newLayer = new GameObject(layer.name);
-						newLayer.transform.SetParent(grid.transform.parent.transform, false);
-						newLayer.AddComponent<SortingGroup>().sortingOrder = sort;
-
-						if (layer.objects !=null)
+					else if (layer.objects !=null)
+					{						
+						foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
 						{
-							foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
+							// если указанный тайл (клетка) не пустая
+							if (obj.Value.tile_id > 0)
 							{
-								GameObject newObject = new GameObject((obj.Value.name != "" ? obj.Value.name : "Object")+" #"+obj.Key);
-								// если указанный тайл (клетка) не пустая
-								if (obj.Value.tile_id > 0)
-								{									
-									if (obj.Value.horizontal > 0 || obj.Value.vertical > 0)
-									{
-										newObject.transform.rotation = Quaternion.Euler(obj.Value.vertical * 180, obj.Value.horizontal * 180, 0f);
-									}
+								TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 
-									//if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites != null)
-									//{
-									//	newTile.sprites = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites;
-									//}
-									//else
-										newObject.AddComponent<SpriteRenderer>().sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
+								if (obj.Value.horizontal > 0 || obj.Value.vertical > 0)
+								{
+									var m = newTile.transform;
+									m.SetTRS(Vector3.zero, Quaternion.Euler(obj.Value.vertical * 180, obj.Value.horizontal * 180, 0f), Vector3.one);
+									newTile.transform = m;
 								}
 
-								newObject.transform.SetParent(newLayer.transform, false);
+								if (map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprites != null)
+								{
+									newTile.sprites = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprites;
+								}
+								else
+									newTile.sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
 
 								// сместим координаты абсолютные на расположение главного слоя Map (у нас ноль идет от -180 для GEO расчетов) для получения относительных
-								newObject.transform.position = new Vector2(obj.Value.x + newLayer.transform.position.x, obj.Value.y + newLayer.transform.position.y);						
+								tilemap.SetTile(new Vector3Int((int)(obj.Value.x), (int)(obj.Value.y), 0), newTile);
 							}
-						}
+						}	
 					}
 
 					// полупрозрачность слоя
@@ -330,10 +322,7 @@ public abstract class ConnectController : MonoBehaviour
 
 					// если на сцене и есть position - значит куда то движтся. запишем куда
 					if (player.position != null)
-					{
-						// игрок всегда чуть ниже всех остальных по сортировке (те стоит всегда за объектами находящимися на его же координатах)
-						player.position[1] += 0.01f;
-
+					{	
 						if (player.id == this.id) { 
 							this.target = new Vector2(player.position[0], player.position[1]);
 
