@@ -72,3 +72,6 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 *.log
+/[Pp]roject[Ss]ettings/
+/[UIE|uie]lements[Ss]chema/
+/[Pp]ackages/
