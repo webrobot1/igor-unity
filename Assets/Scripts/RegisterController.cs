@@ -62,6 +62,7 @@ public class RegisterController : MonoBehaviour
         GameObject.Find("error").GetComponent<Text>().text = error;
     }
 
+    // PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой
     private IEnumerator LoadMain(SiginRecive data)
     {
         Debug.Log("Загрузка главной сцены");
