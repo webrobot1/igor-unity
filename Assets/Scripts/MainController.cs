@@ -114,7 +114,7 @@ public class MainController : ConnectController
                         return;
                     }
 
-                    response.ping = pingTime - Time.fixedDeltaTime;
+                    response.ping = Math.Round(pingTime - Time.fixedDeltaTime, 3);
 
                     // если мы сделали шаг то нужнотобнулить время пинга
                     pingTime = 0;
