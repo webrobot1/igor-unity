@@ -37,7 +37,10 @@ public class MapModel
         {
             using (MemoryStream target = new MemoryStream())
             {
-                BZip2.Decompress(source, target, true);
+				Debug.Log("Декодируем карту");
+				BZip2.Decompress(source, target, true);
+
+				Debug.Log("Парсим карту");
 				map = JsonConvert.DeserializeObject<Map>(Encoding.UTF8.GetString(target.ToArray()));
             }
         }

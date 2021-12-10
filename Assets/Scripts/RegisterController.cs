@@ -1,11 +1,11 @@
 using System;
-using Newtonsoft.Json;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.Networking;
 using UnityEditor;
+using Newtonsoft.Json;
 
 public class RegisterController : MonoBehaviour
 {
@@ -45,16 +45,15 @@ public class RegisterController : MonoBehaviour
             try {
                 Debug.Log("Ответ авторизации: "+recive);
                 SiginRecive response = JsonConvert.DeserializeObject<SiginRecive>(recive);
-
                 StartCoroutine(LoadMain(response));
             }
-            catch
+            catch (Exception ex)
             {
-                Error("Ошибка ответа авторизации:" + recive);
+                Error("Ошибка ответа авторизации: "+ex.Message+" ("+recive+")");
             }  
         } 
         else 
-            Error("Пустой ответ авторизации "+ request.error);
+            Error("Пустой ответ авторизации "+request.error);
     }
 
     public void Error(string error)
