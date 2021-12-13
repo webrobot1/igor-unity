@@ -68,7 +68,7 @@ public class MapModel
 
 					// вырежем необходимую область
 					// для манипуляции с поворотами и отражением спрайта (что бы спрайт не сьезжал в сторону при этом) делаем точку опоры спрайта в центре Vector2(0.5f, 0.5f)
-					Sprite NewSprite = Sprite.Create(texture, new Rect(x, y, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0.5f, 0.5f), PixelsPerUnit, 0, SpriteMeshType.FullRect);
+					Sprite NewSprite = Sprite.Create(texture, new Rect(x-tileset.Value.margin, y - tileset.Value.margin, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0.5f, 0.5f), PixelsPerUnit, 0, SpriteMeshType.FullRect);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
 					if (tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))
