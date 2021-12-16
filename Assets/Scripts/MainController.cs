@@ -49,16 +49,22 @@ public class MainController : ConnectController
     /// <returns>true - если может, false - если нет</returns>
     private bool CanMove()
     {
-        return
+        // Todo заменить 1000 на скорость анимации с учетом скорости игрока)
+        if (DateTime.Compare(this.lastMove.AddMilliseconds(1000), DateTime.Now) < 1)
+        {
+            Debug.Log("Слишком долго ждали движения");
+            return true;
+        }
 
-            (DateTime.Compare(this.lastMove.AddMilliseconds(1000), DateTime.Now) < 1) // Todo заменить 1000 на скорость анимации с учетом скорости игрока)
-                 ||
-            (
-                base.pingTime > 0
-                    &&
-                // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено что команду шлем за 1 шаг минимум)
-                Vector2.Distance(player.transform.position, target) - player.distancePerUpdate <= (base.pingTime< Time.fixedDeltaTime? Time.fixedDeltaTime: base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate
-            );
+        // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено что команду шлем за 1 шаг минимум)
+        if (base.pingTime > 0 && Vector2.Distance(player.transform.position, target) - player.distancePerUpdate <= (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)
+        {
+            Debug.Log("осталось пройти " + (Vector2.Distance(player.transform.position, target) - player.distancePerUpdate) + " клетки и это меньше чем мы успеваем пройти за пинг " + ((base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) + " , те "+ (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)+" клетки");
+
+            return true;
+        }
+
+        return false;
     }
 
     // Update is called once per frame
@@ -76,9 +82,9 @@ public class MainController : ConnectController
              
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
             // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
-            if (CanMove())
+            if ((vertical = Input.GetAxis("Vertical")) != 0 || (vertical = variableJoystick.Vertical) != 0 || (horizontal = Input.GetAxis("Horizontal")) != 0 || (horizontal = variableJoystick.Horizontal) != 0 || player.moveTo != Vector2.zero) 
             {
-                if ((vertical = Input.GetAxis("Vertical")) != 0 || (vertical = variableJoystick.Vertical) != 0 || (horizontal = Input.GetAxis("Horizontal")) != 0 || (horizontal = variableJoystick.Horizontal) != 0 || player.moveTo != Vector2.zero) 
+                if (CanMove())
                 {
                     MoveResponse response = new MoveResponse();
 
