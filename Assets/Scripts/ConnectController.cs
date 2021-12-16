@@ -331,7 +331,7 @@ public abstract class ConnectController : MonoBehaviour
 							if (pingTime == 0)
 							{
 								TimeSpan ts = DateTime.Now - this.lastMove;
-								pingTime = Math.Round(ts.TotalSeconds, 2);
+								pingTime = Math.Round(ts.TotalSeconds, 4);
 							}
 						}
 					}
