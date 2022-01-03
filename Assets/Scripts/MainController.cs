@@ -7,6 +7,22 @@ using UnityEngine.Rendering;
 /// </summary>
 public class MainController : ConnectController
 {
+
+
+    private AndroidJavaClass unityClass;
+    private AndroidJavaObject unityActivity;
+    private AndroidJavaClass customClass;
+
+    private const string PlayerPrefsTotalSteps = "totalSteps";
+    private const string PackageName = "com.kdg.toast.plugin.Bridge";
+    private const string UnityDefaultJavaClassName = "com.unity3d.player.UnityPlayer";
+    private const string CustomClassReceiveActivityInstanceMethod = "ReceiveActivityInstance";
+
+    private const string CustomClassStartServiceMethod = "StartService";
+    private const string CustomClassStopServiceMethod = "StopService";
+    private const string CustomClassGetCurrentStepsMethod = "GetCurrentSteps";
+    private const string CustomClassSyncDataMethod = "SyncData";
+
     /// <summary>
     /// наш джойстик
     /// </summary>
@@ -20,16 +36,65 @@ public class MainController : ConnectController
     /// <summary>
     /// нажата кнопка двигаться по вертикали
     /// </summary>
-    private double vertical;    
+    private double vertical;
 
-    // поиск пути                     	
-    //private NavMeshPath path;						
-    //private int current_path;
+    void SendActivityReference()
+    {
+        Debug.Log("sdf1");
+        unityClass = new AndroidJavaClass(UnityDefaultJavaClassName);
+        unityActivity = unityClass.GetStatic<AndroidJavaObject>("currentActivity");
+        Debug.Log(unityActivity.Call<AndroidJavaObject>("getClass").Call<string>("getCanonicalName"));
+
+        customClass = new AndroidJavaClass(PackageName);
+        customClass.CallStatic(CustomClassReceiveActivityInstanceMethod, unityActivity);
+        Debug.Log("sdf2");
+    }
+
+
+    public void StartService()
+    {
+        customClass.CallStatic(CustomClassStartServiceMethod);
+        GetCurrentSteps();
+    }
+
+    public void StopService()
+    {
+        customClass.CallStatic(CustomClassStopServiceMethod);
+    }
+
+    public void GetCurrentSteps()
+    {
+        int? stepsCount = customClass.CallStatic<int>(CustomClassGetCurrentStepsMethod);
+        Debug.Log(stepsCount.ToString());
+    }
+
+    public void SyncData()
+    {
+        var data = customClass.CallStatic<string>(CustomClassSyncDataMethod);
+
+        var parsedData = data.Split('#');
+        var dateOfSync = parsedData[0] + " - " + parsedData[1];
+        Debug.Log(dateOfSync);
+        var receivedSteps = int.Parse(parsedData[2]);
+        var prefsSteps = PlayerPrefs.GetInt(PlayerPrefsTotalSteps, 0);
+        var prefsStepsToSave = prefsSteps + receivedSteps;
+        PlayerPrefs.SetInt(PlayerPrefsTotalSteps, prefsStepsToSave);
+        Debug.Log(prefsStepsToSave.ToString());
+
+        GetCurrentSteps();
+    }
+
 
     private void Start()
     {
         // продолжать принимать данные и обновляться в фоновом режиме
         Application.runInBackground = true;
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        SendActivityReference();
+        StartService();
+#endif
+
 
         // наш джойстик
         variableJoystick = GameObject.Find("joystick").GetComponent<VariableJoystick>();
@@ -67,8 +132,19 @@ public class MainController : ConnectController
         return false;
     }
 
+    public void OnApplicationFocus(bool focus)
+    {
+        Debug.LogError("фокус");
+    }
+
+    public void OnApplicationPause(bool pause)
+    {
+    
+    }
+
+
     // Update is called once per frame
-   private void Update()
+    private void Update()
    {
         base.Update();
 
@@ -82,7 +158,17 @@ public class MainController : ConnectController
              
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
             // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
-            if ((vertical = Input.GetAxis("Vertical")) != 0 || (vertical = variableJoystick.Vertical) != 0 || (horizontal = Input.GetAxis("Horizontal")) != 0 || (horizontal = variableJoystick.Horizontal) != 0 || player.moveTo != Vector2.zero) 
+            if (
+                (vertical = Input.GetAxis("Vertical")) != 0 
+                     || 
+                (vertical = variableJoystick.Vertical) != 0 
+                     || 
+                (horizontal = Input.GetAxis("Horizontal")) != 0 
+                    ||
+                (horizontal = variableJoystick.Horizontal) != 0 
+                    || 
+                player.moveTo != Vector2.zero
+            ) 
             {
                 if (CanMove())
                 {

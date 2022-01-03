@@ -11,11 +11,6 @@ public class ObjectModel : MonoBehaviour
 	protected Animator anim;
 	private static Dictionary<string, bool> trigers;
 
-	/// <summary>
-	/// координата на карте к которой мы движемся по клику мыши (или пок аким то другим принудительным действиям)
-	/// </summary>
-	public Vector2 moveTo;
-
 	protected void Awake()
 	{
 		anim = GetComponent<Animator>();
@@ -38,12 +33,6 @@ public class ObjectModel : MonoBehaviour
 			Debug.Log("Обновляем анимацию " + data.action);
 			this.action = data.action;
 			anim.SetTrigger(action);
-		}
-
-		// если мы олстанавливаем игрока принудительно то и все координаты двидения к цели обнуляются
-		if (data.action == "idle")
-		{
-			this.moveTo = Vector2.zero;
 		}
 
 		if (data.map_id > 0)
