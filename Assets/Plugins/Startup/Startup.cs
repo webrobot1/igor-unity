@@ -1,19 +1,16 @@
 ﻿#if UNITY_EDITOR
-using System;
 using UnityEditor;
-using UnityEditor.PackageManager.Requests;
 using UnityEditor.PackageManager;
 using UnityEngine;
 using System.Linq;
-using System.Collections;
-using UnityEngine.SceneManagement;
+using UnityEditor.SceneManagement;
 
 [InitializeOnLoad]
-public class Startup
+public class Startup : ScriptableObject
 {
-    //Unity calls the static constructor when the engine opens
     static Startup()
     {
+        // проверим необходимые пакеты
         var pckName = "com.unity.cinemachine";
         var pack = Client.List();
         while (!pack.IsCompleted);
@@ -26,17 +23,26 @@ public class Startup
            Debug.Log(pckName + " успешно установлен");
         }
 
-        if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
+        // если первая загрузка c Git и нет сцен
+        if(EditorBuildSettings.scenes.Length == 0)
         {
-            // если по ошибке стоит текущей
-            SceneManager.UnloadSceneAsync("MainScene");
+            EditorBuildSettingsScene[] scenes = new EditorBuildSettingsScene[2];
+            scenes[0] = new EditorBuildSettingsScene();
+            scenes[0].path = "Assets/Scenes/RegisterScene.unity";
+            scenes[0].enabled = true;
 
-            // в тч при первлй установке из GIT
-            SceneManager.LoadScene("RegisterScene");
+            scenes[1] = new EditorBuildSettingsScene();
+            scenes[1].path = "Assets/Scenes/MainScene.unity";
+            scenes[1].enabled = true;
 
-            Debug.Log("Сцена заменнена на RegisterScene");
+            EditorBuildSettings.scenes = scenes;
         }
+
+        // везде используем Net 4.
+        PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.Android, ApiCompatibilityLevel.NET_4_6);
+        PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.WebGL, ApiCompatibilityLevel.NET_4_6);
+
+       // EditorSettings.unityRemoteDevice =;
     }
 }
-
 #endif
