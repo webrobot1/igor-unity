@@ -236,7 +236,11 @@ var LibraryWebSocket = {
 			if (webSocketState.debug)
 			{
 				webSocketState.debug.setAttribute("disabled", "disabled");
-				webSocketState.debug.querySelectorAll(".token").value = "";
+				var tokens = webSocketState.debug.querySelectorAll(".token");
+				for (var i = 0; i < tokens.length; i++) {
+				  tokens[i].value = "";
+				} 
+				
 				webSocketState.Log("Closed");
 			}
 
