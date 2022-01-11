@@ -6,8 +6,7 @@ var WebGLDebug =
 		if(container)
 		{
 			var tokens = container.querySelectorAll(".token");
-
-			for (var i = 0, token = Pointer_stringify(token); i < tokens.length; i++) 
+			for (var i = 0, token = Pointer_stringify(token); i < tokens.length; i++)
 			{
 			  tokens[i].value = token;
 			} 
