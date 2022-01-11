@@ -5,7 +5,7 @@ var WebGLDebug =
 		container = document.querySelector("#unity-api-container");
 		if(container)
 		{
-			container.querySelector(".token").value = Pointer_stringify(token);
+			container.querySelectorAll(".token").value = Pointer_stringify(token);
 			container.removeAttribute("disabled");
 		}
     }

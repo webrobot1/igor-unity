@@ -236,7 +236,7 @@ var LibraryWebSocket = {
 			if (webSocketState.debug)
 			{
 				webSocketState.debug.setAttribute("disabled", "disabled");
-				webSocketState.debug.querySelector(".token").value = "";
+				webSocketState.debug.querySelectorAll(".token").value = "";
 				webSocketState.Log("Closed");
 			}
 
