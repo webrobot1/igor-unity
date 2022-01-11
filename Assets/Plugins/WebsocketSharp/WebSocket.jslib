@@ -19,6 +19,20 @@ var LibraryWebSocket = {
 		 */
 		instances: {},
 		
+		// объект с контейнером отладки
+		debug: null,
+		
+		// функция логирования для отладки
+		Log: function(json){
+			if (webSocketState.debug)
+			{
+				if(webSocketState.debug.querySelector('#debug').value.length > 500)
+					webSocketState.debug.querySelector('#debug').value = json;
+				else
+					webSocketState.debug.querySelector('#debug').value = json + "\n" + webSocketState.debug.querySelector('#debug').value;
+			}
+		}, 
+
 		/* очередь сообщений */
 		queue: [],
 
@@ -30,11 +44,8 @@ var LibraryWebSocket = {
 		onMesssage: null,
 		onError: null,
 		onClose: null,
-
-		/* Debug mode */
-		debug: true
 	},
-
+	
 	/**
 	 * Set onOpen callback
 	 * 
@@ -43,7 +54,6 @@ var LibraryWebSocket = {
 	WebSocketSetOnOpen: function(callback) {
 
 		webSocketState.onOpen = callback;
-
 	},
 
 	/**
@@ -140,12 +150,14 @@ var LibraryWebSocket = {
 
 		instance.ws.binaryType = 'arraybuffer';
 
-		instance.ws.onopen = function() {
-
+		instance.ws.onopen = function() 
+		{
+			webSocketState.debug = document.querySelector("#unity-api-container");
 			if (webSocketState.debug)
-				console.log("[JSLIB WebSocket] Connected.");
-
-
+			{
+				webSocketState.Log("Connected");
+			}
+			
 			/* если от момента инициализации до конекта есть неотправленные сообщения */
 			if (webSocketState.queue.length>0)
 			{
@@ -164,7 +176,9 @@ var LibraryWebSocket = {
 		instance.ws.onmessage = function(ev) {
 
 			if (webSocketState.debug)
-				console.log("[JSLIB WebSocket] Received message:", ev.data);
+			{
+				webSocketState.Log(ev.data);
+			}
 
 			if (webSocketState.onMessage === null)
 				return;
@@ -198,7 +212,7 @@ var LibraryWebSocket = {
 		instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
-				console.log("[JSLIB WebSocket] Error occured.");
+				webSocketState.Log("Error occured");
 
 			if (webSocketState.onError) {
 				
@@ -220,7 +234,11 @@ var LibraryWebSocket = {
 		instance.ws.onclose = function(ev) {
 
 			if (webSocketState.debug)
-				console.log("[JSLIB WebSocket] Closed.");
+			{
+				webSocketState.debug.setAttribute("disabled", "disabled");
+				webSocketState.debug.querySelector(".token").value = "";
+				webSocketState.Log("Closed");
+			}
 
 			if (webSocketState.onClose)
 				Runtime.dynCall('vii', webSocketState.onClose, [ instanceId, ev.code ]);
@@ -312,7 +330,6 @@ var LibraryWebSocket = {
 			return 3;
 
 	}
-
 };
 
 autoAddDeps(LibraryWebSocket, '$webSocketState');

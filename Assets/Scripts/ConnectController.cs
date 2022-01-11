@@ -7,6 +7,7 @@ using UnityEngine.Networking;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
+using WebGLSupport;
 
 /// <summary>
 /// Класс для обработки запросов, конект
@@ -308,6 +309,11 @@ public abstract class ConnectController : MonoBehaviour
 							//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
 							camera.Follow = prefab.transform;
 							this.player = prefab.GetComponent<PlayerModel>();
+
+							// если у нас webgl првоерим не а дминке ли мы с API отладкой
+							#if UNITY_WEBGL && !UNITY_EDITOR
+								WebGLDebug.Check(this.token);
+							#endif
 						}
 					}
 
