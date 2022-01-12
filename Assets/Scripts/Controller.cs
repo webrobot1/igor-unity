@@ -10,12 +10,10 @@ public class Controller : MonoBehaviour
             {
                 Input.ResetInputAxes();
                 UnityEngine.WebGLInput.captureAllKeyboardInput = false;
-                Debug.Log("потеря фокуса");
             } else
             {
                 WebGLInput.captureAllKeyboardInput = true;
                 Input.ResetInputAxes();
-                Debug.Log("фокус");
             }
         }        
 #endif

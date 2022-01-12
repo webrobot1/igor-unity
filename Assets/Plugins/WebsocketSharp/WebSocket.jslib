@@ -247,7 +247,7 @@ var LibraryWebSocket = {
 			if (webSocketState.onClose)
 				Runtime.dynCall('vii', webSocketState.onClose, [ instanceId, ev.code ]);
 
-			delete webSocketState.instances[instanceId];
+			delete instance.ws;
 
 		};
 

@@ -81,7 +81,7 @@ public abstract class ConnectController :Controller
 	/// </summary>
 	protected void Update()
 	{
-		if (connect != null)
+		if (connect != null && !exit)
 		{
 			if (connect.error != null)
 			{
@@ -449,7 +449,6 @@ public abstract class ConnectController :Controller
 
 		exit = true;
 		connect.Close();
-		connect = null;
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{
