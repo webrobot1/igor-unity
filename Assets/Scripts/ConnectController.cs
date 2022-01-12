@@ -2,6 +2,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.Rendering;
@@ -95,7 +96,9 @@ public abstract class ConnectController :Controller
 					{
 						Debug.Log(DateTime.Now.Millisecond + ": " + connect.recives[i]);
 						HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
-						connect.recives.RemoveAt(i);
+						
+						if(connect.recives.ElementAtOrDefault(i) != null)
+							connect.recives.RemoveAt(i);
 					}
 					catch (Exception ex)
 					{
@@ -443,11 +446,12 @@ public abstract class ConnectController :Controller
 
 		if (exit)
 		{
-			Debug.LogError("уже закрываем игру");
+			Debug.LogError("уже закрываем игру ("+ error + ")");
 			yield break;
 		}
 
 		exit = true;
+		connect.Close();
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{
@@ -460,8 +464,7 @@ public abstract class ConnectController :Controller
 				yield return null;
 			}
 		}
-
-		connect.Close();
+	
 		SceneManager.UnloadScene("MainScene");
 		Camera.main.GetComponent<RegisterController>().Error(error);
 	}

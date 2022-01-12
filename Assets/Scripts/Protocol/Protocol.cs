@@ -13,7 +13,9 @@ abstract public class Protocol
 		Connect();
 	}
 
+
 	protected abstract void Connect();
+
 	public abstract void Close();
 	public abstract void Send(Response data);
 }

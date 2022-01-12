@@ -26,12 +26,16 @@ public class Websocket: Protocol
 	}	
 	
 	public override void Close()
-	{
-		connect.Close(WebSocketCloseCode.ProtocolError);
-		Debug.LogError("Соединение закрыто");
-	}
+    {
+        if (connect.GetState() != WebSocketState.Closed)
+        {
+            connect.Close(WebSocketCloseCode.ProtocolError);
+            Debug.LogError("Соединение закрыто");
+        }
+    }
 
-	public override void Send(Response data)
+
+    public override void Send(Response data)
 	{	
 		try
 		{
