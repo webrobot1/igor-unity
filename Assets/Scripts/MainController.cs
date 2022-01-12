@@ -66,12 +66,7 @@ public class MainController : ConnectController
 
     public void OnApplicationFocus(bool focus)
     {
-        Debug.LogError("фокус");
-    }
-
-    public void OnApplicationPause(bool pause)
-    {
-    
+        Debug.Log("фокус " + focus);
     }
 
 

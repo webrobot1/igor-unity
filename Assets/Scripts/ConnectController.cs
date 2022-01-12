@@ -12,7 +12,7 @@ using WebGLSupport;
 /// <summary>
 /// Класс для обработки запросов, конект
 /// </summary>
-public abstract class ConnectController : MonoBehaviour
+public abstract class ConnectController :Controller
 {
 	/// <summary>
 	/// true - загружается сцена регистрации (выходим из игры)
@@ -423,6 +423,12 @@ public abstract class ConnectController : MonoBehaviour
 		}
 	}
 
+#if !UNITY_WEBGL
+	public void OnApplicationPause(bool pause)
+	{
+		StartCoroutine(LoadRegister("Вы вышли из игры"));
+	}
+#endif
 
 	/// <summary>
 	/// Страница ошибок - загрузка страницы входа
@@ -440,6 +446,9 @@ public abstract class ConnectController : MonoBehaviour
 			Debug.LogError("уже закрываем игру");
 			yield break;
 		}
+
+		exit = true;
+		connect.Close();
 		connect = null;
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())

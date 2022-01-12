@@ -7,7 +7,7 @@ using UnityEngine.Networking;
 using UnityEditor;
 using Newtonsoft.Json;
 
-public class RegisterController : MonoBehaviour
+public class RegisterController : Controller
 {
     public InputField login;
     public InputField password;
@@ -22,7 +22,7 @@ public class RegisterController : MonoBehaviour
 		StartCoroutine(SendRequest("auth"));     
     }
 
-	private IEnumerator SendRequest(string action)
+    private IEnumerator SendRequest(string action)
 	{
 
         if(login.text == "" || password.text == "")
