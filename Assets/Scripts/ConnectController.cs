@@ -448,7 +448,6 @@ public abstract class ConnectController :Controller
 		}
 
 		exit = true;
-		connect.Close();
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{
@@ -462,12 +461,14 @@ public abstract class ConnectController :Controller
 			}
 		}
 
+		connect.Close();
 		SceneManager.UnloadScene("MainScene");
 		Camera.main.GetComponent<RegisterController>().Error(error);
 	}
 
 	void OnApplicationQuit()
 	{
-		connect.Close();
+		if(connect!=null)
+			connect.Close();
 	}
 }
