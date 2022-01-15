@@ -1,5 +1,6 @@
 using UnityEngine;
 
+// запуститься только в режиме Unity редактора в PlayMode
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {

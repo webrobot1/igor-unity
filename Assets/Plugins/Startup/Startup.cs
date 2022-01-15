@@ -11,10 +11,12 @@ public class Startup : ScriptableObject
     static Startup()
     {
         // проверим необходимые пакеты
-        var pckName = "com.unity.cinemachine";
         var pack = Client.List();
         while (!pack.IsCompleted);
 
+		// todo передалить в list
+		var pckName = "com.unity.cinemachine";
+        
         if (pack.Result.FirstOrDefault(q => q.name == pckName) == null)
         {
            var add =  Client.Add(pckName);
