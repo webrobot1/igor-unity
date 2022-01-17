@@ -129,14 +129,14 @@ var LibraryWebSocket = {
 	 * 
 	 */
 	WebSocketConnect: function() {
-
+console.log(webSocketState.instance);
 		if (!webSocketState.instance) return -1;
 
 		if (webSocketState.instance.ws !== null)
 			return -2;
 console.log('fghgfhfg');
 		webSocketState.instance.ws = new WebSocket(webSocketState.instance.url);
-console.log(webSocketState.instance.ws);
+
 		webSocketState.instance.ws.binaryType = 'arraybuffer';
 
 		webSocketState.instance.ws.onopen = function() 
