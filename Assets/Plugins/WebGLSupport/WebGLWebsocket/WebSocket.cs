@@ -131,9 +131,9 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-  
-            int ret = WebSocketConnect();
             WebSocketSetOnOpen(DelegateOnOpenEvent);
+            int ret = WebSocketConnect();
+           
             WebSocketSetOnMessage(DelegateOnMessageEvent);
             WebSocketSetOnError(DelegateOnErrorEvent);
             WebSocketSetOnClose(DelegateOnCloseEvent);
