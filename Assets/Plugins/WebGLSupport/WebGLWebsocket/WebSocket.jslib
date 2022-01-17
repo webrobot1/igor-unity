@@ -159,7 +159,7 @@ console.log(5);
 			}
 				
 			if (webSocketState.onOpen)
-				Runtime.dynCall('vi', webSocketState.onOpen);
+				Runtime.dynCall('v', webSocketState.onOpen);
 		};
 
 		instance.ws.onmessage = function(ev) {
@@ -191,7 +191,7 @@ console.log(5);
 				HEAPU8.set(dataBuffer, buffer);   
 
 				try {
-					Runtime.dynCall('viii', webSocketState.onMessage, [ buffer, dataBuffer.length ]);
+					Runtime.dynCall('vii', webSocketState.onMessage, [ buffer, dataBuffer.length ]);
 				} finally {
 					_free(buffer);
 				}
@@ -211,7 +211,7 @@ console.log(5);
 				stringToUTF8(msg, msgBuffer, msgBytes);
 
 				try {
-					Runtime.dynCall('vii', webSocketState.onError, [ msgBuffer ]);
+					Runtime.dynCall('vi', webSocketState.onError, [ msgBuffer ]);
 				} finally {
 					_free(msgBuffer);
 				}
@@ -234,7 +234,7 @@ console.log(5);
 			}
 
 			if (webSocketState.onClose)
-				Runtime.dynCall('vii', webSocketState.onClose, [ ev.code ]);
+				Runtime.dynCall('vi', webSocketState.onClose, [ ev.code ]);
 
 			delete instance.ws;
 
