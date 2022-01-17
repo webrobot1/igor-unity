@@ -74,18 +74,16 @@ namespace WebGLWebsocket
         [MonoPInvokeCallback(typeof(OnOpenCallback))]
         /// <summary>
         /// Delegates onOpen event from JSLIB to native sharp event
-        /// Is called by WebSocketFactory
         /// </summary>
         public void DelegateOnOpenEvent()
         {
-
+            Debug.Log("sdf33");
             this.OnOpen?.Invoke(null, null);
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
         /// <summary>
         /// Delegates onMessage event from JSLIB to native sharp event
-        /// Is called by WebSocketFactory
         /// </summary>
         public void DelegateOnMessageEvent(System.IntPtr msgPtr, int msgSize)
         {
@@ -100,7 +98,6 @@ namespace WebGLWebsocket
         [MonoPInvokeCallback(typeof(OnErrorCallback))]
         /// <summary>
         /// Delegates onError event from JSLIB to native sharp event
-        /// Is called by WebSocketFactory
         /// </summary>
         /// <param name="errorMsg">Error message.</param>
         public void DelegateOnErrorEvent(System.IntPtr errorPtr)
@@ -112,7 +109,6 @@ namespace WebGLWebsocket
         [MonoPInvokeCallback(typeof(OnCloseCallback))]
         /// <summary>
         /// Delegate onClose event from JSLIB to native sharp event
-        /// Is called by WebSocketFactory
         /// </summary>
         public void DelegateOnCloseEvent(WebSocketSharp.CloseStatusCode closeCode)
         {
@@ -137,7 +133,7 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-            WebSocketSetOnOpen(DelegateOnOpenEvent); Debug.Log("sdf");
+            WebSocketSetOnOpen(DelegateOnOpenEvent); 
             WebSocketSetOnMessage(DelegateOnMessageEvent);
             WebSocketSetOnError(DelegateOnErrorEvent);
             WebSocketSetOnClose(DelegateOnCloseEvent);
