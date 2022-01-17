@@ -17,7 +17,7 @@ var LibraryWebSocket = {
 		 * 	ws: WebSocket
 		 * }
 		 */
-		instance: {},
+		instance: {url:null, ws:null},
 		
 		// объект с контейнером отладки
 		debug: null,
@@ -134,9 +134,9 @@ var LibraryWebSocket = {
 
 		if (webSocketState.instance.ws !== null)
 			return -2;
-
+console.log('fghgfhfg');
 		webSocketState.instance.ws = new WebSocket(webSocketState.instance.url);
-
+console.log(webSocketState.instance.ws);
 		webSocketState.instance.ws.binaryType = 'arraybuffer';
 
 		webSocketState.instance.ws.onopen = function() 
@@ -311,7 +311,7 @@ console.log(webSocketState.instance.ws);
 
 		if (!webSocketState.instance) return -1;
 
-		if (webSocketState.instance.ws)
+		if (webSocketState.instance.ws !== null)
 			return webSocketState.instance.ws.readyState;
 		else
 			return 3;
