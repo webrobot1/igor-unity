@@ -77,7 +77,8 @@ namespace WebGLWebsocket
         /// </summary>
         public void DelegateOnOpenEvent()
         {
-            this.OnOpen?.Invoke(this, null);
+            Debug.Log("sdf");
+           // this.OnOpen?.Invoke(this, null);
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
@@ -131,11 +132,20 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-  
-            int ret = WebSocketConnect();
             try
             {
                 WebSocketSetOnOpen(DelegateOnOpenEvent);
+               
+            }
+            catch (Exception ex)
+            {
+                Debug.Log(ex.Message);
+            }
+
+            int ret = WebSocketConnect();
+            try
+            {
+               
                 WebSocketSetOnMessage(DelegateOnMessageEvent);
                 WebSocketSetOnError(DelegateOnErrorEvent);
                 WebSocketSetOnClose(DelegateOnCloseEvent);
