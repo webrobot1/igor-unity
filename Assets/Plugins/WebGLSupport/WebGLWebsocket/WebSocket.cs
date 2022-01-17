@@ -68,10 +68,6 @@ namespace WebGLWebsocket
         /// </summary>
         public WebSocket(string url)
         {
-            WebSocketSetOnOpen(DelegateOnOpenEvent);
-            WebSocketSetOnMessage(DelegateOnMessageEvent);
-            WebSocketSetOnError(DelegateOnErrorEvent);
-            WebSocketSetOnClose(DelegateOnCloseEvent);
             WebSocketAllocate(url);
         }
 
@@ -141,6 +137,11 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
+            WebSocketSetOnOpen(DelegateOnOpenEvent);
+            WebSocketSetOnMessage(DelegateOnMessageEvent);
+            WebSocketSetOnError(DelegateOnErrorEvent);
+            WebSocketSetOnClose(DelegateOnCloseEvent);
+
             int ret = WebSocketConnect();
 
             if (ret < 0)
