@@ -31,11 +31,18 @@ namespace WebGLWebsocket
         public delegate void OnErrorCallback(System.IntPtr errorPtr);
         public delegate void OnCloseCallback(int closeCode);
 
+        // и для совместимости (тк нам надо их вызывать из вне а вызываются тока статические)
+        public static event EventHandler _OnOpen;
+        public static event EventHandler<MessageEventArgs> _OnMessage;
+        public static event EventHandler<ErrorEventArgs> _OnError;
+        public static event EventHandler<CloseEventArgs> _OnClose;
+
+        
         // объявим список этих событий - обработчиков
-        public  event EventHandler OnOpen;
-        public  event EventHandler<MessageEventArgs> OnMessage;
-        public  event EventHandler<ErrorEventArgs> OnError;
-        public  event EventHandler<CloseEventArgs> OnClose;
+        public event EventHandler OnOpen { add=> _OnOpen += value; remove => _OnOpen -= value; }
+        public event EventHandler<MessageEventArgs> OnMessage { add => _OnMessage += value; remove => _OnMessage -= value; }
+        public event EventHandler<ErrorEventArgs> OnError { add => _OnError += value; remove => _OnError -= value; }
+        public event EventHandler<CloseEventArgs> OnClose { add => _OnClose += value; remove => _OnClose -= value; }
 
 
         /* WebSocket JSLIB callback setters and other functions */
@@ -76,23 +83,23 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegates onOpen event from JSLIB to native sharp event
         /// </summary>
-        public  void DelegateOnOpenEvent()
+        public static void DelegateOnOpenEvent()
         {
-             OnOpen?.Invoke(null, new EventArgs());
+             _OnOpen?.Invoke(null, new EventArgs());
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
         /// <summary>
         /// Delegates onMessage event from JSLIB to native sharp event
         /// </summary>
-        public  void DelegateOnMessageEvent(System.IntPtr msgPtr, int msgSize)
+        public static void DelegateOnMessageEvent(System.IntPtr msgPtr, int msgSize)
         {
 
             byte[] msg = new byte[msgSize];
             Marshal.Copy(msgPtr, msg, 0, msgSize);
 
             var ev = new MessageEventArgs(msg);
-            OnMessage?.Invoke(null, ev);
+            _OnMessage?.Invoke(null, ev);
         }
 
         [MonoPInvokeCallback(typeof(OnErrorCallback))]
@@ -100,20 +107,20 @@ namespace WebGLWebsocket
         /// Delegates onError event from JSLIB to native sharp event
         /// </summary>
         /// <param name="errorMsg">Error message.</param>
-        public  void DelegateOnErrorEvent(System.IntPtr errorPtr)
+        public static void DelegateOnErrorEvent(System.IntPtr errorPtr)
         {
             var ev = new ErrorEventArgs(Marshal.PtrToStringAuto(errorPtr));
-            OnError?.Invoke(null, ev);
+            _OnError?.Invoke(null, ev);
         }
 
         [MonoPInvokeCallback(typeof(OnCloseCallback))]
         /// <summary>
         /// Delegate onClose event from JSLIB to native sharp event
         /// </summary>
-        public  void DelegateOnCloseEvent(int closeCode)
+        public static void DelegateOnCloseEvent(int closeCode)
         {
             var ev = new CloseEventArgs((WebSocketSharp.CloseStatusCode)closeCode);
-            OnClose?.Invoke(null, ev);
+            _OnClose?.Invoke(null, ev);
         }
 
         /// <summary>
