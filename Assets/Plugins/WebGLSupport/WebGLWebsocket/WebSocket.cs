@@ -32,10 +32,10 @@ namespace WebGLWebsocket
         public delegate void OnCloseCallback(int closeCode);
 
         // объявим список этих событий - обработчиков
-        public static event EventHandler OnOpen;
-        public static event EventHandler<MessageEventArgs> OnMessage;
-        public static event EventHandler<ErrorEventArgs> OnError;
-        public static event EventHandler<CloseEventArgs> OnClose;
+        public  event EventHandler OnOpen;
+        public  event EventHandler<MessageEventArgs> OnMessage;
+        public  event EventHandler<ErrorEventArgs> OnError;
+        public  event EventHandler<CloseEventArgs> OnClose;
 
 
         /* WebSocket JSLIB callback setters and other functions */
@@ -76,7 +76,7 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegates onOpen event from JSLIB to native sharp event
         /// </summary>
-        public static void DelegateOnOpenEvent()
+        public  void DelegateOnOpenEvent()
         {
              OnOpen?.Invoke(null, new EventArgs());
         }
@@ -85,7 +85,7 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegates onMessage event from JSLIB to native sharp event
         /// </summary>
-        public static void DelegateOnMessageEvent(System.IntPtr msgPtr, int msgSize)
+        public  void DelegateOnMessageEvent(System.IntPtr msgPtr, int msgSize)
         {
 
             byte[] msg = new byte[msgSize];
@@ -100,7 +100,7 @@ namespace WebGLWebsocket
         /// Delegates onError event from JSLIB to native sharp event
         /// </summary>
         /// <param name="errorMsg">Error message.</param>
-        public static void DelegateOnErrorEvent(System.IntPtr errorPtr)
+        public  void DelegateOnErrorEvent(System.IntPtr errorPtr)
         {
             var ev = new ErrorEventArgs(Marshal.PtrToStringAuto(errorPtr));
             OnError?.Invoke(null, ev);
@@ -110,7 +110,7 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegate onClose event from JSLIB to native sharp event
         /// </summary>
-        public static void DelegateOnCloseEvent(int closeCode)
+        public  void DelegateOnCloseEvent(int closeCode)
         {
             var ev = new CloseEventArgs((WebSocketSharp.CloseStatusCode)closeCode);
             OnClose?.Invoke(null, ev);
@@ -132,17 +132,10 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-            try
-            {
-                WebSocketSetOnOpen(DelegateOnOpenEvent);
-                WebSocketSetOnMessage(DelegateOnMessageEvent);
-                WebSocketSetOnError(DelegateOnErrorEvent);
-                WebSocketSetOnClose(DelegateOnCloseEvent);
-            }
-            catch (Exception ex)
-            {
-                Debug.Log(ex.Message);
-            }
+            WebSocketSetOnOpen(DelegateOnOpenEvent);
+            WebSocketSetOnMessage(DelegateOnMessageEvent);
+            WebSocketSetOnError(DelegateOnErrorEvent);
+            WebSocketSetOnClose(DelegateOnCloseEvent);
 
             int ret = WebSocketConnect();
 
