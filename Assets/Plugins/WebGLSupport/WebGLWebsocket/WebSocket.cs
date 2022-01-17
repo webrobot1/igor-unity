@@ -25,25 +25,20 @@ namespace WebGLWebsocket
         [DllImport("__Internal")]
         public static extern int WebSocketGetState();
 
+        /* Delegates */
+        public delegate void OnOpenCallback(object sender, EventArgs ev);
+        public delegate void OnMessageCallback(System.IntPtr msgPtr, int msgSize);
+        public delegate void OnErrorCallback(System.IntPtr errorPtr);
+        public delegate void OnCloseCallback(WebSocketSharp.CloseStatusCode closeCode);
+
         // объявим список этих событий - обработчиков
         public event EventHandler OnOpen;
         public event EventHandler<MessageEventArgs> OnMessage;
         public event EventHandler<ErrorEventArgs> OnError;
         public event EventHandler<CloseEventArgs> OnClose;
 
-        /* Delegates */
-        public delegate void OnOpenCallback();
-        public delegate void OnMessageCallback(System.IntPtr msgPtr, int msgSize);
-        public delegate void OnErrorCallback(System.IntPtr errorPtr);
-        public delegate void OnCloseCallback(WebSocketSharp.CloseStatusCode closeCode);
 
         /* WebSocket JSLIB callback setters and other functions */
-        [DllImport("__Internal")]
-        public static extern void  WebSocketAllocate(string url);
-
-        [DllImport("__Internal")]
-        public static extern void WebSocketFree();
-
         [DllImport("__Internal")]
         public static extern void WebSocketSetOnOpen(OnOpenCallback callback);
 
@@ -56,6 +51,11 @@ namespace WebGLWebsocket
         [DllImport("__Internal")]
         public static extern void WebSocketSetOnClose(OnCloseCallback callback);
 
+        [DllImport("__Internal")]
+        public static extern void WebSocketAllocate(string url);
+
+        [DllImport("__Internal")]
+        public static extern void WebSocketFree();
         public WebSocketSharp.WebSocketState ReadyState 
         { 
             get {
@@ -75,10 +75,10 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegates onOpen event from JSLIB to native sharp event
         /// </summary>
-        public void DelegateOnOpenEvent()
+        public void DelegateOnOpenEvent(object sender, EventArgs ev)
         {
             Debug.Log("sdf33");
-            this.OnOpen?.Invoke(null, null);
+            this.OnOpen?.Invoke(sender, ev);
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
