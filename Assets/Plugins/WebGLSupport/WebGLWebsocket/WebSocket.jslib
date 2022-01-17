@@ -49,8 +49,8 @@ var LibraryWebSocket = {
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnOpen: function(callback) {
-
-		webSocketState.onOpen = callback;
+console.log(1);
+		webSocketState.onOpen = callback;console.log(2);
 	},
 
 	/**
@@ -134,9 +134,9 @@ var LibraryWebSocket = {
 		
 		if (webSocketState.instance.ws !== null)
 			return -2;
-
+console.log(3);
 		webSocketState.instance.ws = new WebSocket(webSocketState.instance.url);
-
+console.log(4);
 		webSocketState.instance.ws.binaryType = 'arraybuffer';
 
 		webSocketState.instance.ws.onopen = function() 
@@ -157,11 +157,11 @@ var LibraryWebSocket = {
 				/* Очищаем очередь */
 				webSocketState.queue = [];
 			}
-				
+			console.log(5);	
 			if (webSocketState.onOpen)
-				Runtime.dynCall('v', webSocketState.onOpen);
+				Runtime.dynCall('v', webSocketState.onOpen);console.log(6);
 		};
-
+console.log(7);
 		instance.ws.onmessage = function(ev) {
 
 			if (webSocketState.debug)
@@ -308,9 +308,9 @@ console.log(1);
 	 * 
 	 */
 	WebSocketGetState: function() {
-
+console.log(9);
 		if (webSocketState.instance === null) return -1;
-
+console.log(10);
 		if (webSocketState.instance.ws !== null)
 			return webSocketState.instance.ws.readyState;
 		else

@@ -131,13 +131,12 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-  
-            int ret = WebSocketConnect();
             WebSocketSetOnOpen(DelegateOnOpenEvent);
+            int ret = WebSocketConnect();
+            
             WebSocketSetOnMessage(DelegateOnMessageEvent);
             WebSocketSetOnError(DelegateOnErrorEvent);
             WebSocketSetOnClose(DelegateOnCloseEvent);
-
 
             if (ret < 0)
                 GetErrorMessageFromCode(ret);
@@ -164,6 +163,8 @@ namespace WebGLWebsocket
         {
             int ret = WebSocketSend(data, data.Length);
 
+            if (ret < 0)
+                GetErrorMessageFromCode(ret);
         }
 
         /// <summary>
