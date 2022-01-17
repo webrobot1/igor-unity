@@ -17,7 +17,7 @@ var LibraryWebSocket = {
 		 * 	ws: WebSocket
 		 * }
 		 */
-		instance: {},
+		instance: null,
 		
 		// объект с контейнером отладки
 		debug: null,
@@ -111,14 +111,14 @@ var LibraryWebSocket = {
 	 */
 	WebSocketFree: function() {
 
-		if (!webSocketState.instance) return 0;
+		if (webSocketState.instance === null) return 0;
 
 		// Close if not closed
 		if (webSocketState.instance.ws !== null && webSocketState.instance.ws.readyState < 2)
 			webSocketState.instance.ws.close();
 
 		// Remove reference
-		delete webSocketState.instance;
+		webSocketState.instance = null;
 
 		return 0;
 
@@ -129,8 +129,8 @@ var LibraryWebSocket = {
 	 * 
 	 */
 	WebSocketConnect: function() {
-console.log(webSocketState);
-		if (!webSocketState.instance.url) return -1;
+
+		if (webSocketState.instance === null) return -1;
 
 		if (webSocketState.instance.ws !== null)
 			return -2;
@@ -252,7 +252,7 @@ console.log(webSocketState);
 	 */
 	WebSocketClose: function(code, reasonPtr) {
 
-		if (!webSocketState.instance) return -1;
+		if (webSocketState.instance === null) return -1;
 
 		if (webSocketState.instance.ws === null)
 			return -3;
@@ -283,7 +283,7 @@ console.log(webSocketState);
 	 */
 	WebSocketSend: function(bufferPtr, length) {
 	
-		if (!webSocketState.instance) return -1;
+		if (webSocketState.instance === null) return -1;
 		
 		if (webSocketState.instance.ws === null)
 			return -3;
@@ -309,7 +309,7 @@ console.log(webSocketState);
 	 */
 	WebSocketGetState: function() {
 
-		if (!webSocketState.instance) return -1;
+		if (webSocketState.instance === null) return -1;
 
 		if (webSocketState.instance.ws !== null)
 			return webSocketState.instance.ws.readyState;
