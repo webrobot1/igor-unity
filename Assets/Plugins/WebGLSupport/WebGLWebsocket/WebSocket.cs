@@ -25,11 +25,11 @@ namespace WebGLWebsocket
         [DllImport("__Internal")]
         public static extern int WebSocketGetState();
 
-        /* Delegates */
-        public delegate void OnOpenCallback(object sender, EventArgs ev);
+        /* объявим структуру функций которые будут вызываться из JS */
+        public delegate void OnOpenCallback();
         public delegate void OnMessageCallback(System.IntPtr msgPtr, int msgSize);
         public delegate void OnErrorCallback(System.IntPtr errorPtr);
-        public delegate void OnCloseCallback(WebSocketSharp.CloseStatusCode closeCode);
+        public delegate void OnCloseCallback(int closeCode);
 
         // объявим список этих событий - обработчиков
         public event EventHandler OnOpen;
@@ -75,10 +75,9 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegates onOpen event from JSLIB to native sharp event
         /// </summary>
-        public void DelegateOnOpenEvent(object sender, EventArgs ev)
+        public void DelegateOnOpenEvent()
         {
-            Debug.Log("sdf33");
-            this.OnOpen?.Invoke(sender, ev);
+            this.OnOpen?.Invoke(null, null);
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
@@ -110,12 +109,11 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegate onClose event from JSLIB to native sharp event
         /// </summary>
-        public void DelegateOnCloseEvent(WebSocketSharp.CloseStatusCode closeCode)
+        public void DelegateOnCloseEvent(int closeCode)
         {
-            var ev = new CloseEventArgs(closeCode);
+            var ev = new CloseEventArgs((WebSocketSharp.CloseStatusCode)closeCode);
             this.OnClose?.Invoke(null, ev);
         }
-
 
         /// <summary>
         /// Destructor - notifies WebSocketFactory about it to remove JSLIB references
@@ -133,13 +131,9 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-            WebSocketSetOnOpen(DelegateOnOpenEvent); 
-            WebSocketSetOnMessage(DelegateOnMessageEvent);
-            WebSocketSetOnError(DelegateOnErrorEvent);
-            WebSocketSetOnClose(DelegateOnCloseEvent);
-            
+  
             int ret = WebSocketConnect();
-
+            Debug.Log("sdf");
             if (ret < 0)
                 GetErrorMessageFromCode(ret);
         }
