@@ -129,16 +129,16 @@ var LibraryWebSocket = {
 	 * 
 	 */
 	WebSocketConnect: function() {
-
+console.log(1);
 		if (webSocketState.instance === null) return -1;
-
+console.log(2);
 		if (webSocketState.instance.ws !== null)
 			return -2;
-
+console.log(3);
 		webSocketState.instance.ws = new WebSocket(webSocketState.instance.url);
-
+console.log(4);
 		webSocketState.instance.ws.binaryType = 'arraybuffer';
-
+console.log(5);
 		webSocketState.instance.ws.onopen = function() 
 		{
 			webSocketState.debug = document.querySelector("#unity-api-container");
