@@ -139,11 +139,18 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-            WebSocketSetOnOpen(DelegateOnOpenEvent);
-            WebSocketSetOnMessage(DelegateOnMessageEvent);
-            WebSocketSetOnError(DelegateOnErrorEvent);
-            WebSocketSetOnClose(DelegateOnCloseEvent);
-
+            try
+            {
+                WebSocketSetOnOpen(DelegateOnOpenEvent);
+                WebSocketSetOnMessage(DelegateOnMessageEvent);
+                WebSocketSetOnError(DelegateOnErrorEvent);
+                WebSocketSetOnClose(DelegateOnCloseEvent);
+            }
+            catch (Exception e)
+            {
+                Debug.Log(e.Message);
+            }
+            
             int ret = WebSocketConnect();
 
             if (ret < 0)
