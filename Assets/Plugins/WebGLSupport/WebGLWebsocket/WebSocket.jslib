@@ -129,7 +129,7 @@ var LibraryWebSocket = {
 	 * 
 	 */
 	WebSocketConnect: function() {
-
+console.log("sdf");
 		if (!webSocketState.instance) return -1;
 
 		if (webSocketState.instance.ws !== null)

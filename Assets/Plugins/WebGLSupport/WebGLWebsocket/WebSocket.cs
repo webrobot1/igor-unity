@@ -77,7 +77,7 @@ namespace WebGLWebsocket
         /// </summary>
         public void DelegateOnOpenEvent()
         {
-            this.OnOpen?.Invoke(null, null);
+            this.OnOpen?.Invoke(this, null);
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
@@ -91,7 +91,7 @@ namespace WebGLWebsocket
             Marshal.Copy(msgPtr, msg, 0, msgSize);
 
             var ev = new MessageEventArgs(msg);
-            this.OnMessage?.Invoke(null, ev);
+            this.OnMessage?.Invoke(this, ev);
         }
 
         [MonoPInvokeCallback(typeof(OnErrorCallback))]
@@ -102,7 +102,7 @@ namespace WebGLWebsocket
         public void DelegateOnErrorEvent(System.IntPtr errorPtr)
         {
             var ev = new ErrorEventArgs(Marshal.PtrToStringAuto(errorPtr));
-            this.OnError?.Invoke(null, ev);
+            this.OnError?.Invoke(this, ev);
         }
 
         [MonoPInvokeCallback(typeof(OnCloseCallback))]
@@ -112,7 +112,7 @@ namespace WebGLWebsocket
         public void DelegateOnCloseEvent(int closeCode)
         {
             var ev = new CloseEventArgs((WebSocketSharp.CloseStatusCode)closeCode);
-            this.OnClose?.Invoke(null, ev);
+            this.OnClose?.Invoke(this, ev);
         }
 
         /// <summary>
@@ -133,7 +133,12 @@ namespace WebGLWebsocket
         {
   
             int ret = WebSocketConnect();
-            Debug.Log("sdf");
+            WebSocketSetOnOpen(DelegateOnOpenEvent);
+            WebSocketSetOnMessage(DelegateOnMessageEvent);
+            WebSocketSetOnError(DelegateOnErrorEvent);
+            WebSocketSetOnClose(DelegateOnCloseEvent);
+
+
             if (ret < 0)
                 GetErrorMessageFromCode(ret);
         }
