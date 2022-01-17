@@ -16,6 +16,9 @@ public class Websocket: Protocol
 
 	protected override void Connect()
 	{
+		if (this.ws !=null && (this.ws.ReadyState == WebSocketSharp.WebSocketState.Open || this.ws.ReadyState == WebSocketSharp.WebSocketState.Closing))
+			error = "WebSocket is already connected or is closing.";
+
 		try
 		{
 			ws = new WebSocket("ws://95.216.204.181:8081");

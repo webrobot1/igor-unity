@@ -17,7 +17,7 @@ var LibraryWebSocket = {
 		 * 	ws: WebSocket
 		 * }
 		 */
-		instance: {url:null, ws:null},
+		instance: {},
 		
 		// объект с контейнером отладки
 		debug: null,
@@ -94,7 +94,7 @@ var LibraryWebSocket = {
 	WebSocketAllocate: function(url) {
 
 		var urlStr = Pointer_stringify(url);
-console.log("xxxx");
+
 		webSocketState.instance = 
 		{
 			url: urlStr,
@@ -129,12 +129,12 @@ console.log("xxxx");
 	 * 
 	 */
 	WebSocketConnect: function() {
-console.log(webSocketState.instance);
+
 		if (!webSocketState.instance) return -1;
 
 		if (webSocketState.instance.ws !== null)
 			return -2;
-console.log('fghgfhfg');
+
 		webSocketState.instance.ws = new WebSocket(webSocketState.instance.url);
 
 		webSocketState.instance.ws.binaryType = 'arraybuffer';
@@ -287,7 +287,7 @@ console.log('fghgfhfg');
 		
 		if (webSocketState.instance.ws === null)
 			return -3;
-console.log(webSocketState.instance.ws);
+
 		if (webSocketState.instance.ws.readyState !== 1)
 		{
 			/* Если конект не открыт, добавляем сообщение в очередь */
