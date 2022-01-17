@@ -110,7 +110,7 @@ var LibraryWebSocket = {
 	 * 
 	 */
 	WebSocketFree: function() {
-
+console.log("sddd");
 		if (!webSocketState.instance) return 0;
 
 		// Close if not closed
@@ -129,7 +129,7 @@ var LibraryWebSocket = {
 	 * 
 	 */
 	WebSocketConnect: function() {
-console.log("sdf");
+console.log(webSocketState);
 		if (!webSocketState.instance) return -1;
 
 		if (webSocketState.instance.ws !== null)
