@@ -49,8 +49,8 @@ var LibraryWebSocket = {
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnOpen: function(callback) {
-console.log(1);
-		webSocketState.onOpen = callback;console.log(2);
+
+		webSocketState.onOpen = callback;
 	},
 
 	/**
@@ -129,14 +129,14 @@ console.log(1);
 	 * 
 	 */
 	WebSocketConnect: function() {
-	
+
 		if (webSocketState.instance === null) return -1;
 		
 		if (webSocketState.instance.ws !== null)
 			return -2;
-console.log(3);
+
 		webSocketState.instance.ws = new WebSocket(webSocketState.instance.url);
-console.log(4);
+
 		webSocketState.instance.ws.binaryType = 'arraybuffer';
 
 		webSocketState.instance.ws.onopen = function() 
@@ -157,21 +157,21 @@ console.log(4);
 				/* Очищаем очередь */
 				webSocketState.queue = [];
 			}
-			console.log(5);	
+				
 			if (webSocketState.onOpen)
-				Runtime.dynCall('v', webSocketState.onOpen);console.log(6);
+				Runtime.dynCall('v', webSocketState.onOpen);
 		};
-console.log(7);
-		instance.ws.onmessage = function(ev) {
-console.log(8);
+
+		webSocketState.instance.ws.onmessage = function(ev) {
+
 			if (webSocketState.debug)
 			{
 				webSocketState.Log(ev.data);
 			}
-console.log(9);
+
 			if (webSocketState.onMessage === null)
 				return;
-console.log(10);
+
 			if (ev.data instanceof ArrayBuffer)
 			{
 				var dataBuffer = new Uint8Array(ev.data);
@@ -184,23 +184,21 @@ console.log(10);
 				// read string message into data buffer
 				dataBuffer.forEach(function(_, i) {dataBuffer[i] = ev.data.charCodeAt(i);});
 	        }
-				console.log(11);	
+					
 			if (dataBuffer != null) 
 			{
 				var buffer = _malloc(dataBuffer.length);
 				HEAPU8.set(dataBuffer, buffer);   
-console.log(12);	
+
 				try {
 					Runtime.dynCall('vii', webSocketState.onMessage, [ buffer, dataBuffer.length ]);
 				} finally {
 					_free(buffer);
 				}
-				
-				console.log(13);	
 	        }	
 		};
-console.log(14);	
-		instance.ws.onerror = function(ev) {
+
+		webSocketState.instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
 				webSocketState.Log("Error occured");
@@ -211,18 +209,18 @@ console.log(14);
 				var msgBytes = lengthBytesUTF8(msg);
 				var msgBuffer = _malloc(msgBytes + 1);
 				stringToUTF8(msg, msgBuffer, msgBytes);
-console.log(15);	
+
 				try {
 					Runtime.dynCall('vi', webSocketState.onError, [ msgBuffer ]);
 				} finally {
 					_free(msgBuffer);
 				}
-console.log(16);	
+
 			}
 
 		};
 
-		instance.ws.onclose = function(ev) {
+		webSocketState.instance.ws.onclose = function(ev) {
 
 			if (webSocketState.debug)
 			{
@@ -238,10 +236,10 @@ console.log(16);
 			if (webSocketState.onClose)
 				Runtime.dynCall('vi', webSocketState.onClose, [ ev.code ]);
 
-			delete instance.ws;
+			delete webSocketState.instance.ws;
 
 		};
-console.log(1);
+
 		return 0;
 
 	},
@@ -310,9 +308,9 @@ console.log(1);
 	 * 
 	 */
 	WebSocketGetState: function() {
-console.log(9);
+
 		if (webSocketState.instance === null) return -1;
-console.log(10);
+
 		if (webSocketState.instance.ws !== null)
 			return webSocketState.instance.ws.readyState;
 		else
