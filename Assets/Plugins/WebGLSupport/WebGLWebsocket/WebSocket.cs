@@ -137,11 +137,12 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
+            Debug.Log("sdfe");
             WebSocketSetOnOpen(DelegateOnOpenEvent);
             WebSocketSetOnMessage(DelegateOnMessageEvent);
             WebSocketSetOnError(DelegateOnErrorEvent);
             WebSocketSetOnClose(DelegateOnCloseEvent);
-
+            Debug.Log("sdf");
             int ret = WebSocketConnect();
 
             if (ret < 0)

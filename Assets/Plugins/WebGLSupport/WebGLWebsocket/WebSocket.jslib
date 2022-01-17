@@ -94,7 +94,7 @@ var LibraryWebSocket = {
 	WebSocketAllocate: function(url) {
 
 		var urlStr = Pointer_stringify(url);
-
+console.log("xxxx");
 		webSocketState.instance = 
 		{
 			url: urlStr,
