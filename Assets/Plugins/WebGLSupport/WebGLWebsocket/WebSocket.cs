@@ -135,17 +135,6 @@ namespace WebGLWebsocket
             try
             {
                 WebSocketSetOnOpen(DelegateOnOpenEvent);
-               
-            }
-            catch (Exception ex)
-            {
-                Debug.Log(ex.Message);
-            }
-
-            int ret = WebSocketConnect();
-            try
-            {
-               
                 WebSocketSetOnMessage(DelegateOnMessageEvent);
                 WebSocketSetOnError(DelegateOnErrorEvent);
                 WebSocketSetOnClose(DelegateOnCloseEvent);
@@ -154,6 +143,8 @@ namespace WebGLWebsocket
             {
                 Debug.Log(ex.Message);
             }
+
+            int ret = WebSocketConnect();
 
             if (ret < 0)
                 GetErrorMessageFromCode(ret);

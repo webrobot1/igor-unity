@@ -112,7 +112,7 @@ var LibraryWebSocket = {
 	WebSocketFree: function() {
 
 		if (webSocketState.instance === null) return 0;
-
+console.log(webSocketState.instance);
 		// Close if not closed
 		if (webSocketState.instance.ws !== null && webSocketState.instance.ws.readyState < 2)
 			webSocketState.instance.ws.close();
@@ -236,7 +236,7 @@ var LibraryWebSocket = {
 			if (webSocketState.onClose)
 				Runtime.dynCall('vi', webSocketState.onClose, [ ev.code ]);
 
-			delete webSocketState.instance.ws;
+			webSocketState.instance.ws = null;
 
 		};
 
