@@ -163,15 +163,15 @@ console.log(4);
 		};
 console.log(7);
 		instance.ws.onmessage = function(ev) {
-
+console.log(8);
 			if (webSocketState.debug)
 			{
 				webSocketState.Log(ev.data);
 			}
-
+console.log(9);
 			if (webSocketState.onMessage === null)
 				return;
-
+console.log(10);
 			if (ev.data instanceof ArrayBuffer)
 			{
 				var dataBuffer = new Uint8Array(ev.data);
@@ -184,20 +184,22 @@ console.log(7);
 				// read string message into data buffer
 				dataBuffer.forEach(function(_, i) {dataBuffer[i] = ev.data.charCodeAt(i);});
 	        }
-					
+				console.log(11);	
 			if (dataBuffer != null) 
 			{
 				var buffer = _malloc(dataBuffer.length);
 				HEAPU8.set(dataBuffer, buffer);   
-
+console.log(12);	
 				try {
 					Runtime.dynCall('vii', webSocketState.onMessage, [ buffer, dataBuffer.length ]);
 				} finally {
 					_free(buffer);
 				}
+				
+				console.log(13);	
 	        }	
 		};
-
+console.log(14);	
 		instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
@@ -209,13 +211,13 @@ console.log(7);
 				var msgBytes = lengthBytesUTF8(msg);
 				var msgBuffer = _malloc(msgBytes + 1);
 				stringToUTF8(msg, msgBuffer, msgBytes);
-
+console.log(15);	
 				try {
 					Runtime.dynCall('vi', webSocketState.onError, [ msgBuffer ]);
 				} finally {
 					_free(msgBuffer);
 				}
-
+console.log(16);	
 			}
 
 		};
