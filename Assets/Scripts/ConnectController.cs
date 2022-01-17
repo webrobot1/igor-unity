@@ -13,7 +13,7 @@ using WebGLSupport;
 /// <summary>
 /// Класс для обработки запросов, конект
 /// </summary>
-public abstract class ConnectController :Controller
+public abstract class ConnectController : MainController
 {
 	/// <summary>
 	/// true - загружается сцена регистрации (выходим из игры)

@@ -7,7 +7,7 @@ using UnityEngine.Networking;
 using UnityEditor;
 using Newtonsoft.Json;
 
-public class RegisterController : Controller
+public class RegisterController : MainController
 {
     public InputField login;
     public InputField password;
@@ -80,7 +80,7 @@ public class RegisterController : Controller
             Error("не указан player_id или token");
 
         SceneManager.UnloadScene("RegisterScene");
-        Camera.main.GetComponent<MainController>().SetPlayer(data);
+        Camera.main.GetComponent<GameController>().SetPlayer(data);
 
         // asyncLoad.allowSceneActivation = true;
     }
