@@ -139,13 +139,13 @@ console.log(instanceId+"dddd");
 	 * @param instanceId Instance ID
 	 */
 	WebSocketConnect: function(instanceId) {
-
+console.log("v");
 		var instance = webSocketState.instances[instanceId];
 		if (!instance) return -1;
 
 		if (instance.ws !== null)
 			return -2;
-
+console.log("vv");
 		instance.ws = new WebSocket(instance.url);
 
 		instance.ws.binaryType = 'arraybuffer';
@@ -172,7 +172,7 @@ console.log(instanceId+"dddd");
 			if (webSocketState.onOpen)
 				Runtime.dynCall('vi', webSocketState.onOpen, [ instanceId ]);
 		};
-
+console.log("vvv");
 		instance.ws.onmessage = function(ev) {
 
 			if (webSocketState.debug)
@@ -208,7 +208,7 @@ console.log(instanceId+"dddd");
 				}
 	        }	
 		};
-
+console.log("vvvv");
 		instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
@@ -250,7 +250,7 @@ console.log(instanceId+"dddd");
 			delete instance.ws;
 
 		};
-
+console.log("vvvvvv");
 		return 0;
 
 	},
