@@ -1,7 +1,8 @@
-using System;
+using UnityEngine;
 using UnityEditor;
+using System;
 
-public class AutoIncrementVersion
+public class AutoIncrementVersion : MonoBehaviour
 {
 #if UNITY_CLOUD_BUILD
     public static void PreExport(UnityEngine.CloudBuild.BuildManifestObject manifest)
