@@ -12,61 +12,58 @@ namespace WebGLWebsocket
     /// </summary>
     public class WebSocket
     {
+        private static Dictionary<Int32, WebSocket> instances = new Dictionary<Int32, WebSocket>();
+        protected int instanceId;
+
+
         /* WebSocket JSLIB functions */
         [DllImport("__Internal")]
-        public static extern int WebSocketConnect();
+        public static extern int WebSocketConnect(int instanceId);
 
         [DllImport("__Internal")]
-        public static extern int WebSocketClose(int code, string reason);
+        public static extern int WebSocketClose(int instanceId, int code, string reason);
 
         [DllImport("__Internal")]
-        public static extern int WebSocketSend(byte[] dataPtr, int dataLength);
+        public static extern int WebSocketSend(int instanceId, byte[] dataPtr, int dataLength);
 
         [DllImport("__Internal")]
-        public static extern int WebSocketGetState();
+        public static extern int WebSocketGetState(int instanceId);
 
         /* объявим структуру функций которые будут вызываться из JS */
-        public delegate void OnOpenCallback();
-        public delegate void OnMessageCallback(System.IntPtr msgPtr, int msgSize);
-        public delegate void OnErrorCallback(System.IntPtr errorPtr);
-        public delegate void OnCloseCallback(int closeCode);
+        public delegate void OnOpenCallback(int instanceId);
+        public delegate void OnMessageCallback(int instanceId, System.IntPtr msgPtr, int msgSize);
+        public delegate void OnErrorCallback(int instanceId, System.IntPtr errorPtr);
+        public delegate void OnCloseCallback(int instanceId, int closeCode);
 
         // и для совместимости (тк нам надо их вызывать из вне а вызываются тока статические)
-        public static event EventHandler _OnOpen;
-        public static event EventHandler<MessageEventArgs> _OnMessage;
-        public static event EventHandler<ErrorEventArgs> _OnError;
-        public static event EventHandler<CloseEventArgs> _OnClose;
-
-        
-        // объявим список этих событий - обработчиков
-        public event EventHandler OnOpen { add=> _OnOpen += value; remove => _OnOpen -= value; }
-        public event EventHandler<MessageEventArgs> OnMessage { add => _OnMessage += value; remove => _OnMessage -= value; }
-        public event EventHandler<ErrorEventArgs> OnError { add => _OnError += value; remove => _OnError -= value; }
-        public event EventHandler<CloseEventArgs> OnClose { add => _OnClose += value; remove => _OnClose -= value; }
+        public event EventHandler OnOpen;
+        public event EventHandler<MessageEventArgs> OnMessage;
+        public event EventHandler<ErrorEventArgs> OnError;
+        public event EventHandler<CloseEventArgs> OnClose;
 
 
         /* WebSocket JSLIB callback setters and other functions */
         [DllImport("__Internal")]
-        public static extern void WebSocketSetOnOpen(OnOpenCallback callback);
+        public static extern void WebSocketSetOnOpen(int instanceId, OnOpenCallback callback);
 
         [DllImport("__Internal")]
-        public static extern void WebSocketSetOnMessage(OnMessageCallback callback);
+        public static extern void WebSocketSetOnMessage(int instanceId, OnMessageCallback callback);
 
         [DllImport("__Internal")]
-        public static extern void WebSocketSetOnError(OnErrorCallback callback);
+        public static extern void WebSocketSetOnError(int instanceId, OnErrorCallback callback);
 
         [DllImport("__Internal")]
-        public static extern void WebSocketSetOnClose(OnCloseCallback callback);
+        public static extern void WebSocketSetOnClose(int instanceId, OnCloseCallback callback);
 
         [DllImport("__Internal")]
-        public static extern void WebSocketAllocate(string url);
+        public static extern int WebSocketAllocate(string url);
 
         [DllImport("__Internal")]
-        public static extern void WebSocketFree();
+        public static extern void WebSocketFree(int instanceId);
         public WebSocketSharp.WebSocketState ReadyState 
         { 
             get {
-                return (WebSocketSharp.WebSocketState)WebSocketGetState();
+                return (WebSocketSharp.WebSocketState)WebSocketGetState(instanceId);
             }
         }
 
@@ -75,7 +72,7 @@ namespace WebGLWebsocket
         /// </summary>
         public WebSocket(string url)
         {
-            WebSocketAllocate(url);
+            this.instanceId = WebSocketAllocate(url);
         }
 
         // todo если понадобиться первый аргумент то надо вернуть вариент с instance_id
@@ -83,23 +80,34 @@ namespace WebGLWebsocket
         /// <summary>
         /// Delegates onOpen event from JSLIB to native sharp event
         /// </summary>
-        public static void DelegateOnOpenEvent()
+        public static void DelegateOnOpenEvent(int instanceId)
         {
-             _OnOpen?.Invoke(null, new EventArgs());
+            WebSocket instanceRef;
+
+            if (instances.TryGetValue(instanceId, out instanceRef))
+            {
+                instanceRef.OnOpen?.Invoke(instanceRef, new EventArgs());
+            }   
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
         /// <summary>
         /// Delegates onMessage event from JSLIB to native sharp event
         /// </summary>
-        public static void DelegateOnMessageEvent(System.IntPtr msgPtr, int msgSize)
+        public static void DelegateOnMessageEvent(int instanceId, System.IntPtr msgPtr, int msgSize)
         {
 
-            byte[] msg = new byte[msgSize];
-            Marshal.Copy(msgPtr, msg, 0, msgSize);
+            WebSocket instanceRef;
 
-            var ev = new MessageEventArgs(msg);
-            _OnMessage?.Invoke(null, ev);
+            if (instances.TryGetValue(instanceId, out instanceRef))
+            {
+
+                byte[] msg = new byte[msgSize];
+                Marshal.Copy(msgPtr, msg, 0, msgSize);
+
+                var ev = new MessageEventArgs(msg);
+                instanceRef.OnMessage?.Invoke(instanceRef, ev);
+            }
         }
 
         [MonoPInvokeCallback(typeof(OnErrorCallback))]
@@ -107,20 +115,31 @@ namespace WebGLWebsocket
         /// Delegates onError event from JSLIB to native sharp event
         /// </summary>
         /// <param name="errorMsg">Error message.</param>
-        public static void DelegateOnErrorEvent(System.IntPtr errorPtr)
+        public static void DelegateOnErrorEvent(int instanceId, System.IntPtr errorPtr)
         {
-            var ev = new ErrorEventArgs(Marshal.PtrToStringAuto(errorPtr));
-            _OnError?.Invoke(null, ev);
+            WebSocket instanceRef;
+
+            if (instances.TryGetValue(instanceId, out instanceRef))
+            {
+                var ev = new ErrorEventArgs(Marshal.PtrToStringAuto(errorPtr));
+                instanceRef.OnError?.Invoke(instanceRef, ev);
+            }
         }
 
         [MonoPInvokeCallback(typeof(OnCloseCallback))]
         /// <summary>
         /// Delegate onClose event from JSLIB to native sharp event
         /// </summary>
-        public static void DelegateOnCloseEvent(int closeCode)
+        public static void DelegateOnCloseEvent(int instanceId, int closeCode)
         {
-            var ev = new CloseEventArgs((WebSocketSharp.CloseStatusCode)closeCode);
-            _OnClose?.Invoke(null, ev);
+            WebSocket instanceRef;
+
+            if (instances.TryGetValue(instanceId, out instanceRef))
+            {
+                var ev = new CloseEventArgs((WebSocketSharp.CloseStatusCode)closeCode);
+
+                instanceRef.OnClose?.Invoke(instanceRef, ev);
+            }
         }
 
         /// <summary>
@@ -130,7 +149,8 @@ namespace WebGLWebsocket
         /// </summary>
         ~WebSocket()
         {
-            WebSocketFree();
+            instances.Remove(instanceId);
+            WebSocketFree(instanceId);
         }
 
 
@@ -141,20 +161,22 @@ namespace WebGLWebsocket
         {
             try
             {
-                WebSocketSetOnOpen(DelegateOnOpenEvent);
-                WebSocketSetOnMessage(DelegateOnMessageEvent);
-                WebSocketSetOnError(DelegateOnErrorEvent);
-                WebSocketSetOnClose(DelegateOnCloseEvent);
+                WebSocketSetOnOpen(this.instanceId, DelegateOnOpenEvent);
+                WebSocketSetOnMessage(this.instanceId, DelegateOnMessageEvent);
+                WebSocketSetOnError(this.instanceId, DelegateOnErrorEvent);
+                WebSocketSetOnClose(this.instanceId, DelegateOnCloseEvent);
             }
             catch (Exception e)
             {
                 Debug.Log(e.Message);
             }
             
-            int ret = WebSocketConnect();
+            int ret = WebSocketConnect(instanceId);
 
             if (ret < 0)
                 GetErrorMessageFromCode(ret);
+            else
+                instances.Add(instanceId, this);
         }
 
         /// <summary>
@@ -164,7 +186,7 @@ namespace WebGLWebsocket
         /// <param name="reason">Reason string.</param>
         public void Close(WebSocketSharp.CloseStatusCode code = WebSocketSharp.CloseStatusCode.Normal, string reason = null)
         {
-            int ret = WebSocketClose((int)code, reason);
+            int ret = WebSocketClose(instanceId, (int)code, reason);
 
             if (ret < 0)
                 GetErrorMessageFromCode(ret);
@@ -176,7 +198,7 @@ namespace WebGLWebsocket
         /// <param name="data">Payload data.</param>
         public void Send(byte[] data)
         {
-            int ret = WebSocketSend(data, data.Length);
+            int ret = WebSocketSend(instanceId, data, data.Length);
 
             if (ret < 0)
                 GetErrorMessageFromCode(ret);

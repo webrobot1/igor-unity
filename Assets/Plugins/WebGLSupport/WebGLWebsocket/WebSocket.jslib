@@ -17,7 +17,7 @@ var LibraryWebSocket = {
 		 * 	ws: WebSocket
 		 * }
 		 */
-		instance: null,
+		instances: {},
 		
 		// объект с контейнером отладки
 		debug: null,
@@ -36,6 +36,9 @@ var LibraryWebSocket = {
 		/* очередь сообщений */
 		queue: [],
 
+		/* Last instance ID */
+		lastId: 0,
+
 		/* Event listeners */
 		onOpen: null,
 		onMesssage: null,
@@ -48,7 +51,7 @@ var LibraryWebSocket = {
 	 * 
 	 * @param callback Reference to C# static function
 	 */
-	WebSocketSetOnOpen: function(callback) {
+	WebSocketSetOnOpen: function(instanceId, callback) {
 
 		webSocketState.onOpen = callback;
 	},
@@ -58,7 +61,7 @@ var LibraryWebSocket = {
 	 * 
 	 * @param callback Reference to C# static function
 	 */
-	WebSocketSetOnMessage: function(callback) {
+	WebSocketSetOnMessage: function(instanceId, callback) {
 
 		webSocketState.onMessage = callback;
 
@@ -69,7 +72,7 @@ var LibraryWebSocket = {
 	 * 
 	 * @param callback Reference to C# static function
 	 */
-	WebSocketSetOnError: function(callback) {
+	WebSocketSetOnError: function(instanceId, callback) {
 
 		webSocketState.onError = callback;
 
@@ -80,7 +83,7 @@ var LibraryWebSocket = {
 	 * 
 	 * @param callback Reference to C# static function
 	 */
-	WebSocketSetOnClose: function(callback) {
+	WebSocketSetOnClose: function(instanceId, callback) {
 
 		webSocketState.onClose = callback;
 
@@ -94,12 +97,15 @@ var LibraryWebSocket = {
 	WebSocketAllocate: function(url) {
 
 		var urlStr = Pointer_stringify(url);
+		var id = webSocketState.lastId++;
 
-		webSocketState.instance = 
-		{
+		webSocketState.instances[id] = {
 			url: urlStr,
 			ws: null
 		};
+
+		return id;
+
 	},
 
 	/**
@@ -108,17 +114,20 @@ var LibraryWebSocket = {
 	 * If socket is not closed function will close it but onClose event will not be emitted because
 	 * this function should be invoked by C# WebSocket destructor.
 	 * 
+	 * @param instanceId Instance ID
 	 */
-	WebSocketFree: function() {
+	WebSocketFree: function(instanceId) {
 
-		if (webSocketState.instance === null) return 0;
-console.log(webSocketState.instance);
+		var instance = webSocketState.instances[instanceId];
+
+		if (!instance) return 0;
+
 		// Close if not closed
-		if (webSocketState.instance.ws !== null && webSocketState.instance.ws.readyState < 2)
-			webSocketState.instance.ws.close();
+		if (instance.ws !== null && instance.ws.readyState < 2)
+			instance.ws.close();
 
 		// Remove reference
-		webSocketState.instance = null;
+		delete webSocketState.instances[instanceId];
 
 		return 0;
 
@@ -127,19 +136,21 @@ console.log(webSocketState.instance);
 	/**
 	 * Connect WebSocket to the server
 	 * 
+	 * @param instanceId Instance ID
 	 */
-	WebSocketConnect: function() {
+	WebSocketConnect: function(instanceId) {
 
-		if (webSocketState.instance === null) return -1;
-		
-		if (webSocketState.instance.ws !== null)
+		var instance = webSocketState.instances[instanceId];
+		if (!instance) return -1;
+
+		if (instance.ws !== null)
 			return -2;
 
-		webSocketState.instance.ws = new WebSocket(webSocketState.instance.url);
+		instance.ws = new WebSocket(instance.url);
 
-		webSocketState.instance.ws.binaryType = 'arraybuffer';
+		instance.ws.binaryType = 'arraybuffer';
 
-		webSocketState.instance.ws.onopen = function() 
+		instance.ws.onopen = function() 
 		{
 			webSocketState.debug = document.querySelector("#unity-api-container");
 			if (webSocketState.debug)
@@ -151,7 +162,7 @@ console.log(webSocketState.instance);
 			if (webSocketState.queue.length>0)
 			{
 				webSocketState.queue.forEach(function(message, i, arr) {
-					webSocketState.instance.ws.send(message);
+					instance.ws.send(message);
 				});
 				
 				/* Очищаем очередь */
@@ -159,10 +170,10 @@ console.log(webSocketState.instance);
 			}
 				
 			if (webSocketState.onOpen)
-				Runtime.dynCall('v', webSocketState.onOpen);
+				Runtime.dynCall('vi', webSocketState.onOpen, [ instanceId ]);
 		};
 
-		webSocketState.instance.ws.onmessage = function(ev) {
+		instance.ws.onmessage = function(ev) {
 
 			if (webSocketState.debug)
 			{
@@ -191,14 +202,14 @@ console.log(webSocketState.instance);
 				HEAPU8.set(dataBuffer, buffer);   
 
 				try {
-					Runtime.dynCall('vii', webSocketState.onMessage, [ buffer, dataBuffer.length ]);
+					Runtime.dynCall('viii', webSocketState.onMessage, [ instanceId, buffer, dataBuffer.length ]);
 				} finally {
 					_free(buffer);
 				}
 	        }	
 		};
 
-		webSocketState.instance.ws.onerror = function(ev) {
+		instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
 				webSocketState.Log("Error occured");
@@ -211,7 +222,7 @@ console.log(webSocketState.instance);
 				stringToUTF8(msg, msgBuffer, msgBytes);
 
 				try {
-					Runtime.dynCall('vi', webSocketState.onError, [ msgBuffer ]);
+					Runtime.dynCall('vii', webSocketState.onError, [ instanceId, msgBuffer ]);
 				} finally {
 					_free(msgBuffer);
 				}
@@ -220,7 +231,7 @@ console.log(webSocketState.instance);
 
 		};
 
-		webSocketState.instance.ws.onclose = function(ev) {
+		instance.ws.onclose = function(ev) {
 
 			if (webSocketState.debug)
 			{
@@ -234,9 +245,9 @@ console.log(webSocketState.instance);
 			}
 
 			if (webSocketState.onClose)
-				Runtime.dynCall('vi', webSocketState.onClose, [ ev.code ]);
+				Runtime.dynCall('vii', webSocketState.onClose, [ instanceId, ev.code ]);
 
-			webSocketState.instance.ws = null;
+			delete instance.ws;
 
 		};
 
@@ -247,26 +258,28 @@ console.log(webSocketState.instance);
 	/**
 	 * Close WebSocket connection
 	 * 
+	 * @param instanceId Instance ID
 	 * @param code Close status code
 	 * @param reasonPtr Pointer to reason string
 	 */
-	WebSocketClose: function(code, reasonPtr) {
+	WebSocketClose: function(instanceId, code, reasonPtr) {
 
-		if (webSocketState.instance === null) return -1;
+		var instance = webSocketState.instances[instanceId];
+		if (!instance) return -1;
 
-		if (webSocketState.instance.ws === null)
+		if (instance.ws === null)
 			return -3;
 
-		if (webSocketState.instance.ws.readyState === 2)
+		if (instance.ws.readyState === 2)
 			return -4;
 
-		if (webSocketState.instance.ws.readyState === 3)
+		if (instance.ws.readyState === 3)
 			return -5;
 
 		var reason = ( reasonPtr ? Pointer_stringify(reasonPtr) : undefined );
 		
 		try {
-			webSocketState.instance.ws.close(code, reason);
+			instance.ws.close(code, reason);
 		} catch(err) {
 			return -7;
 		}
@@ -278,17 +291,19 @@ console.log(webSocketState.instance);
 	/**
 	 * Send message over WebSocket
 	 * 
+	 * @param instanceId Instance ID
 	 * @param bufferPtr Pointer to the message buffer
 	 * @param length Length of the message in the buffer
 	 */
-	WebSocketSend: function(bufferPtr, length) {
+	WebSocketSend: function(instanceId, bufferPtr, length) {
 	
-		if (webSocketState.instance === null) return -1;
+		var instance = webSocketState.instances[instanceId];
+		if (!instance) return -1;
 		
-		if (webSocketState.instance.ws === null)
+		if (instance.ws === null)
 			return -3;
 
-		if (webSocketState.instance.ws.readyState !== 1)
+		if (instance.ws.readyState !== 1)
 		{
 			/* Если конект не открыт, добавляем сообщение в очередь */
 			webSocketState.queue.push(HEAPU8.buffer.slice(bufferPtr, bufferPtr + length));
@@ -297,7 +312,7 @@ console.log(webSocketState.instance);
 			/* return -6; */
 		}
 
-		webSocketState.instance.ws.send(HEAPU8.buffer.slice(bufferPtr, bufferPtr + length));
+		instance.ws.send(HEAPU8.buffer.slice(bufferPtr, bufferPtr + length));
 
 		return 0;
 
@@ -306,13 +321,15 @@ console.log(webSocketState.instance);
 	/**
 	 * Return WebSocket readyState
 	 * 
+	 * @param instanceId Instance ID
 	 */
-	WebSocketGetState: function() {
+	WebSocketGetState: function(instanceId) {
 
-		if (webSocketState.instance === null) return -1;
+		var instance = webSocketState.instances[instanceId];
+		if (!instance) return -1;
 
-		if (webSocketState.instance.ws !== null)
-			return webSocketState.instance.ws.readyState;
+		if (instance.ws)
+			return instance.ws.readyState;
 		else
 			return 3;
 
