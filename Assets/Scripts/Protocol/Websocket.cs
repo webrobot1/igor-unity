@@ -16,8 +16,11 @@ public class Websocket: Protocol
 
 	protected override void Connect()
 	{
-		if (this.ws !=null && (this.ws.ReadyState == WebSocketSharp.WebSocketState.Open || this.ws.ReadyState == WebSocketSharp.WebSocketState.Closing))
+		if (this.ws != null && (this.ws.ReadyState == WebSocketSharp.WebSocketState.Open || this.ws.ReadyState == WebSocketSharp.WebSocketState.Closing))
+		{
 			error = "WebSocket is already connected or is closing.";
+			return;
+		}
 
 		try
 		{
@@ -58,9 +61,12 @@ public class Websocket: Protocol
 
     public override void Send(Response data)
 	{
-		//if (ws == null || ws.ReadyState != WebSocketSharp.WebSocketState.Open)
-		//	error = "Соединение не открыто для запросов "+ ws.ReadyState;
-		Debug.Log(ws.ReadyState);
+		if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
+		{
+			error = "Соединение не открыто для запросов ";
+			return;
+		}
+
 		try
 		{
 			string json = JsonConvert.SerializeObject(data,

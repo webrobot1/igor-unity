@@ -59,6 +59,7 @@ namespace WebGLWebsocket
 
         [DllImport("__Internal")]
         public static extern void WebSocketFree(int instanceId);
+
         public WebSocketSharp.WebSocketState ReadyState 
         { 
             get {
@@ -100,7 +101,6 @@ namespace WebGLWebsocket
         /// </summary>
         public static void DelegateOnMessageEvent(int instanceId, System.IntPtr msgPtr, int msgSize)
         {
-
             WebSocket instanceRef;
 
             if (instances.TryGetValue(instanceId, out instanceRef))

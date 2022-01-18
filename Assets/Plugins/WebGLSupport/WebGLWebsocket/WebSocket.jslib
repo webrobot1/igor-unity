@@ -324,10 +324,10 @@ var LibraryWebSocket = {
 	 * @param instanceId Instance ID
 	 */
 	WebSocketGetState: function(instanceId) {
-console.log("ddd");
+
 		var instance = webSocketState.instances[instanceId];
 		if (!instance) return -1;
-console.log(instance.ws.readyState+"ddd");
+
 		if (instance.ws)
 			return instance.ws.readyState;
 		else
