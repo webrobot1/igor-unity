@@ -41,7 +41,6 @@ namespace WebGLWebsocket
         public event EventHandler<ErrorEventArgs> OnError;
         public event EventHandler<CloseEventArgs> OnClose;
 
-
         /* WebSocket JSLIB callback setters and other functions */
         [DllImport("__Internal")]
         public static extern void WebSocketSetOnOpen(int instanceId, OnOpenCallback callback);
@@ -82,12 +81,8 @@ namespace WebGLWebsocket
         /// </summary>
         public static void DelegateOnOpenEvent(int instanceId)
         {
-            WebSocket instanceRef;
-
-            if (instances.TryGetValue(instanceId, out instanceRef))
-            {
-                instanceRef.OnOpen?.Invoke(instanceRef, new EventArgs());
-            }   
+            Debug.Log(instanceId);
+               
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
@@ -153,21 +148,21 @@ namespace WebGLWebsocket
             WebSocketFree(instanceId);
         }
 
-
         /// <summary>
         /// Open WebSocket connection
         /// </summary>
         public void Connect()
         {
+            WebSocketSetOnOpen(instanceId, DelegateOnOpenEvent);
             int ret = WebSocketConnect(instanceId);
 
             try
             {
                 // todo в js события так же хранить в отдельных элементах массива где ид  = instanceId
-                WebSocketSetOnOpen(this.instanceId, DelegateOnOpenEvent);
-                WebSocketSetOnMessage(this.instanceId, DelegateOnMessageEvent);
-                WebSocketSetOnError(this.instanceId, DelegateOnErrorEvent);
-                WebSocketSetOnClose(this.instanceId, DelegateOnCloseEvent);
+
+                WebSocketSetOnMessage(instanceId, DelegateOnMessageEvent);
+                WebSocketSetOnError(instanceId, DelegateOnErrorEvent);
+                WebSocketSetOnClose(instanceId, DelegateOnCloseEvent);
             }
             catch (Exception e)
             {
@@ -213,7 +208,6 @@ namespace WebGLWebsocket
         /// <param name="inner">Inner exception</param>
         public static void GetErrorMessageFromCode(int errorCode)
         {
-
             switch (errorCode)
             {
                 case -1: throw new Exception("WebSocket instance not found.");

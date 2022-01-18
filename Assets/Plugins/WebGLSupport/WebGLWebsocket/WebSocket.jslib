@@ -52,7 +52,7 @@ var LibraryWebSocket = {
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnOpen: function(instanceId, callback) {
-
+console.log(instanceId);
 		webSocketState.onOpen = callback;
 	},
 
