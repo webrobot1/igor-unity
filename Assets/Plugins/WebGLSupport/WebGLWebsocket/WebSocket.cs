@@ -82,14 +82,11 @@ namespace WebGLWebsocket
         public static void DelegateOnOpenEvent(int instanceId)
         {
             WebSocket instanceRef;
-            Debug.Log(0);
+
             if (instances.TryGetValue(instanceId, out instanceRef))
             {
-                Debug.Log(1);
                 instanceRef.OnOpen?.Invoke(instanceRef, new EventArgs());
-                Debug.Log(2);
-            }
-            Debug.Log(3);
+            }   
         }
 
         [MonoPInvokeCallback(typeof(OnMessageCallback))]
@@ -160,13 +157,11 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-            WebSocketSetOnOpen(instanceId, DelegateOnOpenEvent);
-            int ret = WebSocketConnect(instanceId);
 
             try
             {
                 // todo в js события так же хранить в отдельных элементах массива где ид  = instanceId
-              
+                WebSocketSetOnOpen(instanceId, DelegateOnOpenEvent);
                 WebSocketSetOnMessage(instanceId, DelegateOnMessageEvent);
                 WebSocketSetOnError(instanceId, DelegateOnErrorEvent);
                 WebSocketSetOnClose(instanceId, DelegateOnCloseEvent);
@@ -175,6 +170,8 @@ namespace WebGLWebsocket
             {
                 Debug.Log(e.Message);
             }
+
+            int ret = WebSocketConnect(instanceId);
 
             if (ret < 0)
                 GetErrorMessageFromCode(ret);

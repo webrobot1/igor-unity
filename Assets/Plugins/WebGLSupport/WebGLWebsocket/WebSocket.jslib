@@ -62,7 +62,7 @@ console.log(instanceId+"dddd");
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnMessage: function(instanceId, callback) {
-
+console.log(instanceId+"dddd2");
 		webSocketState.onMessage = callback;
 
 	},
@@ -73,7 +73,7 @@ console.log(instanceId+"dddd");
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnError: function(instanceId, callback) {
-
+console.log(instanceId+"dddd3");
 		webSocketState.onError = callback;
 
 	},
@@ -84,7 +84,7 @@ console.log(instanceId+"dddd");
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnClose: function(instanceId, callback) {
-
+console.log(instanceId+"dddd4");
 		webSocketState.onClose = callback;
 
 	},
