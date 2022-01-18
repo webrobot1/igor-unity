@@ -9,17 +9,18 @@ public class AutoIncrementVersion
 #if UNITY_CLOUD_BUILD
     public static void PreExport(UnityEngine.CloudBuild.BuildManifestObject manifest)
     {
-        string buildNum = "unknown";
+        // to update major or minor version, manually set it in Edit>Project Settings>Player>Other Settings>Version
 
-        Debug.LogFormat($"PreExport:: PlayerSettings.WebGL.template = '{PlayerSettings.WebGL.template}'");
-
-        manifest.TryGetValue<string>("buildNumber", out buildNum);
-        Debug.LogFormat($"AutoIncrementVersion.PreExport() called, build number is {buildNum}");
-
-        string versionString = $"{Application.version}.{buildNum}";
-        Debug.LogFormat($"PlayerSettings.bundleVersion set to {versionString}");
-
-        PlayerSettings.bundleVersion = versionString;
+        // this will also set Application.version which is readonly
+        int[] versionParts = PlayerSettings.bundleVersion.Split('.');
+        if (versionParts.Length != 3 || versionParts[2].ParseInt(-1) == -1)
+        {
+            Debug.LogError("BuildPostprocessor failed to update version " + PlayerSettings.bundleVersion);
+            return;
+        }
+        // major-minor-build
+        versionParts[2] = (versionParts[2].ParseInt() + 1).ToString();
+        PlayerSettings.bundleVersion = versionParts.Join(".");
     }
 #endif
 }
