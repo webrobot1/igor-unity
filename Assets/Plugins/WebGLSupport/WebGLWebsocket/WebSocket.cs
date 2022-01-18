@@ -62,7 +62,12 @@ namespace WebGLWebsocket
         public WebSocketSharp.WebSocketState ReadyState 
         { 
             get {
-                return (WebSocketSharp.WebSocketState)WebSocketGetState(instanceId);
+                WebSocketSharp.WebSocketState ret = (WebSocketSharp.WebSocketState)WebSocketGetState(instanceId);
+
+                if (ret < 0)
+                    GetErrorMessageFromCode((int)ret);
+
+                return ret;
             }
         }
 
@@ -157,19 +162,11 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-
-            try
-            {
-                // todo в js события так же хранить в отдельных элементах массива где ид  = instanceId
-                WebSocketSetOnOpen(instanceId, DelegateOnOpenEvent);
-                WebSocketSetOnMessage(instanceId, DelegateOnMessageEvent);
-                WebSocketSetOnError(instanceId, DelegateOnErrorEvent);
-                WebSocketSetOnClose(instanceId, DelegateOnCloseEvent);
-            }
-            catch (Exception e)
-            {
-                Debug.Log(e.Message);
-            }
+            // todo в js события так же хранить в отдельных элементах массива где ид  = instanceId
+            WebSocketSetOnOpen(instanceId, DelegateOnOpenEvent);
+            WebSocketSetOnMessage(instanceId, DelegateOnMessageEvent);
+            WebSocketSetOnError(instanceId, DelegateOnErrorEvent);
+            WebSocketSetOnClose(instanceId, DelegateOnCloseEvent);
 
             int ret = WebSocketConnect(instanceId);
 

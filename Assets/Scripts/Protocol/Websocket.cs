@@ -48,7 +48,7 @@ public class Websocket: Protocol
 	
 	public override void Close()
     {
-        if (ws.ReadyState != WebSocketSharp.WebSocketState.Closed && ws.ReadyState != WebSocketSharp.WebSocketState.Closing)
+        if (ws!=null && ws.ReadyState != WebSocketSharp.WebSocketState.Closed && ws.ReadyState != WebSocketSharp.WebSocketState.Closing)
         {
 			ws.Close();
             Debug.LogError("Соединение закрыто");
@@ -58,9 +58,9 @@ public class Websocket: Protocol
 
     public override void Send(Response data)
 	{
-		if (ws.ReadyState != WebSocketSharp.WebSocketState.Open)
-			error = "Соединение не открыто для запросов";
-
+		//if (ws == null || ws.ReadyState != WebSocketSharp.WebSocketState.Open)
+		//	error = "Соединение не открыто для запросов "+ ws.ReadyState;
+		Debug.Log(ws.ReadyState);
 		try
 		{
 			string json = JsonConvert.SerializeObject(data,

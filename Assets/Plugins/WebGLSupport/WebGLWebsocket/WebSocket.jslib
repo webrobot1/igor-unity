@@ -52,8 +52,8 @@ var LibraryWebSocket = {
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnOpen: function(instanceId, callback) {
-console.log(instanceId+"dddd");
-		webSocketState.onOpen = callback;console.log("sdf");
+
+		webSocketState.onOpen = callback;
 	},
 
 	/**
@@ -62,7 +62,7 @@ console.log(instanceId+"dddd");
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnMessage: function(instanceId, callback) {
-console.log(instanceId+"dddd2");
+
 		webSocketState.onMessage = callback;
 
 	},
@@ -73,7 +73,7 @@ console.log(instanceId+"dddd2");
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnError: function(instanceId, callback) {
-console.log(instanceId+"dddd3");
+
 		webSocketState.onError = callback;
 
 	},
@@ -84,7 +84,7 @@ console.log(instanceId+"dddd3");
 	 * @param callback Reference to C# static function
 	 */
 	WebSocketSetOnClose: function(instanceId, callback) {
-console.log(instanceId+"dddd4");
+
 		webSocketState.onClose = callback;
 
 	},
@@ -139,13 +139,13 @@ console.log(instanceId+"dddd4");
 	 * @param instanceId Instance ID
 	 */
 	WebSocketConnect: function(instanceId) {
-console.log("v");
+
 		var instance = webSocketState.instances[instanceId];
 		if (!instance) return -1;
 
 		if (instance.ws !== null)
 			return -2;
-console.log("vv");
+
 		instance.ws = new WebSocket(instance.url);
 
 		instance.ws.binaryType = 'arraybuffer';
@@ -172,7 +172,7 @@ console.log("vv");
 			if (webSocketState.onOpen)
 				Runtime.dynCall('vi', webSocketState.onOpen, [ instanceId ]);
 		};
-console.log("vvv");
+
 		instance.ws.onmessage = function(ev) {
 
 			if (webSocketState.debug)
@@ -208,7 +208,7 @@ console.log("vvv");
 				}
 	        }	
 		};
-console.log("vvvv");
+
 		instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
@@ -250,7 +250,7 @@ console.log("vvvv");
 			delete instance.ws;
 
 		};
-console.log("vvvvvv");
+
 		return 0;
 
 	},
@@ -324,10 +324,10 @@ console.log("vvvvvv");
 	 * @param instanceId Instance ID
 	 */
 	WebSocketGetState: function(instanceId) {
-
+console.log("ddd");
 		var instance = webSocketState.instances[instanceId];
 		if (!instance) return -1;
-
+console.log(instance.ws.readyState+"ddd");
 		if (instance.ws)
 			return instance.ws.readyState;
 		else
