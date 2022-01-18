@@ -159,16 +159,21 @@ namespace WebGLWebsocket
         /// </summary>
         public void Connect()
         {
-           
-            
-
-            
             int ret = WebSocketConnect(instanceId);
-            // todo в js события так же хранить в отдельных элементах массива где ид  = instanceId
-            WebSocketSetOnOpen(this.instanceId, DelegateOnOpenEvent);
-            WebSocketSetOnMessage(this.instanceId, DelegateOnMessageEvent);
-            WebSocketSetOnError(this.instanceId, DelegateOnErrorEvent);
-            WebSocketSetOnClose(this.instanceId, DelegateOnCloseEvent);
+
+            try
+            {
+                // todo в js события так же хранить в отдельных элементах массива где ид  = instanceId
+                WebSocketSetOnOpen(this.instanceId, DelegateOnOpenEvent);
+                WebSocketSetOnMessage(this.instanceId, DelegateOnMessageEvent);
+                WebSocketSetOnError(this.instanceId, DelegateOnErrorEvent);
+                WebSocketSetOnClose(this.instanceId, DelegateOnCloseEvent);
+            }
+            catch (Exception e)
+            {
+                Debug.Log(e.Message);
+            }
+
             if (ret < 0)
                 GetErrorMessageFromCode(ret);
             else
