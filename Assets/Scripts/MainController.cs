@@ -3,7 +3,7 @@ using UnityEngine;
 public class MainController : MonoBehaviour
 {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // заплатка для потери фокуса в webgl 
+        // Р·Р°РїР»Р°С‚РєР° РґР»СЏ РїРѕС‚РµСЂРё С„РѕРєСѓСЃР° РІ webgl 
          public void Focus(int focus)
          {
             if (focus == 0) 
