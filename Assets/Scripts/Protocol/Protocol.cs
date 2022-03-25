@@ -9,7 +9,7 @@ abstract public class Protocol
 
 	public Protocol()
 	{
-		Debug.Log("Соединяемся с сервером");
+		Debug.Log("РЎРѕРµРґРёРЅСЏРµРјСЃСЏ СЃ СЃРµСЂРІРµСЂРѕРј");
 		Connect();
 	}
 
