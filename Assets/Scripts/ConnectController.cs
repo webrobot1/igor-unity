@@ -412,7 +412,7 @@ public abstract class ConnectController : MainController
 		form.AddField("token", this.token);
 		form.AddBinaryData("screen", bytes);
 
-		UnityWebRequest request = UnityWebRequest.Post("http://95.216.204.181:8080/game/signin/screen", form);
+		UnityWebRequest request = UnityWebRequest.Post("http://my-fantasy.ru:8080/game/signin/screen", form);
 
 		yield return request.SendWebRequest();
 

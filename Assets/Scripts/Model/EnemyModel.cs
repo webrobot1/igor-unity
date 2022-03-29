@@ -27,7 +27,7 @@ public class EnemyModel : ObjectModel
 	void FixedUpdate()
 	{
 		// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
-		if (action != "idle" && moveCoroutine == null && DateTime.Compare(activeLast.AddMilliseconds(200), DateTime.Now) < 1)
+		if (action != "idle" && moveCoroutine == null && DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1)
 		{
 			Debug.LogError("останавливаем "+this.id);
 			action = "idle";
