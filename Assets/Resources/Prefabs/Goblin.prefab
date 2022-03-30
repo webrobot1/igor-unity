@@ -11,8 +11,8 @@ GameObject:
   - component: {fileID: 5385321619048502829}
   - component: {fileID: 7893120441196334074}
   - component: {fileID: 7893120441196334073}
-  - component: {fileID: 7893120441196334076}
   - component: {fileID: 7893120441196334077}
+  - component: {fileID: 2567926910548814169}
   m_Layer: 0
   m_Name: Goblin
   m_TagString: Enemy
@@ -74,12 +74,12 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: 71520ed646068834db80adacbb578775, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 19a2ae5f6bc4e4a47b0264ee7cbf03c0, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
-  m_DrawMode: 1
-  m_Size: {x: 1.5, y: 1.9}
+  m_DrawMode: 0
+  m_Size: {x: 2.15, y: 2}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -104,22 +104,6 @@ Animator:
   m_HasTransformHierarchy: 1
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorControllerStateOnDisable: 0
---- !u!70 &7893120441196334076
-CapsuleCollider2D:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5701307011582418712}
-  m_Enabled: 1
-  m_Density: 1
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_UsedByEffector: 0
-  m_UsedByComposite: 0
-  m_Offset: {x: 0.002253294, y: 0.73123944}
-  m_Size: {x: 1.0364833, y: 1.649277}
-  m_Direction: 0
 --- !u!114 &7893120441196334077
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -132,5 +116,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 455dfdec955bed9408072588d41b99bd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveTo: {x: 0, y: 0}
   distancePerUpdate: 0
+--- !u!70 &2567926910548814169
+CapsuleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5701307011582418712}
+  m_Enabled: 1
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_UsedByComposite: 0
+  m_Offset: {x: 0.053758442, y: -0.015580654}
+  m_Size: {x: 1.4680921, y: 1.9941926}
+  m_Direction: 0
