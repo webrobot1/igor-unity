@@ -27,11 +27,11 @@ public class EnemyModel : ObjectModel
 	void FixedUpdate()
 	{
 		// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
-		if (action.IndexOf("idle") == -1 && moveCoroutine == null && DateTime.Compare(activeLast.AddMilliseconds(500), DateTime.Now) < 1)
+		if (action.IndexOf("idle") == -1 && moveCoroutine == null && (base.anim.GetCurrentAnimatorStateInfo(0).loop || base.anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(200), DateTime.Now) < 1)
 		{
 			Debug.LogError("останавливаем "+this.id);
 
-            if (action.IndexOf("left")>-1)
+			if (action.IndexOf("left")>-1)
 				action = "idle_left";
 			else if (action.IndexOf("right") > -1)
 				action = "idle_right";
