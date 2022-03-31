@@ -4,12 +4,6 @@ using UnityEngine;
 
 public class EnemyModel : ObjectModel
 {
-	protected int hp;
-	protected int hpMax;
-
-	protected int mp;
-	protected int mpMax;
-
 	protected float speed;
 
 	// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
@@ -20,13 +14,16 @@ public class EnemyModel : ObjectModel
 	/// </summary>
 	private Coroutine? moveCoroutine;
 
+	/// <summary>
+	/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
+	/// </summary>
+	public float distancePerUpdate;
 
 	/// <summary>
 	/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
 	/// </summary>
-	public float distancePerUpdate;   	
-
-
+	public LifeModel lifeBar;
+	
 	// Update is called once per frame
 	void FixedUpdate()
 	{
@@ -52,15 +49,16 @@ public class EnemyModel : ObjectModel
 	{
 		activeLast = DateTime.Now;
 
-		if (data.hp >= 0)
-			this.hp = data.hp;		
 		if (data.hpMax >= 0)
-			this.hpMax = data.hpMax;
-
-		if (data.mp >= 0)
-			this.mp = data.mp;	
+			lifeBar.hpMax = data.hpMax;
 		if (data.mpMax >= 0)
-			this.mpMax = data.mpMax;
+			lifeBar.mpMax = data.mpMax;
+
+		if (data.hp >= 0)
+			lifeBar.hp = data.hp;
+		if (data.mp >= 0)
+			lifeBar.mp = data.mp;
+
 
 		if (data.speed > 0) { 
 			this.speed = data.speed;
