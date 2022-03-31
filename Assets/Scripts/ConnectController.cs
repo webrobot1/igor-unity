@@ -304,8 +304,10 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "player_" + player.id;
+
 						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
-					
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)ground_sort+1;
+
 						if (player.id == this.id)
 						{
 							//transform.SetParent(prefab.transform);
@@ -358,6 +360,7 @@ public abstract class ConnectController : MainController
 						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = "enemy_" + enemy.id;
 						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)ground_sort + 1;
 					}
 					
 					try

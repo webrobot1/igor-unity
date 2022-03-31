@@ -23,7 +23,8 @@ public class EnemyModel : ObjectModel
 	/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
 	/// </summary>
 	public LifeModel lifeBar;
-	
+
+
 	// Update is called once per frame
 	void FixedUpdate()
 	{
@@ -49,14 +50,14 @@ public class EnemyModel : ObjectModel
 	{
 		activeLast = DateTime.Now;
 
-		if (data.hpMax >= 0)
+		if (data.hpMax > 0)
 			lifeBar.hpMax = data.hpMax;
-		if (data.mpMax >= 0)
+		if (data.mpMax > 0)
 			lifeBar.mpMax = data.mpMax;
 
-		if (data.hp >= 0)
+		if (data.hp > 0)
 			lifeBar.hp = data.hp;
-		if (data.mp >= 0)
+		if (data.mp > 0)
 			lifeBar.mp = data.mp;
 
 
