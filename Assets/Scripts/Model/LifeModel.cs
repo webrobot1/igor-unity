@@ -12,7 +12,7 @@ public class LifeModel : MonoBehaviour
 
 		set
 		{
-			maxHurt.offsetMax = new Vector2(value/2, maxHurt.offsetMax.y);
+			maxHurt.offsetMax = new Vector2(value/2f, maxHurt.offsetMax.y);
 			_hpMax = value;
 		}
 	}
@@ -26,7 +26,7 @@ public class LifeModel : MonoBehaviour
 		get { return _hp; } 
 
 		set {
-			currentHurt.offsetMax = new Vector2(value/2, maxHurt.offsetMax.y);
+			currentHurt.offsetMax = new Vector2(value/2f, maxHurt.offsetMax.y);
 			_hp = value;
 		}  
 	}
