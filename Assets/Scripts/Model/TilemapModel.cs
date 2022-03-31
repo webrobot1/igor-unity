@@ -1,4 +1,3 @@
-
 namespace UnityEngine.Tilemaps
 {
     public class TilemapModel : Tile

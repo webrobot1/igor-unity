@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// запуститься только в режиме Unity редактора в PlayMode
+// Р·Р°РїСѓСЃС‚РёС‚СЊСЃСЏ С‚РѕР»СЊРєРѕ РІ СЂРµР¶РёРјРµ Unity СЂРµРґР°РєС‚РѕСЂР° РІ PlayMode
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {
@@ -17,7 +17,7 @@ public class CameraController : MonoBehaviour
         float screenRation = (float)Screen.width / (float)Screen.height;
 
         /// <summary>
-        /// зона видимости вокруг игрока
+        /// Р·РѕРЅР° РІРёРґРёРјРѕСЃС‚Рё РІРѕРєСЂСѓРі РёРіСЂРѕРєР°
         /// </summary>
         float targetRation = 12 / 12;
         float size;

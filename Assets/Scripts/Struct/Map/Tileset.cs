@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 
 /// <summary>
-/// Палитра изображений 
+/// РџР°Р»РёС‚СЂР° РёР·РѕР±СЂР°Р¶РµРЅРёР№ 
 /// </summary>
 [System.Serializable]
 public class Tileset
@@ -20,6 +20,6 @@ public class Tileset
 
 	public string resource;
 
-	// всегда словарь тк его ключ нужен для доступа через tileset из layer 
+	// РІСЃРµРіРґР° СЃР»РѕРІР°СЂСЊ С‚Рє РµРіРѕ РєР»СЋС‡ РЅСѓР¶РµРЅ РґР»СЏ РґРѕСЃС‚СѓРїР° С‡РµСЂРµР· tileset РёР· layer 
 	public Dictionary<int, TilesetTile> tile = new Dictionary<int, TilesetTile> { };
 }

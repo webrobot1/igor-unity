@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 
 /// <summary>
-/// Структура полученных данных - карты
+/// вЂ”С‚СЂСѓРєС‚СѓСЂР° РїРѕР»СѓС‡РµРЅРЅС‹С… РґР°РЅРЅС‹С… - РєР°СЂС‚С‹
 /// </summary>
 [System.Serializable]
 public class Map
@@ -12,7 +12,7 @@ public class Map
 	public int tilewidth;
 	public int tileheight;
 
-	// всегда словарь тк ключ - его ид для быстрого доступа из слоя
+	// РІСЃРµРіРґР° СЃР»РѕРІР°СЂСЊ С‚Рє РєР»СЋС‡ - РµРіРѕ РёРґ РґР»В¤ Р±С‹СЃС‚СЂРѕРіРѕ РґРѕСЃС‚СѓРїР° РёР· СЃР»РѕВ¤
 	public Dictionary<int, Tileset> tileset = new Dictionary<int, Tileset> {};
 	public Layer[] layer;
 }

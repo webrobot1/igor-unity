@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// отдельный тайл в палитре который может быть отдельынм спрайтом
+/// РѕС‚РґРµР»СЊРЅС‹Р№ С‚Р°Р№Р» РІ РїР°Р»РёС‚СЂРµ РєРѕС‚РѕСЂС‹Р№ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕС‚РґРµР»СЊС‹РЅРј СЃРїСЂР°Р№С‚РѕРј
 /// </summary>
 [System.Serializable]
 public class TilesetTile

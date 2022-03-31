@@ -1,5 +1,5 @@
 /// <summary>
-/// тайловая карта на слое
+/// С‚Р°Р№Р»РѕРІР°СЏ РєР°СЂС‚Р° РЅР° СЃР»РѕРµ
 /// </summary>
 [System.Serializable]
 public class LayerTile

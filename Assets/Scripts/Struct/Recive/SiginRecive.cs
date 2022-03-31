@@ -1,5 +1,5 @@
 /// <summary>
-/// Структура полученных данных при авторизации
+/// РЎС‚СЂСѓРєС‚СѓСЂР° РїРѕР»СѓС‡РµРЅРЅС‹С… РґР°РЅРЅС‹С… РїСЂРё Р°РІС‚РѕСЂРёР·Р°С†РёРё
 /// </summary>
 
 [System.Serializable]
@@ -9,12 +9,12 @@ public class SiginRecive
 	public string token;
 
 	/// <summary>
-	/// количество пикселей на 1 unit (1 целая позиция координаты)
+	/// РєРѕР»РёС‡РµСЃС‚РІРѕ РїРёРєСЃРµР»РµР№ РЅР° 1 unit (1 С†РµР»Р°СЏ РїРѕР·РёС†РёСЏ РєРѕРѕСЂРґРёРЅР°С‚С‹)
 	/// </summary>
 	public float pixels;
 
 	/// <summary>
-	/// чему равен fixedDeltaTime (как часто FixedUpdate() происходит)
+	/// С‡РµРјСѓ СЂР°РІРµРЅ fixedDeltaTime (РєР°Рє С‡Р°СЃС‚Рѕ FixedUpdate() РїСЂРѕРёСЃС…РѕРґРёС‚)
 	/// </summary>
 	public float time;
 }

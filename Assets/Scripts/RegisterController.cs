@@ -38,22 +38,22 @@ public class RegisterController : MainController
 
         yield return request.SendWebRequest();
 
-        // проверим что пришло в ответ
+        // РїСЂРѕРІРµСЂРёРј С‡С‚Рѕ РїСЂРёС€Р»Рѕ РІ РѕС‚РІРµС‚
         string recive = request.downloadHandler.text;
         if (recive.Length>0)
         {
             try {
-                Debug.Log("Ответ авторизации: "+recive);
+                Debug.Log("РћС‚РІРµС‚ Р°РІС‚РѕСЂРёР·Р°С†РёРё: "+recive);
                 SiginRecive response = JsonConvert.DeserializeObject<SiginRecive>(recive);
                 StartCoroutine(LoadMain(response));
             }
             catch (Exception ex)
             {
-                Error("Ошибка ответа авторизации: "+ex.Message+" ("+recive+")");
+                Error("РћС€РёР±РєР° РѕС‚РІРµС‚Р° Р°РІС‚РѕСЂРёР·Р°С†РёРё: "+ex.Message+" ("+recive+")");
             }  
         } 
         else 
-            Error("Пустой ответ авторизации "+request.error);
+            Error("РџСѓСЃС‚РѕР№ РѕС‚РІРµС‚ Р°РІС‚РѕСЂРёР·Р°С†РёРё "+request.error);
     }
 
     public void Error(string error)
@@ -62,10 +62,10 @@ public class RegisterController : MainController
         GameObject.Find("error").GetComponent<Text>().text = error;
     }
 
-    // PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой
+    // PS РґР»СЏ webgl РЅРµРѕР±С…РѕРґРёРјРѕ РѕС‚РєР»СЋС‡РёС‚СЊ profiling РІ Built Settings РёРЅР°С‡Рµ Р·Р°Р±СЊРµС‚СЃСЏ РїР°РјСЏС‚СЊ Р±СЂР°СѓР·РµСЂР° РїРѕСЃР»Рµ РїСЂРёС…РѕРґР° РїРѕ websocket РїР°РєРµС‚Р° СЃ РєР°СЂС‚РѕР№
     private IEnumerator LoadMain(SiginRecive data)
     {
-        Debug.Log("Загрузка главной сцены");
+        Debug.Log("Р—Р°РіСЂСѓР·РєР° РіР»Р°РІРЅРѕР№ СЃС†РµРЅС‹");
 
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
         // asyncLoad.allowSceneActivation = false;
@@ -77,7 +77,7 @@ public class RegisterController : MainController
         }
 
         if (data.id == 0 || data.token == null)
-            Error("не указан player_id или token");
+            Error("РЅРµ СѓРєР°Р·Р°РЅ player_id РёР»Рё token");
 
         SceneManager.UnloadScene("RegisterScene");
         Camera.main.GetComponent<GameController>().SetPlayer(data);

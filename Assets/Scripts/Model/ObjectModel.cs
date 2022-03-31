@@ -15,7 +15,7 @@ public class ObjectModel : MonoBehaviour
 	{
 		anim = GetComponent<Animator>();
 
-		// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
+		// СЃРѕС…СЂР°РЅРёРј РІСЃРµ РІРѕР·РјРѕР¶РЅС‹Рµ РўСЂРёРіРµСЂС‹ Р°РЅРёРјР°С†РёР№ Рё, РµСЃР»Рё РЅР°Рј РїСЂРёС€РµР» action РєР°Рє С‚РёРіРµСЂ - РѕР±РЅРѕРІРёРј Р°РЅРёРјР°С†РёСЋ
 		if (trigers == null)
 		{
 			trigers = new Dictionary<string, bool>();
@@ -30,7 +30,7 @@ public class ObjectModel : MonoBehaviour
 	{
 		if (data.action!=null && data.action.Length > 0 && this.action != data.action && trigers.ContainsKey(data.action))
 		{
-			Debug.Log("Обновляем анимацию " + data.action);
+			Debug.Log("РћР±РЅРѕРІР»СЏРµРј Р°РЅРёРјР°С†РёСЋ " + data.action);
 			this.action = data.action;
 			anim.SetTrigger(action);
 		}

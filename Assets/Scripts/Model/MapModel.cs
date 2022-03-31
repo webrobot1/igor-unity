@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using ICSharpCode.SharpZipLib.BZip2;
 using System.IO;
 using System.Text;

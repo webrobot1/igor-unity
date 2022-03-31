@@ -10,7 +10,7 @@ public static class ImageToSpriteModel
     // MySprite = ImageToSpriteModel.LoadNewSprite(FilePath, [PixelsPerUnit (optional)], [spriteType(optional)])
 
     /// <summary>
-    /// Создание спрайта из фаила текстуры
+    /// РЎРѕР·РґР°РЅРёРµ СЃРїСЂР°Р№С‚Р° РёР· С„Р°РёР»Р° С‚РµРєСЃС‚СѓСЂС‹
     /// </summary>
     /// <param name="FilePath"></param>
     /// <param name="PixelsPerUnit"></param>
@@ -20,7 +20,7 @@ public static class ImageToSpriteModel
     {
         // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
         if (!File.Exists(FilePath))
-            throw new Exception("Не удается найти указанный путь к картинке " + FilePath);
+            throw new Exception("РќРµ СѓРґР°РµС‚СЃСЏ РЅР°Р№С‚Рё СѓРєР°Р·Р°РЅРЅС‹Р№ РїСѓС‚СЊ Рє РєР°СЂС‚РёРЅРєРµ " + FilePath);
 
         byte[] FileData = File.ReadAllBytes(FilePath);
         Texture2D SpriteTexture = LoadTexture(FileData);
@@ -30,10 +30,10 @@ public static class ImageToSpriteModel
     }
 
     /// <summary>
-    /// Загрузка текстуры из байтов
+    /// Р—Р°РіСЂСѓР·РєР° С‚РµРєСЃС‚СѓСЂС‹ РёР· Р±Р°Р№С‚РѕРІ
     /// </summary>
-    /// <param name="imageBytes">байты</param>
-    /// <param name="transparent">HEX код прозрачности </param>
+    /// <param name="imageBytes">Р±Р°Р№С‚С‹</param>
+    /// <param name="transparent">HEX РєРѕРґ РїСЂРѕР·СЂР°С‡РЅРѕСЃС‚Рё </param>
     /// <returns></returns>
     public static Texture2D LoadTexture(byte[] imageBytes, string transparent = null)
     {
@@ -42,7 +42,7 @@ public static class ImageToSpriteModel
         texture.LoadImage(imageBytes);
 
 
-        // прозрачность - взято с форума https://forum.unity.com/threads/solved-create-a-texture-with-a-png-at-runtime-how-to-make-it-transparent.511818/
+        // РїСЂРѕР·СЂР°С‡РЅРѕСЃС‚СЊ - РІР·СЏС‚Рѕ СЃ С„РѕСЂСѓРјР° https://forum.unity.com/threads/solved-create-a-texture-with-a-png-at-runtime-how-to-make-it-transparent.511818/
         if (transparent!=null) 
         {
             Color color;
