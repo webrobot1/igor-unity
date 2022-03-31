@@ -3,8 +3,8 @@ using UnityEngine.UI;
 
 public class LifeModel : MonoBehaviour
 {
-	[SerializeField]
-	private Image maxHurt;
+	
+	public RectTransform maxHurt;
 	private int _hpMax;
 	public int hpMax
 	{
@@ -12,32 +12,27 @@ public class LifeModel : MonoBehaviour
 
 		set
 		{
-			Debug.Log(maxHurt.rectTransform.right);
-			maxHurt.rectTransform.right = new Vector3(-2,0,0);
+			maxHurt.offsetMax = new Vector2(value/2, maxHurt.offsetMax.y);
 			_hpMax = value;
 		}
 	}
 
 
 	[SerializeField]
-	private Image currentHurt;
+	private RectTransform currentHurt;
 	private int _hp;
 	public int hp
 	{
 		get { return _hp; } 
 
 		set {
-			//GameObject hurt = Instantiate(Resources.Load("Prefabs/Hurt", typeof(GameObject))) as GameObject;
-			//hurt.transform.position = Vector3.zero;
-			//	hurt.transform.parent = this.transform;
-
-
+			currentHurt.offsetMax = new Vector2(value/2, maxHurt.offsetMax.y);
 			_hp = value;
 		}  
 	}
 
-	public int mpMax = 20;
-	public int mp;
+	public int? mpMax;
+	public int? mp;
 
 
 }
