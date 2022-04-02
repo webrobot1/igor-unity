@@ -24,9 +24,16 @@ public class EnemyModel : ObjectModel
 	/// </summary>
 	public LifeModel lifeBar;
 
+	private Material material;
 
-	// Update is called once per frame
-	void FixedUpdate()
+	protected void Awake()
+	{
+		base.Awake();
+		material = this.GetComponent<Renderer>().material;
+	}
+
+    // Update is called once per frame
+    void FixedUpdate()
 	{
 		// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
 		if (action.IndexOf("idle") == -1 && moveCoroutine == null && (base.anim.GetCurrentAnimatorStateInfo(0).loop || base.anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(200), DateTime.Now) < 1)
@@ -55,8 +62,22 @@ public class EnemyModel : ObjectModel
 		if (data.mpMax > 0)
 			lifeBar.mpMax = data.mpMax;
 
-		if (data.hp > 0)
+		if (data.hp > 0) 
+		{
+            if (lifeBar.hp == 0)
+            {
+
+            }
+
 			lifeBar.hp = data.hp;
+		}
+		else
+        {
+			Color oldColor = material.color;
+		
+
+		}
+
 		if (data.mp > 0)
 			lifeBar.mp = data.mp;
 
