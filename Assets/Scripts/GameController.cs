@@ -50,14 +50,14 @@ public class GameController : ConnectController
         if (base.lastMove !=null && DateTime.Compare(((DateTime)base.lastMove).AddMilliseconds(1000), DateTime.Now) < 1)
         {
             Debug.LogWarning("Слишком долго ждали движения");
-            player.moveTo = Vector2.zero;
+            base.moveTo = Vector2.zero;
             return true;
         }
 
         // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено что команду шлем за 1 шаг минимум)
         if (base.pingTime > 0 && Vector2.Distance(player.transform.position, target) - player.distancePerUpdate <= (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)
         {
-            Debug.LogWarning("осталось пройти " + (Vector2.Distance(player.transform.position, target) - player.distancePerUpdate) + " клетки и это меньше чем мы успеваем пройти за пинг " + ((base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) + " , те "+ (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)+" клетки");
+            Debug.Log("осталось пройти " + (Vector2.Distance(player.transform.position, target) - player.distancePerUpdate) + " клетки и это меньше чем мы успеваем пройти за пинг " + ((base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) + " , те "+ (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)+" клетки");
 
             return true;
         }
@@ -81,7 +81,7 @@ public class GameController : ConnectController
             // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
             if (Input.GetMouseButtonDown(0))
             {
-                player.moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+                base.moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
             }
              
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
@@ -95,7 +95,7 @@ public class GameController : ConnectController
                     ||
                 (horizontal = variableJoystick.Horizontal) != 0 
                     || 
-                player.moveTo != Vector2.zero
+                base.moveTo != Vector2.zero
             ) 
             {
                 if (CanMove()) 
@@ -104,7 +104,7 @@ public class GameController : ConnectController
 
                     if (vertical != 0 || horizontal != 0)
                     {
-                        player.moveTo = Vector2.zero;
+                        base.moveTo = Vector2.zero;
 
                         if (vertical > 0)
                         {
@@ -123,14 +123,14 @@ public class GameController : ConnectController
                             response.action = "move/left";
                         }
                     }
-                    else if (Vector2.Distance(player.transform.position, player.moveTo) >= 1)
+                    else if (Vector2.Distance(player.transform.position, base.moveTo) >= 1)
                     {
                         response.action = "move/to";
-                        response.to = player.moveTo.x.ToString() + ',' + player.moveTo.y.ToString();
+                        response.to = base.moveTo.x.ToString() + ',' + base.moveTo.y.ToString();
                     }
                     else
                     {
-                        player.moveTo = Vector2.zero;
+                        base.moveTo = Vector2.zero;
                         return;
                     }
 

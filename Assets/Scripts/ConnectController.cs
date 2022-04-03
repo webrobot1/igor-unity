@@ -56,6 +56,11 @@ public abstract class ConnectController : MainController
 	protected DateTime? lastMove;
 
 	/// <summary>
+	/// координата на карте к которой мы движемся по клику мыши (или пок аким то другим принудительным действиям)
+	/// </summary>
+	protected Vector2 moveTo = Vector2.zero;
+
+	/// <summary>
 	/// Позиция к которой движется наш персонаж (пришла от сервера)
 	/// </summary>
 	protected Vector2 target;	
@@ -332,9 +337,10 @@ public abstract class ConnectController : MainController
                     }
 
 					// если на сцене и есть position - значит куда то движтся. запишем куда
-					if (player.position != null)
-					{	
-						if (player.id == this.id) { 
+					if (player.id == this.id)
+					{
+						if (player.position != null)
+						{	
 							this.target = new Vector2(player.position[0], player.position[1]);
 
 							// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
@@ -342,12 +348,19 @@ public abstract class ConnectController : MainController
 							if (pingTime == 0 && this.lastMove!=null)
 							{
 								TimeSpan ts = DateTime.Now - (DateTime)this.lastMove;
-								// обнулим что мы не срабатывал тригер по долгому ожиданию ответа от сервера движения в методе CanMove
-								this.lastMove = null;
 								pingTime = Math.Round(ts.TotalSeconds, 4);
 							}
 						}
+
+						// если мы движемся или остановились обнулим что мы не срабатывал тригер по долгому ожиданию ответа от сервера движения в методе CanMove
+						if (player.action.IndexOf("idle") >= 0 || player.position != null)
+						{
+							this.lastMove = null;
+							this.moveTo = Vector2.zero;
+						}
 					}
+
+					
 				}
 			}
 
