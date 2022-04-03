@@ -20,7 +20,6 @@ public class LifeModel : MonoBehaviour
 
 	[SerializeField]
 	private RectTransform currentHurt;
-	private int _hp;
 	public int hp
 	{
 		get { return _hp; } 
@@ -30,9 +29,34 @@ public class LifeModel : MonoBehaviour
 			_hp = value;
 		}  
 	}
+	private int _hp;	
+	
+	
+	public RectTransform maxMana;
+	private int _mpMax;
+	public int mpMax
+	{
+		get { return _mpMax; }
 
-	public int? mpMax;
-	public int? mp;
+		set
+		{
+			maxMana.offsetMax = new Vector2(value/2f, maxMana.offsetMax.y);
+			_mpMax = value;
+		}
+	}
 
+
+	[SerializeField]
+	private RectTransform currentMana;
+	public int mp
+	{
+		get { return _mp; } 
+
+		set {
+			currentMana.offsetMax = new Vector2(value/2f, maxMana.offsetMax.y);
+			_mp = value;
+		}  
+	}
+	private int _mp;
 
 }

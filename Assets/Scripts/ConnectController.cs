@@ -379,7 +379,7 @@ public abstract class ConnectController : MainController
 			{
 				foreach (ObjectRecive obj in recive.objects)
 				{
-					GameObject prefab = GameObject.Find("enemy_" + obj.id);
+					GameObject prefab = GameObject.Find("object_" + obj.id);
 					if (prefab == null)
 					{
 						prefab = Instantiate(Resources.Load("Prefabs/" + obj.prefab, typeof(GameObject))) as GameObject;

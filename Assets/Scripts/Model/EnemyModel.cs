@@ -24,12 +24,12 @@ public class EnemyModel : ObjectModel
 	/// </summary>
 	public LifeModel lifeBar;
 
-	private Material material;
+	private SpriteRenderer render;
 
 	protected void Awake()
 	{
 		base.Awake();
-		material = this.GetComponent<Renderer>().material;
+		render = GetComponent<SpriteRenderer>();
 	}
 
     // Update is called once per frame
@@ -57,30 +57,30 @@ public class EnemyModel : ObjectModel
 	{
 		activeLast = DateTime.Now;
 
-		if (data.hpMax > 0)
+		if (data.hpMax>0)
 			lifeBar.hpMax = data.hpMax;
 		if (data.mpMax > 0)
-			lifeBar.mpMax = data.mpMax;
+			lifeBar.mpMax = (int)data.mpMax;
 
-		if (data.hp > 0) 
-		{
-            if (lifeBar.hp == 0)
-            {
+		if(data.hp !=null)
+		{ 
+			if (data.hp > 0)
+			{
+				render.color = new Color(render.color.r, render.color.g, render.color.b, 0.5f); // (r,g,b,a); последний параметр прозрачность. От 0 до 1.
+			}
+			else 
+			{
+				if (lifeBar.hp == 0)
+				{
+					render.color = new Color(render.color.r, render.color.g, render.color.b, 0);
+				}
+			}
 
-            }
-
-			lifeBar.hp = data.hp;
+			lifeBar.hp = (int)data.hp;
 		}
-		else
-        {
-			Color oldColor = material.color;
-		
 
-		}
-
-		if (data.mp > 0)
-			lifeBar.mp = data.mp;
-
+		if (data.mp !=null)
+			lifeBar.mp = (int)data.mp;
 
 		if (data.speed > 0) { 
 			this.speed = data.speed;
