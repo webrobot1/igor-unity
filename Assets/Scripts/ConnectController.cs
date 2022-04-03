@@ -53,7 +53,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// время последнего шага нашего игрока
 	/// </summary>
-	protected DateTime lastMove = DateTime.Now;
+	protected DateTime? lastMove;
 
 	/// <summary>
 	/// Позиция к которой движется наш персонаж (пришла от сервера)
@@ -217,7 +217,7 @@ public abstract class ConnectController : MainController
 								tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 							}
 						}
-						Debug.LogError(newLayer.name + " раставлены tile");		
+						Debug.Log(newLayer.name + " раставлены tile");		
 					}
 					else if (layer.objects !=null)
 					{						
@@ -339,9 +339,11 @@ public abstract class ConnectController : MainController
 
 							// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
 							// Todo сравнить что координаты изменены (может это не про движения данные пришли)
-							if (pingTime == 0)
+							if (pingTime == 0 && this.lastMove!=null)
 							{
-								TimeSpan ts = DateTime.Now - this.lastMove;
+								TimeSpan ts = DateTime.Now - (DateTime)this.lastMove;
+								// обнулим что мы не срабатывал тригер по долгому ожиданию ответа от сервера движения в методе CanMove
+								this.lastMove = null;
 								pingTime = Math.Round(ts.TotalSeconds, 4);
 							}
 						}
@@ -421,7 +423,7 @@ public abstract class ConnectController : MainController
 
 		if (request.result != UnityWebRequest.Result.Success)
 		{
-			Debug.Log(request.error);
+			Debug.LogError(request.error);
 		}
 		else
 		{
@@ -449,7 +451,7 @@ public abstract class ConnectController : MainController
 
 		if (exit)
 		{
-			Debug.LogError("уже закрываем игру ("+ error + ")");
+			Debug.LogWarning("уже закрываем игру ("+ error + ")");
 			yield break;
 		}
 

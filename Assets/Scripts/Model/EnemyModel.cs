@@ -38,7 +38,7 @@ public class EnemyModel : ObjectModel
 		// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
 		if (action.IndexOf("idle") == -1 && moveCoroutine == null && (base.anim.GetCurrentAnimatorStateInfo(0).loop || base.anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(200), DateTime.Now) < 1)
 		{
-			Debug.LogError("останавливаем "+this.id);
+			Debug.LogWarning("останавливаем "+this.id);
 
 			if (action.IndexOf("left")>-1)
 				action = "idle_left";
@@ -59,21 +59,20 @@ public class EnemyModel : ObjectModel
 
 		if (data.hpMax>0)
 			lifeBar.hpMax = data.hpMax;
+
+		// ниже сравниваем c null тк может быть значение 0 которое надо обработать
 		if (data.mpMax > 0)
 			lifeBar.mpMax = (int)data.mpMax;
 
 		if(data.hp !=null)
 		{ 
-			if (data.hp > 0)
+			if (lifeBar.hp == 0 && data.hp > 0)
 			{
-				render.color = new Color(render.color.r, render.color.g, render.color.b, 0.5f); // (r,g,b,a); последний параметр прозрачность. От 0 до 1.
+				render.color = new Color(render.color.r, render.color.g, render.color.b, 1f); // (r,g,b,a); последний параметр прозрачность. От 0 до 1.
 			}
-			else 
+			else if (data.hp==0)
 			{
-				if (lifeBar.hp == 0)
-				{
-					render.color = new Color(render.color.r, render.color.g, render.color.b, 0);
-				}
+				render.color = new Color(render.color.r, render.color.g, render.color.b, 0.5f);
 			}
 
 			lifeBar.hp = (int)data.hp;
@@ -82,6 +81,7 @@ public class EnemyModel : ObjectModel
 		if (data.mp !=null)
 			lifeBar.mp = (int)data.mp;
 
+		// тут если speed=0 значит ничего не пришло
 		if (data.speed > 0) { 
 			this.speed = data.speed;
 			distancePerUpdate = this.speed * Time.fixedDeltaTime;

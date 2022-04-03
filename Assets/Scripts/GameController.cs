@@ -47,16 +47,17 @@ public class GameController : ConnectController
     private bool CanMove()
     {
         // Todo заменить 1000 на скорость анимации с учетом скорости игрока)
-        if (DateTime.Compare(this.lastMove.AddMilliseconds(1000), DateTime.Now) < 1)
+        if (base.lastMove !=null && DateTime.Compare(((DateTime)base.lastMove).AddMilliseconds(1000), DateTime.Now) < 1)
         {
-            Debug.Log("Слишком долго ждали движения");
+            Debug.LogWarning("Слишком долго ждали движения");
+            player.moveTo = Vector2.zero;
             return true;
         }
 
         // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено что команду шлем за 1 шаг минимум)
         if (base.pingTime > 0 && Vector2.Distance(player.transform.position, target) - player.distancePerUpdate <= (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)
         {
-            Debug.Log("осталось пройти " + (Vector2.Distance(player.transform.position, target) - player.distancePerUpdate) + " клетки и это меньше чем мы успеваем пройти за пинг " + ((base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) + " , те "+ (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)+" клетки");
+            Debug.LogWarning("осталось пройти " + (Vector2.Distance(player.transform.position, target) - player.distancePerUpdate) + " клетки и это меньше чем мы успеваем пройти за пинг " + ((base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) + " , те "+ (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)+" клетки");
 
             return true;
         }
@@ -97,7 +98,7 @@ public class GameController : ConnectController
                 player.moveTo != Vector2.zero
             ) 
             {
-                if (CanMove())
+                if (CanMove()) 
                 {
                     MoveResponse response = new MoveResponse();
 

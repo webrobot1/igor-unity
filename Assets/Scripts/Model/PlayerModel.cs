@@ -17,7 +17,7 @@ public class PlayerModel : EnemyModel
 		}
 
 		// если мы олстанавливаем игрока принудительно то и все координаты двидения к цели обнуляются
-		if (data.action == "idle")
+		if (data.action.IndexOf("idle")>=0)
 		{
 			this.moveTo = Vector2.zero;
 		}
