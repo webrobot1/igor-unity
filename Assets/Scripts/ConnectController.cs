@@ -51,9 +51,9 @@ public abstract class ConnectController : MainController
 	private float PixelsPerUnit;
 
 	/// <summary>
-	/// время последнего шага нашего игрока
+	/// время последнего шага нашего игрока (если null то шаг закончен)
 	/// </summary>
-	protected DateTime? lastMove;
+	protected DateTime lastMove = DateTime.Now;
 
 	/// <summary>
 	/// координата на карте к которой мы движемся по клику мыши (или пок аким то другим принудительным действиям)
@@ -340,27 +340,23 @@ public abstract class ConnectController : MainController
 					if (player.id == this.id)
 					{
 						if (player.position != null)
-						{	
 							this.target = new Vector2(player.position[0], player.position[1]);
-
-							// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
-							// Todo сравнить что координаты изменены (может это не про движения данные пришли)
-							if (pingTime == 0 && this.lastMove!=null)
-							{
-								TimeSpan ts = DateTime.Now - (DateTime)this.lastMove;
-								pingTime = Math.Round(ts.TotalSeconds, 4);
-							}
-						}
 
 						// если мы движемся или остановились обнулим что мы не срабатывал тригер по долгому ожиданию ответа от сервера движения в методе CanMove
 						if (player.action.IndexOf("idle") >= 0 || player.position != null)
 						{
-							this.lastMove = null;
-							this.moveTo = Vector2.zero;
-						}
-					}
+							if(player.action.IndexOf("idle")>=0)
+								this.moveTo = Vector2.zero;
 
-					
+							// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
+							// Todo сравнить что координаты изменены (может это не про движения данные пришли)
+							if (pingTime == 0)
+							{
+								TimeSpan ts = DateTime.Now - this.lastMove;
+								pingTime = Math.Round(ts.TotalSeconds, 4);
+							}
+						}
+					}	
 				}
 			}
 

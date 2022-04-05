@@ -46,8 +46,9 @@ public class GameController : ConnectController
     /// <returns>true - если может, false - если нет</returns>
     private bool CanMove()
     {
+        // если сделали шаг и давно жде ответа
         // Todo заменить 1000 на скорость анимации с учетом скорости игрока)
-        if (base.lastMove !=null && DateTime.Compare(((DateTime)base.lastMove).AddMilliseconds(1000), DateTime.Now) < 1)
+        if (base.pingTime == 0 && DateTime.Compare(base.lastMove.AddMilliseconds(1000), DateTime.Now) < 1)
         {
             Debug.LogWarning("Слишком долго ждали движения");
             base.moveTo = Vector2.zero;
@@ -134,10 +135,10 @@ public class GameController : ConnectController
                         return;
                     }
 
-                    response.ping = Math.Round(pingTime - Time.fixedDeltaTime, 4);
+                    response.ping = Math.Round(base.pingTime - Time.fixedDeltaTime, 4);
 
                     // если мы сделали шаг то нужнотобнулить время пинга
-                    pingTime = 0;
+                    base.pingTime = 0;
                     connect.Send(response);
 					
                     // и записать время последнего шага
