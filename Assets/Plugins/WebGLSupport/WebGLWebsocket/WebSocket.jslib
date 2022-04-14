@@ -170,7 +170,7 @@ var LibraryWebSocket = {
 			}
 				
 			if (webSocketState.onOpen)
-				Module['dynCall_vi'](webSocketState.onOpen, [ null, instanceId ]);
+				Module['dynCall_vi'](webSocketState.onOpen, instanceId);
 		};
 
 		instance.ws.onmessage = function(ev) {
@@ -202,7 +202,7 @@ var LibraryWebSocket = {
 				HEAPU8.set(dataBuffer, buffer);   
 
 				try {
-					Module['dynCall_viii'](webSocketState.onMessage, [ null, instanceId, buffer, dataBuffer.length ]);
+					Module['dynCall_viii'](webSocketState.onMessage, instanceId, buffer, dataBuffer.length);
 				} finally {
 					_free(buffer);
 				}
@@ -222,7 +222,7 @@ var LibraryWebSocket = {
 				stringToUTF8(msg, msgBuffer, msgBytes);
 
 				try {
-					Module['dynCall_vii'](webSocketState.onError, [ null, instanceId, msgBuffer ]);
+					Module['dynCall_vii'](webSocketState.onError, instanceId, msgBuffer);
 				} finally {
 					_free(msgBuffer);
 				}
@@ -245,7 +245,7 @@ var LibraryWebSocket = {
 			}
 
 			if (webSocketState.onClose)
-				Module['dynCall_vii'](webSocketState.onClose, [ null, instanceId, ev.code ]);
+				Module['dynCall_vii'](webSocketState.onClose, instanceId, ev.code);
 
 			delete instance.ws;
 
