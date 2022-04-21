@@ -65,9 +65,7 @@ public abstract class ConnectController : MainController
 	/// </summary>
 	protected Vector2 target;	
 	
-	/// <summary>
-	/// Позиция к которой движется наш персонаж (пришла от сервера)
-	/// </summary>
+
 	[SerializeField]
 	private Cinemachine.CinemachineVirtualCamera camera;	
 	
