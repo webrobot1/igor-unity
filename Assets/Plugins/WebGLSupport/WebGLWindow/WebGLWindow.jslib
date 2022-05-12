@@ -1,17 +1,17 @@
 var WebGLWindow = {
     WebGLWindowOnFocus: function (cb) {
         window.addEventListener('focus', function () {
-            Runtime.dynCall("v", cb, []);
+			Module['dynCall_v'](cb);
         });
     },
     WebGLWindowOnBlur: function (cb) {
         window.addEventListener('blur', function () {
-            Runtime.dynCall("v", cb, []);
+            Module['dynCall_v'](cb);
         });
     },
 	WebGLWindowOnResize: function(cb) {
         window.addEventListener('resize', function () {
-            Runtime.dynCall("v", cb, []);
+            Module['dynCall_v'](cb);
         });
 	},
 	WebGLWindowInjectFullscreen : function () {

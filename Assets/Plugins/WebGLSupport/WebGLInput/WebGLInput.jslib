@@ -1,9 +1,7 @@
 var WebGLInput = {
     $instances: [],
 	WebGLInputInit : function() {
-		// Remove the `Runtime` object from "v1.37.27: 12/24/2017"
-		// if Runtime not defined. create and add functon!!
-		if(typeof Runtime === "undefined") Runtime = { dynCall : dynCall }
+
 	},
     WebGLInputCreate: function (canvasId, x, y, width, height, fontsize, text, placeholder, isMultiLine, isPassword, isHidden) {
 
@@ -86,7 +84,7 @@ var WebGLInput = {
                     input.setSelectionRange(start + 1, start + 1);
                     input.oninput();	// call oninput to exe ValueChange function!!
 				} else {
-				    Runtime.dynCall("vii", cb, [id, e.shiftKey ? -1 : 1]);
+					Module['dynCall_vii'](cb, id, e.shiftKey ? -1 : 1);
 				}
             }
 		});
@@ -98,13 +96,13 @@ var WebGLInput = {
     WebGLInputOnFocus: function (id, cb) {
         var input = instances[id];
         input.onfocus = function () {
-            Runtime.dynCall("vi", cb, [id]);
+			Module['dynCall_vi'](cb, id);
         };
     },
     WebGLInputOnBlur: function (id, cb) {
         var input = instances[id];
         input.onblur = function () {
-            Runtime.dynCall("vi", cb, [id]);
+           Module['dynCall_vi'](cb, id);
         };
     },
 	WebGLInputIsFocus: function (id) {
@@ -114,14 +112,14 @@ var WebGLInput = {
         var input = instances[id];
         input.oninput = function () {
 			var value = allocate(intArrayFromString(input.value), 'i8', ALLOC_NORMAL);
-            Runtime.dynCall("vii", cb, [id,value]);
+             Module['dynCall_vii'](cb, id,value);
         };
     },
 	WebGLInputOnEditEnd:function(id, cb){
         var input = instances[id];
         input.onchange = function () {
 			var value = allocate(intArrayFromString(input.value), 'i8', ALLOC_NORMAL);
-            Runtime.dynCall("vii", cb, [id,value]);
+            Module['dynCall_vii'](cb, id,value);
         };
     },
 	WebGLInputSelectionStart:function(id){
