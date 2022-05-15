@@ -4,6 +4,16 @@ using UnityEngine;
 
 public class EnemyModel : ObjectModel
 {
+	/// <summary>
+	/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
+	/// </summary>
+	public LifeModel lifeBar;
+
+	/// <summary>
+	/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
+	/// </summary>
+	public float distancePerUpdate;
+
 	protected float speed;
 
 	// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
@@ -13,24 +23,6 @@ public class EnemyModel : ObjectModel
 	/// если не null - движемся
 	/// </summary>
 	private Coroutine? moveCoroutine;
-
-	/// <summary>
-	/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
-	/// </summary>
-	public float distancePerUpdate;
-
-	/// <summary>
-	/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
-	/// </summary>
-	public LifeModel lifeBar;
-
-	private SpriteRenderer render;
-
-	protected void Awake()
-	{
-		base.Awake();
-		render = GetComponent<SpriteRenderer>();
-	}
 
     // Update is called once per frame
     void FixedUpdate()
@@ -66,15 +58,6 @@ public class EnemyModel : ObjectModel
 
 		if(data.hp !=null)
 		{ 
-			if (lifeBar.hp == 0 && data.hp > 0)
-			{
-				render.color = new Color(render.color.r, render.color.g, render.color.b, 1f); // (r,g,b,a); последний параметр прозрачность. От 0 до 1.
-			}
-			else if (data.hp==0)
-			{
-				render.color = new Color(render.color.r, render.color.g, render.color.b, 0.5f);
-			}
-
 			lifeBar.hp = (int)data.hp;
 		}
 

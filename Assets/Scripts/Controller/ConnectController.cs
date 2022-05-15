@@ -16,24 +16,24 @@ using WebGLSupport;
 public abstract class ConnectController : MainController
 {
 	/// <summary>
-	/// true - загружается сцена регистрации (выходим из игры)
-	/// </summary>
-	private bool exit;
-
-	/// <summary>
 	/// Ссылка на конектор
 	/// </summary>
-	protected Protocol connect;
+	public static Protocol connect;
 
 	/// <summary>
 	/// Префаб нашего игрока
 	/// </summary>
-	protected PlayerModel player;
+	public static PlayerModel player;
 
 	/// <summary>
-	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте
+	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
 	/// </summary>
 	private int? id = null;
+
+	/// <summary>
+	/// true - загружается сцена регистрации (выходим из игры)
+	/// </summary>
+	private bool exit;
 
 	/// <summary>
 	/// Токен , требуется при первом конекте для Tcp и Ws, и постоянно при Udp
@@ -105,13 +105,13 @@ public abstract class ConnectController : MainController
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister(ex.Message + ": " + connect.recives[i]));
+						StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message + ": " + connect.recives[i]));
 						break;
 					}
 				}
 			}
 		}
-		else if(this.id == null)
+		else if(id == null)
 			LoadRegister("Неверный порядок запуска сцен");
 		else
 			LoadRegister("Соединение потеряно");
@@ -124,7 +124,7 @@ public abstract class ConnectController : MainController
 	/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
 	public void SetPlayer(SiginRecive data)
 	{
-		this.id = data.id;
+		id = data.id;
 		this.token = data.token;
 		this.PixelsPerUnit = data.pixels;
 		this.pingTime = Time.fixedDeltaTime = data.time;
@@ -165,6 +165,8 @@ public abstract class ConnectController : MainController
 		}
 		else if(!exit) // обновляем мир только если в не выходим из игры (занмиает какое то время)
 		{
+			Debug.Log("Обрабатываем данные");
+
 			// если есть объекты
 			if (recive.map != null)
 			{
@@ -296,27 +298,29 @@ public abstract class ConnectController : MainController
 			{
 				foreach (PlayerRecive player in recive.players)
 				{
-					GameObject prefab = GameObject.Find("player_" + player.id);
+					string name = "player_" + player.id;
+					GameObject prefab = GameObject.Find(name);
 
 					// если игрока нет на сцене
 					if (prefab == null)
 					{
+						// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
+						if (player.prefab == "") continue;
 
-						// если это не полная загрузка мира и игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
-						if (recive.action != "load" && player.action != "online") continue;
+						Debug.Log("Создаем " + name);
 
-						prefab = Instantiate(Resources.Load("Prefabs/" + player.prefab, typeof(GameObject))) as GameObject;
-						prefab.name = "player_" + player.id;
+						prefab = Instantiate(Resources.Load("Prefabs/Players/" + player.prefab, typeof(GameObject))) as GameObject;
+						prefab.name = name;
 
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)ground_sort+1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort+1;
 
-						if (player.id == this.id)
+						if (player.id == id)
 						{
 							//transform.SetParent(prefab.transform);
 							//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
 							camera.Follow = prefab.transform;
-							this.player = prefab.GetComponent<PlayerModel>();
+							ConnectController.player = prefab.GetComponent<PlayerModel>();
 
 							// если у нас webgl првоерим не а дминке ли мы с API отладкой
 							#if UNITY_WEBGL && !UNITY_EDITOR
@@ -331,11 +335,11 @@ public abstract class ConnectController : MainController
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister("Не удалось загрузить игрока:" + ex));
+						StartCoroutine(LoadRegister("Не удалось загрузить игрока "+name+" :" + ex));
                     }
 
 					// если на сцене и есть position - значит куда то движтся. запишем куда
-					if (player.id == this.id)
+					if (player.id == id)
 					{
 						if (player.position != null)
 							this.target = new Vector2(player.position[0], player.position[1]);
@@ -363,13 +367,19 @@ public abstract class ConnectController : MainController
 			{
 				foreach (EnemyRecive enemy in recive.enemys)
 				{
-					GameObject prefab = GameObject.Find("enemy_" + enemy.id);
+					string name = "enemy_" + enemy.id;
+					GameObject prefab = GameObject.Find(name);
 					if (prefab == null)
 					{
-						prefab = Instantiate(Resources.Load("Prefabs/" + enemy.prefab, typeof(GameObject))) as GameObject;
-						prefab.name = "enemy_" + enemy.id;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)ground_sort + 1;
+						// данные от NPC что могут уже атаковать ДО загрузки сцены (те между sign и load)
+						if (enemy.prefab == "") continue;
+
+						Debug.Log("Создаем " + name);
+
+						prefab = Instantiate(Resources.Load("Prefabs/Enemys/" + enemy.prefab, typeof(GameObject))) as GameObject;
+						prefab.name = name;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
 					}
 					
 					try
@@ -378,7 +388,7 @@ public abstract class ConnectController : MainController
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister("Не удалось загрузить NPC:" + ex));
+						StartCoroutine(LoadRegister("Не удалось загрузить NPC "+ name + " :" + ex));
 					}
 				}
 			}
@@ -388,21 +398,28 @@ public abstract class ConnectController : MainController
 			{
 				foreach (ObjectRecive obj in recive.objects)
 				{
-					GameObject prefab = GameObject.Find("object_" + obj.id);
+					string name = "object_" + obj.id;
+					GameObject prefab = GameObject.Find(name);
 					if (prefab == null)
 					{
-						prefab = Instantiate(Resources.Load("Prefabs/" + obj.prefab, typeof(GameObject))) as GameObject;
-						prefab.name = "object_" + obj.id;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)ground_sort;
+						// данные от объектов что могут влиять на игру ДО загрузки сцены (те между sign и load)
+						if (obj.prefab == "") continue;
+
+						Debug.Log("Создаем " + name);
+
+						prefab = Instantiate(Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject))) as GameObject;
+						prefab.name = name;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
 					}
 
 					try
 					{
-						prefab.GetComponent<ObjectModel>().SetData(obj);
+						if(prefab.GetComponent<ObjectModel>())
+							prefab.GetComponent<ObjectModel>().SetData(obj);
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister("Не удалось загрузить объект:" + ex));
+						StartCoroutine(LoadRegister("Не удалось загрузить объект "+ name + ": " + ex));
 					}
 				}
 			}

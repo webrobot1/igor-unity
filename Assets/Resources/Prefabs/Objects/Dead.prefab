@@ -11,7 +11,6 @@ GameObject:
   - component: {fileID: 8183853009444224598}
   - component: {fileID: 3772401252243616345}
   - component: {fileID: 3947239320523677464}
-  - component: {fileID: 4890334385126309453}
   - component: {fileID: 3780281132052816946}
   m_Layer: 0
   m_Name: Dead
@@ -101,25 +100,6 @@ CapsuleCollider2D:
   m_Offset: {x: 0.0038500428, y: 0.6671595}
   m_Size: {x: 1.268031, y: 1.268031}
   m_Direction: 0
---- !u!95 &4890334385126309453
-Animator:
-  serializedVersion: 3
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4988170014554180871}
-  m_Enabled: 1
-  m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 0}
-  m_CullingMode: 0
-  m_UpdateMode: 0
-  m_ApplyRootMotion: 0
-  m_LinearVelocityBlending: 0
-  m_WarningMessage: 
-  m_HasTransformHierarchy: 1
-  m_AllowConstantClipSamplingOptimization: 1
-  m_KeepAnimatorControllerStateOnDisable: 0
 --- !u!114 &3780281132052816946
 MonoBehaviour:
   m_ObjectHideFlags: 0

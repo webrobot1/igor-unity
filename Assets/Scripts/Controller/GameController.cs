@@ -71,7 +71,6 @@ public class GameController : ConnectController
         Debug.Log("фокус " + focus);
     }
 
-
     // Update is called once per frame
     private void Update()
    {

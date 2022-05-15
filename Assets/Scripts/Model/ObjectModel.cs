@@ -4,24 +4,25 @@ using UnityEngine;
 
 public class ObjectModel : MonoBehaviour
 {
-    protected string action = "idle";
-	
-	protected int id;
+	public int id;
+
+	protected string action = "idle";
 	protected int map_id;
-	protected Animator anim;
+	protected Animator anim = null;
 	private static Dictionary<string, bool> trigers;
 
 	protected void Awake()
 	{
-		anim = GetComponent<Animator>();
-
-		// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
-		if (trigers == null)
-		{
-			trigers = new Dictionary<string, bool>();
-			foreach (var parameter in anim.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
+		if(anim = GetComponent<Animator>()) 
+		{ 
+			// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
+			if (trigers == null)
 			{
-				trigers.Add(parameter.name, true);
+				trigers = new Dictionary<string, bool>();
+				foreach (var parameter in anim.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
+				{
+					trigers.Add(parameter.name, true);
+				}
 			}
 		}
 	}
@@ -32,7 +33,8 @@ public class ObjectModel : MonoBehaviour
 		{
 			Debug.Log("Обновляем анимацию " + data.action);
 			this.action = data.action;
-			anim.SetTrigger(action);
+			if(anim !=null)
+				anim.SetTrigger(action);
 		}
 
 		if (data.map_id > 0)
