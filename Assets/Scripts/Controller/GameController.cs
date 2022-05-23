@@ -22,7 +22,6 @@ public class GameController : ConnectController
     /// </summary>
     private double vertical;
 
-   
     private void Start()
     {
         // продолжать принимать данные и обновляться в фоновом режиме
@@ -66,10 +65,6 @@ public class GameController : ConnectController
         return false;
     }
 
-    public void OnApplicationFocus(bool focus)
-    {
-        Debug.Log("фокус " + focus);
-    }
 
     // Update is called once per frame
     private void Update()

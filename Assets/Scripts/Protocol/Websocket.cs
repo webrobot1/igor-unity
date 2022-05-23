@@ -61,27 +61,30 @@ public class Websocket: Protocol
 
     public override void Send(Response data)
 	{
-		if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
-		{
-			error = "Соединение не открыто для запросов ";
-			return;
-		}
+        if (!ConnectController.pause) 
+		{ 
+			if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
+			{
+				error = "Соединение не открыто для запросов ";
+				return;
+			}
 
-		try
-		{
-			string json = JsonConvert.SerializeObject(data,
-													  Newtonsoft.Json.Formatting.None,
-													  new JsonSerializerSettings
-													  {
-														NullValueHandling = NullValueHandling.Ignore
-													  });
-			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
-			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
-			ws.Send(sendBytes);
-		}
-		catch (Exception ex)
-		{
-			error = ex.Message;
+			try
+			{
+				string json = JsonConvert.SerializeObject(data,
+														  Newtonsoft.Json.Formatting.None,
+														  new JsonSerializerSettings
+														  {
+															NullValueHandling = NullValueHandling.Ignore
+														  });
+				Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+				byte[] sendBytes = Encoding.UTF8.GetBytes(json);
+				ws.Send(sendBytes);
+			}
+			catch (Exception ex)
+			{
+				error = ex.Message;
+			}
 		}
 	}
 }

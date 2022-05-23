@@ -36,6 +36,11 @@ public abstract class ConnectController : MainController
 	private bool exit;
 
 	/// <summary>
+	/// true - пауза (выходим, входим или перезагружаем мир игры)
+	/// </summary>
+	public static bool pause;
+
+	/// <summary>
 	/// Токен , требуется при первом конекте для Tcp и Ws, и постоянно при Udp
 	/// </summary>
 	private string token;
@@ -67,25 +72,77 @@ public abstract class ConnectController : MainController
 	
 
 	[SerializeField]
-	private Cinemachine.CinemachineVirtualCamera camera;	
-	
+	private Cinemachine.CinemachineVirtualCamera camera;
+
 	/// <summary>
 	/// тайловая сетка карты
 	/// </summary>
 	[SerializeField]
 	private GameObject grid;
+		
+	/// <summary>
+	/// родителький объект всех обектов
+	/// </summary>
+	[SerializeField]
+	private GameObject world;
 
 	/// <summary>
 	/// на каком уровне слоя размещать новых персонажей и npc 
 	/// </summary>
 	private int? ground_sort = null;
 
+
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+	public void OnApplicationPause(bool pause)
+	{
+		Debug.Log("Пауза " + pause);
+
+		if(!pause)
+			Load();
+	}
+#endif
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+	public void OnApplicationFocus(bool focus)
+	{
+		Debug.Log("фокус " + focus);
+
+		if(focus)
+			Load();
+	}
+#endif
+
+	private void Load(string token = "")
+    {
+		Debug.LogError("загрузка мира");
+		
+		connect.recives.Clear();
+
+		// имено тут если делать там же где и расставляем объекты будут ...закешированы (те будут находится по поиску по имени)
+		for (int i = 0; i < world.transform.childCount; i++)
+		{
+			Destroy(world.transform.GetChild(i).gameObject);
+		}
+
+		SigninResponse response = new SigninResponse();
+		response.action = "load";
+		if(token.Length>0)
+			response.token = token;
+
+		connect.Send(response);
+
+		// поставим на паузу отправку любых данных
+		pause = true;
+
+		Debug.Log(connect.recives);
+	}
+
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
 	/// </summary>
 	protected void Update()
 	{
-		if (connect != null && !exit)
+		if (connect != null)
 		{
 			if (connect.error != null)
 			{
@@ -139,11 +196,7 @@ public abstract class ConnectController : MainController
 		GetComponent<UnityEngine.U2D.PixelPerfectCamera>().assetsPPU = (int)this.PixelsPerUnit;
 		*/
 
-		SigninResponse response = new SigninResponse();
-		response.token = data.token;
-		response.action = "load";
-
-		connect.Send(response);
+		Load(data.token);
 	}
 
 	/// <summary>
@@ -163,7 +216,7 @@ public abstract class ConnectController : MainController
 		{
 			StartCoroutine(LoadRegister("Ошибка сервера:" + recive.error));
 		}
-		else if(!exit) // обновляем мир только если в не выходим из игры (занмиает какое то время)
+		else if (!exit && (!pause || recive.action == "load")) // обновляем мир только если в не выходим из игры и не перезагружаем мир (занмиает какое то время)
 		{
 			Debug.Log("Обрабатываем данные");
 
@@ -171,9 +224,10 @@ public abstract class ConnectController : MainController
 			if (recive.map != null)
 			{
 				// удалим  все слои что были ранее
+				// оставим тут а ре в Load тк возможно что будет отправлять через Load при перезагруке мира все КРОМЕ карты поэтому ее не надо зачищать если не придет новая
 				for (int i = 0; i < grid.transform.parent.childCount; i++)
 				{
-					if(grid.transform.parent.GetChild(i).gameObject.GetInstanceID()!=grid.GetInstanceID())
+					if (grid.transform.parent.GetChild(i).gameObject.GetInstanceID() != grid.GetInstanceID())
 						Destroy(grid.transform.parent.GetChild(i).gameObject);
 				}
 
@@ -187,7 +241,7 @@ public abstract class ConnectController : MainController
 				// расставим на сцене данные карты
 				foreach (Layer layer in map.layer)
 				{
-					
+
 					newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 					newLayer.name = layer.name;
 					newLayer.transform.SetParent(grid.transform, false);
@@ -212,20 +266,20 @@ public abstract class ConnectController : MainController
 									newTile.transform = m;
 								}
 
-								if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites !=null)
+								if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites != null)
 								{
 									newTile.sprites = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites;
 								}
 								else
 									newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
-								
+
 								tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 							}
 						}
-						Debug.Log(newLayer.name + " раставлены tile");		
+						Debug.Log(newLayer.name + " раставлены tile");
 					}
-					else if (layer.objects !=null)
-					{						
+					else if (layer.objects != null)
+					{
 						foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
 						{
 							// если указанный тайл (клетка) не пустая
@@ -250,12 +304,12 @@ public abstract class ConnectController : MainController
 								// сместим координаты абсолютные на расположение главного слоя Map (у нас ноль идет от -180 для GEO расчетов) для получения относительных
 								tilemap.SetTile(new Vector3Int((int)(obj.Value.x), (int)(obj.Value.y), 0), newTile);
 							}
-						}	
+						}
 					}
 
 					// полупрозрачность слоя
 					if (layer.opacity < 1f)
-                    {
+					{
 						Renderer[] mRenderers = newLayer.GetComponentsInChildren<Renderer>();
 						Debug.Log(mRenderers.Length);
 						for (int i = 0; i < mRenderers.Length; i++)
@@ -290,7 +344,7 @@ public abstract class ConnectController : MainController
 
 						//  текущий слой на котором будем ставить игроков		
 						ground_sort = sort;
-					}					
+					}
 				}
 			}
 
@@ -313,7 +367,8 @@ public abstract class ConnectController : MainController
 						prefab.name = name;
 
 						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort+1;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
+						prefab.transform.SetParent(world.transform, false);
 
 						if (player.id == id)
 						{
@@ -323,20 +378,20 @@ public abstract class ConnectController : MainController
 							ConnectController.player = prefab.GetComponent<PlayerModel>();
 
 							// если у нас webgl првоерим не а дминке ли мы с API отладкой
-							#if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
 								WebGLDebug.Check(this.token);
-							#endif
+#endif
 						}
 					}
 
 					try
-					{ 
+					{
 						prefab.GetComponent<PlayerModel>().SetData(player);
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister("Не удалось загрузить игрока "+name+" :" + ex));
-                    }
+						StartCoroutine(LoadRegister("Не удалось загрузить игрока " + name + " :" + ex));
+					}
 
 					// если на сцене и есть position - значит куда то движтся. запишем куда
 					if (player.id == id)
@@ -347,7 +402,7 @@ public abstract class ConnectController : MainController
 						// если мы движемся или остановились обнулим что мы не срабатывал тригер по долгому ожиданию ответа от сервера движения в методе CanMove
 						if (player.action.IndexOf("idle") >= 0 || player.position != null)
 						{
-							if(player.action.IndexOf("idle")>=0)
+							if (player.action.IndexOf("idle") >= 0)
 								this.moveTo = Vector2.zero;
 
 							// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
@@ -358,7 +413,7 @@ public abstract class ConnectController : MainController
 								pingTime = Math.Round(ts.TotalSeconds, 4);
 							}
 						}
-					}	
+					}
 				}
 			}
 
@@ -380,15 +435,16 @@ public abstract class ConnectController : MainController
 						prefab.name = name;
 						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
 						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
+						prefab.transform.SetParent(world.transform, false);
 					}
-					
+
 					try
 					{
 						prefab.GetComponent<EnemyModel>().SetData(enemy);
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister("Не удалось загрузить NPC "+ name + " :" + ex));
+						StartCoroutine(LoadRegister("Не удалось загрузить NPC " + name + " :" + ex));
 					}
 				}
 			}
@@ -410,19 +466,23 @@ public abstract class ConnectController : MainController
 						prefab = Instantiate(Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = name;
 						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
+						prefab.transform.SetParent(world.transform, false);
 					}
 
 					try
 					{
-						if(prefab.GetComponent<ObjectModel>())
+						if (prefab.GetComponent<ObjectModel>())
 							prefab.GetComponent<ObjectModel>().SetData(obj);
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister("Не удалось загрузить объект "+ name + ": " + ex));
+						StartCoroutine(LoadRegister("Не удалось загрузить объект " + name + ": " + ex));
 					}
 				}
 			}
+
+			if (recive.action == "load")
+				pause = false;
 		}
 	}
 
@@ -455,12 +515,6 @@ public abstract class ConnectController : MainController
 		}
 	}
 
-#if !UNITY_WEBGL
-	public void OnApplicationPause(bool pause)
-	{
-		StartCoroutine(LoadRegister("Вы вышли из игры"));
-	}
-#endif
 
 	/// <summary>
 	/// Страница ошибок - загрузка страницы входа
@@ -480,6 +534,7 @@ public abstract class ConnectController : MainController
 		}
 
 		exit = true;
+		pause = true;
 		connect.Close();
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
