@@ -28,7 +28,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// true - загружается сцена регистрации (выходим из игры)
 	/// </summary>
-	private bool exit;
+	protected bool exit;
 
 	/// <summary>
 	/// true - пауза (выходим, входим или перезагружаем мир игры)
@@ -115,6 +115,9 @@ public abstract class ConnectController : MainController
 	private void Load(string token = "")
     {
 		Debug.LogError("загрузка мира");
+
+		// актуально когда после разрыва соединения возвращаемся
+		pause = false;
 
 		connect.recives.Clear();
 
