@@ -4,6 +4,7 @@ using UnityEditor.PackageManager;
 using UnityEngine;
 using System.Linq;
 using UnityEditor.SceneManagement;
+using UnityEngine.Rendering;
 
 [InitializeOnLoad]
 public class Startup : ScriptableObject
@@ -40,11 +41,15 @@ public class Startup : ScriptableObject
             EditorBuildSettings.scenes = scenes;
         }
 
-        // везде используем Net 4.
-       // PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.Android, ApiCompatibilityLevel.NET_4_6);
-       // PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.WebGL, ApiCompatibilityLevel.NET_4_6);
 
-       // EditorSettings.unityRemoteDevice =;
+        GraphicsSettings.transparencySortMode = TransparencySortMode.CustomAxis;
+        GraphicsSettings.transparencySortAxis = new Vector3(0, 1f, -1f);
+
+        // везде используем Net 4.
+        // PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.Android, ApiCompatibilityLevel.NET_4_6);
+        // PlayerSettings.SetApiCompatibilityLevel(BuildTargetGroup.WebGL, ApiCompatibilityLevel.NET_4_6);
+
+        // EditorSettings.unityRemoteDevice =;
     }
 }
 #endif

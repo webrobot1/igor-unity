@@ -9,6 +9,7 @@ public class ObjectModel : MonoBehaviour
 	protected string action = "idle";
 	protected int map_id;
 	protected Animator anim = null;
+	private SpriteRenderer sprite = null;
 	private static Dictionary<string, bool> trigers;
 
 	protected void Awake()
@@ -25,6 +26,8 @@ public class ObjectModel : MonoBehaviour
 				}
 			}
 		}
+
+		sprite = GetComponent<SpriteRenderer>();
 	}
 
 	public void SetData(ObjectRecive data)
@@ -39,6 +42,9 @@ public class ObjectModel : MonoBehaviour
 
 		if (data.map_id > 0)
 			this.map_id = data.map_id;
+
+		if (data.sort != null)
+			sprite.sortingOrder = (int)data.sort + (int)ConnectController.ground_sort;
 
 		if (data.position != null && data.position.Length > 0 && this.id == 0)
 		{	

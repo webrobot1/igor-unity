@@ -31,9 +31,6 @@ public class GameController : ConnectController
         variableJoystick = GameObject.Find("joystick").GetComponent<VariableJoystick>();
         variableJoystick.SnapX = true;
         variableJoystick.SnapY = true;
-
-        GraphicsSettings.transparencySortMode = TransparencySortMode.CustomAxis;
-        GraphicsSettings.transparencySortAxis = new Vector3(0, 1f, -1f);
     }
 
     /// <summary>

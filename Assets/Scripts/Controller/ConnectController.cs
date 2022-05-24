@@ -89,7 +89,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// на каком уровне слоя размещать новых персонажей и npc 
 	/// </summary>
-	private int? ground_sort = null;
+	public static int? ground_sort = null;
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR

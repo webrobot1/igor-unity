@@ -11,4 +11,5 @@ public class ObjectRecive
 	public string prefab;
 
 	public string action;
+	public int? sort = null;
 }
