@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -5,6 +6,7 @@ using UnityEngine;
 public class ObjectModel : MonoBehaviour
 {
 	public int id;
+	public string prefab;
 
 	protected string action = "idle";
 	protected int map_id;
@@ -54,6 +56,7 @@ public class ObjectModel : MonoBehaviour
 		if (this.id == 0)
 		{
 			this.id = data.id;
+			this.prefab = data.prefab;
 		}
 	}
 }

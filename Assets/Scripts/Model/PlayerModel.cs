@@ -12,47 +12,6 @@ public class PlayerModel : EnemyModel
 		render = GetComponent<SpriteRenderer>();
 	}
 
-	// срабатывает при взамодействии с объектом 
-	private void OnTriggerStay2D(Collider2D other)
-	{
-		ObjectModel target;
-
-		// если это наш игрок соприкоснулся
-		// todo можно сделать что то если и не наш
-		if(ConnectController.id == base.id) 
-		{ 
-			if (target = other.GetComponent<ObjectModel>())
-			{
-
-				Debug.Log(target.GetType().ToString());
-
-				if (DateTime.Compare(target.LastTouch.AddMilliseconds(1000), DateTime.Now) < 1)
-				{
-					// проверим при каких условиях с объектами взаимодейстсовать НЕ нужно
-					switch (target.prefab)
-					{
-						case "Altar":
-							if (lifeBar.hp > 0)
-								return;
-							break;
-					}
-
-					Debug.LogWarning("соприкосновение с " + target.id);
-					TouchResponse response = new TouchResponse();
-					response.action = "objects";
-					response.object_id = target.id;
-					ConnectController.connect.Send(response);
-
-					target.LastTouch = DateTime.Now;
-				}
-				else
-					Debug.LogWarning("Уже соприкоснулись");
-			}
-			else
-				Debug.LogError("Отсутвует ObjectModel  для обработки столкновений с " + other.name);
-		}
-	}
-
 	public void SetData(PlayerRecive data)
 	{
 		if (base.id == 0)

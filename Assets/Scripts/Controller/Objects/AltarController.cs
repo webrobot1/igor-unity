@@ -19,7 +19,6 @@ public class AltarController : MonoBehaviour
         if ((player = other.GetComponent<PlayerModel>()) && player.lifeBar.hp == 0)
         {
             targetColor = new Color(1, 1, 1, 1);
-            ConnectController.player.resurrect();
         }
 
         curColor = Color.Lerp(curColor, targetColor, lerpSpeed * Time.deltaTime);

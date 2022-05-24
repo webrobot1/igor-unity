@@ -18,17 +18,12 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// Ссылка на конектор
 	/// </summary>
-	public static Protocol connect;
+	protected Protocol connect;
 
 	/// <summary>
 	/// Префаб нашего игрока
 	/// </summary>
-	public static PlayerModel player;
-
-	/// <summary>
-	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
-	/// </summary>
-	private int? id = null;
+	protected PlayerModel player;
 
 	/// <summary>
 	/// true - загружается сцена регистрации (выходим из игры)
@@ -39,6 +34,11 @@ public abstract class ConnectController : MainController
 	/// true - пауза (выходим, входим или перезагружаем мир игры)
 	/// </summary>
 	public static bool pause;
+
+	/// <summary>
+	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
+	/// </summary>
+	private int? id = null;
 
 	/// <summary>
 	/// Токен , требуется при первом конекте для Tcp и Ws, и постоянно при Udp
@@ -115,7 +115,7 @@ public abstract class ConnectController : MainController
 	private void Load(string token = "")
     {
 		Debug.LogError("загрузка мира");
-		
+
 		connect.recives.Clear();
 
 		// имено тут если делать там же где и расставляем объекты будут ...закешированы (те будут находится по поиску по имени)
@@ -241,11 +241,17 @@ public abstract class ConnectController : MainController
 				// расставим на сцене данные карты
 				foreach (Layer layer in map.layer)
 				{
-
+		
 					newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 					newLayer.name = layer.name;
 					newLayer.transform.SetParent(grid.transform, false);
 					newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
+
+					if (layer.visible == 0) 
+					{ 
+						newLayer.SetActive(false);
+						Debug.Log(layer.name + "- слой скрыт");
+					}
 
 					Tilemap tilemap = newLayer.GetComponent<Tilemap>();
 
@@ -324,7 +330,7 @@ public abstract class ConnectController : MainController
 					}
 
 					sort++;
-
+					
 					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля, а следующий - тот на котром надо генеирить игроков и npc)
 					// todo - на сервере иметь параметр "Слой игрока" 
 					if (ground_sort == null)
@@ -332,6 +338,7 @@ public abstract class ConnectController : MainController
 						// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
 						if (layer.ground == 1)
 						{
+							Debug.Log(layer.name + "- слой Земля");
 							newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
 							newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
 							CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
@@ -340,10 +347,10 @@ public abstract class ConnectController : MainController
 
 							// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
 							newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
-						}
 
-						//  текущий слой на котором будем ставить игроков		
-						ground_sort = sort;
+							//  текущий слой на котором будем ставить игроков		
+							ground_sort = sort;
+						}
 					}
 				}
 			}
@@ -375,7 +382,7 @@ public abstract class ConnectController : MainController
 							//transform.SetParent(prefab.transform);
 							//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
 							camera.Follow = prefab.transform;
-							ConnectController.player = prefab.GetComponent<PlayerModel>();
+							this.player = prefab.GetComponent<PlayerModel>();
 
 							// если у нас webgl првоерим не а дминке ли мы с API отладкой
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -555,6 +562,8 @@ public abstract class ConnectController : MainController
 
 	void OnApplicationQuit()
 	{
+		Debug.Log("Закрытие приложения");
+
 		if(connect!=null)
 			connect.Close();
 	}
