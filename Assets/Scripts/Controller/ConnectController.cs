@@ -330,7 +330,7 @@ public abstract class ConnectController : MainController
 					if (ground_sort == null)
 					{
 						// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
-						if (sort == 1)
+						if (layer.ground == 1)
 						{
 							newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
 							newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
