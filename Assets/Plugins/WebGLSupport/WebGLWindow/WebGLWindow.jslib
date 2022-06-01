@@ -1,4 +1,7 @@
 var WebGLWindow = {
+    WebGLWindowInit : function() {
+       
+    },
     WebGLWindowOnFocus: function (cb) {
         window.addEventListener('focus', function () {
 			Module['dynCall_v'](cb);
