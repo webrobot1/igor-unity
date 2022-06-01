@@ -75,6 +75,7 @@ public class GameController : ConnectController
             if (Input.GetMouseButtonDown(0))
             {
                 base.moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+                Debug.Log(base.moveTo);
             }
              
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
@@ -127,7 +128,7 @@ public class GameController : ConnectController
                         return;
                     }
 
-                    response.ping = Math.Round(base.pingTime - Time.fixedDeltaTime, 4);
+                    response.ping = Math.Round(base.pingTime - Time.fixedDeltaTime, 3);
 
                     // если мы сделали шаг то нужнотобнулить время пинга
                     base.pingTime = 0;

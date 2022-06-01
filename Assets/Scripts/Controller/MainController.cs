@@ -6,6 +6,8 @@ public class MainController : MonoBehaviour
         // заплатка для потери фокуса в webgl 
          public void Focus(int focus)
          {
+            Debug.Log("Фокус: "+focus);
+
             if (focus == 0) 
             {
                 Input.ResetInputAxes();
