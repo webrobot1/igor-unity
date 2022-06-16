@@ -3,14 +3,16 @@ using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
 using System.Linq;
-using UnityEditor.SceneManagement;
+
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 [InitializeOnLoad]
 public class Startup : ScriptableObject
 {
     static Startup()
     {
+		
         // проверим необходимые пакеты
         var pack = Client.List();
         while (!pack.IsCompleted);
@@ -26,8 +28,9 @@ public class Startup : ScriptableObject
            Debug.Log(pckName + " успешно установлен");
         }
 
+
         // если первая загрузка c Git и нет сцен
-        if(EditorBuildSettings.scenes.Length == 0)
+        if (EditorBuildSettings.scenes.Length != 2)
         {
             EditorBuildSettingsScene[] scenes = new EditorBuildSettingsScene[2];
             scenes[0] = new EditorBuildSettingsScene();

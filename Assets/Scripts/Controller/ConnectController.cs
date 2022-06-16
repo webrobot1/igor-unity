@@ -226,6 +226,8 @@ public abstract class ConnectController : MainController
 			// если есть объекты
 			if (recive.map != null)
 			{
+				Debug.Log("Обновляем карту");
+
 				// удалим  все слои что были ранее
 				// оставим тут а ре в Load тк возможно что будет отправлять через Load при перезагруке мира все КРОМЕ карты поэтому ее не надо зачищать если не придет новая
 				for (int i = 0; i < grid.transform.parent.childCount; i++)
@@ -356,10 +358,15 @@ public abstract class ConnectController : MainController
 						}
 					}
 				}
+
+				// на случай если в админке не указан слой - земля
+				if (ground_sort == null)
+					ground_sort = 1;
 			}
 
 			if (recive.players != null)
 			{
+				Debug.Log("Обновляем игроков");
 				foreach (PlayerRecive player in recive.players)
 				{
 					string name = "player_" + player.id;
@@ -369,17 +376,20 @@ public abstract class ConnectController : MainController
 					if (prefab == null)
 					{
 						// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
-						if (player.prefab == "") continue;
+						if (player.prefab == null || player.prefab.Length == 0)
+						{
+							continue;
+						}
 
-						Debug.Log("Создаем " + name);
+						Debug.Log("Создаем " + player.prefab + " " + name);
 
 						prefab = Instantiate(Resources.Load("Prefabs/Players/" + player.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = name;
-
+						
 						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
 						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
-
+				
 						if (player.id == id)
 						{
 							//transform.SetParent(prefab.transform);
@@ -430,16 +440,24 @@ public abstract class ConnectController : MainController
 			// если есть враги
 			if (recive.enemys != null)
 			{
+				Debug.Log("Обновляем enemy");
+
 				foreach (EnemyRecive enemy in recive.enemys)
 				{
-					string name = "enemy_" + enemy.id;
+				
+					string name = "enemy_" + enemy.id; 
 					GameObject prefab = GameObject.Find(name);
 					if (prefab == null)
 					{
+						
 						// данные от NPC что могут уже атаковать ДО загрузки сцены (те между sign и load)
-						if (enemy.prefab == "") continue;
+						if (enemy.prefab == null || enemy.prefab.Length == 0)
+						{
+							continue;
+						}
 
-						Debug.Log("Создаем " + name);
+
+						Debug.Log("Создаем " + enemy.prefab + " "+ name);
 
 						prefab = Instantiate(Resources.Load("Prefabs/Enemys/" + enemy.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = name;
@@ -447,6 +465,9 @@ public abstract class ConnectController : MainController
 						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 					}
+					else
+						Debug.Log("Обновляем " + name);
+
 
 					try
 					{
@@ -462,6 +483,7 @@ public abstract class ConnectController : MainController
 			// если есть объекты
 			if (recive.objects != null)
 			{
+				Debug.Log("Обновляем объекты");
 				foreach (ObjectRecive obj in recive.objects)
 				{
 					string name = "object_" + obj.id;
@@ -469,9 +491,12 @@ public abstract class ConnectController : MainController
 					if (prefab == null)
 					{
 						// данные от объектов что могут влиять на игру ДО загрузки сцены (те между sign и load)
-						if (obj.prefab == "") continue;
+						if (obj.prefab == null || obj.prefab.Length == 0)
+						{
+							continue;
+						}
 
-						Debug.Log("Создаем " + name);
+						Debug.Log("Создаем " + obj.prefab + " "+name);
 
 						prefab = Instantiate(Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject))) as GameObject;
 						prefab.name = name;
