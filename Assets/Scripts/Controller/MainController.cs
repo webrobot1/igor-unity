@@ -3,7 +3,7 @@ using UnityEngine;
 public class MainController : MonoBehaviour
 {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // заплатка для потери фокуса в webgl 
+        // заплатка для потери фокуса в webgl (если фокус падает на канву с игрой то обратно на странице html не доступны для ввода поля)
          public void Focus(int focus)
          {
             Debug.Log("Фокус: "+focus);

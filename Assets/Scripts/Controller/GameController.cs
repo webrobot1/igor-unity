@@ -22,6 +22,7 @@ public class GameController : ConnectController
     /// </summary>
     private double vertical;
 
+    private Vector2 moveTo = Vector2.zero;
 
     private void Start()
     {
@@ -32,6 +33,12 @@ public class GameController : ConnectController
         variableJoystick = GameObject.Find("joystick").GetComponent<VariableJoystick>();
         variableJoystick.SnapX = true;
         variableJoystick.SnapY = true;
+
+        #if UNITY_EDITOR
+                Debug.unityLogger.logEnabled = false;
+        #else
+                Debug.unityLogger.logEnabled = false;
+        #endif
     }
 
     /// <summary>
@@ -48,7 +55,6 @@ public class GameController : ConnectController
         if (base.pingTime == 0 && DateTime.Compare(base.lastMove.AddMilliseconds(1000), DateTime.Now) < 1)
         {
             Debug.LogWarning("Слишком долго ждали движения");
-            base.moveTo = Vector2.zero;
             return true;
         }
 
@@ -74,8 +80,8 @@ public class GameController : ConnectController
             // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
             if (Input.GetMouseButtonDown(0))
             {
-                base.moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
-                Debug.Log(base.moveTo);
+                moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+                Debug.Log(moveTo);
             }
              
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
@@ -89,7 +95,7 @@ public class GameController : ConnectController
                     ||
                 (horizontal = variableJoystick.Horizontal) != 0 
                     || 
-                base.moveTo != Vector2.zero
+                moveTo != Vector2.zero
             ) 
             {
                 if (CanMove()) 
@@ -98,8 +104,6 @@ public class GameController : ConnectController
 
                     if (vertical != 0 || horizontal != 0)
                     {
-                        base.moveTo = Vector2.zero;
-
                         if (vertical > 0)
                         {
                             response.action = "move/up";
@@ -117,14 +121,16 @@ public class GameController : ConnectController
                             response.action = "move/left";
                         }
                     }
-                    else if (Vector2.Distance(player.transform.position, base.moveTo) >= 1)
+                    else if (Vector2.Distance(player.transform.position, moveTo) >= 1)
                     {
                         response.action = "move/to";
-                        response.to = base.moveTo.x.ToString() + ',' + base.moveTo.y.ToString();
+                        response.to = moveTo.x.ToString() + ',' + moveTo.y.ToString();
+
+                        // очищаем переменную после того как команда отправлена (дальше сам пойдет)
+                        moveTo = Vector2.zero;
                     }
                     else
                     {
-                        base.moveTo = Vector2.zero;
                         return;
                     }
 

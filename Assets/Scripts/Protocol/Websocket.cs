@@ -24,7 +24,7 @@ public class Websocket: Protocol
 
 		try
 		{
-			ws = new WebSocket("ws://my-fantasy.ru:8080");
+			ws = new WebSocket("ws://185.117.153.89:8080");
 			ws.OnOpen += (sender, ev) =>
 			{
 				Debug.Log("Соединение с севрером установлено");
