@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 /// <summary>
 /// Класс для отправки данных (действий игрока)
 /// </summary>
-public class GameController : ConnectController
+public class PlayerController : ConnectController
 {
     /// <summary>
     /// наш джойстик
@@ -35,7 +35,7 @@ public class GameController : ConnectController
         variableJoystick.SnapY = true;
 
         #if UNITY_EDITOR
-                Debug.unityLogger.logEnabled = false;
+                Debug.unityLogger.logEnabled = true;
         #else
                 Debug.unityLogger.logEnabled = false;
         #endif
@@ -48,6 +48,9 @@ public class GameController : ConnectController
     /// Если долго (среднее время пути в анимации) нет ответа то тоже дает идти
     /// </summary>
     /// <returns>true - если может, false - если нет</returns>
+    /// 
+    
+    // todo переделать просто на метод Can(string action)  который имея уже все пинги может узнать можем ли мы делать это действие снова
     private bool CanMove()
     {
         // если сделали шаг и давно жде ответа
@@ -69,21 +72,23 @@ public class GameController : ConnectController
         return false;
     }
 
+    private void Update()
+    {
+        // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
+        if (Input.GetMouseButtonDown(0))
+        {
+            moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+            Debug.Log(moveTo);
+        }
+    }
 
     // Update is called once per frame
-    private void Update()
-   {
-        base.Update();
+    private void FixedUpdate()
+    {
+        base.FixedUpdate();
 
         if (player != null && !pause && !exit)
         {
-            // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
-            if (Input.GetMouseButtonDown(0))
-            {
-                moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
-                Debug.Log(moveTo);
-            }
-             
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
             // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
             if (

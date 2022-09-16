@@ -5,9 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Networking;
-using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
-using UnityEngine.Tilemaps;
+
 using WebGLSupport;
 
 /// <summary>
@@ -105,7 +104,49 @@ public abstract class ConnectController : MainController
 		if(focus)
 			Load();
 	}
+
+	public void Api(string json)
+	{
+		connect.Put(json);
+	}
 #endif
+
+	/// <summary>
+	/// Звпускается после авторизации - заполяет id и token 
+	/// </summary>
+	/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
+	public void SetPlayer(SiginRecive data)
+	{
+		id = data.id;
+		this.token = data.token;
+		this.pingTime = Time.fixedDeltaTime = data.time;
+
+		Debug.Log("FixedTime = " + data.time);
+
+		connect = new Websocket(SERVER, PORT, data.map_id);
+		Load(data.token);
+
+		// настройки size камеры менять бессмысленно тк есть PixelPerfect
+		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
+		/*
+		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize * 16 / this.PixelsPerUnit;
+		GetComponent<UnityEngine.U2D.PixelPerfectCamera>().assetsPPU = (int)this.PixelsPerUnit;
+		*/
+
+		Debug.Log("Обновляем карту");
+
+		// удалим  все слои что были ранее
+		// оставим тут а ре в Load тк возможно что будет отправлять через Load при перезагруке мира все КРОМЕ карты поэтому ее не надо зачищать если не придет новая
+		for (int i = 0; i < grid.transform.parent.childCount; i++)
+		{
+			if (grid.transform.parent.GetChild(i).gameObject.GetInstanceID() != grid.GetInstanceID())
+				Destroy(grid.transform.parent.GetChild(i).gameObject);
+		}
+
+		// приведем координаты в сответсвие с сеткой Unity
+		ground_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
+	}
+
 
 	private void Load(string token = "")
     {
@@ -138,63 +179,39 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
 	/// </summary>
-	protected void Update()
+	protected void FixedUpdate()
 	{
-		if (connect != null)
+		if (id != null)
 		{
-			if (connect.error != null)
+			if (connect != null)
 			{
-				StartCoroutine(LoadRegister(connect.error));
-			}
-			else if (connect.recives != null)
-			{
-				for (int i = 0; i < connect.recives.Count; i++)
+				if (connect.error != null)
 				{
-					try
+					StartCoroutine(LoadRegister(connect.error));
+				}
+				else if (connect.recives != null)
+				{
+					for (int i = 0; i < connect.recives.Count; i++)
 					{
-						Debug.Log(DateTime.Now.Millisecond + ": " + connect.recives[i]);
-						HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
-						
-						if(connect.recives.ElementAtOrDefault(i) != null)
-							connect.recives.RemoveAt(i);
-					}
-					catch (Exception ex)
-					{
-						StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message + ": " + connect.recives[i]));
-						break;
+						try
+						{
+							Debug.Log(DateTime.Now.Millisecond + ": " + connect.recives[i]);
+							HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
+
+							if (connect.recives.ElementAtOrDefault(i) != null)
+								connect.recives.RemoveAt(i);
+						}
+						catch (Exception ex)
+						{
+							StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message + ": " + connect.recives[i]));
+							break;
+						}
 					}
 				}
 			}
+			else
+				StartCoroutine(LoadRegister("Соединение потеряно"));
 		}
-		else if(id == null)
-			LoadRegister("Неверный порядок запуска сцен");
-		else
-			LoadRegister("Соединение потеряно");
-	}
-
-
-	/// <summary>
-	/// Звпускается после авторизации - заполяет id и token 
-	/// </summary>
-	/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-	public void SetPlayer(SiginRecive data)
-	{
-		id = data.id;
-		this.token = data.token;
-		this.PixelsPerUnit = data.pixels;
-		this.pingTime = Time.fixedDeltaTime = data.time;
-
-		Debug.Log("FixedTime = " + data.time);
-		connect = new Websocket();
-
-		// настройки size камеры менять бессмысленно тк есть PixelPerfect
-		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
-		/*
-		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize * 16 / this.PixelsPerUnit;
-		GetComponent<UnityEngine.U2D.PixelPerfectCamera>().assetsPPU = (int)this.PixelsPerUnit;
-		*/
-
-		Load(data.token);
 	}
 
 	/// <summary>
@@ -218,147 +235,6 @@ public abstract class ConnectController : MainController
 		{
 			Debug.Log("Обрабатываем данные");
 
-			// если есть объекты
-			if (recive.map != null)
-			{
-				Debug.Log("Обновляем карту");
-
-				// удалим  все слои что были ранее
-				// оставим тут а ре в Load тк возможно что будет отправлять через Load при перезагруке мира все КРОМЕ карты поэтому ее не надо зачищать если не придет новая
-				for (int i = 0; i < grid.transform.parent.childCount; i++)
-				{
-					if (grid.transform.parent.GetChild(i).gameObject.GetInstanceID() != grid.GetInstanceID())
-						Destroy(grid.transform.parent.GetChild(i).gameObject);
-				}
-
-				// приведем координаты в сответсвие с сеткой Unity
-				Map map = MapModel.getInstance().decode(recive.map, PixelsPerUnit);
-
-				// инициализируем новый слой 
-				GameObject newLayer;
-				int sort = 0;
-
-				// расставим на сцене данные карты
-				foreach (Layer layer in map.layer)
-				{
-		
-					newLayer = Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
-					newLayer.name = layer.name;
-					newLayer.transform.SetParent(grid.transform, false);
-					newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
-
-					if (layer.visible == 0) 
-					{ 
-						newLayer.SetActive(false);
-						Debug.Log(layer.name + "- слой скрыт");
-					}
-
-					Tilemap tilemap = newLayer.GetComponent<Tilemap>();
-
-					// если есть в слое набор тайлов
-					if (layer.tiles != null)
-					{
-						foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
-						{
-							if (tile.Value.tile_id > 0)
-							{
-								TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-
-								// если tile отражен по горизонтали или вертикали или у него z параметр (нужно где слои лежить друг за другом по Y)
-								if (tile.Value.horizontal > 0 || tile.Value.vertical > 0)
-								{
-									var m = newTile.transform;
-									m.SetTRS(Vector3.zero, Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
-									newTile.transform = m;
-								}
-
-								if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites != null)
-								{
-									newTile.sprites = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites;
-								}
-								else
-									newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
-
-								tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
-							}
-						}
-						Debug.Log(newLayer.name + " раставлены tile");
-					}
-					else if (layer.objects != null)
-					{
-						foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
-						{
-							// если указанный тайл (клетка) не пустая
-							if (obj.Value.tile_id > 0)
-							{
-								TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-
-								if (obj.Value.horizontal > 0 || obj.Value.vertical > 0)
-								{
-									var m = newTile.transform;
-									m.SetTRS(Vector3.zero, Quaternion.Euler(obj.Value.vertical * 180, obj.Value.horizontal * 180, 0f), Vector3.one);
-									newTile.transform = m;
-								}
-
-								if (map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprites != null)
-								{
-									newTile.sprites = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprites;
-								}
-								else
-									newTile.sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
-
-								// сместим координаты абсолютные на расположение главного слоя Map (у нас ноль идет от -180 для GEO расчетов) для получения относительных
-								tilemap.SetTile(new Vector3Int((int)(obj.Value.x), (int)(obj.Value.y), 0), newTile);
-							}
-						}
-					}
-
-					// полупрозрачность слоя
-					if (layer.opacity < 1f)
-					{
-						Renderer[] mRenderers = newLayer.GetComponentsInChildren<Renderer>();
-						Debug.Log(mRenderers.Length);
-						for (int i = 0; i < mRenderers.Length; i++)
-						{
-							for (int j = 0; j < mRenderers[i].materials.Length; j++)
-							{
-								Color matColor = mRenderers[i].materials[j].color;
-								matColor.a = layer.opacity;
-								mRenderers[i].materials[j].color = matColor;
-							}
-						}
-					}
-
-					sort++;
-					
-					// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля, а следующий - тот на котром надо генеирить игроков и npc)
-					// todo - на сервере иметь параметр "Слой игрока" 
-					if (ground_sort == null)
-					{
-						// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
-						if (layer.ground == 1)
-						{
-							Debug.Log(layer.name + "- слой Земля");
-							newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
-							newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
-							CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
-							colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
-							camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
-
-							// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
-							newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
-
-							//  текущий слой на котором будем ставить игроков		
-							ground_sort = sort;
-						}
-					}
-				}
-
-				// на случай если в админке не указан слой - земля
-				if (ground_sort == null)
-					ground_sort = 1;
-			}
-
 			if (recive.players != null)
 			{
 				Debug.Log("Обновляем игроков");
@@ -378,9 +254,14 @@ public abstract class ConnectController : MainController
 
 						Debug.Log("Создаем " + player.prefab + " " + name);
 
-						prefab = Instantiate(Resources.Load("Prefabs/Players/" + player.prefab, typeof(GameObject))) as GameObject;
+						UnityEngine.Object? ob;
+						ob = Resources.Load("Prefabs/Players/" + player.prefab, typeof(GameObject));
+
+						if (ob == null)
+							ob = Resources.Load("Prefabs/Players/Empty", typeof(GameObject));
+
+						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						
 						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
 						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
@@ -452,7 +333,13 @@ public abstract class ConnectController : MainController
 
 						Debug.Log("Создаем " + enemy.prefab + " "+ name);
 
-						prefab = Instantiate(Resources.Load("Prefabs/Enemys/" + enemy.prefab, typeof(GameObject))) as GameObject;
+						UnityEngine.Object? ob;
+						ob = Resources.Load("Prefabs/Enemys/" + enemy.prefab, typeof(GameObject));
+
+						if (ob == null)
+							ob = Resources.Load("Prefabs/Enemys/Empty", typeof(GameObject));
+
+						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
 						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
 						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
@@ -491,7 +378,13 @@ public abstract class ConnectController : MainController
 
 						Debug.Log("Создаем " + obj.prefab + " "+name);
 
-						prefab = Instantiate(Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject))) as GameObject;
+						UnityEngine.Object? ob;
+						ob = Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject));
+
+						if (ob == null)
+							ob = Resources.Load("Prefabs/Objects/Empty", typeof(GameObject));
+
+						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
 						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
 						prefab.transform.SetParent(world.transform, false);
@@ -552,9 +445,6 @@ public abstract class ConnectController : MainController
 	{
 		Debug.LogError(error);
 
-		connect.error = null;
-		connect.recives.Clear();
-
 		if (exit)
 		{
 			Debug.LogWarning("уже закрываем игру ("+ error + ")");
@@ -563,7 +453,13 @@ public abstract class ConnectController : MainController
 
 		exit = true;
 		pause = true;
-		connect.Close();
+
+		if (connect != null)
+		{
+			connect.error = null;
+			connect.recives.Clear();
+			connect.Close();
+		}
 
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{

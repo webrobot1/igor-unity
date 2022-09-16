@@ -2,6 +2,10 @@ using UnityEngine;
 
 public class MainController : MonoBehaviour
 {
+    public const string SERVER = "185.117.153.89";        //185.117.153.89
+    public const int PORT = 8080;
+
+
 #if UNITY_WEBGL && !UNITY_EDITOR
         // заплатка для потери фокуса в webgl (если фокус падает на канву с игрой то обратно на странице html не доступны для ввода поля)
          public void Focus(int focus)

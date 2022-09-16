@@ -75,7 +75,14 @@ public class EnemyModel : ObjectModel
 			if (moveCoroutine != null)
 				StopCoroutine(moveCoroutine);
 
-			moveCoroutine = StartCoroutine(Move(new Vector2(data.position[0], data.position[1])));
+			Vector2 moveTo = new Vector2(data.position[0], data.position[1]);
+
+			// todo пока 1 шаг - 1 единици позиции  и если больше - это не ходьба а телепорт. в будушем может быть меньше 1 единицы
+			// если отставание от текущей позиции больше чем полтора шага телепортнем (а може это и есть телепорт)
+			if (Vector2.Distance(moveTo, transform.position) <= 1.5)
+				moveCoroutine = StartCoroutine(Move(moveTo));
+			else
+				transform.position = moveTo;
 		}
 
 		base.SetData(data);

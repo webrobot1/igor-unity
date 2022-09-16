@@ -5,8 +5,8 @@ using UnityEngine;
 
 public class ObjectModel : MonoBehaviour
 {
-	public int id;
-	public string prefab;
+	protected int id;
+	protected string prefab;
 
 	protected string action = "idle";
 	protected int map_id;
@@ -40,6 +40,13 @@ public class ObjectModel : MonoBehaviour
 			this.action = data.action;
 			if(anim !=null)
 				anim.SetTrigger(action);
+		}
+
+		// пришла команды удаления с карты объекта
+		if(data.action == "remove")
+        {
+			Destroy(this);
+			return;
 		}
 
 		if (data.map_id > 0)

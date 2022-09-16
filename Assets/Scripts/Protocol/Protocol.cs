@@ -7,15 +7,7 @@ abstract public class Protocol
 	public string error;
 	public List<string> recives = new List<string>();
 
-	public Protocol()
-	{
-		Debug.Log("Соединяемся с сервером");
-		Connect();
-	}
-
-
-	protected abstract void Connect();
-
 	public abstract void Close();
 	public abstract void Send(Response data);
+	public abstract void Put(string json);
 }

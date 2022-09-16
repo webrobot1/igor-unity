@@ -34,7 +34,7 @@ public class RegisterController : MainController
         formData.AddField("login", login.text);
         formData.AddField("password", password.text);
 
-        UnityWebRequest request = UnityWebRequest.Post("http://my-fantasy.ru/api/signin/" + action, formData);
+        UnityWebRequest request = UnityWebRequest.Post("http://"+SERVER+"/server/signin/" + action, formData);
 
         yield return request.SendWebRequest();
 
@@ -76,11 +76,21 @@ public class RegisterController : MainController
             yield return null;
         }
 
-        if (data.id == 0 || data.token == null)
-            Error("не указан player_id или token");
+        if (data.id == 0 )
+            Error("не указан player_id");    
+        
+        if (data.token == null)
+            Error("не указан token");        
+        
+        if (data.map == null)
+            Error("не указан map");
+        
+        if (data.time <=0 )
+            Error("не указан time");
+
 
         SceneManager.UnloadScene("RegisterScene");
-        Camera.main.GetComponent<GameController>().SetPlayer(data);
+        Camera.main.GetComponent<PlayerController>().SetPlayer(data);
 
         // asyncLoad.allowSceneActivation = true;
     }
