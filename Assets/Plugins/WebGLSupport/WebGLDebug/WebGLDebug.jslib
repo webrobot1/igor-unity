@@ -12,6 +12,7 @@ var WebGLDebug =
 			} 
 			
 			container.removeAttribute("disabled");
+			document.querySelector("#map_id").value = map_id;
 		}
     }
 }

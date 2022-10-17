@@ -8,6 +8,6 @@ namespace WebGLSupport
     public static class WebGLDebug
     {
 		[DllImport("__Internal")]
-		public static extern void Check(string token);
+		public static extern void Check(string token, int map_id);
     }
 }
