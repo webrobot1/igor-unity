@@ -275,7 +275,7 @@ public abstract class ConnectController : MainController
 
 							// если у нас webgl првоерим не а дминке ли мы с API отладкой
 #if UNITY_WEBGL && !UNITY_EDITOR
-								WebGLDebug.Check(this.token);
+								WebGLDebug.Check(this.token, player.map_id);
 #endif
 						}
 					}
