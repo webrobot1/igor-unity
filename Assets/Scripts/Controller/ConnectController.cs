@@ -173,9 +173,6 @@ public abstract class ConnectController : MainController
 				}
 				else 
 				{
-					// синхронизируем отправку запросов
-					connect.Synch();
-
 					if (connect.recives.Count>0)
 					{
 						for (int i = 0; i < connect.recives.Count; i++)
@@ -233,7 +230,7 @@ public abstract class ConnectController : MainController
 						connect.pings[kvp.Key] = new PingsRecive();
 
 					if (kvp.Value.ping>0)
-						connect.pings[kvp.Key].ping = kvp.Value.ping + Time.fixedDeltaTime;
+						connect.pings[kvp.Key].ping = kvp.Value.ping;
 
 					connect.pings[kvp.Key].timeout = kvp.Value.timeout;
 				}

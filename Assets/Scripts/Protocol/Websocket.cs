@@ -27,11 +27,6 @@ public class Websocket
 	public List<string> recives = new List<string>();	
 	
 	/// <summary>
-	/// список подготовленных к отправке на сервер пакетов
-	/// </summary>
-	private Dictionary<string, Response> response = new Dictionary<string, Response>();
-
-	/// <summary>
 	/// список всех возможных отправок команд с их пингами, таймаутами и подготовленными запросами
 	/// </summary>
 	public Dictionary<string, PingsRecive> pings = new Dictionary<string, PingsRecive>();
@@ -79,7 +74,6 @@ public class Websocket
 	public void Close()
     {
 		recives.Clear();
-		response.Clear();
 
 		if (ws!=null && ws.ReadyState != WebSocketSharp.WebSocketState.Closed && ws.ReadyState != WebSocketSharp.WebSocketState.Closing)
         {
@@ -101,46 +95,20 @@ public class Websocket
 				return;
 			}
 
-			if (!pings.ContainsKey(data.action)) error = "неизвестная команда";
-
-			response[data.action] = data;
-		}
-	}
-
-	public void Synch()
-    {
-        if (response.Count > 0)
-        {
-			foreach (var kvp in response.ToList())
-			{
-				double ts =  (DateTime.Now - pings[kvp.Key].time).TotalMilliseconds/1000;
-
-				// интерполяция (учитваем ping и даем отправлять команды в клиенте раньше)
-				// если с момента как была отправлена последняя команда прошло время паузы межды командами (за вычетом времени на работу + отправку + возврат ответа) - можно выполнять следующую
-				if (ts + pings[kvp.Key].ping*5 >= pings[kvp.Key].timeout)
+			string json = JsonConvert.SerializeObject(
+				data
+				,
+				Newtonsoft.Json.Formatting.None
+				,
+				new JsonSerializerSettings
 				{
-					string json = JsonConvert.SerializeObject(
-						kvp.Value
-						,
-						Newtonsoft.Json.Formatting.None
-						,
-						new JsonSerializerSettings
-						{
-							NullValueHandling = NullValueHandling.Ignore
-						}
-					);
-
-					// удалим из очереди запрос на сервер
-					response.Remove(kvp.Key);
-
-					// пометим что эта команда была отправлена в это время
-					pings[kvp.Key].time = DateTime.Now;
-
-					Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + ts + ", -" + pings[kvp.Key].ping + ") " + json);
-					byte[] sendBytes = Encoding.UTF8.GetBytes(json);
-					ws.Send(sendBytes);
+					NullValueHandling = NullValueHandling.Ignore
 				}
-			}
+			);
+
+			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + pings[data.action].ping + ") " + json);
+			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
+			ws.Send(sendBytes);
 		}
 	}
 }
