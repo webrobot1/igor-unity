@@ -106,7 +106,7 @@ public class Websocket
 				}
 			);
 
-			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + pings[data.action].ping + ") " + json);
+			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + pings[data.action].ping + "/"+ pings[data.action].work + ") " + json);
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 			ws.Send(sendBytes);
 		}

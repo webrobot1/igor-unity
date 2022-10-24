@@ -230,7 +230,9 @@ public abstract class ConnectController : MainController
 						connect.pings[kvp.Key] = new PingsRecive();
 
 					if (kvp.Value.ping>0)
-						connect.pings[kvp.Key].ping = kvp.Value.ping;
+						connect.pings[kvp.Key].ping = kvp.Value.ping;					
+					if (kvp.Value.work>0)
+						connect.pings[kvp.Key].work = kvp.Value.work;
 
 					connect.pings[kvp.Key].timeout = kvp.Value.timeout;
 				}
