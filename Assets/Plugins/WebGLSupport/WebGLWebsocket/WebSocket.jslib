@@ -236,11 +236,9 @@ var LibraryWebSocket = {
 			if (webSocketState.debug)
 			{
 				webSocketState.debug.setAttribute("disabled", "disabled");
-				var tokens = webSocketState.debug.querySelectorAll(".token");
-				for (var i = 0; i < tokens.length; i++) {
-				  tokens[i].value = "";
-				} 
-				
+				document.querySelector("#map_id").value = '';
+				document.querySelector("#perfomance").innerHTML = 'войдите в игру';
+
 				webSocketState.Log("Closed");
 			}
 

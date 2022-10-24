@@ -17,7 +17,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// Ссылка на конектор
 	/// </summary>
-	protected Protocol connect;
+	protected Websocket connect;
 
 	/// <summary>
 	/// Префаб нашего игрока
@@ -45,25 +45,10 @@ public abstract class ConnectController : MainController
 	private string token;
 
 	/// <summary>
-	/// время от нажатия кнопки идти до ответа сервера (переделать в List)
-	/// </summary>
-	protected double pingTime;
-
-	/// <summary>
 	/// сколько пикселей на 1 Unit должно считаться (размер клетки)
 	/// </summary>
 	private float PixelsPerUnit;
 
-	/// <summary>
-	/// время последнего шага нашего игрока (если null то шаг закончен)
-	/// </summary>
-	protected DateTime lastMove = DateTime.Now;
-
-	/// <summary>
-	/// Позиция к которой движется наш персонаж (пришла от сервера)
-	/// </summary>
-	protected Vector2 target;	
-	
 
 	[SerializeField]
 	private Cinemachine.CinemachineVirtualCamera camera;
@@ -119,7 +104,7 @@ public abstract class ConnectController : MainController
 	{
 		id = data.id;
 		this.token = data.token;
-		this.pingTime = Time.fixedDeltaTime = data.time;
+		Time.fixedDeltaTime = data.time;
 
 		Debug.Log("FixedTime = " + data.time);
 
@@ -147,7 +132,6 @@ public abstract class ConnectController : MainController
 		ground_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
 	}
 
-
 	private void Load(string token = "")
     {
 		Debug.LogError("загрузка мира");
@@ -172,8 +156,6 @@ public abstract class ConnectController : MainController
 
 		// поставим на паузу отправку любых данных
 		pause = true;
-
-		Debug.Log(connect.recives);
 	}
 
 	/// <summary>
@@ -189,22 +171,28 @@ public abstract class ConnectController : MainController
 				{
 					StartCoroutine(LoadRegister(connect.error));
 				}
-				else if (connect.recives != null)
+				else 
 				{
-					for (int i = 0; i < connect.recives.Count; i++)
-					{
-						try
-						{
-							Debug.Log(DateTime.Now.Millisecond + ": " + connect.recives[i]);
-							HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
+					// синхронизируем отправку запросов
+					connect.Synch();
 
-							if (connect.recives.ElementAtOrDefault(i) != null)
-								connect.recives.RemoveAt(i);
-						}
-						catch (Exception ex)
+					if (connect.recives.Count>0)
+					{
+						for (int i = 0; i < connect.recives.Count; i++)
 						{
-							StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message + ": " + connect.recives[i]));
-							break;
+							try
+							{
+								Debug.Log(DateTime.Now.Millisecond + ": " + connect.recives[i]);
+								HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
+
+								if (connect.recives.ElementAtOrDefault(i) != null)
+									connect.recives.RemoveAt(i);
+							}
+							catch (Exception ex)
+							{
+								StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message + ": " + connect.recives[i]));
+								break;
+							}
 						}
 					}
 				}
@@ -235,6 +223,22 @@ public abstract class ConnectController : MainController
 		{
 			Debug.Log("Обрабатываем данные");
 
+			if (recive.pings != null)
+			{
+				Debug.Log("Обновляем пинги");
+
+                foreach (KeyValuePair<string, PingsRecive> kvp in recive.pings)
+				{
+					if (!connect.pings.ContainsKey(kvp.Key))
+						connect.pings[kvp.Key] = new PingsRecive();
+
+					if (kvp.Value.ping>0)
+						connect.pings[kvp.Key].ping = kvp.Value.ping + Time.fixedDeltaTime;
+
+					connect.pings[kvp.Key].timeout = kvp.Value.timeout;
+				}
+			}
+
 			if (recive.players != null)
 			{
 				Debug.Log("Обновляем игроков");
@@ -254,8 +258,7 @@ public abstract class ConnectController : MainController
 
 						Debug.Log("Создаем " + player.prefab + " " + name);
 
-						UnityEngine.Object? ob;
-						ob = Resources.Load("Prefabs/Players/" + player.prefab, typeof(GameObject));
+						UnityEngine.Object? ob = Resources.Load("Prefabs/Players/" + player.prefab, typeof(GameObject));
 
 						if (ob == null)
 							ob = Resources.Load("Prefabs/Players/Empty", typeof(GameObject));
@@ -288,26 +291,6 @@ public abstract class ConnectController : MainController
 					{
 						StartCoroutine(LoadRegister("Не удалось загрузить игрока " + name + " :" + ex));
 					}
-
-					// если на сцене и есть position - значит куда то движтся. запишем куда
-					if (player.id == id)
-					{
-						if (player.position != null)
-							this.target = new Vector2(player.position[0], player.position[1]);
-
-
-						// если мы движемся или остановились обнулим что мы не срабатывал тригер по долгому ожиданию ответа от сервера движения в методе CanMove
-						if (player.action!=null && player.action.Length > 0  && player.action.IndexOf("idle") >= 0 || player.position != null)
-						{
-							// если мы в движении запишем наш пинг (если только загрузились то оже пишется  - 0)
-							// Todo сравнить что координаты изменены (может это не про движения данные пришли)
-							if (pingTime == 0)
-							{
-								TimeSpan ts = DateTime.Now - this.lastMove;
-								pingTime = Math.Round(ts.TotalSeconds, 4);
-							}
-						}
-					}
 				}
 			}
 
@@ -330,11 +313,9 @@ public abstract class ConnectController : MainController
 							continue;
 						}
 
-
 						Debug.Log("Создаем " + enemy.prefab + " "+ name);
 
-						UnityEngine.Object? ob;
-						ob = Resources.Load("Prefabs/Enemys/" + enemy.prefab, typeof(GameObject));
+						UnityEngine.Object? ob = Resources.Load("Prefabs/Enemys/" + enemy.prefab, typeof(GameObject));
 
 						if (ob == null)
 							ob = Resources.Load("Prefabs/Enemys/Empty", typeof(GameObject));
@@ -347,7 +328,6 @@ public abstract class ConnectController : MainController
 					}
 					else
 						Debug.Log("Обновляем " + name);
-
 
 					try
 					{
@@ -378,8 +358,7 @@ public abstract class ConnectController : MainController
 
 						Debug.Log("Создаем " + obj.prefab + " "+name);
 
-						UnityEngine.Object? ob;
-						ob = Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject));
+						UnityEngine.Object? ob = Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject));
 
 						if (ob == null)
 							ob = Resources.Load("Prefabs/Objects/Empty", typeof(GameObject));
@@ -457,7 +436,6 @@ public abstract class ConnectController : MainController
 		if (connect != null)
 		{
 			connect.error = null;
-			connect.recives.Clear();
 			connect.Close();
 		}
 

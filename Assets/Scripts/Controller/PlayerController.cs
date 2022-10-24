@@ -41,37 +41,6 @@ public class PlayerController : ConnectController
         #endif
     }
 
-    /// <summary>
-    /// Проверка на то может ли игрок делать шаг (с учетом его пинга мы разрешаем ему отправлять следующую команду на сервер раньше, чем анимация дойдет до точки). 
-    /// Ипользутся интерполяция
-    /// Можно и всегда давать нажать кнопку движения (что возможно и будет), но при малом PING игроки с хорошим интернетом будут просто летатть по карте 
-    /// Если долго (среднее время пути в анимации) нет ответа то тоже дает идти
-    /// </summary>
-    /// <returns>true - если может, false - если нет</returns>
-    /// 
-    
-    // todo переделать просто на метод Can(string action)  который имея уже все пинги может узнать можем ли мы делать это действие снова
-    private bool CanMove()
-    {
-        // если сделали шаг и давно жде ответа
-        // Todo заменить 1000 на скорость анимации с учетом скорости игрока)
-        if (base.pingTime == 0 && DateTime.Compare(base.lastMove.AddMilliseconds(1000), DateTime.Now) < 1)
-        {
-            Debug.LogWarning("Слишком долго ждали движения");
-            return true;
-        }
-
-        // разрешаем двигаться далее если осталось пройти растояние что пройдется за время пинга + 1 шаг всегда резервный (на сервере учтено что команду шлем за 1 шаг минимум)
-        if (base.pingTime > 0 && Vector2.Distance(player.transform.position, target) - player.distancePerUpdate <= (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)
-        {
-            Debug.Log("осталось пройти " + (Vector2.Distance(player.transform.position, target) - player.distancePerUpdate) + " клетки и это меньше чем мы успеваем пройти за пинг " + ((base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) + " сек. , те "+ (base.pingTime < Time.fixedDeltaTime ? Time.fixedDeltaTime : base.pingTime) / Time.fixedDeltaTime * player.distancePerUpdate)+" клетки");
-
-            return true;
-        }
-
-        return false;
-    }
-
     private void Update()
     {
         // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
@@ -103,51 +72,41 @@ public class PlayerController : ConnectController
                 moveTo != Vector2.zero
             ) 
             {
-                if (CanMove()) 
+                
+                MoveResponse response = new MoveResponse();
+
+                if (vertical != 0 || horizontal != 0)
                 {
-                    MoveResponse response = new MoveResponse();
-
-                    if (vertical != 0 || horizontal != 0)
+                    if (vertical > 0)
                     {
-                        if (vertical > 0)
-                        {
-                            response.action = "move/up";
-                        }
-                        else if (vertical < 0)
-                        {
-                            response.action = "move/down";
-                        }
-                        else if (horizontal > 0)
-                        {
-                            response.action = "move/right";
-                        }
-                        else if (horizontal < 0)
-                        {
-                            response.action = "move/left";
-                        }
+                        response.action = "move/up";
                     }
-                    else if (Vector2.Distance(player.transform.position, moveTo) >= 1)
+                    else if (vertical < 0)
                     {
-                        response.action = "move/to";
-                        response.to = moveTo.x.ToString() + ',' + moveTo.y.ToString();
-
-                        // очищаем переменную после того как команда отправлена (дальше сам пойдет)
-                        moveTo = Vector2.zero;
+                        response.action = "move/down";
                     }
-                    else
+                    else if (horizontal > 0)
                     {
-                        return;
+                        response.action = "move/right";
                     }
-
-                    response.ping = Math.Round(base.pingTime - Time.fixedDeltaTime, 3);
-
-                    // если мы сделали шаг то нужнотобнулить время пинга
-                    base.pingTime = 0;
-                    connect.Send(response);
-					
-                    // и записать время последнего шага
-                    base.lastMove = DateTime.Now;
+                    else if (horizontal < 0)
+                    {
+                        response.action = "move/left";
+                    }
                 }
+                else if (Vector2.Distance(player.transform.position, moveTo) >= 1)
+                {
+                    response.action = "move/to";
+                    response.to = moveTo.x.ToString() + ',' + moveTo.y.ToString();
+
+                    // очищаем переменную после того как команда отправлена (дальше сам пойдет)
+                    moveTo = Vector2.zero;
+                }
+                else
+                {
+                    return;
+                }
+                connect.Send(response);
             }
         }
     }

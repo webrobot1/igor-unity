@@ -1,18 +1,40 @@
 using System;
 using System.Text;
 using UnityEngine;
+using System.Collections.Generic;
+using System.Linq;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
 	using WebGLWebsocket;
 #else
-	using WebSocketSharp;
+using WebSocketSharp;
 #endif
 
 using Newtonsoft.Json;
 
-public class Websocket: Protocol
+public class Websocket
 {
 	private WebSocket ws;
+
+	/// <summary>
+	/// если это поле не пустое то запускается загрузка странца входа и выводится ошибка из данного поля
+	/// </summary>
+	public string error;
+
+	/// <summary>
+	/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
+	/// </summary>
+	public List<string> recives = new List<string>();	
+	
+	/// <summary>
+	/// список подготовленных к отправке на сервер пакетов
+	/// </summary>
+	private Dictionary<string, Response> response = new Dictionary<string, Response>();
+
+	/// <summary>
+	/// список всех возможных отправок команд с их пингами, таймаутами и подготовленными запросами
+	/// </summary>
+	public Dictionary<string, PingsRecive> pings = new Dictionary<string, PingsRecive>();
 
 	public Websocket(string server, int port, int map_id)
 	{
@@ -44,6 +66,9 @@ public class Websocket: Protocol
 				error = "Ошибка соединения " + ev.Message;
 			};
 			ws.Connect();
+
+			// добавим единсвенную пока доступную команду на отправку
+			pings["load/index"] = new PingsRecive();
 		}
 		catch (Exception ex)
 		{
@@ -51,17 +76,22 @@ public class Websocket: Protocol
 		}
 	}	
 	
-	public override void Close()
+	public void Close()
     {
-        if (ws!=null && ws.ReadyState != WebSocketSharp.WebSocketState.Closed && ws.ReadyState != WebSocketSharp.WebSocketState.Closing)
+		recives.Clear();
+		response.Clear();
+
+		if (ws!=null && ws.ReadyState != WebSocketSharp.WebSocketState.Closed && ws.ReadyState != WebSocketSharp.WebSocketState.Closing)
         {
 			ws.Close();
             Debug.LogError("Соединение закрыто");
         }
     }
 
-
-    public override void Send(Response data)
+	/// <summary>
+	/// не отправляется моментально а ставиться в очередь на отправку (перезаписывает текущю). придет время - отправится на сервер (может чуть раньше если пинг большой)
+	/// </summary>
+	public void Send(Response data)
 	{
         if (!ConnectController.pause) 
 		{ 
@@ -70,28 +100,47 @@ public class Websocket: Protocol
 				error = "Соединение не открыто для запросов ";
 				return;
 			}
-			
-			try
-			{
-				string json = JsonConvert.SerializeObject(data,
-														  Newtonsoft.Json.Formatting.None,
-														  new JsonSerializerSettings
-														  {
-															NullValueHandling = NullValueHandling.Ignore
-														  });
-				Put(json);
-			}
-			catch (Exception ex)
-			{
-				error = ex.Message;
-			}
+
+			if (!pings.ContainsKey(data.action)) error = "неизвестная команда";
+
+			response[data.action] = data;
 		}
 	}
 
-	public override void Put(string json)
+	public void Synch()
     {
-		Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
-		byte[] sendBytes = Encoding.UTF8.GetBytes(json);
-		ws.Send(sendBytes);
+        if (response.Count > 0)
+        {
+			foreach (var kvp in response.ToList())
+			{
+				double ts =  (DateTime.Now - pings[kvp.Key].time).TotalMilliseconds/1000;
+
+				// интерполяция (учитваем ping и даем отправлять команды в клиенте раньше)
+				// если с момента как была отправлена последняя команда прошло время паузы межды командами (за вычетом времени на работу + отправку + возврат ответа) - можно выполнять следующую
+				if (ts + pings[kvp.Key].ping*5 >= pings[kvp.Key].timeout)
+				{
+					string json = JsonConvert.SerializeObject(
+						kvp.Value
+						,
+						Newtonsoft.Json.Formatting.None
+						,
+						new JsonSerializerSettings
+						{
+							NullValueHandling = NullValueHandling.Ignore
+						}
+					);
+
+					// удалим из очереди запрос на сервер
+					response.Remove(kvp.Key);
+
+					// пометим что эта команда была отправлена в это время
+					pings[kvp.Key].time = DateTime.Now;
+
+					Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + ts + ", -" + pings[kvp.Key].ping + ") " + json);
+					byte[] sendBytes = Encoding.UTF8.GetBytes(json);
+					ws.Send(sendBytes);
+				}
+			}
+		}
 	}
 }
