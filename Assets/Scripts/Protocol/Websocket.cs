@@ -95,6 +95,8 @@ public class Websocket
 				return;
 			}
 
+			if (!pings.ContainsKey(data.action)) error = "неизвестная команда";
+
 			string json = JsonConvert.SerializeObject(
 				data
 				,
