@@ -220,7 +220,7 @@ public abstract class ConnectController : MainController
 		{
 			Debug.Log("Обрабатываем данные");
 
-			if (recive.pings != null)
+			if (recive.pings.Count>0)
 			{
 				Debug.Log("Обновляем пинги");
 

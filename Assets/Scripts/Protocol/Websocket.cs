@@ -106,9 +106,14 @@ public class Websocket
 				}
 			);
 
-			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + pings[data.action].ping + "/"+ pings[data.action].work + ") " + json);
-			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
-			ws.Send(sendBytes);
+			Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + pings[data.action].ping + "/" + pings[data.action].work + ") " + json);
+			Put(json);
 		}
+	}
+
+	public void Put(string json) 
+	{	
+		byte[] sendBytes = Encoding.UTF8.GetBytes(json);
+		ws.Send(sendBytes);
 	}
 }
