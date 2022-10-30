@@ -59,57 +59,57 @@ public class MapModel
 			// если есть в слое набор тайлов
 			if (layer.tiles != null)
 			{
-				foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
+				foreach (LayerTile tile in layer.tiles)
 				{
-					if (tile.Value.tile_id > 0)
+					if (tile.tile_id > 0)
 					{
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 
 						// если tile отражен по горизонтали или вертикали или у него z параметр (нужно где слои лежить друг за другом по Y)
-						if (tile.Value.horizontal > 0 || tile.Value.vertical > 0)
+						if (tile.horizontal > 0 || tile.vertical > 0)
 						{
 							var m = newTile.transform;
-							m.SetTRS(Vector3.zero, Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
+							m.SetTRS(Vector3.zero, Quaternion.Euler(tile.vertical * 180, tile.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 						}
 
-						if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites != null)
+						if (map.tileset[tile.tileset_id].tile[tile.tile_id].sprites != null)
 						{
-							newTile.sprites = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprites;
+							newTile.sprites = map.tileset[tile.tileset_id].tile[tile.tile_id].sprites;
 						}
 						else
-							newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
+							newTile.sprite = map.tileset[tile.tileset_id].tile[tile.tile_id].sprite;
 
-						tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
+						tilemap.SetTile(new Vector3Int(tile.x, tile.y, 0), newTile);
 					}
 				}
 				Debug.Log(newLayer.name + " раставлены tile");
 			}
 			else if (layer.objects != null)
 			{
-				foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
+				foreach (LayerObject obj in layer.objects)
 				{
 					// если указанный тайл (клетка) не пустая
-					if (obj.Value.tile_id > 0)
+					if (obj.tile_id > 0)
 					{
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 
-						if (obj.Value.horizontal > 0 || obj.Value.vertical > 0)
+						if (obj.horizontal > 0 || obj.vertical > 0)
 						{
 							var m = newTile.transform;
-							m.SetTRS(Vector3.zero, Quaternion.Euler(obj.Value.vertical * 180, obj.Value.horizontal * 180, 0f), Vector3.one);
+							m.SetTRS(Vector3.zero, Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 						}
 
-						if (map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprites != null)
+						if (map.tileset[obj.tileset_id].tile[obj.tile_id].sprites != null)
 						{
-							newTile.sprites = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprites;
+							newTile.sprites = map.tileset[obj.tileset_id].tile[obj.tile_id].sprites;
 						}
 						else
-							newTile.sprite = map.tileset[obj.Value.tileset_id].tile[obj.Value.tile_id].sprite;
+							newTile.sprite = map.tileset[obj.tileset_id].tile[obj.tile_id].sprite;
 
 						// сместим координаты абсолютные на расположение главного слоя Map (у нас ноль идет от -180 для GEO расчетов) для получения относительных
-						tilemap.SetTile(new Vector3Int((int)(obj.Value.x), (int)(obj.Value.y), 0), newTile);
+						tilemap.SetTile(new Vector3Int((int)(obj.x), (int)(obj.y), 0), newTile);
 					}
 				}
 			}
@@ -173,6 +173,7 @@ public class MapModel
 				BZip2.Decompress(source, target, true);
 
 				Debug.Log("Парсим карту");
+				Debug.Log(Encoding.UTF8.GetString(target.ToArray()));
 				map = JsonConvert.DeserializeObject<Map>(Encoding.UTF8.GetString(target.ToArray()));
 			}
 		}
@@ -198,12 +199,15 @@ public class MapModel
 					// что бы не снизу вверх брал отрезки (тайлы) а сверху вниз? при этом не менять рендеринг Vector2(0,0) в NewSprite (из за смены оторого появляются полоски)
 					float y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin;
 
+					Debug.Log(x+","+y);
+
 					// вырежем необходимую область
 					// для манипуляции с поворотами и отражением спрайта (что бы спрайт не сьезжал в сторону при этом) делаем точку опоры спрайта в центре Vector2(0.5f, 0.5f)
+					// но в программе tiled точка опоры НЕ в центре а с угла (какого можно глянуть, забыл) но если менять на 0.0 часть тайлов в unity пропадают часть куда то смещаютя
 					Sprite NewSprite = Sprite.Create(texture, new Rect(x - tileset.Value.margin, y - tileset.Value.margin, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0.5f, 0.5f), map.tilewidth, 0, SpriteMeshType.FullRect);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
-					if (tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))
+					if (tileset.Value.tile[i + tileset.Value.firstgid]!=null)
 					{
 						tileset.Value.tile[i + tileset.Value.firstgid].sprite = NewSprite;
 						if (!animationCheck && tileset.Value.tile[i + tileset.Value.firstgid].frame != null)
@@ -239,26 +243,26 @@ public class MapModel
 			if (layer.tiles != null)
 			{
 				// если есть в слое набор тайлов
-				foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
+				foreach (LayerTile tile in layer.tiles)
 				{
 					// если указанный тайл (клетка) не пустая
-					if (tile.Value.tile_id > 0)
+					if (tile.tile_id > 0)
 					{
-						tile.Value.x = tile.Key % columns;
-						tile.Value.y = (int)(tile.Key / columns) * -1 - 1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+						tile.x = (int)tile.num % columns;
+						tile.y = (int)(tile.num / columns) * -1 - 1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
 					}
 				}
 			}
 
 			if (layer.objects != null)
 			{
-				foreach (KeyValuePair<int, LayerObject> obj in layer.objects)
+				foreach (LayerObject obj in layer.objects)
 				{
 					// если указанный тайл (клетка) не пустая
-					if (obj.Value.tile_id > 0)
+					if (obj.tile_id > 0)
 					{
-						obj.Value.x = obj.Value.x / map.tileheight;
-						obj.Value.y = obj.Value.y / map.tilewidth * -1;
+						obj.x = obj.x / map.tileheight;
+						obj.y = obj.y / map.tilewidth * -1;
 					}
 				}
 			}

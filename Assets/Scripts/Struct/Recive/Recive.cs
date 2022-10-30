@@ -1,4 +1,3 @@
-
 using System.Collections.Generic;
 /// <summary>
 /// —труктура получаемых данных данных
@@ -12,7 +11,5 @@ public class Recive
     public Dictionary<string, PingsRecive> pings = new Dictionary<string, PingsRecive>();
 
     public string action;
-
-    
     public string error;
 }

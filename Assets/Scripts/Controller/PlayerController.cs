@@ -106,6 +106,7 @@ public class PlayerController : ConnectController
                 {
                     return;
                 }
+
                 connect.Send(response);
             }
         }

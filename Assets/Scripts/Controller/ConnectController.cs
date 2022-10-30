@@ -42,7 +42,8 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// Токен , требуется при первом конекте для Tcp и Ws, и постоянно при Udp
 	/// </summary>
-	private string token;
+	private string token;	
+
 
 	/// <summary>
 	/// сколько пикселей на 1 Unit должно считаться (размер клетки)
@@ -108,8 +109,7 @@ public abstract class ConnectController : MainController
 
 		Debug.Log("FixedTime = " + data.time);
 
-		connect = new Websocket(SERVER, PORT, data.map_id);
-		Load(data.token);
+		connect = new Websocket(SERVER, PORT, data.map_id, data.pause);
 
 		// настройки size камеры менять бессмысленно тк есть PixelPerfect
 		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
@@ -128,8 +128,15 @@ public abstract class ConnectController : MainController
 				Destroy(grid.transform.parent.GetChild(i).gameObject);
 		}
 
-		// приведем координаты в сответсвие с сеткой Unity
-		ground_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
+        // приведем координаты в сответсвие с сеткой Unity
+        try { 
+			ground_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
+			Load(data.token);
+		}
+		catch (Exception ex)
+		{
+			StartCoroutine(LoadRegister("Ошибка разбора карты " + ex.Message));
+		}
 	}
 
 	private void Load(string token = "")
@@ -163,7 +170,7 @@ public abstract class ConnectController : MainController
 	/// </summary>
 	protected void FixedUpdate()
 	{
-		if (id != null)
+		if (id != null && !exit)
 		{
 			if (connect != null)
 			{

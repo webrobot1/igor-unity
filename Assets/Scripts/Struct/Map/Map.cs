@@ -12,7 +12,7 @@ public class Map
 	public int tilewidth;
 	public int tileheight;
 
-	// всегда словарь тк ключ - его ид дл¤ быстрого доступа из сло¤
+	// всегда словарь тк ключ - его ид для быстрого доступа из слоям
 	public Dictionary<int, Tileset> tileset = new Dictionary<int, Tileset> {};
 	public Layer[] layer;
 }

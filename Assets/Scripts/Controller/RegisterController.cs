@@ -39,17 +39,21 @@ public class RegisterController : MainController
         yield return request.SendWebRequest();
 
         // проверим что пришло в ответ
-        string recive = request.downloadHandler.text;
-        if (recive.Length>0)
+        string text = request.downloadHandler.text;
+        if (text.Length>0)
         {
             try {
-                Debug.Log("Ответ авторизации: "+recive);
-                SiginRecive response = JsonConvert.DeserializeObject<SiginRecive>(recive);
-                StartCoroutine(LoadMain(response));
+                Debug.Log("Ответ авторизации: "+ text);
+                SiginRecive recive = JsonConvert.DeserializeObject<SiginRecive>(text);
+
+                if (recive.error != null)
+                    Error("Ошибка авторизации: " + recive.error);
+                else
+                    StartCoroutine(LoadMain(recive));
             }
             catch (Exception ex)
             {
-                Error("Ошибка ответа авторизации: "+ex.Message+" ("+recive+")");
+                Error("Ошибка разбора авторизации: "+ex.Message+" ("+text+")");
             }  
         } 
         else 

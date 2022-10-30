@@ -1,5 +1,3 @@
-
-using System.Collections.Generic;
 /// <summary>
 /// Структура полученных данных при авторизации
 /// </summary>
@@ -9,11 +7,13 @@ public class SiginRecive
 	public int id;
 	public int map_id;
 	public string token;
-
+	public float pause;
 
 	/// <summary>
 	/// чему равен fixedDeltaTime (как часто FixedUpdate() происходит)
 	/// </summary>
 	public float time;
 	public string map;
+
+	public string error;
 }
