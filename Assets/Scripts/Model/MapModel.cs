@@ -69,13 +69,15 @@ public class MapModel
 						if (tile.horizontal > 0 || tile.vertical > 0)
 						{
 							var m = newTile.transform;
-							m.SetTRS(Vector3.zero, Quaternion.Euler(tile.vertical * 180, tile.horizontal * 180, 0f), Vector3.one);
+
+							// повернем как нам нужно приэтом сместим назад тайл что бы съемулировать Vector3 будто он на месте остался хоть и повернут (как в программе Tiled)
+							m.SetTRS(new Vector3(tile.horizontal, tile.vertical), Quaternion.Euler(tile.vertical * 180, tile.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 						}
 
-						if (map.tileset[tile.tileset_id].tile[tile.tile_id].sprites != null)
+						if (map.tileset[tile.tileset_id].tile[tile.tile_id].frame != null)
 						{
-							newTile.sprites = map.tileset[tile.tileset_id].tile[tile.tile_id].sprites;
+							newTile.addSprites(map.tileset[tile.tileset_id].tile[tile.tile_id].frame);
 						}
 						else
 							newTile.sprite = map.tileset[tile.tileset_id].tile[tile.tile_id].sprite;
@@ -97,13 +99,13 @@ public class MapModel
 						if (obj.horizontal > 0 || obj.vertical > 0)
 						{
 							var m = newTile.transform;
-							m.SetTRS(Vector3.zero, Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
+							m.SetTRS(new Vector3(obj.horizontal, obj.vertical), Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 						}
 
-						if (map.tileset[obj.tileset_id].tile[obj.tile_id].sprites != null)
+						if (map.tileset[obj.tileset_id].tile[obj.tile_id].frame != null)
 						{
-							newTile.sprites = map.tileset[obj.tileset_id].tile[obj.tile_id].sprites;
+							newTile.addSprites(map.tileset[obj.tileset_id].tile[obj.tile_id].frame);
 						}
 						else
 							newTile.sprite = map.tileset[obj.tileset_id].tile[obj.tile_id].sprite;
@@ -178,8 +180,7 @@ public class MapModel
 			}
 		}
 
-
-		// флаг стоит ли проверять повтрно набор Tileset на анмиации
+		// флаг стоил ли обработать анимации 
 		bool animationCheck = false;
 
 		// порежим изображение на плитку (тайлы)
@@ -194,17 +195,15 @@ public class MapModel
 				for (int i = 0; i < tileset.Value.tilecount; i++)
 				{
 					// посчитаем где находится необходимая область тайла
-					float x = (i % tileset.Value.columns * (tileset.Value.tilewidth + tileset.Value.spacing)) + tileset.Value.margin;
+					int x = (i % tileset.Value.columns * (tileset.Value.tilewidth + tileset.Value.spacing)) + tileset.Value.margin;
 
 					// что бы не снизу вверх брал отрезки (тайлы) а сверху вниз? при этом не менять рендеринг Vector2(0,0) в NewSprite (из за смены оторого появляются полоски)
-					float y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin;
-
-					Debug.Log(x+","+y);
+					int y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin;
 
 					// вырежем необходимую область
-					// для манипуляции с поворотами и отражением спрайта (что бы спрайт не сьезжал в сторону при этом) делаем точку опоры спрайта в центре Vector2(0.5f, 0.5f)
-					// но в программе tiled точка опоры НЕ в центре а с угла (какого можно глянуть, забыл) но если менять на 0.0 часть тайлов в unity пропадают часть куда то смещаютя
-					Sprite NewSprite = Sprite.Create(texture, new Rect(x - tileset.Value.margin, y - tileset.Value.margin, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), new Vector2(0.5f, 0.5f), map.tilewidth, 0, SpriteMeshType.FullRect);
+					//  программе tiled точка опоры НЕ в центре а с угла (какого можно глянуть, забыл) но если менять на 0.0 часть тайлов в unity пропадают часть куда то смещаютя
+					// что бы это работала везде в этом классе где SetTRS есть (смещение) после поворота по горизонтали или вертикали смещаем таил назад (тк в Tiled он на месте остается если отражается)
+					Sprite NewSprite = Sprite.Create(texture, new Rect(x - tileset.Value.margin, y - tileset.Value.margin, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), Vector2.zero, map.tilewidth, 0, SpriteMeshType.Tight);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
 					if (tileset.Value.tile[i + tileset.Value.firstgid]!=null)
@@ -225,10 +224,9 @@ public class MapModel
 					{
 						if (tile.Value.frame != null)
 						{
-							tile.Value.sprites = new Sprite[tile.Value.frame.Length];
-							for (int i = 0; i < tile.Value.frame.Length; i++)
+							foreach (TilesetTileAnimation frame in tile.Value.frame)
 							{
-								tile.Value.sprites[i] = tileset.Value.tile[tile.Value.frame[i].tileid].sprite;
+								frame.sprite = tileset.Value.tile[frame.tileid].sprite;
 							}
 						}
 					}

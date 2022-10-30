@@ -8,4 +8,5 @@ public class TilesetTileAnimation
 {
 	public int tileid;
 	public int duration;
+	public Sprite sprite;
 }
