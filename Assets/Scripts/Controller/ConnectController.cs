@@ -69,7 +69,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// на каком уровне слоя размещать новых персонажей и npc и на каком следит камера
 	/// </summary>
-	public static Dictionary<string, int> sort = null;
+	public static int spawn_sort;
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -130,7 +130,7 @@ public abstract class ConnectController : MainController
 
         // приведем координаты в сответсвие с сеткой Unity
         try {
-			sort  = MapModel.getInstance().generate(ref data.map, grid, camera);
+			spawn_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
 			Load(data.token);
 		}
 		catch (Exception ex)
@@ -271,8 +271,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)sort["spawn"];
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)sort["spawn"] + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = spawn_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = spawn_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 				
 						if (player.id == id)
@@ -328,8 +328,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)sort["spawn"];
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)sort["spawn"]+1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = spawn_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = spawn_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 					}
 					else
@@ -374,8 +374,8 @@ public abstract class ConnectController : MainController
 
 						//todo сделать слой объектов
 
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)sort["spawn"];
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)sort["spawn"] + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = spawn_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = spawn_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 					}
 

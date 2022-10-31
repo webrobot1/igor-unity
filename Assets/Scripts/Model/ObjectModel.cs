@@ -53,8 +53,8 @@ public class ObjectModel : MonoBehaviour
 			this.map_id = data.map_id;
 
 		if (data.sort != null) { 
-			sprite.sortingOrder = (int)data.sort + (int)ConnectController.sort["spawn"];
-			GetComponentInChildren<Canvas>().sortingOrder = (int)data.sort + (int)ConnectController.sort["spawn"]+1;
+			sprite.sortingOrder = (int)data.sort + ConnectController.spawn_sort;
+			GetComponentInChildren<Canvas>().sortingOrder = (int)data.sort + ConnectController.spawn_sort + 1;
 		}
 
 		if (data.position != null && data.position.Length > 0 && this.id == 0)

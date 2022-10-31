@@ -28,7 +28,7 @@ public class MapModel
 	/// <summary>
 	/// декодирование из Bzip2 в объект MapRecive
 	/// </summary>
-	public Dictionary<string, int> generate(ref string base64, GameObject grid, Cinemachine.CinemachineVirtualCamera camera)
+	public int generate(ref string base64, GameObject grid, Cinemachine.CinemachineVirtualCamera camera)
     {
 		Map map = decode(ref base64);
 
@@ -38,7 +38,6 @@ public class MapModel
 		GameObject newLayer;
 
 		int sort = 0;
-		int? ground_sort = null;
 		int? spawn_sort = null;
 
 		// расставим на сцене данные карты
@@ -130,53 +129,40 @@ public class MapModel
 				}
 			}
 
-			sort++;
 
 			// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля, а следующий - тот на котром надо генеирить игроков и npc)
-			// todo - на сервере иметь параметр "Слой игрока" 
-			if (ground_sort == null)
+			// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
+			if (layer.ground == 1)
 			{
-				// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
-				if (layer.ground == 1)
-				{
-					Debug.Log(layer.name + "- слой Земля");
-					newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
-					newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
-					CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
-					colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
-					camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
+				Debug.Log(layer.name + "- слой Земля");
+				newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
+				newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
+				CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
+				colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
+				camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 
-					// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
-					newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
+				// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
+				newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
 
-					//  текущий слой на котором будет ограничиваться камера
-					ground_sort = sort;
-				}
+				//  текущий слой на котором будет ограничиваться камера
+				if(spawn_sort == null)
+					spawn_sort = sort+1;
 			}
 
-			if (spawn_sort == null)
-            {
-				if (layer.spawn == 1)
-				{
-					//  текущий слой на котором будем ставить игроков		
-					spawn_sort = sort;
-				}
+			if (layer.spawn == 1)
+			{
+				//  текущий слой на котором будем ставить игроков		
+				spawn_sort = sort;
 			}
+
+			sort++;
 		}
 
-		// на случай если в админке не указан слой - земля
-		if (ground_sort == null)
-			ground_sort = 1;		
-		
 		// на случай если в админке не указан слой - спавна игрока
 		if (spawn_sort == null)
-			spawn_sort = ground_sort;
+			spawn_sort = 1;
 
-		Dictionary<string, int> data  = new Dictionary<string, int> {};
-		data.Add("ground", (int)ground_sort);
-		data.Add("spawn", (int)spawn_sort);
-	
-		return data;
+		return (int)spawn_sort;
 	}
 
 	private Map decode(ref string base64)
