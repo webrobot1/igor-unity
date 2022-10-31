@@ -59,7 +59,7 @@ public class ObjectModel : MonoBehaviour
 
 		if (data.position != null && data.position.Length > 0 && this.id == 0)
 		{	
-			transform.position = new Vector2(data.position[0], data.position[1]);
+			transform.position = new Vector3(data.position[0], data.position[1], 1f);
 		}
 
 		if (this.id == 0)

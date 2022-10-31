@@ -140,13 +140,6 @@ public class MapModel
 				CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
 				colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
 				camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
-
-				// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
-				newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
-
-				//  текущий слой на котором будет ограничиваться камера
-				if(spawn_sort == null)
-					spawn_sort = sort+1;
 			}
 
 			if (layer.spawn == 1)
@@ -154,6 +147,10 @@ public class MapModel
 				//  текущий слой на котором будем ставить игроков		
 				spawn_sort = sort;
 			}
+			
+			// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
+			if (spawn_sort == null)
+				newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
 
 			sort++;
 		}

@@ -69,7 +69,7 @@ public class Websocket
 
 			// добавим единсвенную пока доступную команду на отправку
 			pings["load/index"] = new PingsRecive();
-			this.command_pause = command_pause*1000;
+			this.command_pause = command_pause;
 		}
 		catch (Exception ex)
 		{
@@ -108,7 +108,7 @@ public class Websocket
 			else if (
 				data.action == "load/index" 
 					||                
-				(DateTime.Compare(pings[data.action].time.AddMilliseconds(command_pause), DateTime.Now) < 1)	// что бы небыло дабл кликов выдерживыем некую паузу между запросами
+				(DateTime.Compare(pings[data.action].time, DateTime.Now) < 0)	// что бы небыло дабл кликов выдерживыем некую паузу между запросами
 			) 
 			{
 				string json = JsonConvert.SerializeObject(
@@ -123,8 +123,8 @@ public class Websocket
 				);
 
 				Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + pings[data.action].ping + "/" + pings[data.action].work + ") " + json);
-				pings[data.action].time = DateTime.Now;
 
+				pings[data.action].time = DateTime.Now.AddSeconds(command_pause);
 				Put(json);
 			}
 		}
