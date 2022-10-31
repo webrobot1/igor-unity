@@ -28,7 +28,7 @@ public class MapModel
 	/// <summary>
 	/// декодирование из Bzip2 в объект MapRecive
 	/// </summary>
-	public int generate(ref string base64, GameObject grid, Cinemachine.CinemachineVirtualCamera camera)
+	public Dictionary<string, int> generate(ref string base64, GameObject grid, Cinemachine.CinemachineVirtualCamera camera)
     {
 		Map map = decode(ref base64);
 
@@ -39,6 +39,7 @@ public class MapModel
 
 		int sort = 0;
 		int? ground_sort = null;
+		int? spawn_sort = null;
 
 		// расставим на сцене данные карты
 		foreach (Layer layer in map.layer)
@@ -148,17 +149,34 @@ public class MapModel
 					// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
 					newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
 
-					//  текущий слой на котором будем ставить игроков		
+					//  текущий слой на котором будет ограничиваться камера
 					ground_sort = sort;
+				}
+			}
+
+			if (spawn_sort == null)
+            {
+				if (layer.spawn == 1)
+				{
+					//  текущий слой на котором будем ставить игроков		
+					spawn_sort = sort;
 				}
 			}
 		}
 
 		// на случай если в админке не указан слой - земля
 		if (ground_sort == null)
-			ground_sort = 1;
+			ground_sort = 1;		
+		
+		// на случай если в админке не указан слой - спавна игрока
+		if (spawn_sort == null)
+			spawn_sort = ground_sort;
 
-		return (int)ground_sort;
+		Dictionary<string, int> sort  = new Dictionary<string, int> {};
+		data.Add("ground", (int)ground_sort);
+		data.Add("spawn", (int)spawn_sort);
+	
+		return sort;
 	}
 
 	private Map decode(ref string base64)

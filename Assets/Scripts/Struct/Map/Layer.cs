@@ -17,6 +17,7 @@ public class Layer
 	public float opacity = 1;
 	public int sort = 0;
 	public int ground = 0;
+	public int spawn = 0;
 
 	public float offsetx;
 	public float offsety;

@@ -67,9 +67,9 @@ public abstract class ConnectController : MainController
 	private GameObject world;
 
 	/// <summary>
-	/// на каком уровне слоя размещать новых персонажей и npc 
+	/// на каком уровне слоя размещать новых персонажей и npc и на каком следит камера
 	/// </summary>
-	public static int? ground_sort = null;
+	public static Dictionary<string, int> sort = null;
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -129,8 +129,8 @@ public abstract class ConnectController : MainController
 		}
 
         // приведем координаты в сответсвие с сеткой Unity
-        try { 
-			ground_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
+        try {
+			sort  = MapModel.getInstance().generate(ref data.map, grid, camera);
 			Load(data.token);
 		}
 		catch (Exception ex)
@@ -271,8 +271,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)sort["spawn"] + (int)player.sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)sort["spawn"] + (int)player.sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 				
 						if (player.id == id)
@@ -328,8 +328,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)ground_sort + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)sort["spawn"] + (int)enemy.sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)sort["spawn"] + (int)enemy.sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 					}
 					else
@@ -371,7 +371,10 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)ground_sort;
+
+						//todo сделать слой объектов
+
+						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)sort["spawn"] + (int)obj.sort;
 						prefab.transform.SetParent(world.transform, false);
 					}
 

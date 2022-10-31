@@ -8,7 +8,7 @@ namespace UnityEngine.Tilemaps
         protected TilemapModel() { }
 
         // максимальная скорость
-        private int speed = 1000;
+        private int speed = 100;
 
         public override bool GetTileAnimationData(Vector3Int location, ITilemap tileMap, ref TileAnimationData tileAnimationData)
         {
@@ -36,7 +36,7 @@ namespace UnityEngine.Tilemaps
         {
             foreach (TilesetTileAnimation anim in animations)
             {
-                for (int i = 0; i < anim.duration;  i++)
+                for (int i = 0; i < anim.duration;  i+=10)
                 {
                     this.sprites.Add(anim.sprite);
                 }   
