@@ -172,11 +172,11 @@ public class MapModel
 		if (spawn_sort == null)
 			spawn_sort = ground_sort;
 
-		Dictionary<string, int> sort  = new Dictionary<string, int> {};
+		Dictionary<string, int> data  = new Dictionary<string, int> {};
 		data.Add("ground", (int)ground_sort);
 		data.Add("spawn", (int)spawn_sort);
 	
-		return sort;
+		return data;
 	}
 
 	private Map decode(ref string base64)

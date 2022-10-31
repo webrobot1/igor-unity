@@ -271,8 +271,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)sort["spawn"] + (int)player.sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)sort["spawn"] + (int)player.sort + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)sort["spawn"];
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)sort["spawn"] + 1;
 						prefab.transform.SetParent(world.transform, false);
 				
 						if (player.id == id)
@@ -328,8 +328,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)sort["spawn"] + (int)enemy.sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder += (int)sort["spawn"] + (int)enemy.sort + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)sort["spawn"];
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)sort["spawn"]+1;
 						prefab.transform.SetParent(world.transform, false);
 					}
 					else
@@ -374,7 +374,8 @@ public abstract class ConnectController : MainController
 
 						//todo сделать слой объектов
 
-						prefab.GetComponent<SpriteRenderer>().sortingOrder += (int)sort["spawn"] + (int)obj.sort;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)sort["spawn"];
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)sort["spawn"] + 1;
 						prefab.transform.SetParent(world.transform, false);
 					}
 
