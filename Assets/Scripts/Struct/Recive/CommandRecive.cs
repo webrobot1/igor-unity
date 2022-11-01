@@ -5,5 +5,5 @@
 public class CommandRecive
 {
     public long command_id;
-    public float wait_time = 0;                                  
+    public float wait_time;                                  
 }

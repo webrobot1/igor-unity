@@ -20,7 +20,7 @@ public class Websocket
 	/// <summary>
 	/// если это поле не пустое то запускается загрузка странца входа и выводится ошибка из данного поля
 	/// </summary>
-	public string error;
+	public string error = "";
 
 	/// <summary>
 	/// Время между нажатиями кнопок команд серверу
@@ -65,11 +65,11 @@ public class Websocket
 			};
 			ws.OnMessage += (sender, ev) =>
 			{
+				string text = Encoding.UTF8.GetString(ev.RawData);
+				Debug.Log(DateTime.Now.Millisecond + ": " + text);
+
 				if (error.Length == 0)
 				{
-					string text = Encoding.UTF8.GetString(ev.RawData);
-					Debug.Log(DateTime.Now.Millisecond + ": " + text);
-
 					try
 					{
 						Recive recive = JsonConvert.DeserializeObject<Recive>(text);
@@ -100,12 +100,13 @@ public class Websocket
 
 							recive.commands.Clear();
 						}
+
 						recives.Add(recive);
 					}
 					catch (Exception ex)
 					{
-						error = "Ошибка разбора данных websocket "+ex.Message;
-					}		
+						error = "Ошибка разбора данных websocket " + ex.Message;
+					}
 				}
 			};
 			ws.OnError += (sender, ev) =>
@@ -146,7 +147,7 @@ public class Websocket
 				return;
 			}
 
-			// либо загружаем игру (а там и все доступные команды) либо команда должна у нас быть указана
+			// прверим есть ли вообще группа команд этих (мы таймауты собрали словарь из всех доступных команд)
 			if (commands.timeouts.ContainsKey(data.group()))
 			{
 				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и

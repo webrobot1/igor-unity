@@ -169,7 +169,7 @@ public abstract class ConnectController : MainController
 		{
 			if (connect != null)
 			{
-				if (connect.error != null)
+				if (connect.error.Length>0)
 				{
 					StartCoroutine(LoadRegister(connect.error));
 				}
@@ -177,17 +177,16 @@ public abstract class ConnectController : MainController
 				{
 					if (connect.recives.Count > 0)
 					{
-						for (int i = 0; i < connect.recives.Count; i++)
-						{
+						foreach (Recive recive in connect.recives)
+                        {
 							try
-							{							
-								HandleData(connect.recives[i]);
-								if (connect.recives.ElementAtOrDefault(i) != null)
-									connect.recives.RemoveAt(i);
+							{
+								HandleData(recive);
+								connect.recives.Remove(recive);
 							}
 							catch (Exception ex)
 							{
-								StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message + ": " + connect.recives[i]));
+								StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message));
 								break;
 							}
 						}
@@ -214,7 +213,7 @@ public abstract class ConnectController : MainController
 			return;
         }
 
-		if (recive.error != null)
+		if (recive.error.Length>0)
 		{
 			StartCoroutine(LoadRegister("Ошибка сервера:" + recive.error));
 		}
@@ -422,7 +421,7 @@ public abstract class ConnectController : MainController
 
 		if (connect != null)
 		{
-			connect.error = null;
+			connect.error = "";
 			connect.Close();
 		}
 

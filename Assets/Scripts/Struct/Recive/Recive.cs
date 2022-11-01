@@ -40,5 +40,5 @@ public class Recive
     }
 
 
-    public string error;
+    public string error = "";
 }
