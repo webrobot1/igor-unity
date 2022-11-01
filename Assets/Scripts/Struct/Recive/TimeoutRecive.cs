@@ -9,5 +9,5 @@ public class TimeoutRecive
     public float timeout = 0;
     public DateTime? time = null;
 
-    public Dictionary<long, bool> requests = new Dictionary<long, bool>();
+    public Dictionary<long, long> requests = new Dictionary<long, long>();
 }

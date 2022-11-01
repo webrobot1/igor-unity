@@ -14,7 +14,7 @@ public class CommandModel
 
     public double ping()
     {
-        return Math.Round(pings.Sum() / pings.Count, 3);
+        return (pings.Count>0?Math.Round((pings.Sum() / pings.Count), 3):0);
     }
 
     /// <summary>

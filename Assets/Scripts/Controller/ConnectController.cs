@@ -134,7 +134,7 @@ public abstract class ConnectController : MainController
 
 	private void Load(string token = "")
     {
-		Debug.LogError("загрузка мира");
+		Debug.Log("загрузка мира");
 
 		// актуально когда после разрыва соединения возвращаемся
 		pause = false;
@@ -200,8 +200,10 @@ public abstract class ConnectController : MainController
 			else
 				StartCoroutine(LoadRegister("Соединение потеряно"));
 		}
-		else
+		else if(pause)
 			Debug.Log("Ждем загрузки мира и карты");
+		else
+			StartCoroutine(LoadRegister("Данные потеряны"));
 	}
 
 	/// <summary>

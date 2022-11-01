@@ -25,7 +25,7 @@ public class Response
     /// </summary>
     public long command_id;
 
-    public float? ping = null;
+    public double? ping = null;
 
     public string group()
     {
