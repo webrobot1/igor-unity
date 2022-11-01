@@ -150,24 +150,22 @@ public class Websocket
 			// прверим есть ли вообще группа команд этих (мы таймауты собрали словарь из всех доступных команд)
 			if (commands.timeouts.ContainsKey(data.group()))
 			{
-				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
-				if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(command_pause), DateTime.Now) < 0)
-                {
-					long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+				long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 
-					// если команд уже больше двух и уже более времени чем ping+таймаут ждем (то скорее всего на сервере эти команды не возвращают ответ или ошибка какая то тихая)
-					if (commands.timeouts[data.group()].requests.Count == 2 && commands.timeouts[data.group()].time != null)
-					{
-						double wait = commands.timeouts[data.group()].timeout + commands.ping();
-						if(DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(wait), DateTime.Now) < 1)
-						{ 
-							Debug.LogError("Слишком должго ждали ответа команды "+data.group()+": "+wait);
-							
-							// если последняя (свежая команда)  ждет долго очистим весь список
-							if (command_id - commands.timeouts[data.group()].requests.Keys.Last() > wait)
-								commands.timeouts[data.group()].requests.Clear();
-							else   
-								commands.timeouts[data.group()].requests.Remove(commands.timeouts[data.group()].requests.Keys.First()); // или только первую (старую)
+				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
+				if (commands.timeouts[data.group()].requests.Count == 0 || command_id - commands.timeouts[data.group()].requests.Last()>command_pause*1000)
+				{
+					double wait = commands.timeouts[data.group()].timeout + commands.ping();
+					if (commands.timeouts[data.group()].requests.Count > 0)
+                    {
+						foreach (long value in commands.timeouts[data.group()].requests)
+						{
+							float last = (command_id - value) / 1000;
+							if (last > wait)
+							{
+								Debug.LogError("Слишком должго ждали ответа команды " + value + ": " + last);
+								commands.timeouts[data.group()].requests.Remove(value);
+							}
 						}
 					}
 
@@ -177,7 +175,8 @@ public class Websocket
 						Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
 
 						// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-						data.command_id = commands.timeouts[data.group()].requests[command_id] = command_id;
+						data.command_id =  command_id;
+						commands.timeouts[data.group()].requests.Add(command_id);
 
                         // если подсчитан пинг то передаем его с запросом нашей команды
                         if (commands.pings.Count > 10)
@@ -199,8 +198,6 @@ public class Websocket
 
 						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 						Put(json);
-
-						commands.timeouts[data.group()].time = DateTime.Now;
 					}
 				}
 			}

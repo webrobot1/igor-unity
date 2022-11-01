@@ -7,7 +7,5 @@ using System.Collections.Generic;
 public class TimeoutRecive
 {
     public float timeout = 0;
-    public DateTime? time = null;
-
-    public Dictionary<long, long> requests = new Dictionary<long, long>();
+    public List<long> requests = new List<long>();
 }
