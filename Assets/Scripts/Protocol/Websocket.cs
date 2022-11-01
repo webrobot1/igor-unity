@@ -17,8 +17,6 @@ public class Websocket
 {
 	private WebSocket ws;
 
-	public  float ping = 0;
-
 	/// <summary>
 	/// если это поле не пустое то запускается загрузка странца входа и выводится ошибка из данного поля
 	/// </summary>
@@ -37,7 +35,7 @@ public class Websocket
 	/// <summary>
 	/// время таймаутов (для вывода игроку статистики)
 	/// </summary>
-	private Dictionary<string, CommandModel> commands = new Dictionary<string, CommandModel>();
+	private CommandModel commands = new CommandModel();
 
 
 	public Websocket(int map_id, float command_pause)
@@ -58,7 +56,7 @@ public class Websocket
 				Debug.Log("Соединение с севрером установлено");
 
 				// добавим единсвенную пока доступную команду на отправку данных
-				commands["load/index"] = new CommandModel();
+				commands.timeouts["load"] = new TimeoutRecive();
 
 			};
 			ws.OnClose += (sender, ev) =>
@@ -67,47 +65,48 @@ public class Websocket
 			};
 			ws.OnMessage += (sender, ev) =>
 			{
-				string text = Encoding.UTF8.GetString(ev.RawData);
-				Debug.Log(DateTime.Now.Millisecond + ": " + text);
-
-				Recive recive = JsonConvert.DeserializeObject<Recive>(text);
-
-				if (recive.timeouts.Count > 0)
+				if (error.Length == 0)
 				{
-					Debug.Log("Обновляем таймауты");
+					string text = Encoding.UTF8.GetString(ev.RawData);
+					Debug.Log(DateTime.Now.Millisecond + ": " + text);
 
-					foreach (KeyValuePair<string, float> kvp in recive.timeouts)
+					Recive recive = JsonConvert.DeserializeObject<Recive>(text);
+					try
 					{
-						if (!commands.ContainsKey(kvp.Key))
-							commands[kvp.Key] = new CommandModel();
+						if (recive.timeouts.Count > 0)
+						{
+							Debug.Log("Обновляем таймауты");
 
-						commands[kvp.Key].timeout = kvp.Value;
-					}
+							foreach (KeyValuePair<string, TimeoutRecive> kvp in recive.timeouts)
+							{
+								if (!commands.timeouts.ContainsKey(kvp.Key))
+									commands.timeouts[kvp.Key] = kvp.Value;
+								else
+									commands.timeouts[kvp.Key].timeout = kvp.Value.timeout;
+							}
 
-					recive.timeouts.Clear();
-				}				
-				
-				if (recive.pings.Count > 0)
-				{
-					Debug.Log("Обновляем пинги");
-
-					foreach (KeyValuePair<string, PingsRecive> kvp in recive.pings)
-					{
-						if (!commands.ContainsKey(kvp.Key))
-                        {
-							error = "Пинга на насуществующую команду " + kvp.Key;
-							return;
+							recive.timeouts.Clear();
 						}
-						
-						commands[kvp.Key].check(kvp.Value);
-						Debug.Log("Ping команды "+ kvp.Key + "составил " + commands[kvp.Key].ping);
+
+						if (recive.commands.Count > 0)
+						{
+							Debug.Log("Обновляем пинги");
+
+							foreach (KeyValuePair<string, CommandRecive> kvp in recive.commands)
+							{
+								commands.check(kvp.Key, kvp.Value);
+							}
+
+							recive.commands.Clear();
+						}
+					}
+					catch (Exception ex)
+					{
+						error = "Ошибка разбора данных websocket "+ex.Message;
 					}
 
-					recive.pings.Clear();
+					recives.Add(recive);
 				}
-
-
-				recives.Add(recive);
 			};
 			ws.OnError += (sender, ev) =>
 			{
@@ -148,42 +147,52 @@ public class Websocket
 			}
 
 			// либо загружаем игру (а там и все доступные команды) либо команда должна у нас быть указана
-			if (commands.ContainsKey(data.action))
+			if (commands.timeouts.ContainsKey(data.group()))
 			{
-				// что бы небыло дабл кликов выдерживыем некую паузу между запросами
-			
-				if (DateTime.Compare(commands[data.action].time, DateTime.Now) < 1) 
-				{
-					commands[data.action].time = DateTime.Now.AddSeconds(command_pause);
-
-					// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-					data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-					commands[data.action].requests[data.command_id] = data.command_id;
-					
-					// если подсчитан пинг то передаем его с запросом нашей команды
-					if (ping > 0)
-                    {
-						data.ping = ping;
-						ping = 0;
+				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
+				if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(command_pause), DateTime.Now) < 0)
+                {
+					// если команд уже больше двух и уже более таймаута ждем (то скорее всего на сервере эти команды не возвращают ответ или ошибка какая то тихая)
+					if (commands.timeouts[data.group()].requests.Count == 2 && commands.timeouts[data.group()].time!=null && DateTime.Compare(((DateTime)(commands.timeouts[data.group()].time)).AddSeconds(commands.timeouts[data.group()].timeout), DateTime.Now)<1)
+					{
+						// тогда очистим список команд
+						commands.timeouts[data.group()].requests.Clear();
 					}
-						
-					string json = JsonConvert.SerializeObject(
-						data
-						,
-						Newtonsoft.Json.Formatting.None
-						,
-						new JsonSerializerSettings
-						{
-							NullValueHandling = NullValueHandling.Ignore
-						}
-					);
 
-					Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + commands[data.action].ping + "/" + commands[data.action].work_time + ") " + json);
-					Put(json);
+					//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
+					if (commands.timeouts[data.group()].requests.Count<2) 
+					{
+						commands.timeouts[data.group()].time = DateTime.Now;
+
+						// создадим условно уникальный номер нашего сообщения (она же и временная метка)
+						data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+						commands.timeouts[data.group()].requests[data.command_id] = true;
+
+                        // если подсчитан пинг то передаем его с запросом нашей команды
+                        if (commands.pings.Count > 30)
+                        {
+							data.ping = commands.pings.Sum()/commands.pings.Count;
+							commands.pings.Clear();
+						}
+
+						string json = JsonConvert.SerializeObject(
+							data
+							,
+							Newtonsoft.Json.Formatting.None
+							,
+							new JsonSerializerSettings
+							{
+								NullValueHandling = NullValueHandling.Ignore
+							}
+						);
+
+						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+						Put(json);
+					}
 				}
 			}
 			else
-				error = "неизвестная команда";
+				error = "неизвестная команда " + data.group();
 		}
 	}
 

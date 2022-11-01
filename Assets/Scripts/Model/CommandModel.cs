@@ -8,34 +8,31 @@ using UnityEngine;
 
 public class CommandModel
 {
-    public Dictionary<long, long> requests = new Dictionary<long, long>();
+    public List<float> pings = new List<float>();
+    public Dictionary<string, TimeoutRecive> timeouts = new Dictionary<string, TimeoutRecive>();
 
-    public float work_time = 0;
-    public float timeout = 0;
-    public DateTime time = DateTime.Now;     // время последнего посыла команды         
-    public float ping = 0;
-
-    public float wait_time = 0;
 
     /// <summary>
     /// проверка в массиве запросов какой отработал (все что ДО него - удалим)
     /// </summary>
-    public void check(PingsRecive recive)
+    public void check(string key, CommandRecive recive)
     {
-        this.wait_time = recive.wait_time;
-
-        if(recive.work_time!=null)
-            this.work_time = (int)recive.work_time;
-
-        this.ping = (float)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.command_id) / 1000 - wait_time;
-
- 
-/*        foreach (KeyValuePair<long, long> request in requests)
+        if (!timeouts.ContainsKey(key))
         {
-            if (request.Key < recive.command_id) 
-                requests.Remove(request.Key);
-            else
-                break;
-        }*/
+            new Exception("Ответ с командами на несуществующую группу " + key);
+        }
+
+        pings.Add((float)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.command_id) / 1000 - recive.wait_time);
+
+
+        /*    
+                foreach (KeyValuePair<long, long> request in timeouts[key])
+                {
+                    if (request.Key < recive.command_id) 
+                        requests.Remove(request.Key);
+                    else
+                        break;
+                }
+        */
     }
 }

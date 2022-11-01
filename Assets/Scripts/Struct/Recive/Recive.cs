@@ -12,13 +12,12 @@ public class Recive
     /// <summary>
     /// список таймаутов (высылается при load)
     /// </summary>
-    public Dictionary<string, float> timeouts = new Dictionary<string, float>();
+    public Dictionary<string, TimeoutRecive> timeouts = new Dictionary<string, TimeoutRecive>();
 
     /// <summary>
-    /// приходит игроку с ответом на его ранее отправленные команды
+    /// список отработанных комманд
     /// </summary>
-    public Dictionary<string, PingsRecive> pings = new Dictionary<string, PingsRecive>();
-
+    public Dictionary<string, CommandRecive> commands = new Dictionary<string, CommandRecive>();
 
     private string _action;
 

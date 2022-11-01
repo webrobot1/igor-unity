@@ -125,9 +125,6 @@ public abstract class ConnectController : MainController
         try {
 			Load(data.token);
 			spawn_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
-
-			// запускаем корутину проверки PING
-			StartCoroutine(getPing());
 		}
 		catch (Exception ex)
 		{
@@ -212,7 +209,7 @@ public abstract class ConnectController : MainController
 	{
         switch (recive.action)
         {
-			case "screen":
+			case "screen/index":
 				StartCoroutine(Screen());
 			return;
         }
@@ -445,25 +442,6 @@ public abstract class ConnectController : MainController
 		Camera.main.GetComponent<RegisterController>().Error(error);
 	}
 
-	/// <summary>
-	/// переодическая првоерка Ping
-	/// </summary>
-	private IEnumerator getPing()
-	{
-		while (true)
-		{
-			Ping p = new Ping(SERVER);
-
-			while (!p.isDone)
-			{
-				yield return new WaitForSeconds(1);
-			}
-
-			connect.ping = p.time;
-
-			yield return new WaitForSeconds(30);	
-		}
-	}
 
 	void OnApplicationQuit()
 	{

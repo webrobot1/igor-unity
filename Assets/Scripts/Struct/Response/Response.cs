@@ -3,8 +3,8 @@ using System;
 /// Структура отправляемых данных
 /// </summary>
 public class Response
-{                 
-    private string _action;
+{
+    private string _action = "";
     public string action
     {
         set {
@@ -12,9 +12,9 @@ public class Response
             {
                 value = value + "/index";
             }
-            _action = value; 
-        }        
-        
+            _action = value;
+        }
+
         get {
             return _action;
         }
@@ -26,4 +26,9 @@ public class Response
     public long command_id;
 
     public float? ping = null;
+
+    public string group()
+    {
+        return action.Split("/")[0];
+    }
 }
