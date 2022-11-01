@@ -102,6 +102,8 @@ public class EnemyModel : ObjectModel
 			// в ином случае - дистанцию с учетом скорости проходим целиком
 
 			transform.position = Vector2.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
+			transform.position = new Vector3(transform.position.x, transform.position.y, 1f);
+
 			yield return new WaitForFixedUpdate();
 		}
 

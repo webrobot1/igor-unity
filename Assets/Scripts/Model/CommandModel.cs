@@ -23,7 +23,9 @@ public class CommandModel
     public void check(PingsRecive recive)
     {
         this.wait_time = recive.wait_time;
-        this.work_time = recive.work_time;
+
+        if(recive.work_time!=null)
+            this.work_time = (int)recive.work_time;
 
         this.ping = (float)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.command_id) / 1000 - wait_time;
 

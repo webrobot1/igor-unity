@@ -154,7 +154,7 @@ public class Websocket
 			
 				if (DateTime.Compare(commands[data.action].time, DateTime.Now) < 1) 
 				{
-				//	commands[data.action].time = DateTime.Now.AddSeconds(command_pause);
+					commands[data.action].time = DateTime.Now.AddSeconds(command_pause);
 
 					// создадим условно уникальный номер нашего сообщения (она же и временная метка)
 					data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();

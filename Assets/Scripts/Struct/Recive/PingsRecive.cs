@@ -6,5 +6,5 @@ public class PingsRecive
 {
     public long command_id;
     public float wait_time = 0;             
-    public float work_time = 0;                       
+    public float? work_time = null;                       
 }
