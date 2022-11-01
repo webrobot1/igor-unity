@@ -173,7 +173,6 @@ public class MapModel
 				BZip2.Decompress(source, target, true);
 
 				Debug.Log("Парсим карту");
-				Debug.Log(Encoding.UTF8.GetString(target.ToArray()));
 				map = JsonConvert.DeserializeObject<Map>(Encoding.UTF8.GetString(target.ToArray()));
 			}
 		}

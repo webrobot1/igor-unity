@@ -1,12 +1,10 @@
-using System;
 /// <summary>
-/// Структура оотправленной команды
+/// Структура ответа с командами на которые среагировал сервер и вернул время сколько она крутилась на севрере (это не время работы)
 /// </summary>
 /// 
 public class PingsRecive
 {
-    public float timeout = 0;
-    public float ping = 0;
-    public float work = 0;             
-    public DateTime time = DateTime.Now;     // время для таймаута
+    public long command_id;
+    public float wait_time = 0;             
+    public float work_time = 0;                       
 }

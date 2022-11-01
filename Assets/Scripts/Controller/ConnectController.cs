@@ -44,13 +44,6 @@ public abstract class ConnectController : MainController
 	/// </summary>
 	private string token;	
 
-
-	/// <summary>
-	/// сколько пикселей на 1 Unit должно считаться (размер клетки)
-	/// </summary>
-	private float PixelsPerUnit;
-
-
 	[SerializeField]
 	private Cinemachine.CinemachineVirtualCamera camera;
 
@@ -69,7 +62,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// на каком уровне слоя размещать новых персонажей и npc и на каком следит камера
 	/// </summary>
-	public static int spawn_sort;
+	public static int? spawn_sort = null;
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -109,7 +102,7 @@ public abstract class ConnectController : MainController
 
 		Debug.Log("FixedTime = " + data.time);
 
-		connect = new Websocket(SERVER, PORT, data.map_id, data.pause);
+		connect = new Websocket(data.map_id, data.pause);
 
 		// настройки size камеры менять бессмысленно тк есть PixelPerfect
 		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
@@ -130,8 +123,11 @@ public abstract class ConnectController : MainController
 
         // приведем координаты в сответсвие с сеткой Unity
         try {
-			spawn_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
 			Load(data.token);
+			spawn_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
+
+			// запускаем корутину проверки PING
+			StartCoroutine(getPing());
 		}
 		catch (Exception ex)
 		{
@@ -170,7 +166,9 @@ public abstract class ConnectController : MainController
 	/// </summary>
 	protected void FixedUpdate()
 	{
-		if (id != null && !exit)
+		if (exit)
+			Debug.Log("Выходим из игры");
+		else if (id != null && spawn_sort != null)  // обрабатываем пакеты если уже загрузился пользователь и не выходим из игры и у нас есть spawn_sort
 		{
 			if (connect != null)
 			{
@@ -178,17 +176,15 @@ public abstract class ConnectController : MainController
 				{
 					StartCoroutine(LoadRegister(connect.error));
 				}
-				else 
+				else
 				{
-					if (connect.recives.Count>0)
+					if (connect.recives.Count > 0)
 					{
 						for (int i = 0; i < connect.recives.Count; i++)
 						{
 							try
-							{
-								Debug.Log(DateTime.Now.Millisecond + ": " + connect.recives[i]);
-								HandleData(JsonConvert.DeserializeObject<Recive>(connect.recives[i]));
-
+							{							
+								HandleData(connect.recives[i]);
 								if (connect.recives.ElementAtOrDefault(i) != null)
 									connect.recives.RemoveAt(i);
 							}
@@ -204,6 +200,8 @@ public abstract class ConnectController : MainController
 			else
 				StartCoroutine(LoadRegister("Соединение потеряно"));
 		}
+		else
+			Debug.Log("Ждем загрузки мира и карты");
 	}
 
 	/// <summary>
@@ -223,27 +221,9 @@ public abstract class ConnectController : MainController
 		{
 			StartCoroutine(LoadRegister("Ошибка сервера:" + recive.error));
 		}
-		else if (!exit && (!pause || recive.action == "load")) // обновляем мир только если в не выходим из игры и не перезагружаем мир (занмиает какое то время)
+		else if (!exit && (!pause || recive.action == "load/index")) // обновляем мир только если в не выходим из игры и не перезагружаем мир (занмиает какое то время)
 		{
 			Debug.Log("Обрабатываем данные");
-
-			if (recive.pings.Count>0)
-			{
-				Debug.Log("Обновляем пинги");
-
-                foreach (KeyValuePair<string, PingsRecive> kvp in recive.pings)
-				{
-					if (!connect.pings.ContainsKey(kvp.Key))
-						connect.pings[kvp.Key] = new PingsRecive();
-
-					if (kvp.Value.ping>0)
-						connect.pings[kvp.Key].ping = kvp.Value.ping;					
-					if (kvp.Value.work>0)
-						connect.pings[kvp.Key].work = kvp.Value.work;
-
-					connect.pings[kvp.Key].timeout = kvp.Value.timeout;
-				}
-			}
 
 			if (recive.players != null)
 			{
@@ -271,8 +251,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = spawn_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = spawn_sort + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 				
 						if (player.id == id)
@@ -328,8 +308,8 @@ public abstract class ConnectController : MainController
 
 						prefab = Instantiate(ob) as GameObject;
 						prefab.name = name;
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = spawn_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = spawn_sort + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 					}
 					else
@@ -374,8 +354,8 @@ public abstract class ConnectController : MainController
 
 						//todo сделать слой объектов
 
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = spawn_sort;
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = spawn_sort + 1;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 						prefab.transform.SetParent(world.transform, false);
 					}
 
@@ -391,7 +371,7 @@ public abstract class ConnectController : MainController
 				}
 			}
 
-			if (recive.action == "load")
+			if (recive.action == "load/index")
 				pause = false;
 		}
 	}
@@ -463,6 +443,26 @@ public abstract class ConnectController : MainController
 	
 		SceneManager.UnloadScene("MainScene");
 		Camera.main.GetComponent<RegisterController>().Error(error);
+	}
+
+	/// <summary>
+	/// переодическая првоерка Ping
+	/// </summary>
+	private IEnumerator getPing()
+	{
+		while (true)
+		{
+			Ping p = new Ping(SERVER);
+
+			while (!p.isDone)
+			{
+				yield return new WaitForSeconds(1);
+			}
+
+			connect.ping = p.time;
+
+			yield return new WaitForSeconds(30);	
+		}
 	}
 
 	void OnApplicationQuit()

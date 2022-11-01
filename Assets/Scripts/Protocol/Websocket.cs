@@ -3,6 +3,7 @@ using System.Text;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
+using System.Collections;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
 	using WebGLWebsocket;
@@ -12,9 +13,11 @@ using WebSocketSharp;
 
 using Newtonsoft.Json;
 
-public class Websocket
+public class Websocket 
 {
 	private WebSocket ws;
+
+	public  float ping = 0;
 
 	/// <summary>
 	/// если это поле не пустое то запускается загрузка странца входа и выводится ошибка из данного поля
@@ -29,16 +32,17 @@ public class Websocket
 	/// <summary>
 	/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 	/// </summary>
-	public List<string> recives = new List<string>();	
-	
-	/// <summary>
-	/// список всех возможных отправок команд с их пингами, таймаутами и подготовленными запросами
-	/// </summary>
-	public Dictionary<string, PingsRecive> pings = new Dictionary<string, PingsRecive>();
+	public List<Recive> recives = new List<Recive>();
 
-	public Websocket(string server, int port, int map_id, float command_pause)
+	/// <summary>
+	/// время таймаутов (для вывода игроку статистики)
+	/// </summary>
+	private Dictionary<string, CommandModel> commands = new Dictionary<string, CommandModel>();
+
+
+	public Websocket(int map_id, float command_pause)
 	{
-		Debug.Log("Соединяемся с сервером");
+		Debug.Log("Соединяемся с сервером "+ MainController.SERVER);
 
 		if (this.ws != null && (this.ws.ReadyState == WebSocketSharp.WebSocketState.Open || this.ws.ReadyState == WebSocketSharp.WebSocketState.Closing))
 		{
@@ -48,10 +52,14 @@ public class Websocket
 
 		try
 		{
-			ws = new WebSocket("ws://"+server+":"+(port + map_id));
+			ws = new WebSocket("ws://"+MainController.SERVER+":"+(MainController.PORT + map_id));
 			ws.OnOpen += (sender, ev) =>
 			{
 				Debug.Log("Соединение с севрером установлено");
+
+				// добавим единсвенную пока доступную команду на отправку данных
+				commands["load/index"] = new CommandModel();
+
 			};
 			ws.OnClose += (sender, ev) =>
 			{
@@ -59,7 +67,47 @@ public class Websocket
 			};
 			ws.OnMessage += (sender, ev) =>
 			{
-				recives.Add(Encoding.UTF8.GetString(ev.RawData));
+				string text = Encoding.UTF8.GetString(ev.RawData);
+				Debug.Log(DateTime.Now.Millisecond + ": " + text);
+
+				Recive recive = JsonConvert.DeserializeObject<Recive>(text);
+
+				if (recive.timeouts.Count > 0)
+				{
+					Debug.Log("Обновляем таймауты");
+
+					foreach (KeyValuePair<string, float> kvp in recive.timeouts)
+					{
+						if (!commands.ContainsKey(kvp.Key))
+							commands[kvp.Key] = new CommandModel();
+
+						commands[kvp.Key].timeout = kvp.Value;
+					}
+
+					recive.timeouts.Clear();
+				}				
+				
+				if (recive.pings.Count > 0)
+				{
+					Debug.Log("Обновляем пинги");
+
+					foreach (KeyValuePair<string, PingsRecive> kvp in recive.pings)
+					{
+						if (!commands.ContainsKey(kvp.Key))
+                        {
+							error = "Пинга на насуществующую команду " + kvp.Key;
+							return;
+						}
+						
+						commands[kvp.Key].check(kvp.Value);
+						Debug.Log("Ping команды "+ kvp.Key + "составил " + commands[kvp.Key].ping);
+					}
+
+					recive.pings.Clear();
+				}
+
+
+				recives.Add(recive);
 			};
 			ws.OnError += (sender, ev) =>
 			{
@@ -67,8 +115,6 @@ public class Websocket
 			};
 			ws.Connect();
 
-			// добавим единсвенную пока доступную команду на отправку
-			pings["load/index"] = new PingsRecive();
 			this.command_pause = command_pause;
 		}
 		catch (Exception ex)
@@ -93,40 +139,51 @@ public class Websocket
 	/// </summary>
 	public void Send(Response data)
 	{
-        if (!ConnectController.pause) 
-		{ 
+		if (!ConnectController.pause)
+		{
 			if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
 			{
 				error = "Соединение не открыто для запросов ";
 				return;
 			}
 
-			if (!pings.ContainsKey(data.action)) 
-				error = "неизвестная команда";
-
-			// что бы небыло дабл кликов выдерживыем некую паузу между запросами
-			else if (
-				data.action == "load/index" 
-					||                
-				(DateTime.Compare(pings[data.action].time, DateTime.Now) < 0)	// что бы небыло дабл кликов выдерживыем некую паузу между запросами
-			) 
+			// либо загружаем игру (а там и все доступные команды) либо команда должна у нас быть указана
+			if (commands.ContainsKey(data.action))
 			{
-				string json = JsonConvert.SerializeObject(
-					data
-					,
-					Newtonsoft.Json.Formatting.None
-					,
-					new JsonSerializerSettings
-					{
-						NullValueHandling = NullValueHandling.Ignore
+				// что бы небыло дабл кликов выдерживыем некую паузу между запросами
+			
+				if (DateTime.Compare(commands[data.action].time, DateTime.Now) < 1) 
+				{
+					commands[data.action].time = DateTime.Now.AddSeconds(command_pause);
+
+					// создадим условно уникальный номер нашего сообщения (она же и временная метка)
+					data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+					commands[data.action].requests[data.command_id] = data.command_id;
+					
+					// если подсчитан пинг то передаем его с запросом нашей команды
+					if (ping > 0)
+                    {
+						data.ping = ping;
+						ping = 0;
 					}
-				);
+						
+					string json = JsonConvert.SerializeObject(
+						data
+						,
+						Newtonsoft.Json.Formatting.None
+						,
+						new JsonSerializerSettings
+						{
+							NullValueHandling = NullValueHandling.Ignore
+						}
+					);
 
-				Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + pings[data.action].ping + "/" + pings[data.action].work + ") " + json);
-
-				pings[data.action].time = DateTime.Now.AddSeconds(command_pause);
-				Put(json);
+					Debug.Log(DateTime.Now.Millisecond + " Отправили серверу (" + commands[data.action].ping + "/" + commands[data.action].work_time + ") " + json);
+					Put(json);
+				}
 			}
+			else
+				error = "неизвестная команда";
 		}
 	}
 

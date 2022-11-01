@@ -1,5 +1,4 @@
 using System;
-using UnityEngine;
 /// <summary>
 /// Структура отправляемых данных
 /// </summary>
@@ -24,13 +23,7 @@ public class Response
     /// <summary>
     /// нужно для вычисления пинга (временная метка по которой мы поймем сколько прошло времени между отправкой)
     /// </summary>
-    [SerializeField]
-    private long time
-    {
-        set {
-        }        
-        get {
-            return (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-        }
-    }
+    public long command_id;
+
+    public float? ping = null;
 }
