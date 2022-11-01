@@ -153,26 +153,29 @@ public class Websocket
 				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
 				if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(command_pause), DateTime.Now) < 0)
                 {
-					// если команд уже больше двух и уже более таймаута ждем (то скорее всего на сервере эти команды не возвращают ответ или ошибка какая то тихая)
-					if (commands.timeouts[data.group()].requests.Count == 2 && commands.timeouts[data.group()].time!=null && DateTime.Compare(((DateTime)(commands.timeouts[data.group()].time)).AddSeconds(commands.timeouts[data.group()].timeout), DateTime.Now)<1)
+					// если команд уже больше двух и уже более времени чем ping+таймаут ждем (то скорее всего на сервере эти команды не возвращают ответ или ошибка какая то тихая)
+					if (commands.timeouts[data.group()].requests.Count == 2 && commands.timeouts[data.group()].time != null)
 					{
-						// тогда очистим список команд
-						commands.timeouts[data.group()].requests.Clear();
+						float wait = commands.timeouts[data.group()].timeout + commands.ping();				
+						if(DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(wait), DateTime.Now) < 1)
+						{ 
+							Debug.Log("Слишком должго ждали ответа команды "+data.group()+": "+wait);
+							// тогда очистим список команд
+							commands.timeouts[data.group()].requests.Clear();
+						}
 					}
 
 					//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
 					if (commands.timeouts[data.group()].requests.Count<2) 
 					{
-						commands.timeouts[data.group()].time = DateTime.Now;
-
 						// создадим условно уникальный номер нашего сообщения (она же и временная метка)
 						data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 						commands.timeouts[data.group()].requests[data.command_id] = true;
 
                         // если подсчитан пинг то передаем его с запросом нашей команды
-                        if (commands.pings.Count > 30)
+                        if (commands.pings.Count > 10)
                         {
-							data.ping = commands.pings.Sum()/commands.pings.Count;
+							data.ping = commands.ping();
 							commands.pings.Clear();
 						}
 
@@ -189,6 +192,8 @@ public class Websocket
 
 						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 						Put(json);
+
+						commands.timeouts[data.group()].time = DateTime.Now;
 					}
 				}
 			}

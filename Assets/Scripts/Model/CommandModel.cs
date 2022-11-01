@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -11,6 +12,11 @@ public class CommandModel
     public List<float> pings = new List<float>();
     public Dictionary<string, TimeoutRecive> timeouts = new Dictionary<string, TimeoutRecive>();
 
+
+    public float ping()
+    {
+        return pings.Sum() / pings.Count;
+    }
 
     /// <summary>
     /// проверка в массиве запросов какой отработал (все что ДО него - удалим)
