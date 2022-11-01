@@ -70,9 +70,10 @@ public class Websocket
 					string text = Encoding.UTF8.GetString(ev.RawData);
 					Debug.Log(DateTime.Now.Millisecond + ": " + text);
 
-					Recive recive = JsonConvert.DeserializeObject<Recive>(text);
 					try
 					{
+						Recive recive = JsonConvert.DeserializeObject<Recive>(text);
+
 						if (recive.timeouts.Count > 0)
 						{
 							Debug.Log("Обновляем таймауты");
@@ -99,13 +100,12 @@ public class Websocket
 
 							recive.commands.Clear();
 						}
+						recives.Add(recive);
 					}
 					catch (Exception ex)
 					{
 						error = "Ошибка разбора данных websocket "+ex.Message;
-					}
-
-					recives.Add(recive);
+					}		
 				}
 			};
 			ws.OnError += (sender, ev) =>
