@@ -19,7 +19,8 @@ public class Recive
     /// </summary>
     public Dictionary<string, CommandRecive> commands = new Dictionary<string, CommandRecive>();
 
-    private string _action;
+    public string error = "";
+    private string _action = "";
 
     // если пришла команда action в сокращенной форме то добавим index
     public string action
@@ -38,7 +39,4 @@ public class Recive
             return _action;
         }
     }
-
-
-    public string error = "";
 }

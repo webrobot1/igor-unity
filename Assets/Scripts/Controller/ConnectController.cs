@@ -177,7 +177,7 @@ public abstract class ConnectController : MainController
 				{
 					if (connect.recives.Count > 0)
 					{
-						foreach (Recive recive in connect.recives)
+						foreach (Recive recive in connect.recives.ToList())
                         {
 							try
 							{
