@@ -175,14 +175,15 @@ public abstract class ConnectController : MainController
 				}
 				else
 				{
-					if (connect.recives.Count > 0)
+					// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
+					int count = connect.recives.Count;
+					if (count > 0)
 					{
-						foreach (Recive recive in connect.recives.ToList())
-                        {
+						for (int i = 0; i < count; i++)
+						{
 							try
 							{
-								HandleData(recive);
-								connect.recives.Remove(recive);
+								HandleData(connect.recives[i]);
 							}
 							catch (Exception ex)
 							{
@@ -190,6 +191,9 @@ public abstract class ConnectController : MainController
 								break;
 							}
 						}
+
+						// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
+						connect.recives.RemoveRange(0, count);
 					}
 				}
 			}

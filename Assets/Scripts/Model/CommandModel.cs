@@ -12,10 +12,9 @@ public class CommandModel
     public List<float> pings = new List<float>();
     public Dictionary<string, TimeoutRecive> timeouts = new Dictionary<string, TimeoutRecive>();
 
-
-    public float ping()
+    public double ping()
     {
-        return pings.Sum() / pings.Count;
+        return Math.Round(pings.Sum() / pings.Count, 3);
     }
 
     /// <summary>
@@ -30,15 +29,7 @@ public class CommandModel
 
         pings.Add((float)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.command_id) / 1000 - recive.wait_time);
 
-
-        /*    
-                foreach (KeyValuePair<long, long> request in timeouts[key])
-                {
-                    if (request.Key < recive.command_id) 
-                        requests.Remove(request.Key);
-                    else
-                        break;
-                }
-        */
+        // и удалим из списка нашу команду
+        timeouts[key].requests.Remove(recive.command_id);
     }
 }
