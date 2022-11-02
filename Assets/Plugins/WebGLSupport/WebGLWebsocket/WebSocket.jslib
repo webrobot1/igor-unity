@@ -177,7 +177,8 @@ var LibraryWebSocket = {
 
 			if (webSocketState.debug)
 			{
-				webSocketState.Log(ev.data);
+				let event = new Date();
+				webSocketState.Log(event.toLocaleTimeString('ru-RU')+":"+event.getMilliseconds()+"\t<- "+ev.data);
 			}
 
 			if (webSocketState.onMessage === null)
@@ -301,19 +302,25 @@ var LibraryWebSocket = {
 		if (instance.ws === null)
 			return -3;
 
+		if (webSocketState.debug)
+		{	
+			let event = new Date();
+			webSocketState.Log(event.toLocaleTimeString('ru-RU')+":"+event.getMilliseconds()+"\t-> " + bufferPtr);
+		}
+		
+		let message = HEAPU8.buffer.slice(bufferPtr, bufferPtr + length);
+		
 		if (instance.ws.readyState !== 1)
 		{
 			/* Если конект не открыт, добавляем сообщение в очередь */
-			webSocketState.queue.push(HEAPU8.buffer.slice(bufferPtr, bufferPtr + length));
+			webSocketState.queue.push(message);
 			return 0;
 			
 			/* return -6; */
 		}
 
-		instance.ws.send(HEAPU8.buffer.slice(bufferPtr, bufferPtr + length));
-
+		instance.ws.send(message);
 		return 0;
-
 	},
 
 	/**

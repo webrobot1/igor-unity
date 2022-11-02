@@ -52,7 +52,12 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// на каком уровне слоя размещать новых персонажей и npc и на каком следит камера
 	/// </summary>
-	public static int? spawn_sort = null;
+	public static int? spawn_sort = null;	
+	
+	/// <summary>
+	/// список ошибок (в разном порядке могут прийти Закрытие соединение и...реальная причина)
+	/// </summary>
+	private List<string> errors = new List<string>();
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -381,6 +386,8 @@ public abstract class ConnectController : MainController
 	{
 		Debug.LogError(error);
 
+		errors.Add(error);
+
 		if (connect == null)
 		{
 			Debug.LogWarning("уже закрываем игру ("+ error + ")");
@@ -405,7 +412,7 @@ public abstract class ConnectController : MainController
 		}
 	
 		SceneManager.UnloadScene("MainScene");
-		Camera.main.GetComponent<RegisterController>().Error(error);
+		Camera.main.GetComponent<RegisterController>().Error(String.Join(", ", errors));
 	}
 
 
