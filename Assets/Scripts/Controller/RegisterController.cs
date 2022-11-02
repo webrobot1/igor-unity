@@ -74,8 +74,8 @@ public class RegisterController : MainController
         if (data.id == 0)
             Error("не указан player_id");
 
-        if (data.map_id == 0)
-            Error("не указан map_id");
+        if (data.port == 0)
+            Error("не указан port");
 
         if (data.token == null)
             Error("не указан token");

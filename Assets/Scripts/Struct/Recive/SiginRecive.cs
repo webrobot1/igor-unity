@@ -5,7 +5,7 @@
 public class SiginRecive
 {
 	public int id;
-	public int map_id;
+	public int port;
 	public string token;
 
 	/// <summary>
