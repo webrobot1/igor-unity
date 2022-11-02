@@ -20,7 +20,12 @@ public class Websocket
 	/// <summary>
 	/// true - пауза (выходим, входим или перезагружаем мир игры)
 	/// </summary>
-	public bool pause = true;
+	public bool pause = true;	
+	
+	/// <summary>
+	/// true - перезагружаем мир
+	/// </summary>
+	private bool load = false;
 
 	/// <summary>
 	/// если это поле не пустое то запускается загрузка странца входа и выводится ошибка из данного поля
@@ -89,8 +94,11 @@ public class Websocket
 							pause = true;
 						}
 
-						if (error.Length==0 && recive.action == "load/index") 
+						if (error.Length==0 && recive.action == "load/index" && !load) 
+						{  
+							load = false;
 							pause = false;
+						}
 						else 
 							if (pause) return;
 
@@ -159,78 +167,86 @@ public class Websocket
 	/// </summary>
 	public void Send(Response data)
 	{
-		// поставим на паузу отправку и получение любых кроме данной команды данных
-		if (data.action == "load/index")
-			pause = true;
-
-		if (!pause || data.action == "load/index")
+		if (error.Length == 0)
 		{
-			if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
-			{
-				error = "Соединение не открыто для запросов ";
-				return;
+			// поставим на паузу отправку и получение любых кроме данной команды данных
+			if (data.action == "load/index")
+            {
+				// актуально когда после разрыва соединения возвращаемся
+				recives.Clear();
+				pause = true;
 			}
-
-			// прверим есть ли вообще группа команд этих (мы таймауты собрали словарь из всех доступных команд)
-			if (commands.timeouts.ContainsKey(data.group()))
+			
+			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
+			if (!pause || (data.action == "load/index" && !load))
 			{
-				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
-				if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(Math.Min(commands.timeouts[data.group()].timeout, command_pause)), DateTime.Now) < 0)
-                {
-					long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+				if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
+				{
+					error = "Соединение не открыто для запросов ";
+					return;
+				}
 
-					if (commands.timeouts[data.group()].requests.Count > 0)
+				// прверим есть ли вообще группа команд этих (мы таймауты собрали словарь из всех доступных команд)
+				if (commands.timeouts.ContainsKey(data.group()))
+				{
+					// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
+					if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(Math.Min(commands.timeouts[data.group()].timeout, command_pause)), DateTime.Now) < 0)
 					{
-						double wait = commands.timeouts[data.group()].timeout + commands.ping();
+						long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 
-						// проверим может какие то старые команды там и пора удалить их
-						foreach (long kvp in commands.timeouts[data.group()].requests.ToList())
+						if (commands.timeouts[data.group()].requests.Count > 0)
 						{
-							float last = (float)(command_id - kvp) / 1000;
-							if (last > wait)
+							double wait = commands.timeouts[data.group()].timeout + commands.ping();
+
+							// проверим может какие то старые команды там и пора удалить их
+							foreach (long kvp in commands.timeouts[data.group()].requests.ToList())
 							{
-								Debug.LogError("Слишком должго ждали ответа команды " + kvp + ": " + last);
-								commands.timeouts[data.group()].requests.Remove(kvp);
+								float last = (float)(command_id - kvp) / 1000;
+								if (last > wait)
+								{
+									Debug.LogError("Слишком должго ждали ответа команды " + kvp + ": " + last);
+									commands.timeouts[data.group()].requests.Remove(kvp);
+								}
 							}
 						}
-					}
 
-					//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
-					if (commands.timeouts[data.group()].requests.Count<2)
-					{
-						Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
+						//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
+						if (commands.timeouts[data.group()].requests.Count < 2)
+						{
+							Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
 
-						// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-						data.command_id = command_id;
-						commands.timeouts[data.group()].requests.Add(command_id); 
+							// создадим условно уникальный номер нашего сообщения (она же и временная метка)
+							data.command_id = command_id;
+							commands.timeouts[data.group()].requests.Add(command_id);
 
-                        // если подсчитан пинг то передаем его с запросом нашей команды
-                        if (commands.pings.Count > 10)
-                        {
-							data.ping = commands.ping();
-							commands.pings.RemoveRange(0, 5);
-						}
-
-						string json = JsonConvert.SerializeObject(
-							data
-							,
-							Newtonsoft.Json.Formatting.None
-							,
-							new JsonSerializerSettings
+							// если подсчитан пинг то передаем его с запросом нашей команды
+							if (commands.pings.Count > 10)
 							{
-								NullValueHandling = NullValueHandling.Ignore
+								data.ping = commands.ping();
+								commands.pings.RemoveRange(0, 5);
 							}
-						);
 
-						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
-						Put(json);
+							string json = JsonConvert.SerializeObject(
+								data
+								,
+								Newtonsoft.Json.Formatting.None
+								,
+								new JsonSerializerSettings
+								{
+									NullValueHandling = NullValueHandling.Ignore
+								}
+							);
 
-						commands.timeouts[data.group()].time = DateTime.Now;
+							Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+							Put(json);
+
+							commands.timeouts[data.group()].time = DateTime.Now;
+						}
 					}
 				}
+				else
+					error = "неизвестная команда " + data.group();
 			}
-			else
-				error = "неизвестная команда " + data.group();
 		}
 	}
 

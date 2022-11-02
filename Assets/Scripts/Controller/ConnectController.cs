@@ -122,20 +122,10 @@ public abstract class ConnectController : MainController
 		}
 	}
 
+	// если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
 	private void Load(string token = "")
     {
 		if (connect == null) return;
-
-		Debug.Log("загрузка мира");
-
-		// актуально когда после разрыва соединения возвращаемся
-		connect.recives.Clear();
-
-		// имено тут если делать там же где и расставляем объекты будут ...закешированы (те будут находится по поиску по имени)
-		for (int i = 0; i < world.transform.childCount; i++)
-		{
-			Destroy(world.transform.GetChild(i).gameObject);
-		}
 
 		SigninResponse response = new SigninResponse();
 		response.action = "load/index";
@@ -191,7 +181,18 @@ public abstract class ConnectController : MainController
         {
 			case "screen/index":
 				StartCoroutine(Screen());
-			return;
+			break;
+				
+			case "load/index":
+
+				// имено тут если делать там же где и расставляем объекты будут ...закешированы (те будут находится по поиску по имени)
+				for (int i = 0; i < world.transform.childCount; i++)
+				{
+					Destroy(world.transform.GetChild(i).gameObject);
+				}
+				Debug.Log("перезагрузка мира");
+
+			break;
         }
 
 		Debug.Log("Обрабатываем данные");
