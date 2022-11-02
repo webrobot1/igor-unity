@@ -51,9 +51,9 @@ public class Websocket
 	/// Открытие TCP соединения
 	/// </summary>
 	/// <param name="command_pause">Пауза в секундах между командами для предотвращения даблкликов</param>
-	public Websocket(string server, int port, int map_id, float command_pause = 0.15f)
+	public Websocket(string server, int port, float command_pause = 0.15f)
 	{
-		string address = "ws://" + server + ":" + (port + map_id);
+		string address = "ws://" + server + ":" + port;
 		
 		Debug.Log("Соединяемся с сервером "+ server);
 
