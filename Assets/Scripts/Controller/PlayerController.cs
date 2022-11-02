@@ -56,7 +56,7 @@ public class PlayerController : ConnectController
     {
         base.FixedUpdate();
 
-        if (player != null && !pause && !exit)
+        if (player != null && connect!=null && !connect.pause)
         {
             // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
             // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)

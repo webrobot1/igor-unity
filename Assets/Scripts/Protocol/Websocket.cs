@@ -18,6 +18,11 @@ public class Websocket
 	private WebSocket ws;
 
 	/// <summary>
+	/// true - пауза (выходим, входим или перезагружаем мир игры)
+	/// </summary>
+	public bool pause = true;
+
+	/// <summary>
 	/// если это поле не пустое то запускается загрузка странца входа и выводится ошибка из данного поля
 	/// </summary>
 	public string error = "";
@@ -73,6 +78,11 @@ public class Websocket
 					try
 					{
 						Recive recive = JsonConvert.DeserializeObject<Recive>(text);
+
+						if (recive.action == "load/index") 
+							pause = false;
+						else 
+							if (pause) return;
 
 						if (recive.timeouts.Count > 0)
 						{
@@ -139,7 +149,11 @@ public class Websocket
 	/// </summary>
 	public void Send(Response data)
 	{
-		if (!ConnectController.pause)
+		// поставим на паузу отправку и получение любых кроме данной команды данных
+		if (data.action == "load/index")
+			pause = true;
+
+		if (!pause || data.action == "load/index")
 		{
 			if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
 			{
@@ -150,21 +164,23 @@ public class Websocket
 			// прверим есть ли вообще группа команд этих (мы таймауты собрали словарь из всех доступных команд)
 			if (commands.timeouts.ContainsKey(data.group()))
 			{
-				long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-
 				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
-				if (commands.timeouts[data.group()].requests.Count == 0 || command_id - commands.timeouts[data.group()].requests.Last()>command_pause*1000)
-				{
-					double wait = commands.timeouts[data.group()].timeout + commands.ping();
+				if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(command_pause), DateTime.Now) < 0)
+                {
+					long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+
 					if (commands.timeouts[data.group()].requests.Count > 0)
-                    {
-						foreach (long value in commands.timeouts[data.group()].requests)
+					{
+						double wait = commands.timeouts[data.group()].timeout + commands.ping();
+
+						// проверим может какие то старые команды там и пора удалить их
+						foreach (long kvp in commands.timeouts[data.group()].requests.ToList())
 						{
-							float last = (command_id - value) / 1000;
+							float last = (float)(command_id - kvp) / 1000;
 							if (last > wait)
 							{
-								Debug.LogError("Слишком должго ждали ответа команды " + value + ": " + last);
-								commands.timeouts[data.group()].requests.Remove(value);
+								Debug.LogError("Слишком должго ждали ответа команды " + kvp + ": " + last);
+								commands.timeouts[data.group()].requests.Remove(kvp);
 							}
 						}
 					}
@@ -175,8 +191,8 @@ public class Websocket
 						Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
 
 						// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-						data.command_id =  command_id;
-						commands.timeouts[data.group()].requests.Add(command_id);
+						data.command_id = command_id;
+						commands.timeouts[data.group()].requests.Add(command_id); 
 
                         // если подсчитан пинг то передаем его с запросом нашей команды
                         if (commands.pings.Count > 10)
@@ -198,6 +214,8 @@ public class Websocket
 
 						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 						Put(json);
+
+						commands.timeouts[data.group()].time = DateTime.Now;
 					}
 				}
 			}

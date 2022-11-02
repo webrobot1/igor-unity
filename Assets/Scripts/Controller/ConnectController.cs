@@ -25,16 +25,6 @@ public abstract class ConnectController : MainController
 	protected PlayerModel player;
 
 	/// <summary>
-	/// true - загружается сцена регистрации (выходим из игры)
-	/// </summary>
-	protected bool exit;
-
-	/// <summary>
-	/// true - пауза (выходим, входим или перезагружаем мир игры)
-	/// </summary>
-	public static bool pause;
-
-	/// <summary>
 	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
 	/// </summary>
 	private int? id = null;
@@ -134,11 +124,11 @@ public abstract class ConnectController : MainController
 
 	private void Load(string token = "")
     {
+		if (connect == null) return;
+
 		Debug.Log("загрузка мира");
 
 		// актуально когда после разрыва соединения возвращаемся
-		pause = false;
-
 		connect.recives.Clear();
 
 		// имено тут если делать там же где и расставляем объекты будут ...закешированы (те будут находится по поиску по имени)
@@ -153,9 +143,6 @@ public abstract class ConnectController : MainController
 			response.token = token;
 
 		connect.Send(response);
-
-		// поставим на паузу отправку любых данных
-		pause = true;
 	}
 
 	/// <summary>
@@ -163,47 +150,40 @@ public abstract class ConnectController : MainController
 	/// </summary>
 	protected void FixedUpdate()
 	{
-		if (exit)
-			Debug.Log("Выходим из игры");
-		else if (id != null && spawn_sort != null)  // обрабатываем пакеты если уже загрузился пользователь и не выходим из игры и у нас есть spawn_sort
+		if (connect == null)
+			return;
+		else if (connect.pause)
+			Debug.Log("Пауза");
+		else if (spawn_sort != null)  // обрабатываем пакеты если уже загрузился карта
 		{
-			if (connect != null)
+			if (connect.error.Length > 0)
 			{
-				if (connect.error.Length>0)
-				{
-					StartCoroutine(LoadRegister(connect.error));
-				}
-				else
-				{
-					// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
-					int count = connect.recives.Count;
-					if (count > 0)
-					{
-						for (int i = 0; i < count; i++)
-						{
-							try
-							{
-								HandleData(connect.recives[i]);
-							}
-							catch (Exception ex)
-							{
-								StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message));
-								break;
-							}
-						}
-
-						// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
-						connect.recives.RemoveRange(0, count);
-					}
-				}
+				StartCoroutine(LoadRegister(connect.error));
 			}
 			else
-				StartCoroutine(LoadRegister("Соединение потеряно"));
+			{
+				// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
+				int count = connect.recives.Count;
+				if (count > 0)
+				{
+					for (int i = 0; i < count; i++)
+					{
+						try
+						{
+							HandleData(connect.recives[i]);
+						}
+						catch (Exception ex)
+						{
+							StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message));
+							break;
+						}
+					}
+
+					// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
+					connect.recives.RemoveRange(0, count);
+				}
+			}
 		}
-		else if(pause)
-			Debug.Log("Ждем загрузки мира и карты");
-		else
-			StartCoroutine(LoadRegister("Данные потеряны"));
 	}
 
 	/// <summary>
@@ -221,9 +201,10 @@ public abstract class ConnectController : MainController
 
 		if (recive.error.Length>0)
 		{
+			Debug.Log("пришла ошибка");
 			StartCoroutine(LoadRegister("Ошибка сервера:" + recive.error));
 		}
-		else if (!exit && (!pause || recive.action == "load/index")) // обновляем мир только если в не выходим из игры и не перезагружаем мир (занмиает какое то время)
+		else 
 		{
 			Debug.Log("Обрабатываем данные");
 
@@ -372,9 +353,6 @@ public abstract class ConnectController : MainController
 					}
 				}
 			}
-
-			if (recive.action == "load/index")
-				pause = false;
 		}
 	}
 
@@ -407,7 +385,6 @@ public abstract class ConnectController : MainController
 		}
 	}
 
-
 	/// <summary>
 	/// Страница ошибок - загрузка страницы входа
 	/// </summary>
@@ -416,21 +393,17 @@ public abstract class ConnectController : MainController
 	{
 		Debug.LogError(error);
 
-		if (exit)
+		if (connect == null)
 		{
 			Debug.LogWarning("уже закрываем игру ("+ error + ")");
 			yield break;
 		}
-
-		exit = true;
-		pause = true;
-
-		if (connect != null)
-		{
-			connect.error = "";
+        else
+        {
 			connect.Close();
+			connect = null;
 		}
-
+			
 		if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 		{
 			//SceneManager.UnloadScene("MainScene");
