@@ -34,10 +34,10 @@ public class PlayerController : ConnectController
         variableJoystick.SnapX = true;
         variableJoystick.SnapY = true;
 
-        #if UNITY_EDITOR
-                Debug.unityLogger.logEnabled = true;
+        #if UNITY_EDITOR || DEVELOPMENT_BUILD
+            Debug.unityLogger.logEnabled = true;
         #else
-                Debug.unityLogger.logEnabled = false;
+            Debug.unityLogger.logEnabled = false;
         #endif
     }
 

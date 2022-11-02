@@ -43,9 +43,9 @@ public class Websocket
 	private CommandModel commands = new CommandModel();
 
 
-	public Websocket(int map_id, float command_pause)
+	public Websocket(string server, int port, int map_id, float command_pause)
 	{
-		Debug.Log("Соединяемся с сервером "+ MainController.SERVER);
+		Debug.Log("Соединяемся с сервером "+ server);
 
 		if (this.ws != null && (this.ws.ReadyState == WebSocketSharp.WebSocketState.Open || this.ws.ReadyState == WebSocketSharp.WebSocketState.Closing))
 		{
@@ -55,7 +55,7 @@ public class Websocket
 
 		try
 		{
-			ws = new WebSocket("ws://"+MainController.SERVER+":"+(MainController.PORT + map_id));
+			ws = new WebSocket("ws://"+ server + ":"+(port + map_id));
 			ws.OnOpen += (sender, ev) =>
 			{
 				Debug.Log("Соединение с севрером установлено");
@@ -79,7 +79,13 @@ public class Websocket
 					{
 						Recive recive = JsonConvert.DeserializeObject<Recive>(text);
 
-						if (recive.action == "load/index") 
+						if (recive.error.Length > 0)
+						{
+							error = recive.error;
+							pause = true;
+						}
+
+						if (error.Length==0 && recive.action == "load/index") 
 							pause = false;
 						else 
 							if (pause) return;
@@ -129,7 +135,7 @@ public class Websocket
 		}
 		catch (Exception ex)
 		{
-			error = "Ошибка соединения " + ex.Message;
+			error = "Ошибка октрытия соединения " + ex.Message;
 		}
 	}	
 	
@@ -165,7 +171,7 @@ public class Websocket
 			if (commands.timeouts.ContainsKey(data.group()))
 			{
 				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
-				if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(command_pause), DateTime.Now) < 0)
+				if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(Math.Min(commands.timeouts[data.group()].timeout, command_pause)), DateTime.Now) < 0)
                 {
 					long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 

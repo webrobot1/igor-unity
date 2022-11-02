@@ -2,8 +2,8 @@ using UnityEngine;
 
 public class MainController : MonoBehaviour
 {
-    public const string SERVER = "185.117.153.89";        //185.117.153.89
-    public const int PORT = 8080;
+    protected const string SERVER = "185.117.153.89";      
+    protected const int PORT = 8080;
 
 
 #if UNITY_WEBGL && !UNITY_EDITOR
