@@ -26,10 +26,10 @@ var LibraryWebSocket = {
 		Log: function(json){
 			if (webSocketState.debug)
 			{
-				if(webSocketState.debug.querySelector('#debug').value.length > 500)
-					webSocketState.debug.querySelector('#debug').value = json;
+				if(document.querySelector("#debug").value.length > 2000)
+					document.querySelector("#debug").value = json;
 				else
-					webSocketState.debug.querySelector('#debug').value = json + "\n" + webSocketState.debug.querySelector('#debug').value;
+					document.querySelector("#debug").value = json + "\n" + document.querySelector("#debug").value;
 			}
 		}, 
 
@@ -96,7 +96,7 @@ var LibraryWebSocket = {
 	 */
 	WebSocketAllocate: function(url) {
 
-		var urlStr = Pointer_stringify(url);
+		var urlStr = UTF8ToString(url);
 		var id = webSocketState.lastId++;
 
 		webSocketState.instances[id] = {
@@ -274,7 +274,7 @@ var LibraryWebSocket = {
 		if (instance.ws.readyState === 3)
 			return -5;
 
-		var reason = ( reasonPtr ? Pointer_stringify(reasonPtr) : undefined );
+		var reason = ( reasonPtr ? UTF8ToString(reasonPtr) : undefined );
 		
 		try {
 			instance.ws.close(code, reason);

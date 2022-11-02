@@ -46,7 +46,7 @@ public class RegisterController : MainController
                 Debug.Log("Ответ авторизации: "+ text);
                 SiginRecive recive = JsonConvert.DeserializeObject<SiginRecive>(text);
 
-                if (recive.error != null)
+                if (recive.error.Length>0)
                     Error("Ошибка авторизации: " + recive.error);
                 else
                     StartCoroutine(LoadMain(recive));
@@ -71,6 +71,21 @@ public class RegisterController : MainController
     {
         Debug.Log("Загрузка главной сцены");
 
+        if (data.id == 0)
+            Error("не указан player_id");
+
+        if (data.map_id == 0)
+            Error("не указан map_id");
+
+        if (data.token == null)
+            Error("не указан token");
+
+        if (data.map == null)
+            Error("не указан map");
+
+        if (data.time <= 0)
+            Error("не указан time");
+
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
         // asyncLoad.allowSceneActivation = false;
 
@@ -79,19 +94,6 @@ public class RegisterController : MainController
         {
             yield return null;
         }
-
-        if (data.id == 0 )
-            Error("не указан player_id");    
-        
-        if (data.token == null)
-            Error("не указан token");        
-        
-        if (data.map == null)
-            Error("не указан map");
-        
-        if (data.time <=0 )
-            Error("не указан time");
-
 
         SceneManager.UnloadScene("RegisterScene");
         Camera.main.GetComponent<PlayerController>().SetPlayer(data);

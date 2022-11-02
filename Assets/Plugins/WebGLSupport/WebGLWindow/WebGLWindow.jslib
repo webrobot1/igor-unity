@@ -63,15 +63,15 @@ var WebGLWindow = {
                         var height = Math.floor(beforeHeight * ratio);
 
                         canvas.style.width = width + 'px';
-                        canvas.style.height = height + 'px';;
+                        canvas.style.height = height + 'px';
                     } else {
-                        canvas.style.width = window.screen.width + 'px';;
-                        canvas.style.height = window.screen.height + 'px';;
+                        canvas.style.width = window.screen.width + 'px';
+                        canvas.style.height = window.screen.height + 'px';
                     }
 
                 } else {
-					canvas.style.width = beforeWidth + 'px';;
-                    canvas.style.height = beforeHeight + 'px';;
+					canvas.style.width = beforeWidth + 'px';
+                    canvas.style.height = beforeHeight + 'px';
                     beforeParent.insertBefore(canvas, Array.from(beforeParent.children)[index]);
 
                     div.parentNode.removeChild(div);

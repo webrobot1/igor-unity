@@ -92,7 +92,7 @@ public abstract class ConnectController : MainController
 
 		Debug.Log("FixedTime = " + data.time);
 
-		connect = new Websocket(SERVER, PORT, data.map_id, data.command_pause);
+		connect = new Websocket(SERVER, PORT, data.map_id);
 
 		// настройки size камеры менять бессмысленно тк есть PixelPerfect
 		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским

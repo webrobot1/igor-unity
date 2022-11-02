@@ -42,10 +42,18 @@ public class Websocket
 	/// </summary>
 	private CommandModel commands = new CommandModel();
 
-
-	public Websocket(string server, int port, int map_id, float command_pause)
+	/// <summary>
+	/// Открытие TCP соединения
+	/// </summary>
+	/// <param name="command_pause">Пауза в секундах между командами для предотвращения даблкликов</param>
+	public Websocket(string server, int port, int map_id, float command_pause = 0.15f)
 	{
+		string address = "ws://" + server + ":" + (port + map_id);
+		
 		Debug.Log("Соединяемся с сервером "+ server);
+
+		// добавим единсвенную пока доступную команду на отправку данных
+		commands.timeouts["load"] = new TimeoutRecive();
 
 		if (this.ws != null && (this.ws.ReadyState == WebSocketSharp.WebSocketState.Open || this.ws.ReadyState == WebSocketSharp.WebSocketState.Closing))
 		{
@@ -55,14 +63,10 @@ public class Websocket
 
 		try
 		{
-			ws = new WebSocket("ws://"+ server + ":"+(port + map_id));
+			ws = new WebSocket(address);
 			ws.OnOpen += (sender, ev) =>
 			{
 				Debug.Log("Соединение с севрером установлено");
-
-				// добавим единсвенную пока доступную команду на отправку данных
-				commands.timeouts["load"] = new TimeoutRecive();
-
 			};
 			ws.OnClose += (sender, ev) =>
 			{

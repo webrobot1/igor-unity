@@ -7,7 +7,6 @@ public class SiginRecive
 	public int id;
 	public int map_id;
 	public string token;
-	public float command_pause;
 
 	/// <summary>
 	/// чему равен fixedDeltaTime (как часто FixedUpdate() происходит)
@@ -15,5 +14,5 @@ public class SiginRecive
 	public float time;
 	public string map;
 
-	public string error;
+	public string error = "";
 }
