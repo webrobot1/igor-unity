@@ -170,8 +170,7 @@ public class Websocket
 	public void Send(Response data)
 	{
 		if (error.Length == 0)
-		{
-			
+		{		
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
 			if (!pause || (data.action == "load/index" && !load))
 			{
