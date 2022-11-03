@@ -57,7 +57,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// список ошибок (в разном порядке могут прийти Закрытие соединение и...реальная причина)
 	/// </summary>
-	private List<string> errors = new List<string>();
+	private static List<string> errors = new List<string>();
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -113,7 +113,7 @@ public abstract class ConnectController : MainController
 		for (int i = 0; i < grid.transform.parent.childCount; i++)
 		{
 			if (grid.transform.parent.GetChild(i).gameObject.GetInstanceID() != grid.GetInstanceID())
-				Destroy(grid.transform.parent.GetChild(i).gameObject);
+				DestroyImmediate(grid.transform.parent.GetChild(i).gameObject);
 		}
 
         // приведем координаты в сответсвие с сеткой Unity
@@ -190,10 +190,10 @@ public abstract class ConnectController : MainController
 				
 			case "load/index":
 
-				// имено тут если делать там же где и расставляем объекты будут ...закешированы (те будут находится по поиску по имени)
+				// удаляет не сразу а на следующем кадре
 				for (int i = 0; i < world.transform.childCount; i++)
 				{
-					Destroy(world.transform.GetChild(i).gameObject);
+					DestroyImmediate(world.transform.GetChild(i).gameObject);
 				}
 				Debug.Log("перезагрузка мира");
 
@@ -364,7 +364,7 @@ public abstract class ConnectController : MainController
 		form.AddField("token", this.token);
 		form.AddBinaryData("screen", bytes);
 
-		UnityWebRequest request = UnityWebRequest.Post("http://my-fantasy.ru/game/signin/screen", form);
+		UnityWebRequest request = UnityWebRequest.Post("http://"+SERVER+"/game/signin/screen", form);
 
 		yield return request.SendWebRequest();
 

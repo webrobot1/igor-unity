@@ -45,7 +45,7 @@ public class ObjectModel : MonoBehaviour
 		// пришла команды удаления с карты объекта
 		if(data.action == "remove")
         {
-			Destroy(gameObject);
+			DestroyImmediate(gameObject);
 			return;
 		}
 

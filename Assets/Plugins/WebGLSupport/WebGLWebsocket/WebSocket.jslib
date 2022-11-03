@@ -302,13 +302,12 @@ var LibraryWebSocket = {
 		if (instance.ws === null)
 			return -3;
 
+		let message = HEAPU8.buffer.slice(bufferPtr, bufferPtr + length);
 		if (webSocketState.debug)
 		{	
 			let event = new Date();
-			webSocketState.Log(event.toLocaleTimeString('ru-RU')+":"+event.getMilliseconds()+"\t-> " + bufferPtr);
+			webSocketState.Log(event.toLocaleTimeString('ru-RU')+":"+event.getMilliseconds()+"\t-> " + new TextDecoder("utf-8").decode(message));
 		}
-		
-		let message = HEAPU8.buffer.slice(bufferPtr, bufferPtr + length);
 		
 		if (instance.ws.readyState !== 1)
 		{
