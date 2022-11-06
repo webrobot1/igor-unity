@@ -253,7 +253,7 @@ public class Websocket
 	}
 
 	public void Put(string json) 
-	{	
+	{
 		byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 		ws.Send(sendBytes);
 	}

@@ -57,7 +57,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// список ошибок (в разном порядке могут прийти Закрытие соединение и...реальная причина)
 	/// </summary>
-	private static List<string> errors = new List<string>();
+	public static List<string> errors = new List<string>();
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR

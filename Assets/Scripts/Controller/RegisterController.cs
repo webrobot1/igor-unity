@@ -63,6 +63,7 @@ public class RegisterController : MainController
     public void Error(string error)
     {
         Debug.LogError(error);
+        ConnectController.errors.Clear();
         GameObject.Find("error").GetComponent<Text>().text = error;
     }
 
