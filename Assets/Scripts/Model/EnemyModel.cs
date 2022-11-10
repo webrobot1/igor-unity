@@ -70,12 +70,12 @@ public class EnemyModel : ObjectModel
 			distancePerUpdate = this.speed * Time.fixedDeltaTime;
 		}
 
-		if (this.id != 0 && data.position!=null && data.position.Length>0)
+		if (this.id != 0 && data.position!=null)
 		{
 			if (moveCoroutine != null)
 				StopCoroutine(moveCoroutine);
 
-			Vector2 moveTo = new Vector2(data.position[0], data.position[1]);
+			Vector2 moveTo = new Vector2(data.position.x, data.position.y);
 
 			// todo пока 1 шаг - 1 единици позиции  и если больше - это не ходьба а телепорт. в будушем может быть меньше 1 единицы
 			// если отставание от текущей позиции больше чем полтора шага телепортнем (а може это и есть телепорт)

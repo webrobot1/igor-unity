@@ -6,10 +6,13 @@ using UnityEngine;
 public class ObjectModel : MonoBehaviour
 {
 	protected int id;
-	protected string prefab;
-
-	protected string action = "idle";
+	protected string key;
 	protected int map_id;
+	protected DateTime created;
+
+	protected string prefab;
+	protected string action = "idle";
+
 	protected Animator anim = null;
 	private SpriteRenderer sprite = null;
 	private static Dictionary<string, bool> trigers;
@@ -57,9 +60,9 @@ public class ObjectModel : MonoBehaviour
 			GetComponentInChildren<Canvas>().sortingOrder = (int)data.sort + (int)ConnectController.spawn_sort + 1;
 		}
 
-		if (data.position != null && data.position.Length > 0 && this.id == 0)
+		if (data.position != null && this.id == 0)
 		{	
-			transform.position = new Vector3(data.position[0], data.position[1], 1f);
+			transform.position = new Vector3(data.position.x, data.position.y, 1f);
 		}
 
 		if (this.id == 0)
