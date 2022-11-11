@@ -49,16 +49,16 @@ public class EnemyModel : ObjectModel
 	{
 		activeLast = DateTime.Now;
 
-		if (data.hpMax>0)
-			lifeBar.hpMax = data.hpMax;
+		if (data.life.hpMax >0)
+			lifeBar.hpMax = data.life.hpMax;
 
 		// ниже сравниваем c null тк может быть значение 0 которое надо обработать
 		if (data.mpMax > 0)
 			lifeBar.mpMax = (int)data.mpMax;
 
-		if(data.hp !=null)
+		if(data.life.hp !=null)
 		{ 
-			lifeBar.hp = (int)data.hp;
+			lifeBar.hp = (int)data.life.hp;
 		}
 
 		if (data.mp !=null)

@@ -63,7 +63,7 @@ public class RegisterController : MainController
     public void Error(string error)
     {
         Debug.LogError(error);
-        ConnectController.errors.Clear();
+        Websocket.errors.Clear();
         GameObject.Find("error").GetComponent<Text>().text = error;
     }
 
@@ -83,9 +83,6 @@ public class RegisterController : MainController
 
         if (data.map == null)
             Error("не указан map");
-
-        if (data.time <= 0)
-            Error("не указан time");
 
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
         // asyncLoad.allowSceneActivation = false;

@@ -52,12 +52,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// на каком уровне слоя размещать новых персонажей и npc и на каком следит камера
 	/// </summary>
-	public static int? spawn_sort = null;	
-	
-	/// <summary>
-	/// список ошибок (в разном порядке могут прийти Закрытие соединение и...реальная причина)
-	/// </summary>
-	public static List<string> errors = new List<string>();
+	public static int? spawn_sort = null;
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -85,17 +80,14 @@ public abstract class ConnectController : MainController
 	}
 #endif
 
-	/// <summary>
-	/// Звпускается после авторизации - заполяет id и token 
-	/// </summary>
-	/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-	public void SetPlayer(SiginRecive data)
+    /// <summary>
+    /// Звпускается после авторизации - заполяет id и token 
+    /// </summary>
+    /// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
+    public void SetPlayer(SiginRecive data)
 	{
 		id = data.id;
 		this.token = data.token;
-		Time.fixedDeltaTime = data.time;
-
-		Debug.Log("FixedTime = " + data.time);
 
 		connect = new Websocket(SERVER, data.port);
 
@@ -123,7 +115,8 @@ public abstract class ConnectController : MainController
 		}
 		catch (Exception ex)
 		{
-			StartCoroutine(LoadRegister("Ошибка разбора карты " + ex.Message));
+			Websocket.errors.Add("Ошибка разбора карты " + ex.Message);
+			StartCoroutine(LoadRegister());
 		}
 	}
 
@@ -147,8 +140,8 @@ public abstract class ConnectController : MainController
 	{
 		if (connect == null)
 			return;
-		else if(connect.error.Length > 0)
-			StartCoroutine(LoadRegister(connect.error));
+		else if(Websocket.errors.Count > 0)
+			StartCoroutine(LoadRegister());
 		else if (connect.pause)
 			Debug.Log("Пауза");
 		else if (spawn_sort != null)  // обрабатываем пакеты если уже загрузился карта
@@ -165,7 +158,8 @@ public abstract class ConnectController : MainController
 					}
 					catch (Exception ex)
 					{
-						StartCoroutine(LoadRegister("Ошибка разбора входящих данных, " + ex.Message));
+						Websocket.errors.Add("Ошибка разбора входящих данных, " + ex.Message);
+						StartCoroutine(LoadRegister());
 						break;
 					}
 				}
@@ -252,7 +246,8 @@ public abstract class ConnectController : MainController
 				}
 				catch (Exception ex)
 				{
-					StartCoroutine(LoadRegister("Не удалось загрузить игрока " + name + " :" + ex));
+					Websocket.errors.Add("Не удалось загрузить игрока " + name + " :" + ex);
+					StartCoroutine(LoadRegister());
 				}
 			}
 		}
@@ -298,7 +293,8 @@ public abstract class ConnectController : MainController
 				}
 				catch (Exception ex)
 				{
-					StartCoroutine(LoadRegister("Не удалось загрузить NPC " + name + " :" + ex));
+					Websocket.errors.Add("Не удалось загрузить врага " + name + " :" + ex);
+					StartCoroutine(LoadRegister());
 				}
 			}
 		}
@@ -343,7 +339,8 @@ public abstract class ConnectController : MainController
 				}
 				catch (Exception ex)
 				{
-					StartCoroutine(LoadRegister("Не удалось загрузить объект " + name + ": " + ex));
+					Websocket.errors.Add("Не удалось загрузить объект " + name + ": " + ex);
+					StartCoroutine(LoadRegister());
 				}
 			}
 		}
@@ -382,15 +379,11 @@ public abstract class ConnectController : MainController
 	/// Страница ошибок - загрузка страницы входа
 	/// </summary>
 	/// <param name="error">сама ошибка</param>
-	private IEnumerator LoadRegister(string error)
+	private IEnumerator LoadRegister()
 	{
-		Debug.LogError(error);
-
-		errors.Add(error);
-
 		if (connect == null)
 		{
-			Debug.LogWarning("уже закрываем игру ("+ error + ")");
+			Debug.LogWarning("уже закрываем игру");
 			yield break;
 		}
         else
@@ -412,7 +405,7 @@ public abstract class ConnectController : MainController
 		}
 	
 		SceneManager.UnloadScene("MainScene");
-		Camera.main.GetComponent<RegisterController>().Error(String.Join(", ", errors));
+		Camera.main.GetComponent<RegisterController>().Error(String.Join(", ", Websocket.errors));
 	}
 
 

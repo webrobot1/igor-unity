@@ -31,4 +31,9 @@ public class Response
     {
         return action.Split("/")[0];
     }
+
+    public string method()
+    {
+        return action.Split("/")[1];
+    }
 }

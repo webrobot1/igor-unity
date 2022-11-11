@@ -238,8 +238,6 @@ var LibraryWebSocket = {
 			{
 				webSocketState.debug.setAttribute("disabled", "disabled");
 				document.querySelector("#map_id").value = '';
-				document.querySelector("#perfomance").innerHTML = 'войдите в игру';
-
 				webSocketState.Log("Closed");
 			}
 
