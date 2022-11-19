@@ -3,5 +3,7 @@
 /// </summary>
 public class MoveResponse : Response
 {   
-    public string to;
+    public float x;
+    public float y;
+    public float z;
 }

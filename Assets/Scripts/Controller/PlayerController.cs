@@ -22,7 +22,7 @@ public class PlayerController : ConnectController
     /// </summary>
     private double vertical;
 
-    private Vector2 moveTo = Vector2.zero;
+    private Vector3 moveTo = Vector3.zero;
 
     private void Start()
     {
@@ -46,7 +46,7 @@ public class PlayerController : ConnectController
         // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
         if (Input.GetMouseButtonDown(0))
         {
-            moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+            moveTo = Vector3Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
             Debug.Log(moveTo);
         }
     }
@@ -69,7 +69,7 @@ public class PlayerController : ConnectController
                     ||
                 (horizontal = variableJoystick.Horizontal) != 0 
                     || 
-                moveTo != Vector2.zero
+                moveTo != Vector3.zero
             ) 
             {
                 
@@ -94,13 +94,15 @@ public class PlayerController : ConnectController
                         response.action = "move/left";
                     }
                 }
-                else if (Vector2.Distance(player.transform.position, moveTo) >= 1)
+                else if (Vector3.Distance(player.transform.position, moveTo) >= 1)
                 {
                     response.action = "move/to";
-                    response.to = moveTo.x.ToString() + ',' + moveTo.y.ToString();
+                    response.x = moveTo.x;
+                    response.y = moveTo.y;
+                    response.z = moveTo.z;
 
                     // очищаем переменную после того как команда отправлена (дальше сам пойдет)
-                    moveTo = Vector2.zero;
+                    moveTo = Vector3.zero;
                 }
                 else
                 {

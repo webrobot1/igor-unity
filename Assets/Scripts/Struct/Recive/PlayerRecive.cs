@@ -1,5 +1,5 @@
-
 using System.Collections.Generic;
+
 /// <summary>
 /// Структура полученных данных - игрок
 /// </summary>
@@ -7,5 +7,6 @@ using System.Collections.Generic;
 public class PlayerRecive : EnemyRecive
 {
 	public string login;
+
 }
 

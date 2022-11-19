@@ -60,9 +60,9 @@ public class ObjectModel : MonoBehaviour
 			GetComponentInChildren<Canvas>().sortingOrder = (int)data.sort + (int)ConnectController.spawn_sort + 1;
 		}
 
-		if (data.position != null && this.id == 0)
+		if (this.id == 0 && data.x!=null && data.y != null && data.z != null)
 		{	
-			transform.position = new Vector3(data.position.x, data.position.y, 1f);
+			transform.position = new Vector3((float)data.x, (float)data.y, (float)data.z);
 		}
 
 		if (this.id == 0)

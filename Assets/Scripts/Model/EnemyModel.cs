@@ -49,37 +49,44 @@ public class EnemyModel : ObjectModel
 	{
 		activeLast = DateTime.Now;
 
-		if (data.life.hpMax >0)
-			lifeBar.hpMax = data.life.hpMax;
+        if (data.components != null) 
+		{
+			if (data.components.hp != null)
+			{
+				lifeBar.hp = (int)data.components.hp;
+			}
+			if (data.components.hpMax != null)
+				lifeBar.hpMax = (int)data.components.hpMax;
 
-		// ниже сравниваем c null тк может быть значение 0 которое надо обработать
-		if (data.mpMax > 0)
-			lifeBar.mpMax = (int)data.mpMax;
 
-		if(data.life.hp !=null)
-		{ 
-			lifeBar.hp = (int)data.life.hp;
+			if (data.components.mp != null)
+				lifeBar.mp = (int)data.components.mp;
+
+			// ниже сравниваем c null тк может быть значение 0 которое надо обработать
+			if (data.components.mpMax != null)
+				lifeBar.mpMax = (int)data.components.mpMax;
 		}
 
-		if (data.mp !=null)
-			lifeBar.mp = (int)data.mp;
 
 		// тут если speed=0 значит ничего не пришло
 		if (data.speed > 0) { 
 			this.speed = data.speed;
+
+
+			// переделать.  
 			distancePerUpdate = this.speed * Time.fixedDeltaTime;
 		}
 
-		if (this.id != 0 && data.position!=null)
+		if (this.id != 0 && (data.x !=null || data.y != null || data.z != null))
 		{
 			if (moveCoroutine != null)
 				StopCoroutine(moveCoroutine);
 
-			Vector2 moveTo = new Vector2(data.position.x, data.position.y);
+			Vector3 moveTo = new Vector3((float)(data.x!=null?data.x:transform.position.x), (float)(data.y != null ? data.y : transform.position.y), (float)(data.z != null ? data.z : transform.position.z));
 
 			// todo пока 1 шаг - 1 единици позиции  и если больше - это не ходьба а телепорт. в будушем может быть меньше 1 единицы
 			// если отставание от текущей позиции больше чем полтора шага телепортнем (а може это и есть телепорт)
-			if (Vector2.Distance(moveTo, transform.position) <= 1.5)
+			if (Vector3.Distance(moveTo, transform.position) <= 1.5)
 				moveCoroutine = StartCoroutine(Move(moveTo));
 			else
 				transform.position = moveTo;
@@ -89,20 +96,20 @@ public class EnemyModel : ObjectModel
 	}
 
 	/// <summary>
-	/// анимация движения NPC или игрока к точки с учетом х-ки их скорости
+	/// анимация движения NPC или игрока. скорость равна времени паузы между командами
 	/// </summary>
 	/// <param name="position">куда движемя</param>
-	private IEnumerator Move(Vector2 position)
+	private IEnumerator Move(Vector3 position)
 	{
 		float distance;
 
-		while ((distance = Vector2.Distance(transform.position, position)) > 0)
+		while ((distance = Vector3.Distance(transform.position, position)) > 0)
 		{
 			// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 			// в ином случае - дистанцию с учетом скорости проходим целиком
 
-			transform.position = Vector2.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
-			transform.position = new Vector3(transform.position.x, transform.position.y, 1f);
+			transform.position = Vector3.MoveTowards(transform.position, position, (distance<distancePerUpdate? distance: distancePerUpdate));
+			transform.position = new Vector3(transform.position.x, transform.position.y, transform.position.z);
 
 			yield return new WaitForFixedUpdate();
 		}

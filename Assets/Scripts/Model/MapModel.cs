@@ -132,7 +132,7 @@ public class MapModel
 
 			// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля, а следующий - тот на котром надо генеирить игроков и npc)
 			// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
-			if (layer.ground == 1)
+			if (layer.isGround == 1)
 			{
 				Debug.Log(layer.name + "- слой Земля");
 				newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
@@ -142,7 +142,7 @@ public class MapModel
 				camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 			}
 
-			if (layer.spawn == 1)
+			if (layer.isSpawn == 1)
 			{
 				//  текущий слой на котором будем ставить игроков		
 				spawn_sort = sort;

@@ -15,11 +15,12 @@ public class Layer
 	public string name;
 	public int visible = 1;
 	public float opacity = 1;
-	public int ground = 0;
-	public int spawn = 0;
+	public int isGround = 0;
+	public int isSpawn = 0;
 
 	public float offsetx;
 	public float offsety;
+	public float offsetz;
 
 	public string resource;
 

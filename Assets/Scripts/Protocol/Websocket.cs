@@ -209,7 +209,7 @@ public class Websocket
 									float last = (float)(command_id - kvp) / 1000;
 									if (last > wait)
 									{
-										Debug.LogError("Слишком должго ждали ответа команды " + kvp + ": " + last);
+										Debug.LogError(DateTime.Now.Millisecond + "Слишком должго ждали ответа команды " + kvp + ": " + last);
 										commands.timeouts[data.group()].requests.Remove(kvp);
 									}
 								}

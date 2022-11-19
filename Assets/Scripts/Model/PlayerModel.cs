@@ -20,13 +20,13 @@ public class PlayerModel : EnemyModel
 		}
 
 		// преращение в празирака
-		if (data.life.hp != null)
+		if (data.components!=null && data.components.hp != null)
 		{
-			if (lifeBar.hp == 0 && data.life.hp > 0)
+			if (lifeBar.hp == 0 && data.components.hp > 0)
 			{
 				render.color = new Color(render.color.r, render.color.g, render.color.b, 1f); // (r,g,b,a); последний параметр прозрачность. От 0 до 1.
 			}
-			else if (data.life.hp == 0)
+			else if (data.components.hp == 0)
 			{
 				render.color = new Color(render.color.r, render.color.g, render.color.b, 0.5f);
 			}
