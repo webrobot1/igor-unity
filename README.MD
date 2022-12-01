@@ -2,7 +2,7 @@
 
 Общее описание папок:
 
-	Assets\Plugins						- плагины для работы с Unity с: фокусом WebGl, страницы отладки [API](http://my-fantasy.ru/api), websocket в тч webgl и др описанные в этой папке отдельно
+	Assets\Plugins						- плагины для работы с Unity с: фокусом WebGl, страницы отладки на странцие http://my-fantasy.ru/api, websocket в тч webgl и др описанные в этой папке отдельно
 	Assets\Resources					- папка с графикой и префабами (пока у сервера нет функционала загрузки и работы с графикой и анимацией что бы хранить ее на сервере)
 	Assets\Scenes						- содержит сцену входа/регистрации и сцену игры. тк все даныне карт и инфомрация о объектах содержится на сервере - то сцена пуста, ее заполняет Assets\Scripts\Controller\ConnectController
 	Assets\Scripts\Controller           - игровые классы 
