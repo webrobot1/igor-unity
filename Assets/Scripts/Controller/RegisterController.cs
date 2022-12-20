@@ -34,7 +34,10 @@ public class RegisterController : MainController
         formData.AddField("login", login.text);
         formData.AddField("password", password.text);
 
-        UnityWebRequest request = UnityWebRequest.Post("http://"+SERVER+"/server/signin/" + action, formData);
+        string url = "http://" + SERVER + "/server/signin/" + action;
+        Debug.Log("соединяемся с " + url);
+
+        UnityWebRequest request = UnityWebRequest.Post(url, formData);
 
         yield return request.SendWebRequest();
 

@@ -117,7 +117,6 @@ public class MapModel
 			if (layer.opacity < 1f)
 			{
 				Renderer[] mRenderers = newLayer.GetComponentsInChildren<Renderer>();
-				Debug.Log(mRenderers.Length);
 				for (int i = 0; i < mRenderers.Length; i++)
 				{
 					for (int j = 0; j < mRenderers[i].materials.Length; j++)

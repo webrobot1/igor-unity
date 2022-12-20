@@ -27,7 +27,10 @@ namespace WebGLWebsocket
         public static extern int WebSocketSend(int instanceId, byte[] dataPtr, int dataLength);
 
         [DllImport("__Internal")]
-        public static extern int WebSocketGetState(int instanceId);
+        public static extern int WebSocketGetState(int instanceId);       
+        
+        [DllImport("__Internal")]
+        public static extern void WebsocketSetCredentials(int instanceId, string login, string password, bool preAuth);
 
         /* объявим структуру функций которые будут вызываться из JS */
         public delegate void OnOpenCallback(int instanceId);
@@ -78,6 +81,11 @@ namespace WebGLWebsocket
         public WebSocket(string url)
         {
             this.instanceId = WebSocketAllocate(url);
+        }
+
+        public void SetCredentials(string login, string password, bool preAuth = false)
+        {
+            WebsocketSetCredentials(instanceId, login, password, preAuth);
         }
 
         // todo если понадобиться первый аргумент то надо вернуть вариент с instance_id

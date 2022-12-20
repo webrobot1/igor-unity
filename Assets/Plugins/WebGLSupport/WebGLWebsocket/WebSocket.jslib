@@ -54,7 +54,7 @@ var LibraryWebSocket = {
 	WebSocketSetOnOpen: function(instanceId, callback) {
 
 		webSocketState.onOpen = callback;
-	},
+	},	
 
 	/**
 	 * Set onMessage callback
@@ -101,7 +101,9 @@ var LibraryWebSocket = {
 
 		webSocketState.instances[id] = {
 			url: urlStr,
-			ws: null
+			ws: null,
+			login: null,
+			password: null
 		};
 
 		return id;
@@ -132,6 +134,12 @@ var LibraryWebSocket = {
 		return 0;
 
 	},
+	
+	WebsocketSetCredentials: function(instanceId, login, password, preAuth) 
+	{
+		webSocketState.instances[instanceId].login = UTF8ToString(login);
+		webSocketState.instances[instanceId].password = UTF8ToString(password);
+	},
 
 	/**
 	 * Connect WebSocket to the server
@@ -146,8 +154,12 @@ var LibraryWebSocket = {
 		if (instance.ws !== null)
 			return -2;
 
-		instance.ws = new WebSocket(instance.url);
+		let url = instance.url;
+		
+		if(instance.login!==null && instance.password!==null)
+			url += '/?HTTP_AUTHORIZATION='+btoa(instance.login+':'+instance.password);
 
+		instance.ws = new WebSocket(url);
 		instance.ws.binaryType = 'arraybuffer';
 
 		instance.ws.onopen = function() 

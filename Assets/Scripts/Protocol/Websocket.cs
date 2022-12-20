@@ -23,11 +23,6 @@ public class Websocket
 	public bool pause = true;	
 	
 	/// <summary>
-	/// true - перезагружаем мир
-	/// </summary>
-	private bool load = false;
-
-	/// <summary>
 	/// список ошибок (в разном порядке могут прийти Закрытие соединение и...реальная причина)
 	/// </summary>
 	public static List<string> errors = new List<string>();
@@ -51,7 +46,7 @@ public class Websocket
 	/// Открытие TCP соединения
 	/// </summary>
 	/// <param name="command_pause">Пауза в секундах между командами для предотвращения даблкликов</param>
-	public Websocket(string server, int port, float command_pause = 0.15f)
+	public Websocket(string server, int port, int player_id, string token, float command_pause = 0.15f)
 	{
 		string address = "ws://" + server + ":" + port;
 		
@@ -71,6 +66,7 @@ public class Websocket
 		try
 		{
 			ws = new WebSocket(address);
+			ws.SetCredentials(""+player_id+"", token, true);
 
 			ws.OnOpen += (sender, ev) =>
 			{
@@ -97,9 +93,8 @@ public class Websocket
 							pause = true;
 						}
 
-						if (errors.Count == 0 && recive.action == "load/index" && !load) 
+						if (errors.Count == 0 && recive.action == "load/index") 
 						{  
-							load = false;
 							pause = false;
 						}
 						else 
@@ -173,7 +168,7 @@ public class Websocket
 		if (errors.Count == 0)
 		{		
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (!pause || (data.action == "load/index" && !load))
+			if (!pause || data.action == "load/index")
 			{
 				if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
 				{

@@ -27,7 +27,7 @@ public abstract class ConnectController : MainController
 	/// <summary>
 	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
 	/// </summary>
-	private int? id = null;
+	private int id;
 
 	/// <summary>
 	/// Токен , требуется при первом конекте для Tcp и Ws, и постоянно при Udp
@@ -89,7 +89,7 @@ public abstract class ConnectController : MainController
 		id = data.id;
 		this.token = data.token;
 
-		connect = new Websocket(SERVER, data.port);
+		connect = new Websocket(WEBSOCKET_SERVER, data.port, id, this.token);
 
 		// настройки size камеры менять бессмысленно тк есть PixelPerfect
 		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
@@ -110,7 +110,6 @@ public abstract class ConnectController : MainController
 
         // приведем координаты в сответсвие с сеткой Unity
         try {
-			Load(data.token);
 			spawn_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
 		}
 		catch (Exception ex)
@@ -121,14 +120,12 @@ public abstract class ConnectController : MainController
 	}
 
 	// если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
-	private void Load(string token = "")
+	private void Load()
     {
 		if (connect == null) return;
 
 		SigninResponse response = new SigninResponse();
 		response.action = "load/index";
-		if(token.Length>0)
-			response.token = token;
 
 		connect.Send(response);
 	}
