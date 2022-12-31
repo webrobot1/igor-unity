@@ -168,7 +168,7 @@ public class Websocket
 		if (errors.Count == 0)
 		{		
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (!pause || data.action == "load/index")
+			if (!pause)
 			{
 				if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
 				{

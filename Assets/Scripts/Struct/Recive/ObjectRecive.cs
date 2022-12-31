@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 /// <summary>
@@ -18,6 +19,9 @@ public class ObjectRecive
 
 	public string action;
 	public int? sort = null;
+
+
+	public DateTime created = DateTime.Now;
 
 	public ComponentsRecive components;
 	public ParametersRecive parameters;

@@ -196,34 +196,33 @@ public abstract class ConnectController : MainController
 		if (recive.players != null)
 		{
 			Debug.Log("Обновляем игроков");
-			foreach (PlayerRecive player in recive.players)
+			foreach (KeyValuePair<string, PlayerRecive> player in recive.players)
 			{
-				string name = "player_" + player.id;
-				GameObject prefab = GameObject.Find(name);
+				GameObject prefab = GameObject.Find(player.Key);
 
 				// если игрока нет на сцене
 				if (prefab == null)
 				{
 					// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
-					if (player.prefab == null || player.prefab.Length == 0)
+					if (player.Value.prefab == null || player.Value.prefab.Length == 0)
 					{
 						continue;
 					}
 
-					Debug.Log("Создаем " + player.prefab + " " + name);
+					Debug.Log("Создаем " + player.Value.prefab + " " + player.Key);
 
-					UnityEngine.Object? ob = Resources.Load("Prefabs/Players/" + player.prefab, typeof(GameObject));
+					UnityEngine.Object? ob = Resources.Load("Prefabs/Players/" + player.Value.prefab, typeof(GameObject));
 
 					if (ob == null)
 						ob = Resources.Load("Prefabs/Players/Empty", typeof(GameObject));
 
 					prefab = Instantiate(ob) as GameObject;
-					prefab.name = name;
+					prefab.name = player.Key;
 					prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
 					prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 					prefab.transform.SetParent(world.transform, false);
 				
-					if (player.id == id)
+					if (player.Value.id == id)
 					{
 						//transform.SetParent(prefab.transform);
 						//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
@@ -232,18 +231,18 @@ public abstract class ConnectController : MainController
 
 						// если у нас webgl првоерим не а дминке ли мы с API отладкой
 #if UNITY_WEBGL && !UNITY_EDITOR
-							WebGLDebug.Check(this.token, player.map_id);
+							WebGLDebug.Check(player.Value.map_id);
 #endif
 					}
 				}
 
 				try
 				{
-					prefab.GetComponent<PlayerModel>().SetData(player);
+					prefab.GetComponent<PlayerModel>().SetData(player.Value);
 				}
 				catch (Exception ex)
 				{
-					Websocket.errors.Add("Не удалось загрузить игрока " + name + " :" + ex);
+					Websocket.errors.Add("Не удалось загрузить игрока " + player.Key + " :" + ex);
 					StartCoroutine(LoadRegister());
 				}
 			}
@@ -254,43 +253,41 @@ public abstract class ConnectController : MainController
 		{
 			Debug.Log("Обновляем enemy");
 
-			foreach (EnemyRecive enemy in recive.enemys)
+			foreach (KeyValuePair<string, EnemyRecive> enemy in recive.enemys)
 			{
-				
-				string name = "enemy_" + enemy.id; 
-				GameObject prefab = GameObject.Find(name);
+				GameObject prefab = GameObject.Find(enemy.Key);
 				if (prefab == null)
 				{
 						
 					// данные от NPC что могут уже атаковать ДО загрузки сцены (те между sign и load)
-					if (enemy.prefab == null || enemy.prefab.Length == 0)
+					if (enemy.Value.prefab == null || enemy.Value.prefab.Length == 0)
 					{
 						continue;
 					}
 
-					Debug.Log("Создаем " + enemy.prefab + " "+ name);
+					Debug.Log("Создаем " + enemy.Value.prefab + " "+ enemy.Key);
 
-					UnityEngine.Object? ob = Resources.Load("Prefabs/Enemys/" + enemy.prefab, typeof(GameObject));
+					UnityEngine.Object? ob = Resources.Load("Prefabs/Enemys/" + enemy.Value.prefab, typeof(GameObject));
 
 					if (ob == null)
 						ob = Resources.Load("Prefabs/Enemys/Empty", typeof(GameObject));
 
 					prefab = Instantiate(ob) as GameObject;
-					prefab.name = name;
+					prefab.name = enemy.Key;
 					prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
 					prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 					prefab.transform.SetParent(world.transform, false);
 				}
 				else
-					Debug.Log("Обновляем " + name);
+					Debug.Log("Обновляем " + enemy.Key);
 
 				try
 				{
-					prefab.GetComponent<EnemyModel>().SetData(enemy);
+					prefab.GetComponent<EnemyModel>().SetData(enemy.Value);
 				}
 				catch (Exception ex)
 				{
-					Websocket.errors.Add("Не удалось загрузить врага " + name + " :" + ex);
+					Websocket.errors.Add("Не удалось загрузить врага " + enemy.Key + " :" + ex);
 					StartCoroutine(LoadRegister());
 				}
 			}
@@ -300,27 +297,26 @@ public abstract class ConnectController : MainController
 		if (recive.objects != null)
 		{
 			Debug.Log("Обновляем объекты");
-			foreach (ObjectRecive obj in recive.objects)
+			foreach (KeyValuePair<string, ObjectRecive> obj in recive.objects)
 			{
-				string name = "object_" + obj.id;
-				GameObject prefab = GameObject.Find(name);
+				GameObject prefab = GameObject.Find(obj.Key);
 				if (prefab == null)
 				{
 					// данные от объектов что могут влиять на игру ДО загрузки сцены (те между sign и load)
-					if (obj.prefab == null || obj.prefab.Length == 0)
+					if (obj.Value.prefab == null || obj.Value.prefab.Length == 0)
 					{
 						continue;
 					}
 
-					Debug.Log("Создаем " + obj.prefab + " "+name);
+					Debug.Log("Создаем " + obj.Value.prefab + " "+ obj.Key);
 
-					UnityEngine.Object? ob = Resources.Load("Prefabs/Objects/" + obj.prefab, typeof(GameObject));
+					UnityEngine.Object? ob = Resources.Load("Prefabs/Objects/" + obj.Value.prefab, typeof(GameObject));
 
 					if (ob == null)
 						ob = Resources.Load("Prefabs/Objects/Empty", typeof(GameObject));
 
 					prefab = Instantiate(ob) as GameObject;
-					prefab.name = name;
+					prefab.name = obj.Key;
 
 					//todo сделать слой объектов
 
@@ -332,11 +328,11 @@ public abstract class ConnectController : MainController
 				try
 				{
 					if (prefab.GetComponent<ObjectModel>())
-						prefab.GetComponent<ObjectModel>().SetData(obj);
+						prefab.GetComponent<ObjectModel>().SetData(obj.Value);
 				}
 				catch (Exception ex)
 				{
-					Websocket.errors.Add("Не удалось загрузить объект " + name + ": " + ex);
+					Websocket.errors.Add("Не удалось загрузить объект " + obj.Key + ": " + ex);
 					StartCoroutine(LoadRegister());
 				}
 			}

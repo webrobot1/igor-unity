@@ -1,6 +1,6 @@
 var WebGLDebug = 
 {
-    Check: function (token, map_id) 
+    Check: function (map_id) 
 	{
 		container = document.querySelector("#unity-api-container");
 		if(container)

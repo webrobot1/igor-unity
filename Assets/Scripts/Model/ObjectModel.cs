@@ -9,8 +9,8 @@ public class ObjectModel : MonoBehaviour
 	protected string key;
 	protected int map_id;
 	protected DateTime created;
-
 	protected string prefab;
+
 	protected string action = "idle";
 
 	protected Animator anim = null;
@@ -68,6 +68,8 @@ public class ObjectModel : MonoBehaviour
 		if (this.id == 0)
 		{
 			this.id = data.id;
+			this.key = data.key;
+			this.created = data.created;
 			this.prefab = data.prefab;
 		}
 	}

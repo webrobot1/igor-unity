@@ -4,10 +4,10 @@ using System.Collections.Generic;
 /// </summary>
 [System.Serializable]
 public class Recive
-{   
-    public PlayerRecive[] players;
-    public EnemyRecive[] enemys;
-    public ObjectRecive[] objects;
+{
+    public Dictionary<string, PlayerRecive> players;
+    public Dictionary<string, EnemyRecive> enemys;
+    public Dictionary<string, ObjectRecive> objects;
 
     /// <summary>
     /// список таймаутов (высылается при load)
