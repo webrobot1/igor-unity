@@ -5,10 +5,8 @@
 public class SiginRecive
 {
 	public int id;
-	public int port;
+	public string host;
 	public string token;
-
-
 	public string map;
 
 	public string error = "";

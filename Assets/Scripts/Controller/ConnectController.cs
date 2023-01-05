@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
@@ -89,7 +90,7 @@ public abstract class ConnectController : MainController
 		id = data.id;
 		this.token = data.token;
 
-		connect = new Websocket(WEBSOCKET_SERVER, data.port, id, this.token);
+		connect = new Websocket(data.host, id, this.token);
 
 		// настройки size камеры менять бессмысленно тк есть PixelPerfect
 		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
@@ -102,14 +103,14 @@ public abstract class ConnectController : MainController
 
 		// удалим  все слои что были ранее
 		// оставим тут а ре в Load тк возможно что будет отправлять через Load при перезагруке мира все КРОМЕ карты поэтому ее не надо зачищать если не придет новая
-		for (int i = 0; i < grid.transform.parent.childCount; i++)
+		foreach (var child in grid.transform.parent.Cast<Transform>().ToList())
 		{
-			if (grid.transform.parent.GetChild(i).gameObject.GetInstanceID() != grid.GetInstanceID())
-				DestroyImmediate(grid.transform.parent.GetChild(i).gameObject);
+			if (child.gameObject.GetInstanceID() != grid.GetInstanceID())
+				DestroyImmediate(child.gameObject);
 		}
 
-        // приведем координаты в сответсвие с сеткой Unity
-        try {
+		// приведем координаты в сответсвие с сеткой Unity
+		try {
 			spawn_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
 		}
 		catch (Exception ex)
@@ -181,159 +182,190 @@ public abstract class ConnectController : MainController
 				
 			case "load/index":
 
-				// удаляет не сразу а на следующем кадре
-				for (int i = 0; i < world.transform.childCount; i++)
+				// удаляет не сразу а на следующем кадре все карты
+				// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
+				foreach (var child in world.transform.Cast<Transform>().ToList())
 				{
-					DestroyImmediate(world.transform.GetChild(i).gameObject);
+					DestroyImmediate(child.gameObject);
 				}
-				Debug.Log("перезагрузка мира");
-
+				Debug.Log("полная перезагрузка мира");
 			break;
         }
 
 		Debug.Log("Обрабатываем данные");
 
-		if (recive.players != null)
+		if (recive.maps != null)
 		{
-			Debug.Log("Обновляем игроков");
-			foreach (KeyValuePair<string, PlayerRecive> player in recive.players)
+			foreach (KeyValuePair<string, MapRecive> map in recive.maps)
 			{
-				GameObject prefab = GameObject.Find(player.Key);
-
-				// если игрока нет на сцене
-				if (prefab == null)
+				// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
+				Transform? map_zone = world.transform.Find(map.Key);
+				if (map_zone == null)
 				{
-					// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
-					if (player.Value.prefab == null || player.Value.prefab.Length == 0)
-					{
-						continue;
-					}
-
-					Debug.Log("Создаем " + player.Value.prefab + " " + player.Key);
-
-					UnityEngine.Object? ob = Resources.Load("Prefabs/Players/" + player.Value.prefab, typeof(GameObject));
-
-					if (ob == null)
-						ob = Resources.Load("Prefabs/Players/Empty", typeof(GameObject));
-
-					prefab = Instantiate(ob) as GameObject;
-					prefab.name = player.Key;
-					prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
-					prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
-					prefab.transform.SetParent(world.transform, false);
-				
-					if (player.Value.id == id)
-					{
-						//transform.SetParent(prefab.transform);
-						//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
-						camera.Follow = prefab.transform;
-						this.player = prefab.GetComponent<PlayerModel>();
-
-						// если у нас webgl првоерим не а дминке ли мы с API отладкой
-#if UNITY_WEBGL && !UNITY_EDITOR
-							WebGLDebug.Check(player.Value.map_id);
-#endif
-					}
+					map_zone = new GameObject(map.Key).transform;
+					map_zone.SetParent(world.transform, false);
 				}
 
-				try
-				{
-					prefab.GetComponent<PlayerModel>().SetData(player.Value);
-				}
-				catch (Exception ex)
-				{
-					Websocket.errors.Add("Не удалось загрузить игрока " + player.Key + " :" + ex);
-					StartCoroutine(LoadRegister());
-				}
-			}
-		}
-
-		// если есть враги
-		if (recive.enemys != null)
-		{
-			Debug.Log("Обновляем enemy");
-
-			foreach (KeyValuePair<string, EnemyRecive> enemy in recive.enemys)
-			{
-				GameObject prefab = GameObject.Find(enemy.Key);
-				if (prefab == null)
-				{
-						
-					// данные от NPC что могут уже атаковать ДО загрузки сцены (те между sign и load)
-					if (enemy.Value.prefab == null || enemy.Value.prefab.Length == 0)
+				// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
+				// todo более изящного и короткого способа сравнения объектов (рабочего)  я не нашел
+				if (JsonConvert.SerializeObject(map.Value) == JsonConvert.SerializeObject(new MapRecive()))
+                {
+					Debug.LogWarning("локация "+map.Key+" отправила пустое содержимое - удалим ее объекты с карты");
+					
+					// если саму зону оставить надо
+/*					foreach (var child in map_zone.Cast<Transform>().ToList())
 					{
-						continue;
-					}
+						DestroyImmediate(child.gameObject);
+					}*/
 
-					Debug.Log("Создаем " + enemy.Value.prefab + " "+ enemy.Key);
-
-					UnityEngine.Object? ob = Resources.Load("Prefabs/Enemys/" + enemy.Value.prefab, typeof(GameObject));
-
-					if (ob == null)
-						ob = Resources.Load("Prefabs/Enemys/Empty", typeof(GameObject));
-
-					prefab = Instantiate(ob) as GameObject;
-					prefab.name = enemy.Key;
-					prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
-					prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
-					prefab.transform.SetParent(world.transform, false);
+					DestroyImmediate(map_zone.gameObject);
 				}
 				else
-					Debug.Log("Обновляем " + enemy.Key);
-
-				try
-				{
-					prefab.GetComponent<EnemyModel>().SetData(enemy.Value);
-				}
-				catch (Exception ex)
-				{
-					Websocket.errors.Add("Не удалось загрузить врага " + enemy.Key + " :" + ex);
-					StartCoroutine(LoadRegister());
-				}
-			}
-		}
-
-		// если есть объекты
-		if (recive.objects != null)
-		{
-			Debug.Log("Обновляем объекты");
-			foreach (KeyValuePair<string, ObjectRecive> obj in recive.objects)
-			{
-				GameObject prefab = GameObject.Find(obj.Key);
-				if (prefab == null)
-				{
-					// данные от объектов что могут влиять на игру ДО загрузки сцены (те между sign и load)
-					if (obj.Value.prefab == null || obj.Value.prefab.Length == 0)
+				{ 
+					if (map.Value.players != null)
 					{
-						continue;
+						Debug.Log("Обновляем игроков");
+						foreach (KeyValuePair<string, PlayerRecive> player in map.Value.players)
+						{
+							GameObject prefab = GameObject.Find(player.Key);
+
+							// если игрока нет на сцене
+							if (prefab == null)
+							{
+								// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
+								if (player.Value.prefab == null || player.Value.prefab.Length == 0)
+								{
+									continue;
+								}
+
+								Debug.Log("Создаем " + player.Value.prefab + " " + player.Key);
+
+								UnityEngine.Object? ob = Resources.Load("Prefabs/Players/" + player.Value.prefab, typeof(GameObject));
+
+								if (ob == null)
+									ob = Resources.Load("Prefabs/Players/Empty", typeof(GameObject));
+
+								prefab = Instantiate(ob) as GameObject;
+								prefab.name = player.Key;
+								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
+								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
+								prefab.transform.SetParent(map_zone.transform, false);
+				
+								if (player.Value.id == id)
+								{
+									//transform.SetParent(prefab.transform);
+									//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
+									camera.Follow = prefab.transform;
+									this.player = prefab.GetComponent<PlayerModel>();
+
+									// если у нас webgl првоерим не а дминке ли мы с API отладкой
+									#if UNITY_WEBGL && !UNITY_EDITOR
+										WebGLDebug.Check(player.Value.map_id);
+									#endif
+								}
+							}
+
+							try
+							{
+								prefab.GetComponent<PlayerModel>().SetData(player.Value);
+							}
+							catch (Exception ex)
+							{
+								Websocket.errors.Add("Не удалось загрузить игрока " + player.Key + " :" + ex);
+								StartCoroutine(LoadRegister());
+							}
+						}
 					}
 
-					Debug.Log("Создаем " + obj.Value.prefab + " "+ obj.Key);
+					// если есть враги
+					if (map.Value.enemys != null)
+					{
+						Debug.Log("Обновляем enemy");
 
-					UnityEngine.Object? ob = Resources.Load("Prefabs/Objects/" + obj.Value.prefab, typeof(GameObject));
+						foreach (KeyValuePair<string, EnemyRecive> enemy in map.Value.enemys)
+						{
+							GameObject prefab = GameObject.Find(enemy.Key);
+							if (prefab == null)
+							{
+						
+								// данные от NPC что могут уже атаковать ДО загрузки сцены (те между sign и load)
+								if (enemy.Value.prefab == null || enemy.Value.prefab.Length == 0)
+								{
+									continue;
+								}
 
-					if (ob == null)
-						ob = Resources.Load("Prefabs/Objects/Empty", typeof(GameObject));
+								Debug.Log("Создаем " + enemy.Value.prefab + " "+ enemy.Key);
 
-					prefab = Instantiate(ob) as GameObject;
-					prefab.name = obj.Key;
+								UnityEngine.Object? ob = Resources.Load("Prefabs/Enemys/" + enemy.Value.prefab, typeof(GameObject));
 
-					//todo сделать слой объектов
+								if (ob == null)
+									ob = Resources.Load("Prefabs/Enemys/Empty", typeof(GameObject));
 
-					prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
-					prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
-					prefab.transform.SetParent(world.transform, false);
-				}
+								prefab = Instantiate(ob) as GameObject;
+								prefab.name = enemy.Key;
+								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
+								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
+								prefab.transform.SetParent(map_zone.transform, false);
+							}
+							else
+								Debug.Log("Обновляем " + enemy.Key);
 
-				try
-				{
-					if (prefab.GetComponent<ObjectModel>())
-						prefab.GetComponent<ObjectModel>().SetData(obj.Value);
-				}
-				catch (Exception ex)
-				{
-					Websocket.errors.Add("Не удалось загрузить объект " + obj.Key + ": " + ex);
-					StartCoroutine(LoadRegister());
+							try
+							{
+								prefab.GetComponent<EnemyModel>().SetData(enemy.Value);
+							}
+							catch (Exception ex)
+							{
+								Websocket.errors.Add("Не удалось загрузить врага " + enemy.Key + " :" + ex);
+								StartCoroutine(LoadRegister());
+							}
+						}
+					}
+
+					// если есть объекты
+					if (map.Value.objects != null)
+					{
+						Debug.Log("Обновляем объекты");
+						foreach (KeyValuePair<string, ObjectRecive> obj in map.Value.objects)
+						{
+							GameObject prefab = GameObject.Find(obj.Key);
+							if (prefab == null)
+							{
+								// данные от объектов что могут влиять на игру ДО загрузки сцены (те между sign и load)
+								if (obj.Value.prefab == null || obj.Value.prefab.Length == 0)
+								{
+									continue;
+								}
+
+								Debug.Log("Создаем " + obj.Value.prefab + " "+ obj.Key);
+
+								UnityEngine.Object? ob = Resources.Load("Prefabs/Objects/" + obj.Value.prefab, typeof(GameObject));
+
+								if (ob == null)
+									ob = Resources.Load("Prefabs/Objects/Empty", typeof(GameObject));
+
+								prefab = Instantiate(ob) as GameObject;
+								prefab.name = obj.Key;
+
+								//todo сделать слой объектов
+
+								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
+								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
+								prefab.transform.SetParent(map_zone.transform, false);
+							}
+
+							try
+							{
+								if (prefab.GetComponent<ObjectModel>())
+									prefab.GetComponent<ObjectModel>().SetData(obj.Value);
+							}
+							catch (Exception ex)
+							{
+								Websocket.errors.Add("Не удалось загрузить объект " + obj.Key + ": " + ex);
+								StartCoroutine(LoadRegister());
+							}
+						}
+					}
 				}
 			}
 		}

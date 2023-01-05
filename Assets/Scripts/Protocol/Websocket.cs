@@ -46,11 +46,11 @@ public class Websocket
 	/// Открытие TCP соединения
 	/// </summary>
 	/// <param name="command_pause">Пауза в секундах между командами для предотвращения даблкликов</param>
-	public Websocket(string server, int port, int player_id, string token, float command_pause = 0.15f)
+	public Websocket(string host, int player_id, string token, float command_pause = 0.15f)
 	{
-		string address = "ws://" + server + ":" + port;
+		string address = "ws://" + host;
 		
-		Debug.Log("Соединяемся с сервером "+ server);
+		Debug.Log("Соединяемся с сервером "+ host);
 
 		// добавим единсвенную пока доступную команду на отправку данных
 		commands.timeouts["load"] = new TimeoutRecive();
@@ -66,15 +66,21 @@ public class Websocket
 		try
 		{
 			ws = new WebSocket(address);
-			ws.SetCredentials(""+player_id+"", token, true);
 
+			// так в C# можно
+			ws.SetCredentials(""+player_id+"", token, true);
 			ws.OnOpen += (sender, ev) =>
 			{
 				Debug.Log("Соединение с севрером установлено");
 			};
 			ws.OnClose += (sender, ev) =>
 			{
+				ws = null; 
 				errors.Add("Соединение с сервером закрыто (" + ev.Code + ")");
+			};
+			ws.OnError += (sender, ev) =>
+			{
+				errors.Add("Ошибка соединения " + ev.Message);
 			};
 			ws.OnMessage += (sender, ev) =>
 			{
@@ -134,10 +140,6 @@ public class Websocket
 						errors.Add("Ошибка разбора данных websocket " + ex.Message);
 					}
 				}
-			};
-			ws.OnError += (sender, ev) =>
-			{
-				errors.Add("Ошибка соединения " + ev.Message);
 			};
 			ws.Connect();
 

@@ -1,13 +1,13 @@
 using System.Collections.Generic;
+
+
 /// <summary>
-/// —труктура получаемых данных данных
+/// —cтруктура получаемых данных данных
 /// </summary>
 [System.Serializable]
 public class Recive
 {
-    public Dictionary<string, PlayerRecive> players;
-    public Dictionary<string, EnemyRecive> enemys;
-    public Dictionary<string, ObjectRecive> objects;
+    public Dictionary<string, MapRecive> maps;
 
     /// <summary>
     /// список таймаутов (высылается при load)
@@ -19,7 +19,11 @@ public class Recive
     /// </summary>
     public Dictionary<string, CommandRecive> commands = new Dictionary<string, CommandRecive>();
 
+    /// <summary>
+    /// возможные ошибки (если не пусто - произойдет разъединение, но где быстрее - в клиенте или на сервере сказать сложно)
+    /// </summary>
     public string error = "";
+
     private string _action = "";
 
     // если пришла команда action в сокращенной форме то добавим index
