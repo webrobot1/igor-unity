@@ -50,7 +50,7 @@ public class Websocket
 	{
 		string address = "ws://" + host;
 		
-		Debug.Log("Соединяемся с сервером "+ host);
+		Debug.Log("Соединяемся с сервером "+ address);
 
 		// добавим единсвенную пока доступную команду на отправку данных
 		commands.timeouts["load"] = new TimeoutRecive();

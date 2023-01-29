@@ -5,9 +5,9 @@
 public class SiginRecive
 {
 	public int id;
+
 	public string host;
 	public string token;
-	public string map;
 
 	public string error = "";
 }

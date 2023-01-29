@@ -69,13 +69,14 @@ public class EnemyModel : ObjectModel
 
 
 		// тут если speed=0 значит ничего не пришло
-		if (data.speed > 0) { 
+		if (data.speed > 0) 
+		{ 
 			this.speed = data.speed;
-
 
 			// переделать.  
 			distancePerUpdate = this.speed * Time.fixedDeltaTime;
 		}
+
 
 		if (this.id != 0 && (data.x !=null || data.y != null || data.z != null))
 		{

@@ -28,24 +28,21 @@ public class MapModel
 	/// <summary>
 	/// декодирование из Bzip2 в объект MapRecive
 	/// </summary>
-	public int generate(ref string base64, GameObject grid, Cinemachine.CinemachineVirtualCamera camera)
+	public Map generate(ref string base64, Transform grid, Cinemachine.CinemachineVirtualCamera camera)
     {
 		Map map = decode(ref base64);
-
-		// далее создаем гейм обхекты
 
 		// инициализируем новый слой 
 		GameObject newLayer;
 
 		int sort = 0;
-		int? spawn_sort = null;
 
 		// расставим на сцене данные карты
 		foreach (Layer layer in map.layer)
 		{
 			newLayer = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 			newLayer.name = layer.name;
-			newLayer.transform.SetParent(grid.transform, false);
+			newLayer.transform.SetParent(grid, false);
 			newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
 
 			if (layer.visible == 0)
@@ -134,31 +131,30 @@ public class MapModel
 			if (layer.isGround == 1)
 			{
 				Debug.Log(layer.name + "- слой Земля");
+				
 				newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
 				newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
 				CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
 				colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
-				camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
+				//camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 			}
 
-			if (layer.isSpawn == 1)
-			{
-				//  текущий слой на котором будем ставить игроков		
-				spawn_sort = sort;
-			}
+			//  текущий слой на котором будем ставить игроков	
+			if (layer.isSpawn == 1)	
+				map.spawn_sort = sort;
 			
 			// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
-			if (spawn_sort == null)
+			if (map.spawn_sort == null)
 				newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
 
 			sort++;
 		}
 
 		// на случай если в админке не указан слой - спавна игрока
-		if (spawn_sort == null)
-			spawn_sort = 1;
+		if (map.spawn_sort == null)
+			map.spawn_sort = 1;
 
-		return (int)spawn_sort;
+		return map;
 	}
 
 	private Map decode(ref string base64)

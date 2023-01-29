@@ -7,24 +7,24 @@ using UnityEngine.Networking;
 using UnityEditor;
 using Newtonsoft.Json;
 
-public class RegisterController : MainController
+public class RegisterController : BaseController
 {
+
     public InputField login;
     public InputField password;
 
     public void Register()
     {
-        StartCoroutine(SendRequest("register"));
+        StartCoroutine(HttpRequest("register"));
     }
 
     public void Auth()
     {
-		StartCoroutine(SendRequest("auth"));     
+		StartCoroutine(HttpRequest("auth"));     
     }
 
-    private IEnumerator SendRequest(string action)
+    private IEnumerator HttpRequest(string action)
 	{
-
         if(login.text == "" || password.text == "")
         {
             yield break;
@@ -78,27 +78,27 @@ public class RegisterController : MainController
         if (data.id == 0)
             Error("не указан player_id");
 
-        if (data.host == null)
+        else if (data.host == null)
             Error("не указан хост сервера");
 
-        if (data.token == null)
+        else if (data.token == null)
             Error("не указан token");
 
-        if (data.map == null)
-            Error("не указан map");
-
-        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
-        // asyncLoad.allowSceneActivation = false;
-
-        // Wait until the asynchronous scene fully loads
-        while (!asyncLoad.isDone)
+        else
         {
-            yield return null;
+            AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
+            // asyncLoad.allowSceneActivation = false;
+
+            // Wait until the asynchronous scene fully loads
+            while (!asyncLoad.isDone)
+            {
+                yield return null;
+            }
+
+            SceneManager.UnloadScene("RegisterScene");
+            Camera.main.GetComponent<PlayerController>().SetPlayer(data);
+
+            // asyncLoad.allowSceneActivation = true;
         }
-
-        SceneManager.UnloadScene("RegisterScene");
-        Camera.main.GetComponent<PlayerController>().SetPlayer(data);
-
-        // asyncLoad.allowSceneActivation = true;
     }
 }

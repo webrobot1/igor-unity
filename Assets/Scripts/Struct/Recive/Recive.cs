@@ -7,7 +7,8 @@ using System.Collections.Generic;
 [System.Serializable]
 public class Recive
 {
-    public Dictionary<string, MapRecive> maps;
+    public Dictionary<string, MapRecive> world;
+    public Dictionary<string, int> sides;
 
     /// <summary>
     /// список таймаутов (высылается при load)

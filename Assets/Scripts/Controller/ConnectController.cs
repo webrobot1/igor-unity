@@ -13,7 +13,7 @@ using WebGLSupport;
 /// <summary>
 /// Класс для обработки запросов, конект
 /// </summary>
-public abstract class ConnectController : MainController
+public abstract class ConnectController : BaseController
 {
 	/// <summary>
 	/// Ссылка на конектор
@@ -39,21 +39,26 @@ public abstract class ConnectController : MainController
 	private Cinemachine.CinemachineVirtualCamera camera;
 
 	/// <summary>
-	/// тайловая сетка карты
+	/// объект в котором будут дочерние объекты карт
 	/// </summary>
 	[SerializeField]
-	private GameObject grid;
+	private GameObject mapObject;
 		
 	/// <summary>
 	/// родителький объект всех обектов
 	/// </summary>
 	[SerializeField]
-	private GameObject world;
+	private GameObject worldObject;
 
 	/// <summary>
-	/// на каком уровне слоя размещать новых персонажей и npc и на каком следит камера
+	/// массив декодированных с сервера карт
 	/// </summary>
-	public static int? spawn_sort = null;
+	public Dictionary<string, Map> maps = new Dictionary<string, Map>();
+
+	/// <summary>
+	/// массив с перечнем с какой стороны какая смежная карта
+	/// </summary>
+	public Dictionary<string, int> sides = new Dictionary<string, int>();
 
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -79,48 +84,10 @@ public abstract class ConnectController : MainController
 	{
 		connect.Put(json);
 	}
-#endif
 
-    /// <summary>
-    /// Звпускается после авторизации - заполяет id и token 
-    /// </summary>
-    /// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-    public void SetPlayer(SiginRecive data)
-	{
-		id = data.id;
-		this.token = data.token;
-
-		connect = new Websocket(data.host, id, this.token);
-
-		// настройки size камеры менять бессмысленно тк есть PixelPerfect
-		// но и менять assetsPPU  тоже нет смысла тк на 16х16 у нас будет нужное нам отдаление (наприме)  а на 32х32 меняя assetsPPU все станет гиганским
-		/*
-		GetComponent<Camera>().orthographicSize = GetComponent<Camera>().orthographicSize * 16 / this.PixelsPerUnit;
-		GetComponent<UnityEngine.U2D.PixelPerfectCamera>().assetsPPU = (int)this.PixelsPerUnit;
-		*/
-
-		Debug.Log("Обновляем карту");
-
-		// удалим  все слои что были ранее
-		// оставим тут а ре в Load тк возможно что будет отправлять через Load при перезагруке мира все КРОМЕ карты поэтому ее не надо зачищать если не придет новая
-		foreach (var child in grid.transform.parent.Cast<Transform>().ToList())
-		{
-			if (child.gameObject.GetInstanceID() != grid.GetInstanceID())
-				DestroyImmediate(child.gameObject);
-		}
-
-		// приведем координаты в сответсвие с сеткой Unity
-		try {
-			spawn_sort = MapModel.getInstance().generate(ref data.map, grid, camera);
-		}
-		catch (Exception ex)
-		{
-			Websocket.errors.Add("Ошибка разбора карты " + ex.Message);
-			StartCoroutine(LoadRegister());
-		}
-	}
-
+	// повторная загрузка всего пира по новой при переключении между вкладками браузера
 	// если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
+	// TODO придумать как отказаться от этого
 	private void Load()
     {
 		if (connect == null) return;
@@ -129,6 +96,110 @@ public abstract class ConnectController : MainController
 		response.action = "load/index";
 
 		connect.Send(response);
+	}
+#endif
+
+	/// <summary>
+	/// Звпускается после авторизации - заполяет id и token 
+	/// </summary>
+	/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
+	public void SetPlayer(SiginRecive data)
+	{
+		id = data.id;
+		this.token = data.token;
+
+		if(mapObject == null)
+			Error("отсутвуют GameObject для карт");		
+		
+		if(worldObject == null)
+			Error("отсутвуют GameObject для игровых обектов");
+
+		StartCoroutine(GetMap("center"));
+
+		connect = new Websocket(data.host, id, this.token);	
+	}
+
+	private IEnumerator GetMap(string side)
+	{
+		if (mapObject.transform.Find(side) != null)
+			Error("карта " + side + " уже выгружена в игровое пространство");
+		else if(maps.ContainsKey(side))
+			Error("попытка загрузки карты "+side+" повторно");
+		else
+		{
+			if (side != "center")
+			{				
+				if (mapObject.transform.Find("center") == null)
+				{
+					Error("не загружена центральная карта для загрузки смежных");
+					yield break;
+				}
+			}
+
+			WWWForm formData = new WWWForm();
+			formData.AddField("token", this.token);
+			formData.AddField("side", side);
+
+			string url = "http://" + SERVER + "/server/signin/get_map";
+			Debug.Log("получаем карту "+side+" с " + url);
+
+			UnityWebRequest request = UnityWebRequest.Post(url, formData);
+
+			yield return request.SendWebRequest();
+
+			// проверим что пришло в ответ
+			string text = request.downloadHandler.text;
+			if (text.Length > 0)
+			{
+				Debug.Log("Обновляем карту " + side);
+
+				Transform grid = new GameObject(side).transform;
+				grid.gameObject.AddComponent<Grid>();
+				grid.SetParent(mapObject.transform, false);
+
+				// приведем координаты в сответсвие с сеткой Unity
+				try
+				{
+					maps.Add(side, MapModel.getInstance().generate(ref text, grid, camera));
+
+					if (side != "center")
+					{
+						switch (side)
+						{
+							case "right":
+								grid.position = new Vector3(grid.position.x + maps["center"].width, grid.position.y, grid.position.z);
+							break;
+							case "left":
+								grid.position = new Vector3(grid.position.x - maps[side].width, grid.position.y, grid.position.z);
+							break;
+						}
+					}
+                    else
+					{
+						if(maps["center"].map_id==1)
+							StartCoroutine(GetMap("right"));
+						else
+							StartCoroutine(GetMap("left"));
+					}
+
+					// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
+					if (worldObject.transform.Find(side) != null)
+					{
+						foreach (Transform child in worldObject.transform.Find(side))
+						{
+							child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + (int)child.GetComponent<ObjectModel>().sort;
+							child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + (int)child.GetComponent<ObjectModel>().sort;
+						}
+					}
+				}
+				catch (Exception ex)
+				{
+					Error("Ошибка разбора карты " + ex.Message);
+				}
+			}
+			else
+				Error("Пустой ответ сервера карт  " + request.error);
+		}
 	}
 
 	/// <summary>
@@ -142,7 +213,7 @@ public abstract class ConnectController : MainController
 			StartCoroutine(LoadRegister());
 		else if (connect.pause)
 			Debug.Log("Пауза");
-		else if (spawn_sort != null)  // обрабатываем пакеты если уже загрузился карта
+		else //if (spawn_sort["center"]!=null)  // обрабатываем пакеты если уже загрузился карта
 		{
 			// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
 			int count = connect.recives.Count;
@@ -156,8 +227,7 @@ public abstract class ConnectController : MainController
 					}
 					catch (Exception ex)
 					{
-						Websocket.errors.Add("Ошибка разбора входящих данных, " + ex.Message);
-						StartCoroutine(LoadRegister());
+						Error("Ошибка разбора входящих данных, " + ex.Message);
 						break;
 					}
 				}
@@ -175,16 +245,12 @@ public abstract class ConnectController : MainController
 	private void HandleData(Recive recive)
 	{
         switch (recive.action)
-        {
-			case "screen/index":
-				StartCoroutine(Screen());
-			break;
-				
+        {	
 			case "load/index":
 
 				// удаляет не сразу а на следующем кадре все карты
 				// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
-				foreach (var child in world.transform.Cast<Transform>().ToList())
+				foreach (var child in worldObject.transform.Cast<Transform>().ToList())
 				{
 					DestroyImmediate(child.gameObject);
 				}
@@ -194,16 +260,23 @@ public abstract class ConnectController : MainController
 
 		Debug.Log("Обрабатываем данные");
 
-		if (recive.maps != null)
+		if (recive.sides != null)
 		{
-			foreach (KeyValuePair<string, MapRecive> map in recive.maps)
+			this.sides = recive.sides;
+		}
+
+		if (recive.world != null)
+		{
+			foreach (KeyValuePair<string, MapRecive> map in recive.world)
 			{
 				// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
-				Transform? map_zone = world.transform.Find(map.Key);
+				Transform? map_zone = worldObject.transform.Find(map.Key);
 				if (map_zone == null)
 				{
 					map_zone = new GameObject(map.Key).transform;
-					map_zone.SetParent(world.transform, false);
+					map_zone.SetParent(worldObject.transform, false);
+
+					Debug.LogWarning("Создаем область для объектов "+ map.Key);
 				}
 
 				// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
@@ -247,10 +320,8 @@ public abstract class ConnectController : MainController
 
 								prefab = Instantiate(ob) as GameObject;
 								prefab.name = player.Key;
-								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
-								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 								prefab.transform.SetParent(map_zone.transform, false);
-				
+
 								if (player.Value.id == id)
 								{
 									//transform.SetParent(prefab.transform);
@@ -264,6 +335,15 @@ public abstract class ConnectController : MainController
 									#endif
 								}
 							}
+							else
+								Debug.Log("Обновляем "+player.Key);
+
+							// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
+							if (maps.ContainsKey(map.Key) && player.Value.sort != null)
+							{
+								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)player.Value.sort;
+								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)player.Value.sort;
+							}
 
 							try
 							{
@@ -271,8 +351,7 @@ public abstract class ConnectController : MainController
 							}
 							catch (Exception ex)
 							{
-								Websocket.errors.Add("Не удалось загрузить игрока " + player.Key + " :" + ex);
-								StartCoroutine(LoadRegister());
+								Error("Не удалось загрузить игрока " + player.Key + " :" + ex);
 							}
 						}
 					}
@@ -303,12 +382,16 @@ public abstract class ConnectController : MainController
 
 								prefab = Instantiate(ob) as GameObject;
 								prefab.name = enemy.Key;
-								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
-								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 								prefab.transform.SetParent(map_zone.transform, false);
 							}
 							else
 								Debug.Log("Обновляем " + enemy.Key);
+
+							if (maps.ContainsKey(map.Key) && enemy.Value.sort != null)
+							{
+								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)enemy.Value.sort;
+								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)enemy.Value.sort;
+							}
 
 							try
 							{
@@ -316,8 +399,7 @@ public abstract class ConnectController : MainController
 							}
 							catch (Exception ex)
 							{
-								Websocket.errors.Add("Не удалось загрузить врага " + enemy.Key + " :" + ex);
-								StartCoroutine(LoadRegister());
+								Error("Не удалось загрузить врага " + enemy.Key + " :" + ex);
 							}
 						}
 					}
@@ -337,7 +419,7 @@ public abstract class ConnectController : MainController
 									continue;
 								}
 
-								Debug.Log("Создаем " + obj.Value.prefab + " "+ obj.Key);
+								Debug.Log("Создаем " + obj.Value.prefab + " " + obj.Key);
 
 								UnityEngine.Object? ob = Resources.Load("Prefabs/Objects/" + obj.Value.prefab, typeof(GameObject));
 
@@ -348,10 +430,15 @@ public abstract class ConnectController : MainController
 								prefab.name = obj.Key;
 
 								//todo сделать слой объектов
-
-								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)spawn_sort;
-								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)spawn_sort + 1;
 								prefab.transform.SetParent(map_zone.transform, false);
+							}
+							else
+								Debug.Log("Обновляем "+obj.Key);
+
+							if (maps.ContainsKey(map.Key) && obj.Value.sort!=null)
+							{
+								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)obj.Value.sort;
+								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)obj.Value.sort;
 							}
 
 							try
@@ -361,8 +448,7 @@ public abstract class ConnectController : MainController
 							}
 							catch (Exception ex)
 							{
-								Websocket.errors.Add("Не удалось загрузить объект " + obj.Key + ": " + ex);
-								StartCoroutine(LoadRegister());
+								Error("Не удалось загрузить объект " + obj.Key + ": " + ex);
 							}
 						}
 					}
@@ -371,33 +457,13 @@ public abstract class ConnectController : MainController
 		}
 	}
 
-	/// <summary>
-	/// снятие скриншета экрана и отправка на сервер
-	/// </summary>
-	private IEnumerator Screen()
-	{
-		// We should only read the screen buffer after rendering is complete
-		yield return new WaitForEndOfFrame();
 
-		byte[] bytes = ScreenCapture.CaptureScreenshotAsTexture().EncodeToPNG();
+	private void Error (string text)
+    {
+		Websocket.errors.Add(text);
+		StartCoroutine(LoadRegister());
 
-		// Create a Web Form
-		WWWForm form = new WWWForm();
-		form.AddField("token", this.token);
-		form.AddBinaryData("screen", bytes);
-
-		UnityWebRequest request = UnityWebRequest.Post("http://"+SERVER+"/game/signin/screen", form);
-
-		yield return request.SendWebRequest();
-
-		if (request.result != UnityWebRequest.Result.Success)
-		{
-			Debug.LogError(request.error);
-		}
-		else
-		{
-			Debug.Log("Finished Uploading Screenshot");
-		}
+		throw new Exception(text);
 	}
 
 	/// <summary>

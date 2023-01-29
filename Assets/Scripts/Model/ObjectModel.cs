@@ -6,8 +6,14 @@ using UnityEngine;
 public class ObjectModel : MonoBehaviour
 {
 	protected int id;
-	protected string key;
 	protected int map_id;
+	protected string key;
+
+	/// <summary>
+	/// для того что бы менять сортировку при загрузке карты
+	/// </summary>
+	public int sort;
+
 	protected DateTime created;
 	protected string prefab;
 
@@ -55,10 +61,10 @@ public class ObjectModel : MonoBehaviour
 		if (data.map_id > 0)
 			this.map_id = data.map_id;
 
-		if (data.sort != null) { 
-			sprite.sortingOrder = (int)data.sort + (int)ConnectController.spawn_sort;
-			GetComponentInChildren<Canvas>().sortingOrder = (int)data.sort + (int)ConnectController.spawn_sort + 1;
-		}
+
+		// сортировку не сменить в SetData тк я не хочу менять уровент изоляции spawn_sort
+		if (data.sort > 0)
+			this.sort = (int)data.sort;
 
 		if (this.id == 0 && data.x!=null && data.y != null && data.z != null)
 		{	
