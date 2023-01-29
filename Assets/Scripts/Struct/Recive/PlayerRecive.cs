@@ -7,6 +7,5 @@ using System.Collections.Generic;
 public class PlayerRecive : EnemyRecive
 {
 	public string login;
-
 }
 

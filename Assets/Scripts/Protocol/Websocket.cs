@@ -46,7 +46,7 @@ public class Websocket
 	/// Открытие TCP соединения
 	/// </summary>
 	/// <param name="command_pause">Пауза в секундах между командами для предотвращения даблкликов</param>
-	public Websocket(string host, int player_id, string token, float command_pause = 0.15f)
+	public Websocket(string host, string player_key, string token, float command_pause = 0.15f)
 	{
 		string address = "ws://" + host;
 		
@@ -68,15 +68,17 @@ public class Websocket
 			ws = new WebSocket(address);
 
 			// так в C# можно
-			ws.SetCredentials(""+player_id+"", token, true);
+			ws.SetCredentials(""+ player_key + "", token, true);
 			ws.OnOpen += (sender, ev) =>
 			{
 				Debug.Log("Соединение с севрером установлено");
 			};
 			ws.OnClose += (sender, ev) =>
 			{
-				ws = null; 
-				errors.Add("Соединение с сервером закрыто (" + ev.Code + ")");
+				ws = null;
+
+				Debug.Log("Закрытие соединения");
+				errors.Add("Соединение с сервером закрыто (" + ev.Code + ", "+ev.Reason+")");
 			};
 			ws.OnError += (sender, ev) =>
 			{
@@ -137,7 +139,8 @@ public class Websocket
 					}
 					catch (Exception ex)
 					{
-						errors.Add("Ошибка разбора данных websocket " + ex.Message);
+						Debug.LogException(ex);
+						errors.Add("Ошибка разбора данных websocket");
 					}
 				}
 			};
@@ -147,7 +150,8 @@ public class Websocket
 		}
 		catch (Exception ex)
 		{
-			errors.Add("Ошибка октрытия соединения " + ex.Message);
+			Debug.LogException(ex);
+			errors.Add("Ошибка октрытия соединения");
 		}
 	}	
 	

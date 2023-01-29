@@ -5,6 +5,5 @@
 [System.Serializable]
 public class EnemyRecive : ObjectRecive
 {
-	public float speed;
 
 }

@@ -14,10 +14,8 @@ public class PlayerModel : EnemyModel
 
 	public void SetData(PlayerRecive data)
 	{
-		if (base.id == 0)
-		{
+		if (data.login!=null)
 			this.login = data.login;
-		}
 
 		// преращение в празирака
 		if (data.components!=null && data.components.hp != null)

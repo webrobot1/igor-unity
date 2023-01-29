@@ -2,11 +2,11 @@
 /// Структура полученных данных при авторизации
 /// </summary>
 [System.Serializable]
-public class SiginRecive
+public class SigninRecive
 {
-	public int id;
-
 	public string host;
+
+	public string key;
 	public string token;
 
 	public string error = "";

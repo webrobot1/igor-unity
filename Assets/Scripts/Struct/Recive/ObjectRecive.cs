@@ -7,9 +7,6 @@ using System.Collections.Generic;
 [System.Serializable]
 public class ObjectRecive
 {
-	public int id;
-	public string key;
-
 	public float? x;
 	public float? y;
 	public float? z;
@@ -20,6 +17,7 @@ public class ObjectRecive
 	public string action;
 	public int? sort = null;
 
+	public float speed;
 
 	public DateTime created = DateTime.Now;
 

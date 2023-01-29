@@ -7,9 +7,8 @@ using UnityEngine.Networking;
 using UnityEditor;
 using Newtonsoft.Json;
 
-public class RegisterController : BaseController
+public class SigninController : BaseController
 {
-
     public InputField login;
     public InputField password;
 
@@ -47,7 +46,7 @@ public class RegisterController : BaseController
         {
             try {
                 Debug.Log("Ответ авторизации: "+ text);
-                SiginRecive recive = JsonConvert.DeserializeObject<SiginRecive>(text);
+                SigninRecive recive = JsonConvert.DeserializeObject<SigninRecive>(text);
 
                 if (recive.error.Length>0)
                     Error("Ошибка авторизации: " + recive.error);
@@ -56,7 +55,8 @@ public class RegisterController : BaseController
             }
             catch (Exception ex)
             {
-                Error("Ошибка разбора авторизации: "+ex.Message+" ("+text+")");
+                Debug.LogException(ex);
+                Error("Ошибка разбора авторизации: ("+text+")");
             }  
         } 
         else 
@@ -71,12 +71,12 @@ public class RegisterController : BaseController
     }
 
     // PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой
-    private IEnumerator LoadMain(SiginRecive data)
+    private IEnumerator LoadMain(SigninRecive data)
     {
         Debug.Log("Загрузка главной сцены");
 
-        if (data.id == 0)
-            Error("не указан player_id");
+        if (data.key.Length == 0)
+            Error("не указан key игрока");
 
         else if (data.host == null)
             Error("не указан хост сервера");

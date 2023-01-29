@@ -28,7 +28,7 @@ public abstract class ConnectController : BaseController
 	/// <summary>
 	/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
 	/// </summary>
-	private int id;
+	private string player_key;
 
 	/// <summary>
 	/// Токен , требуется при первом конекте для Tcp и Ws, и постоянно при Udp
@@ -84,12 +84,14 @@ public abstract class ConnectController : BaseController
 	{
 		connect.Put(json);
 	}
+#endif
+
 
 	// повторная загрузка всего пира по новой при переключении между вкладками браузера
 	// если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
 	// TODO придумать как отказаться от этого
 	private void Load()
-    {
+	{
 		if (connect == null) return;
 
 		SigninResponse response = new SigninResponse();
@@ -97,15 +99,14 @@ public abstract class ConnectController : BaseController
 
 		connect.Send(response);
 	}
-#endif
 
 	/// <summary>
 	/// Звпускается после авторизации - заполяет id и token 
 	/// </summary>
 	/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-	public void SetPlayer(SiginRecive data)
+	public void SetPlayer(SigninRecive data)
 	{
-		id = data.id;
+		this.player_key = data.key;
 		this.token = data.token;
 
 		if(mapObject == null)
@@ -116,7 +117,7 @@ public abstract class ConnectController : BaseController
 
 		StartCoroutine(GetMap("center"));
 
-		connect = new Websocket(data.host, id, this.token);	
+		connect = new Websocket(data.host, player_key, this.token);	
 	}
 
 	private IEnumerator GetMap(string side)
@@ -187,14 +188,18 @@ public abstract class ConnectController : BaseController
 					{
 						foreach (Transform child in worldObject.transform.Find(side))
 						{
-							child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + (int)child.GetComponent<ObjectModel>().sort;
-							child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + (int)child.GetComponent<ObjectModel>().sort;
+							if (child.gameObject.GetComponent<SpriteRenderer>())
+								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + (int)child.GetComponent<ObjectModel>().sort;
+
+							if (child.gameObject.GetComponentInChildren<Canvas>())
+								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + (int)child.GetComponent<ObjectModel>().sort;
 						}
 					}
 				}
 				catch (Exception ex)
 				{
-					Error("Ошибка разбора карты " + ex.Message);
+					Debug.LogException(ex);
+					Error("Ошибка разбора карты");
 				}
 			}
 			else
@@ -227,7 +232,8 @@ public abstract class ConnectController : BaseController
 					}
 					catch (Exception ex)
 					{
-						Error("Ошибка разбора входящих данных, " + ex.Message);
+						Debug.LogException(ex);
+						Error("Ошибка разбора входящих данных");
 						break;
 					}
 				}
@@ -322,7 +328,7 @@ public abstract class ConnectController : BaseController
 								prefab.name = player.Key;
 								prefab.transform.SetParent(map_zone.transform, false);
 
-								if (player.Value.id == id)
+								if (player.Key == player_key)
 								{
 									camera.Follow = prefab.transform;
 									this.player = prefab.GetComponent<PlayerModel>();
@@ -334,13 +340,22 @@ public abstract class ConnectController : BaseController
 								}
 							}
 							else
-								Debug.Log("Обновляем "+player.Key);
+							{
+								Debug.Log("Обновляем " + player.Key);
+
+								if (player.Key == player_key && player.Value.map_id>0 && player.Value.map_id!=this.player.map_id)
+                                {
+									Debug.LogWarning("меняем карту нашему игроку");
+								}
+							}
 
 							// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
 							if (maps.ContainsKey(map.Key) && player.Value.sort != null)
 							{
-								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)player.Value.sort;
-								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)player.Value.sort;
+								if (prefab.GetComponent<SpriteRenderer>())
+									prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)player.Value.sort;
+								if (prefab.GetComponentInChildren<Canvas>())
+									prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)player.Value.sort;
 							}
 
 							try
@@ -349,7 +364,8 @@ public abstract class ConnectController : BaseController
 							}
 							catch (Exception ex)
 							{
-								Error("Не удалось загрузить игрока " + player.Key + " :" + ex);
+								Debug.LogException(ex);
+								Error("Не удалось загрузить игрока " + player.Key);
 							}
 						}
 					}
@@ -387,8 +403,10 @@ public abstract class ConnectController : BaseController
 
 							if (maps.ContainsKey(map.Key) && enemy.Value.sort != null)
 							{
-								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)enemy.Value.sort;
-								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)enemy.Value.sort;
+								if (prefab.GetComponent<SpriteRenderer>())
+									prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)enemy.Value.sort;
+								if (prefab.GetComponentInChildren<Canvas>())
+									prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)enemy.Value.sort;
 							}
 
 							try
@@ -397,7 +415,8 @@ public abstract class ConnectController : BaseController
 							}
 							catch (Exception ex)
 							{
-								Error("Не удалось загрузить врага " + enemy.Key + " :" + ex);
+								Debug.LogException(ex);
+								Error("Не удалось загрузить врага " + enemy.Key);
 							}
 						}
 					}
@@ -435,8 +454,10 @@ public abstract class ConnectController : BaseController
 
 							if (maps.ContainsKey(map.Key) && obj.Value.sort!=null)
 							{
-								prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)obj.Value.sort;
-								prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)obj.Value.sort;
+								if(prefab.GetComponent<SpriteRenderer>())
+									prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)obj.Value.sort;
+								if(prefab.GetComponentInChildren<Canvas>())
+									prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)obj.Value.sort;
 							}
 
 							try
@@ -446,7 +467,8 @@ public abstract class ConnectController : BaseController
 							}
 							catch (Exception ex)
 							{
-								Error("Не удалось загрузить объект " + obj.Key + ": " + ex);
+								Debug.LogException(ex);
+								Error("Не удалось загрузить объект " + obj.Key);
 							}
 						}
 					}
@@ -494,7 +516,7 @@ public abstract class ConnectController : BaseController
 		}
 	
 		SceneManager.UnloadScene("MainScene");
-		Camera.main.GetComponent<RegisterController>().Error(String.Join(", ", Websocket.errors));
+		Camera.main.GetComponent<SigninController>().Error(String.Join(", ", Websocket.errors));
 	}
 
 
