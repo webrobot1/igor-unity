@@ -109,10 +109,10 @@ public abstract class ConnectController : BaseController
 		this.token = data.token;
 
 		if(mapObject == null)
-			Error("отсутвуют GameObject для карт");		
+			Error("не присвоен GameObject для карт");		
 		
 		if(worldObject == null)
-			Error("отсутвуют GameObject для игровых обектов");
+			Error("не присвоен GameObject для игровых обектов");
 
 		StartCoroutine(GetMap("center"));
 
@@ -324,8 +324,6 @@ public abstract class ConnectController : BaseController
 
 								if (player.Value.id == id)
 								{
-									//transform.SetParent(prefab.transform);
-									//transform.position = new Vector3(transform.parent.position.x, transform.parent.position.y, transform.position.z);
 									camera.Follow = prefab.transform;
 									this.player = prefab.GetComponent<PlayerModel>();
 
