@@ -90,7 +90,7 @@ public class Websocket
 					Debug.LogError("Закрытие текущего соединения");
 
 					ws = null;
-					errors.Add("Соединение с сервером закрыто (" + ev.Code + ", " + ev.Reason + ")");
+					errors.Add("Соединение с сервером закрыто");
                 }	
 			};
 			ws.OnError += (sender, ev) =>
@@ -111,50 +111,51 @@ public class Websocket
 						if (recive.error.Length > 0)
 						{
 							errors.Add(recive.error);
-							pause = DateTime.Now;
 						}
-
-						if (recive.action == "load/index") 
-						{  
-							pause = null;
-						}
-						else if (recive.action == "load/reconnect")
+						else
 						{
-							pause = DateTime.Now;
-							reconnect = 1;
-
-							ws = null;
-						}
-						else if (pause!=null) return;
-
-						if (recive.timeouts.Count > 0)
-						{
-							Debug.Log("Обновляем таймауты");
-
-							foreach (KeyValuePair<string, TimeoutRecive> kvp in recive.timeouts)
+							if (recive.action == "load/index")
 							{
-								if (!commands.timeouts.ContainsKey(kvp.Key))
-									commands.timeouts[kvp.Key] = kvp.Value;
-								else
-									commands.timeouts[kvp.Key].timeout = kvp.Value.timeout;
+								pause = null;
+							}
+							else if (recive.action == "load/reconnect")
+							{
+								pause = DateTime.Now;
+								reconnect = 1;
+
+								ws = null;
+							}
+							else if (pause != null) return;
+
+							if (recive.timeouts.Count > 0)
+							{
+								Debug.Log("Обновляем таймауты");
+
+								foreach (KeyValuePair<string, TimeoutRecive> kvp in recive.timeouts)
+								{
+									if (!commands.timeouts.ContainsKey(kvp.Key))
+										commands.timeouts[kvp.Key] = kvp.Value;
+									else
+										commands.timeouts[kvp.Key].timeout = kvp.Value.timeout;
+								}
+
+								recive.timeouts.Clear();
 							}
 
-							recive.timeouts.Clear();
-						}
-
-						if (recive.commands.Count > 0)
-						{
-							Debug.Log("Обновляем пинги");
-
-							foreach (KeyValuePair<string, CommandRecive> kvp in recive.commands)
+							if (recive.commands.Count > 0)
 							{
-								commands.check(kvp.Key, kvp.Value);
+								Debug.Log("Обновляем пинги");
+
+								foreach (KeyValuePair<string, CommandRecive> kvp in recive.commands)
+								{
+									commands.check(kvp.Key, kvp.Value);
+								}
+
+								recive.commands.Clear();
 							}
 
-							recive.commands.Clear();
+							recives.Add(recive);
 						}
-
-						recives.Add(recive);
 					}
 					catch (Exception ex)
 					{

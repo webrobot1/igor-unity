@@ -11,24 +11,13 @@ using Newtonsoft.Json;
 /// <summary>
 /// Класс используется для обработки пришедших данных Карты с сервера (что могли быть урезаны и сжаты с целью экономии трафика и еще не приведены в соответсвии с Unity сеткой) 
 /// </summary>
-public class MapModel 
+abstract public class MapDecodeModel 
 {
-	private static MapModel instance;
-
-	private MapModel()
-	{ }
-
-	public static MapModel getInstance()
-	{
-		if (instance == null)
-			instance = new MapModel();
-		return instance;
-	}
-
+	
 	/// <summary>
 	/// декодирование из Bzip2 в объект MapRecive
 	/// </summary>
-	public Map generate(ref string base64, Transform grid, Cinemachine.CinemachineVirtualCamera camera)
+	public static MapDecode generate(string base64, Transform grid, Cinemachine.CinemachineVirtualCamera camera)
     {
 		Map map = decode(ref base64);
 
@@ -154,10 +143,10 @@ public class MapModel
 		if (map.spawn_sort == null)
 			map.spawn_sort = 1;
 
-		return map;
+		return new MapDecode(map);
 	}
 
-	private Map decode(ref string base64)
+	private static Map decode(ref string base64)
     {
 		Map map;
 		using (MemoryStream source = new MemoryStream(System.Convert.FromBase64String(base64)))

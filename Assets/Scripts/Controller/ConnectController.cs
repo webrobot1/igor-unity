@@ -58,7 +58,7 @@ public abstract class ConnectController : BaseController
 	/// <summary>
 	/// массив декодированных с сервера карт
 	/// </summary>
-	public Dictionary<string, Map> maps = new Dictionary<string, Map>();
+	public Dictionary<string, MapDecode> maps = new Dictionary<string, MapDecode>();
 
 	/// <summary>
 	/// массив с перечнем с какой стороны какая смежная карта
@@ -154,30 +154,51 @@ public abstract class ConnectController : BaseController
 			string text = request.downloadHandler.text;
 			if (text.Length > 0)
 			{
-				Debug.Log("Обновляем карту " + side);
+				Debug.Log("Ответ от сервера карт "+ text);
 
-				Transform grid = new GameObject(side).transform;
-				grid.gameObject.AddComponent<Grid>();
-				grid.SetParent(mapObject.transform, false);
-
-				// приведем координаты в сответсвие с сеткой Unity
 				try
 				{
-					maps.Add(side, MapModel.getInstance().generate(ref text, grid, camera));
-					SortMap();
+					MapDecodeRecive recive = JsonConvert.DeserializeObject<MapDecodeRecive>(text);
 
-					if (side == "center")
+					if (recive.error.Length > 0)
 					{
-						if (maps["center"].map_id == 1)
-							StartCoroutine(GetMap("right"));
-						else
-							StartCoroutine(GetMap("left"));
+						Error("Ошибка запроса карты "+ side + ": "+recive.error);
 					}
+					else if(recive.map.Length>0)
+					{
+						Debug.Log("Обновляем карту " + side);
+
+						Transform grid = new GameObject(side).transform;
+						grid.gameObject.AddComponent<Grid>();
+						grid.SetParent(mapObject.transform, false);
+
+						// приведем координаты в сответсвие с сеткой Unity
+						try
+						{
+							maps.Add(side, MapDecodeModel.generate(recive.map, grid, camera));
+							SortMap();
+
+							if (side == "center")
+							{
+								if (maps["center"].map_id == 1)
+									StartCoroutine(GetMap("right"));
+								else
+									StartCoroutine(GetMap("left"));
+							}
+						}
+						catch (Exception ex)
+						{
+							Debug.LogException(ex);
+							Error("Ошибка разбора карты");
+						}
+					}
+					else
+						Error("ответ запроса сервера карт не содержит карту");
 				}
 				catch (Exception ex)
 				{
 					Debug.LogException(ex);
-					Error("Ошибка разбора карты");
+					Error("Ошибка запроса карты");
 				}
 			}
 			else
@@ -300,12 +321,12 @@ public abstract class ConnectController : BaseController
 			if (this.maps.Count > 0)
 			{
 				bool find;
-				Dictionary<string, Map> new_maps = new Dictionary<string, Map>();
+				Dictionary<string, MapDecode> new_maps = new Dictionary<string, MapDecode>();
 
 				foreach (KeyValuePair<string, int> side in recive.sides)
 				{
 					find = false;
-					foreach (KeyValuePair<string, Map> map in maps)
+					foreach (KeyValuePair<string, MapDecode> map in maps)
 					{
 						if (map.Value.map_id == side.Value)
 						{
