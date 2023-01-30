@@ -40,9 +40,6 @@ public abstract class ConnectController : BaseController
 	/// </summary>
 	private string token;	
 
-	[SerializeField]
-	private Cinemachine.CinemachineVirtualCamera camera;
-
 	/// <summary>
 	/// объект в котором будут дочерние объекты карт
 	/// </summary>
@@ -175,7 +172,7 @@ public abstract class ConnectController : BaseController
 						// приведем координаты в сответсвие с сеткой Unity
 						try
 						{
-							maps.Add(side, MapDecodeModel.generate(recive.map, grid, camera));
+							maps.Add(side, MapDecodeModel.generate(recive.map, grid));
 							SortMap();
 
 							if (side == "center")
@@ -423,7 +420,7 @@ public abstract class ConnectController : BaseController
 
 								if (player.Key == player_key)
 								{
-									camera.Follow = prefab.transform;
+									GetComponent<CameraController>().player = prefab.transform;
 									this.player = prefab.GetComponent<PlayerModel>();
 
 									// если у нас webgl првоерим не а дминке ли мы с API отладкой

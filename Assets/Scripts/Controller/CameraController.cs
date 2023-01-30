@@ -4,16 +4,20 @@ using UnityEngine;
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {
+    public Transform player;
     float last_size;
 
     private void Start()
     {
-        last_size = GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize;
+        last_size = GetComponent<Camera>().orthographicSize;
     }
 
 
     private void Update()
     {
+        if (player != null)
+            transform.position = new Vector3(player.position.x, player.position.y, transform.position.z);
+
         float screenRation = (float)Screen.width / (float)Screen.height;
 
         /// <summary>
@@ -35,7 +39,7 @@ public class CameraController : MonoBehaviour
 
             if(this.last_size != size)
             {
-                this.last_size = GetComponent<Cinemachine.CinemachineVirtualCamera>().m_Lens.OrthographicSize = size;
+                this.last_size = GetComponent<Camera>().orthographicSize = size;
             }
         }
     }

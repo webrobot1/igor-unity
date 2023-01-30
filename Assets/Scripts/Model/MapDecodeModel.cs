@@ -17,7 +17,7 @@ abstract public class MapDecodeModel
 	/// <summary>
 	/// декодирование из Bzip2 в объект MapRecive
 	/// </summary>
-	public static MapDecode generate(string base64, Transform grid, Cinemachine.CinemachineVirtualCamera camera)
+	public static MapDecode generate(string base64, Transform grid)
     {
 		Map map = decode(ref base64);
 
@@ -120,12 +120,6 @@ abstract public class MapDecodeModel
 			if (layer.isGround == 1)
 			{
 				Debug.Log(layer.name + "- слой Земля");
-				
-				newLayer.AddComponent<TilemapCollider2D>().usedByComposite = true;
-				newLayer.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Static;
-				CompositeCollider2D colider = newLayer.AddComponent<CompositeCollider2D>();
-				colider.geometryType = CompositeCollider2D.GeometryType.Polygons;
-				//camera.GetComponent<Cinemachine.CinemachineConfiner>().m_BoundingShape2D = colider;
 			}
 
 			//  текущий слой на котором будем ставить игроков	
