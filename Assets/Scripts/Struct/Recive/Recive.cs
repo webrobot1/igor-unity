@@ -25,6 +25,11 @@ public class Recive
     /// </summary>
     public string error = "";
 
+    /// <summary>
+    /// если мы переходим на другую карту тут будет новый хост для соединения
+    /// </summary>
+    public string new_host;   
+    
     private string _action = "";
 
     // если пришла команда action в сокращенной форме то добавим index

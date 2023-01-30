@@ -20,7 +20,13 @@ public class Websocket
 	/// <summary>
 	/// true - пауза (выходим, входим или перезагружаем мир игры)
 	/// </summary>
-	public bool pause = true;	
+	public DateTime? pause = DateTime.Now;	
+	
+	/// <summary>
+	/// 1 - пересоединяемся с сервером
+	/// 2 - идет пересоединение
+	/// </summary>
+	public int reconnect;	
 	
 	/// <summary>
 	/// список ошибок (в разном порядке могут прийти Закрытие соединение и...реальная причина)
@@ -48,14 +54,14 @@ public class Websocket
 	/// <param name="command_pause">Пауза в секундах между командами для предотвращения даблкликов</param>
 	public Websocket(string host, string player_key, string token, float command_pause = 0.15f)
 	{
+		errors.Clear();
+
 		string address = "ws://" + host;
-		
 		Debug.Log("Соединяемся с сервером "+ address);
 
 		// добавим единсвенную пока доступную команду на отправку данных
 		commands.timeouts["load"] = new TimeoutRecive();
 		commands.timeouts["load"].actions["index"] = true;
-
 
 		if (this.ws != null && (this.ws.ReadyState == WebSocketSharp.WebSocketState.Open || this.ws.ReadyState == WebSocketSharp.WebSocketState.Closing))
 		{
@@ -75,10 +81,17 @@ public class Websocket
 			};
 			ws.OnClose += (sender, ev) =>
 			{
-				ws = null;
+				if (reconnect>0)
+                {
+					Debug.LogError("Закрытие старого соединения"); 
+				}
+                else
+                {
+					Debug.LogError("Закрытие текущего соединения");
 
-				Debug.Log("Закрытие соединения");
-				errors.Add("Соединение с сервером закрыто (" + ev.Code + ", "+ev.Reason+")");
+					ws = null;
+					errors.Add("Соединение с сервером закрыто (" + ev.Code + ", " + ev.Reason + ")");
+                }	
 			};
 			ws.OnError += (sender, ev) =>
 			{
@@ -98,15 +111,21 @@ public class Websocket
 						if (recive.error.Length > 0)
 						{
 							errors.Add(recive.error);
-							pause = true;
+							pause = DateTime.Now;
 						}
 
-						if (errors.Count == 0 && recive.action == "load/index") 
+						if (recive.action == "load/index") 
 						{  
-							pause = false;
+							pause = null;
 						}
-						else 
-							if (pause) return;
+						else if (recive.action == "load/reconnect")
+						{
+							pause = DateTime.Now;
+							reconnect = 1;
+
+							ws = null;
+						}
+						else if (pause!=null) return;
 
 						if (recive.timeouts.Count > 0)
 						{
@@ -174,7 +193,7 @@ public class Websocket
 		if (errors.Count == 0)
 		{		
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (!pause)
+			if (pause == null)
 			{
 				if (ws == null || (ws.ReadyState != WebSocketSharp.WebSocketState.Open && ws.ReadyState != WebSocketSharp.WebSocketState.Connecting))
 				{
@@ -187,7 +206,7 @@ public class Websocket
 				{
 					// актуально когда после разрыва соединения возвращаемся
 					recives.Clear();
-					pause = true;
+					pause = DateTime.Now;
 				}
 
 				// прверим есть ли вообще группа команд этих (мы таймауты собрали словарь из всех доступных команд)
@@ -219,7 +238,7 @@ public class Websocket
 							//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
 							if (commands.timeouts[data.group()].requests.Count < 2)
 							{
-								Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
+								//Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
 
 								// создадим условно уникальный номер нашего сообщения (она же и временная метка)
 								data.command_id = command_id;

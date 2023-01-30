@@ -16,6 +16,11 @@ using WebGLSupport;
 public abstract class ConnectController : BaseController
 {
 	/// <summary>
+	/// максимальное количество секунд системной паузы
+	/// </summary>
+	const int PAUSE_SECONDS = 10;
+
+	/// <summary>
 	/// Ссылка на конектор
 	/// </summary>
 	protected Websocket connect;
@@ -86,7 +91,6 @@ public abstract class ConnectController : BaseController
 	}
 #endif
 
-
 	// повторная загрузка всего пира по новой при переключении между вкладками браузера
 	// если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
 	// TODO придумать как отказаться от этого
@@ -115,9 +119,7 @@ public abstract class ConnectController : BaseController
 		if(worldObject == null)
 			Error("не присвоен GameObject для игровых обектов");
 
-		StartCoroutine(GetMap("center"));
-
-		connect = new Websocket(data.host, player_key, this.token);	
+		connect = new Websocket(data.host, this.player_key, this.token);
 	}
 
 	private IEnumerator GetMap(string side)
@@ -162,38 +164,14 @@ public abstract class ConnectController : BaseController
 				try
 				{
 					maps.Add(side, MapModel.getInstance().generate(ref text, grid, camera));
+					SortMap();
 
-					if (side != "center")
+					if (side == "center")
 					{
-						switch (side)
-						{
-							case "right":
-								grid.position = new Vector3(grid.position.x + maps["center"].width, grid.position.y, grid.position.z);
-							break;
-							case "left":
-								grid.position = new Vector3(grid.position.x - maps[side].width, grid.position.y, grid.position.z);
-							break;
-						}
-					}
-                    else
-					{
-						if(maps["center"].map_id==1)
+						if (maps["center"].map_id == 1)
 							StartCoroutine(GetMap("right"));
 						else
 							StartCoroutine(GetMap("left"));
-					}
-
-					// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
-					if (worldObject.transform.Find(side) != null)
-					{
-						foreach (Transform child in worldObject.transform.Find(side))
-						{
-							if (child.gameObject.GetComponent<SpriteRenderer>())
-								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + (int)child.GetComponent<ObjectModel>().sort;
-
-							if (child.gameObject.GetComponentInChildren<Canvas>())
-								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + (int)child.GetComponent<ObjectModel>().sort;
-						}
 					}
 				}
 				catch (Exception ex)
@@ -207,6 +185,41 @@ public abstract class ConnectController : BaseController
 		}
 	}
 
+	public void SortMap()
+    {
+		foreach (Transform grid in mapObject.transform)
+		{
+			string side = grid.gameObject.name;
+			switch (side)
+			{
+				case "center":
+					grid.localPosition = new Vector3(0f, 0f, 0f);
+				break;	
+					
+				case "right":
+					grid.position = new Vector3(grid.position.x + maps["center"].width, grid.position.y, grid.position.z);
+				break;
+
+				case "left":
+					grid.position = new Vector3(grid.position.x - maps[side].width, grid.position.y, grid.position.z);
+				break;
+			}
+
+			// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
+			if (worldObject.transform.Find(side) != null)
+			{
+				foreach (Transform child in worldObject.transform.Find(side))
+				{
+					if (child.gameObject.GetComponent<SpriteRenderer>())
+						child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + (int)child.GetComponent<ObjectModel>().sort;
+
+					if (child.gameObject.GetComponentInChildren<Canvas>())
+						child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + (int)child.GetComponent<ObjectModel>().sort;
+				}
+			}
+		}
+	}
+
 	/// <summary>
 	/// Проверка наличие новых данных или ошибок соединения
 	/// </summary>
@@ -214,10 +227,23 @@ public abstract class ConnectController : BaseController
 	{
 		if (connect == null)
 			return;
+		else if (connect.reconnect>0)
+        {
+			if(connect.reconnect == 1)
+            {
+				connect.reconnect = 2;
+				StartCoroutine(HttpRequest("auth"));
+			}				
+		}
 		else if(Websocket.errors.Count > 0)
 			StartCoroutine(LoadRegister());
-		else if (connect.pause)
-			Debug.Log("Пауза");
+		else if (connect.pause!=null)
+        {
+			if (DateTime.Compare(((DateTime)connect.pause).AddSeconds(PAUSE_SECONDS), DateTime.Now) < 1)
+				Error("Слишком долгая системная пауза");
+			else
+				Debug.Log("Пауза");
+		}
 		else //if (spawn_sort["center"]!=null)  // обрабатываем пакеты если уже загрузился карта
 		{
 			// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
@@ -250,24 +276,70 @@ public abstract class ConnectController : BaseController
 	/// <param name="recive">JSON сигнатура согласно стрктуре ReciveJson</param>
 	private void HandleData(Recive recive)
 	{
-        switch (recive.action)
-        {	
-			case "load/index":
+        if (recive.action != null) 
+		{ 
+			switch (recive.action)
+			{	
+				case "load/index":
 
-				// удаляет не сразу а на следующем кадре все карты
-				// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
-				foreach (var child in worldObject.transform.Cast<Transform>().ToList())
-				{
-					DestroyImmediate(child.gameObject);
-				}
-				Debug.Log("полная перезагрузка мира");
-			break;
-        }
-
+					// удаляет не сразу а на следующем кадре все карты
+					// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
+					foreach (var child in worldObject.transform.Cast<Transform>().ToList())
+					{
+						DestroyImmediate(child.gameObject);
+					}
+					Debug.Log("полная перезагрузка мира");
+				break;
+			}
+		}
 		Debug.Log("Обрабатываем данные");
 
 		if (recive.sides != null)
 		{
+			// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
+			if (this.maps.Count > 0)
+			{
+				bool find;
+				Dictionary<string, Map> new_maps = new Dictionary<string, Map>();
+
+				foreach (KeyValuePair<string, int> side in recive.sides)
+				{
+					find = false;
+					foreach (KeyValuePair<string, Map> map in maps)
+					{
+						if (map.Value.map_id == side.Value)
+						{
+							if (map.Key != side.Key)
+							{
+								Debug.Log("подмена карты");
+								mapObject.transform.Find(map.Key).gameObject.name = side.Key;
+								new_maps.Add(side.Key, map.Value);
+							}
+							find = true;
+						}
+					}
+
+					if (!find && mapObject.transform.Find(side.Key))
+						DestroyImmediate(mapObject.transform.Find(side.Key).gameObject);
+				}
+
+				if (new_maps.Count > 0)
+                {
+					maps = new_maps;
+					SortMap();
+				}	
+			}
+
+			if (!mapObject.transform.Find("center"))
+            {
+				if (recive.sides.ContainsKey("center"))
+				{
+					StartCoroutine(GetMap("center"));
+				}
+				else
+					Error("Зпись о центральной карте не пришла");
+			}
+				
 			this.sides = recive.sides;
 		}
 
@@ -340,14 +412,7 @@ public abstract class ConnectController : BaseController
 								}
 							}
 							else
-							{
 								Debug.Log("Обновляем " + player.Key);
-
-								if (player.Key == player_key && player.Value.map_id>0 && player.Value.map_id!=this.player.map_id)
-                                {
-									Debug.LogWarning("меняем карту нашему игроку");
-								}
-							}
 
 							// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
 							if (maps.ContainsKey(map.Key) && player.Value.sort != null)
@@ -477,8 +542,7 @@ public abstract class ConnectController : BaseController
 		}
 	}
 
-
-	private void Error (string text)
+	public override void Error (string text)
     {
 		Websocket.errors.Add(text);
 		StartCoroutine(LoadRegister());
