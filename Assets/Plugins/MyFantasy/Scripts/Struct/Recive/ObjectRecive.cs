@@ -23,6 +23,6 @@ namespace MyFantasy
 
 		public DateTime created = DateTime.Now;
 
-		public ObjectComponentsRecive components;
+		public ComponentsRecive components;
 	}
 }

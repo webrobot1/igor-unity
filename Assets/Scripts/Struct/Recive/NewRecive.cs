@@ -8,6 +8,6 @@ namespace MyFantasy
     [System.Serializable]
     public class NewRecive : Recive
     {
-        public Dictionary<string, NewMapRecive> world;
+        public new Dictionary<string, NewMapRecive> world;
     }
 }

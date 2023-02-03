@@ -20,7 +20,7 @@ namespace MyFantasy
 		/// <summary>
 		/// Префаб нашего игрока
 		/// </summary>
-		public ObjectModel playerModel;
+		public dynamic playerModel;
 
 		/// <summary>
 		/// максимальное количество секунд системной паузы
@@ -118,13 +118,15 @@ namespace MyFantasy
 			if(worldObject == null)
 				Error("не присвоен GameObject для игровых обектов");
 
+			Debug.Log(GetReciveStruct());
+
 			connect = new Websocket(GetReciveStruct(), data.host, this.player_key, this.token);
 		}
 
 		/// <summary>
 		/// какая структура Recive (можно переопределить) должна обрабатывать поступивший от сервера ответ
 		/// </summary>
-		protected Recive GetReciveStruct()
+		protected virtual Recive GetReciveStruct()
         {
 			return new Recive();
         }
@@ -238,7 +240,7 @@ namespace MyFantasy
 				{
 					foreach (Transform child in worldObject.transform.Find(side))
 					{
-						ObjectModel model = child.GetComponent<ObjectModel>();
+						dynamic model = child.GetComponent("ObjectModel");
 						if (model != null)
 						{
 
@@ -307,7 +309,7 @@ namespace MyFantasy
 		/// Обработка пришедших от сервера значений
 		/// </summary>
 		/// <param name="recive">JSON сигнатура согласно стрктуре ReciveJson</param>
-		private void HandleData(Recive recive)
+		protected void HandleData(dynamic recive)
 		{
 			if (recive.action != null) 
 			{ 
@@ -376,8 +378,8 @@ namespace MyFantasy
 			}
 
 			if (recive.world != null)
-			{
-				foreach (KeyValuePair<string, MapRecive> map in recive.world)
+			{	
+				foreach (var map in recive.world)
 				{
 					// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
 					Transform? map_zone = worldObject.transform.Find(map.Key);
@@ -408,58 +410,9 @@ namespace MyFantasy
 						if (map.Value.players != null)
 						{
 							Debug.Log("Обновляем игроков");
-							foreach (KeyValuePair<string, PlayerRecive> player in map.Value.players)
+							foreach (var player in map.Value.players)
 							{
-								GameObject prefab = GameObject.Find(player.Key);
-
-								// если игрока нет на сцене
-								if (prefab == null)
-								{
-									// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
-									if (player.Value.prefab == null || player.Value.prefab.Length == 0)
-									{
-										continue;
-									}
-
-									Debug.Log("Создаем " + player.Value.prefab + " " + player.Key);
-
-									UnityEngine.Object? ob = Resources.Load("Prefabs/Players/" + player.Value.prefab, typeof(GameObject));
-
-									if (ob == null)
-										ob = Resources.Load("Prefabs/Players/Empty", typeof(GameObject));
-
-									prefab = Instantiate(ob) as GameObject;
-									prefab.name = player.Key;
-									prefab.transform.SetParent(map_zone.transform, false);
-
-									if (player.Key == player_key)
-									{
-										this.playerModel = prefab.GetComponent<ObjectModel>();
-									}
-								}
-								else
-									Debug.Log("Обновляем " + player.Key);
-
-								// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
-								if (maps.ContainsKey(map.Key) && player.Value.sort != null)
-								{
-									if (prefab.GetComponent<SpriteRenderer>())
-										prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)player.Value.sort;
-									if (prefab.GetComponentInChildren<Canvas>())
-										prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)player.Value.sort;
-								}
-
-								try
-								{
-									ObjectModel model = prefab.GetComponent<ObjectModel>();
-									if (model != null)
-										model.SetData(player.Value);
-								}
-								catch (Exception ex)
-								{
-									Debug.LogException(ex);
-									Error("Не удалось загрузить игрока " + player.Key);
-								}
+								UpdateObject(map.Key, player.Key, player.Value, "Players");
 							}
 						}
 
@@ -468,51 +421,9 @@ namespace MyFantasy
 						{
 							Debug.Log("Обновляем enemy");
 
-							foreach (KeyValuePair<string, EnemyRecive> enemy in map.Value.enemys)
+							foreach (var enemy in map.Value.enemys)
 							{
-								GameObject prefab = GameObject.Find(enemy.Key);
-								if (prefab == null)
-								{
-							
-									// данные от NPC что могут уже атаковать ДО загрузки сцены (те между sign и load)
-									if (enemy.Value.prefab == null || enemy.Value.prefab.Length == 0)
-									{
-										continue;
-									}
-
-									Debug.Log("Создаем " + enemy.Value.prefab + " "+ enemy.Key);
-
-									UnityEngine.Object? ob = Resources.Load("Prefabs/Enemys/" + enemy.Value.prefab, typeof(GameObject));
-
-									if (ob == null)
-										ob = Resources.Load("Prefabs/Enemys/Empty", typeof(GameObject));
-
-									prefab = Instantiate(ob) as GameObject;
-									prefab.name = enemy.Key;
-									prefab.transform.SetParent(map_zone.transform, false);
-								}
-								else
-									Debug.Log("Обновляем " + enemy.Key);
-
-								if (maps.ContainsKey(map.Key) && enemy.Value.sort != null)
-								{
-									if (prefab.GetComponent<SpriteRenderer>())
-										prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)enemy.Value.sort;
-									if (prefab.GetComponentInChildren<Canvas>())
-										prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)enemy.Value.sort;
-								}
-
-								try
-								{
-									ObjectModel model = prefab.GetComponent<ObjectModel>();
-									if (model != null)
-										model.SetData(enemy.Value);
-								}
-								catch (Exception ex)
-								{
-									Debug.LogException(ex);
-									Error("Не удалось загрузить врага " + enemy.Key);
-								}
+								UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
 							}
 						}
 
@@ -520,58 +431,74 @@ namespace MyFantasy
 						if (map.Value.objects != null)
 						{
 							Debug.Log("Обновляем объекты");
-							foreach (KeyValuePair<string, ObjectRecive> obj in map.Value.objects)
+							foreach (var obj in map.Value.objects)
 							{
-								GameObject prefab = GameObject.Find(obj.Key);
-								if (prefab == null)
-								{
-									// данные от объектов что могут влиять на игру ДО загрузки сцены (те между sign и load)
-									if (obj.Value.prefab == null || obj.Value.prefab.Length == 0)
-									{
-										continue;
-									}
-
-									Debug.Log("Создаем " + obj.Value.prefab + " " + obj.Key);
-
-									UnityEngine.Object? ob = Resources.Load("Prefabs/Objects/" + obj.Value.prefab, typeof(GameObject));
-
-									if (ob == null)
-										ob = Resources.Load("Prefabs/Objects/Empty", typeof(GameObject));
-
-									prefab = Instantiate(ob) as GameObject;
-									prefab.name = obj.Key;
-
-									//todo сделать слой объектов
-									prefab.transform.SetParent(map_zone.transform, false);
-								}
-								else
-									Debug.Log("Обновляем "+obj.Key);
-
-								if (maps.ContainsKey(map.Key) && obj.Value.sort!=null)
-								{
-									if(prefab.GetComponent<SpriteRenderer>())
-										prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map.Key].spawn_sort + (int)obj.Value.sort;
-									if(prefab.GetComponentInChildren<Canvas>())
-										prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map.Key].spawn_sort + 1 + (int)obj.Value.sort;
-								}
-
-								try
-								{
-									ObjectModel model = prefab.GetComponent<ObjectModel>();
-									if (model!=null)
-										model.SetData(obj.Value);
-								}
-								catch (Exception ex)
-								{
-									Debug.LogException(ex);
-									Error("Не удалось загрузить объект " + obj.Key);
-								}
+								UpdateObject(map.Key, obj.Key, obj.Value, "Objects");
 							}
 						}
 					}
 				}
 			}
 		}
+
+		private void UpdateObject(string side, string key, dynamic value, string type)
+        {
+			GameObject prefab = GameObject.Find(key);
+
+			// если игрока нет на сцене
+			if (prefab == null)
+			{
+				// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
+				if (value.prefab == null || value.prefab.Length == 0)
+				{
+					return;
+				}
+
+				Debug.Log("Создаем " + value.prefab + " " + key);
+
+				UnityEngine.Object? ob = Resources.Load("Prefabs/"+type+"/" + value.prefab, typeof(GameObject));
+
+				if (ob == null)
+					ob = Resources.Load("Prefabs/" + type + "/Empty", typeof(GameObject));
+
+				prefab = Instantiate(ob) as GameObject;
+				prefab.name = key;
+				prefab.transform.SetParent(worldObject.transform.Find(side).transform, false);
+
+				if (key == player_key)
+				{
+					this.playerModel = prefab.GetComponent("ObjectModel");
+				}
+			}
+			else
+				Debug.Log("Обновляем " + key);
+
+			// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
+			if (maps.ContainsKey(side) && value.sort!=null)
+			{
+				if (prefab.GetComponent<SpriteRenderer>())
+					prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + value.sort;
+				if (prefab.GetComponentInChildren<Canvas>())
+					prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + value.sort;
+			}
+
+			try
+			{
+				dynamic model = prefab.GetComponent("ObjectModel");
+
+				Debug.Log(model);
+				Debug.Log(value);
+
+				if (model != null)
+					model.SetData(value);
+			}
+			catch (Exception ex)
+			{
+				Debug.LogException(ex);
+				Error("Не удалось загрузить игрока " + key);
+			}
+		}
+
 
 		public override void Error (string text)
 		{

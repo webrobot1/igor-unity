@@ -130,20 +130,23 @@
 			}
 		  }, 10000);
 		  
-		  window.parent.document.querySelector('#unity-api-container').addEventListener('submit', function(e) 
+		  if(window.parent.document.querySelector('#unity-api-container'))
 		  {
-			e.preventDefault();
-			const data = new FormData(e.target);
-			let value = Object.fromEntries(data.entries());
-			value.command_id = Date.now();
-			unityInstance.SendMessage('Camera', 'Api', JSON.stringify(value));
-		  });
-
+			  window.parent.document.querySelector('#unity-api-container').addEventListener('submit', function(e) 
+			  {
+				e.preventDefault();
+				const data = new FormData(e.target);
+				let value = Object.fromEntries(data.entries());
+				value.command_id = Date.now();
+				unityInstance.SendMessage('Camera', 'Api', JSON.stringify(value));
+			  });
+		  }
 		  // не работае нормально потеря фокуса в unity webgl поэтому ставим заплатку
 		  window.parent.document.addEventListener('click', function(e) 
 		  {
 			unityInstance.SendMessage('Camera', 'Focus', +(e.target.id == "unity-canvas"));
 		  });
+		  
 
           fullscreenButton.onclick = () => {
             unityInstance.SetFullscreen(1);

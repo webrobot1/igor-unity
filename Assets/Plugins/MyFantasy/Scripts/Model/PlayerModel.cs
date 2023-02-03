@@ -8,7 +8,7 @@ namespace MyFantasy
 
 		public void SetData(PlayerRecive data)
 		{
-			Debug.Log("sdf");
+			
 			if (data.login!=null)
 				this.login = data.login;
 

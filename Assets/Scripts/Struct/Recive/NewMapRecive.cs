@@ -6,10 +6,10 @@ namespace MyFantasy
     /// структура получаемых данных мира определенной  карты
     /// </summary>
     [System.Serializable]
-    public class NewMapRecive
+    public class NewMapRecive : MapRecive
     {
-        public Dictionary<string, NewPlayerRecive> players;
-        public Dictionary<string, NewEnemyRecive> enemys;
-        public Dictionary<string, NewObjectRecive> objects;
+        public new Dictionary<string, NewPlayerRecive> players;
+        public new Dictionary<string, NewEnemyRecive> enemys;
+        public new Dictionary<string, NewObjectRecive> objects;
     }
 }

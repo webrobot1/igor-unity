@@ -4,7 +4,7 @@ namespace MyFantasy
 	/// Структура полученных данных - произвольыне поля
 	/// </summary>
 	[System.Serializable]
-	public class NewPlayerComponentsRecive : NewEnemyComponentsRecive
+	public class ComponentsRecive
 	{
 
 

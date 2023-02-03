@@ -1,3 +1,5 @@
+using UnityEngine;
+
 namespace MyFantasy
 {
 	public class NewEnemyModel : NewObjectModel
@@ -7,9 +9,8 @@ namespace MyFantasy
 		/// </summary>
 		public LifeModel lifeBar;
 
-		public void SetData(NewEnemyRecive data)
+		public void SetData(dynamic data)
 		{
-
 			if (data.components != null) 
 			{
 				if (data.components.hp != null)
@@ -27,7 +28,7 @@ namespace MyFantasy
 					lifeBar.mpMax = (int)data.components.mpMax;
 			}
 
-			base.SetData(data);
+			base.SetData((NewEnemyRecive)data);
 		}
 	}
 }

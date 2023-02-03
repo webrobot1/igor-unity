@@ -29,7 +29,8 @@ namespace MyFantasy
 		protected string action = "idle";
 
 		protected Animator anim = null;
-		private SpriteRenderer sprite = null;
+		protected SpriteRenderer sprite = null;
+
 		private static Dictionary<string, bool> trigers;
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)

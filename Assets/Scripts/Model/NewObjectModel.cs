@@ -1,10 +1,12 @@
+using UnityEngine;
+
 namespace MyFantasy
 {
 	public class NewObjectModel : ObjectModel
 	{
-		public void SetData(NewObjectRecive data)
+		public void SetData(dynamic data)
 		{
-			base.SetData(data);
+			base.SetData((NewObjectRecive)data);
 		}
 	}
 }

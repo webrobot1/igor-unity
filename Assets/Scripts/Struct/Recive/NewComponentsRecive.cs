@@ -4,7 +4,7 @@ namespace MyFantasy
 	/// Структура полученных данных - произвольыне поля
 	/// </summary>
 	[System.Serializable]
-	public class NewEnemyComponentsRecive
+	public class NewComponentsRecive: ComponentsRecive
 	{
 		/// <summary>
 		/// если не приравнять к null - будет  0 при наличии другого лбого элемента класса

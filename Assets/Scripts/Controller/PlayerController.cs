@@ -43,9 +43,14 @@ namespace MyFantasy
             #endif
         }
 
-        protected new Recive GetReciveStruct()
+        protected override Recive GetReciveStruct()
         {
             return new NewRecive();
+        }      
+        
+        protected void HandleData(NewRecive recive)
+        {
+            base.HandleData(recive);
         }
 
         private void Update()

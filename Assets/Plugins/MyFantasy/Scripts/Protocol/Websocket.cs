@@ -114,7 +114,7 @@ namespace MyFantasy
 					{
 						try
 						{
-                            Recive recive = (Recive)JsonConvert.DeserializeObject(text, this.reciveType);
+                            dynamic recive = JsonConvert.DeserializeObject(text, this.reciveType);
 
 							if (recive.error.Length > 0)
 							{

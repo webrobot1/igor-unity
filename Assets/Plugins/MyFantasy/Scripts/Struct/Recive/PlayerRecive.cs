@@ -10,7 +10,7 @@ namespace MyFantasy
 	{
 		public string login;
 		
-		public PlayerComponentsRecive components;
+		public new ComponentsRecive components;
 	}
 }
 
