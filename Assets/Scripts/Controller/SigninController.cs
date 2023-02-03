@@ -1,42 +1,37 @@
-using System;
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;
-using UnityEngine.Networking;
-using UnityEditor;
-using Newtonsoft.Json;
 
-public class SigninController : BaseController
+namespace MyFantasy
 {
-    [SerializeField]
-    protected InputField loginField;
-
-    [SerializeField]
-    protected InputField passwordField;
-
-    public void Register()
+    public class SigninController : BaseController
     {
-        login = this.loginField.text;
-        password = this.passwordField.text;
+        [SerializeField]
+        protected InputField loginField;
+
+        [SerializeField]
+        protected InputField passwordField;
+
+        public void Register()
+        {
+            login = this.loginField.text;
+            password = this.passwordField.text;
         
-        StartCoroutine(HttpRequest("register"));
+            StartCoroutine(HttpRequest("register"));
+        }
+
+        public void Auth()
+        {
+            login = this.loginField.text;
+            password = this.passwordField.text;
+
+            StartCoroutine(HttpRequest("auth"));     
+        }
+
+        public override void Error(string error)
+        {
+            Debug.LogError(error);
+            Websocket.errors.Clear();
+            GameObject.Find("error").GetComponent<Text>().text = error;
+        }
     }
-
-    public void Auth()
-    {
-        login = this.loginField.text;
-        password = this.passwordField.text;
-
-        StartCoroutine(HttpRequest("auth"));     
-    }
-
-    public override void Error(string error)
-    {
-        Debug.LogError(error);
-        Websocket.errors.Clear();
-        GameObject.Find("error").GetComponent<Text>().text = error;
-    }
-
-   
 }

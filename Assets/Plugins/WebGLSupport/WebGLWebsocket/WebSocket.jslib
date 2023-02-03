@@ -26,10 +26,10 @@ var LibraryWebSocket = {
 		Log: function(json){
 			if (webSocketState.debug)
 			{
-				if(document.querySelector("#debug").value.length > 2000)
-					document.querySelector("#debug").value = json;
+				if(window.parent.document.querySelector("#debug").value.length > 2000)
+					window.parent.document.querySelector("#debug").value = json;
 				else
-					document.querySelector("#debug").value = json + "\n" + document.querySelector("#debug").value;
+					window.parent.document.querySelector("#debug").value = json + "\n" + window.parent.document.querySelector("#debug").value;
 			}
 		}, 
 
@@ -164,7 +164,7 @@ var LibraryWebSocket = {
 
 		instance.ws.onopen = function() 
 		{
-			webSocketState.debug = document.querySelector("#unity-api-container");
+			webSocketState.debug = window.parent.document.querySelector("#unity-api-container");
 			if (webSocketState.debug)
 			{
 				webSocketState.Log("Connected");
@@ -249,7 +249,7 @@ var LibraryWebSocket = {
 			if (webSocketState.debug)
 			{
 				webSocketState.debug.setAttribute("disabled", "disabled");
-				document.querySelector("#map_id").value = '';
+				window.parent.document.querySelector("#map_id").value = '';
 				webSocketState.Log("Closed");
 			}
 
