@@ -1,7 +1,6 @@
 Данная игра-песочница служит для демонстрации реализации мультиплеера проекта [http://my-fantasy.ru/articles/frontend/index/eyJpZCI6Mn0=](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6Mn0=)
 
 Общее описание папок:
-
 	Assets\Plugins									- плагины для работы с игры Unity с: фокусом WebGl, страницы отладки на странцие http://my-fantasy.ru/api, websocket в тч webgl и др описанные в этой папке отдельно
 	  Assets\Plugins\GitIntegration					- плагины интеграции с Git по статье https://habr.com/ru/post/493488/
 	  Assets\Plugins\Joystick Pack					- джойстик ttps://assetstore.unity.com/packages/tools/input-management/joystick-pack-107631
@@ -19,16 +18,17 @@
 		  Map\										- описание стрктур на которые разбивается декодированная карта с сервера
 		  Recive\  									- описание структур полученных от сервера данных (это базовые полученыне пакеты которые не зависят от компонтентов и механик в админке, например карты, авторизация и тд)
 		  Response\  								- описание структур отправляемых на сервер данных (это базовые запросы которые не зависят от компонтентов и механик в админке, например для движения) 
-	Assets\Resources					- папка с графикой и префабами (пока у сервера нет функционала загрузки и работы с графикой и анимацией что бы хранить ее на сервере)
-	Assets\Scenes						- содержит сцену входа/регистрации и сцену игры. тк все даныне карт и инфомрация о объектах содержится на сервере - то сцена пуста, ее заполняет Assets\Scripts\Controller\ConnectController
-	Assets\Scripts\Controller           - игровые классы 
-	  CameraController.cs		 		- изменение размер отдаления камеры для разного масштаба
-	  PlayerController.cs   			- класc обрабатывает что нажал игрок и что надо отправлять на сервер, наследуется от ConnectController
-	  RegisterController.cs				- класс обработчик сцены входа и регистрации в игру , после загружает сцену Main и передает управление PlayerController.cs 
-	Assets\Scripts\Struct  				- описание структур запросов и ответов от сервера
-	  Recive\  							- стуктуры что нужно переопределить в плагине (в частности это стукруты игроков, монстров и объектов и их пользовательские поля (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9))
-	Assets\Scripts\Model  				- классы моделей префабов (унаследованных от PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за данные пришли (в частности компоненты)
-	Assets\WebGLTemplates  				- содержит шаблон WebGl для работы панели отладки (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjB9) - отличается от стандартного наличием дополнительного JavaScript кода 
+	Assets\Resources				- папка с графикой и префабами (пока у сервера нет функционала загрузки и работы с графикой и анимацией что бы хранить ее на сервере)
+	Assets\Scenes					- содержит сцену входа/регистрации и сцену игры. тк все даныне карт и инфомрация о объектах содержится на сервере - то сцена пуста, ее заполняет Assets\Scripts\Controller\ConnectController
+	Assets\Scripts\Model  			- классы моделей префабов (унаследованных от PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за данные пришли (в частности компоненты)
+	Assets\WebGLTemplates  			- содержит шаблон WebGl для работы панели отладки (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjB9) - отличается от стандартного наличием дополнительного JavaScript кода 
+	Assets\Scripts\Controller       - игровые классы 
+	  CameraController.cs		 	- изменение размер отдаления камеры для разного масштаба
+	  PlayerController.cs   		- класc обрабатывает что нажал игрок и что надо отправлять на сервер, наследуется от ConnectController
+	  RegisterController.cs			- класс обработчик сцены входа и регистрации в игру , после загружает сцену Main и передает управление PlayerController.cs 
+	Assets\Scripts\Struct  			- описание структур запросов и ответов от сервера
+	  Recive\  						- стуктуры что нужно переопределить в плагине (в частности это стукруты игроков, монстров и объектов и их пользовательские поля (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9))
+
 
 
 Для разработки непосредственно вашей игры вам понадобиться обновлять из данного репозитория Assest/Plugins (тк я доблавяю все новые функции) и работать в папке Assets/Scripts:
