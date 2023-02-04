@@ -10,8 +10,8 @@ namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		protected const string SERVER = "185.117.153.89";
-		//protected const string SERVER = "my-fantasy";                   // сервер авторизации и карт. тк у меня wsl и WWWForm (http из под C#) надо ставить что то отличное от localhost
+		//protected const string SERVER = "185.117.153.89";
+		protected const string SERVER = "my-fantasy";                   // сервер авторизации и карт. тк у меня wsl и WWWForm (http из под C#) надо ставить что то отличное от localhost
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
