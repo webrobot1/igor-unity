@@ -15,8 +15,9 @@ public class CameraController : MonoBehaviour
 
     private void Update()
     {
-        ObjectModel player = GetComponent<ConnectController>().playerModel;
-         if (player != null)
+        var player = GetComponent<UpdateController>().player;
+         
+        if (player != null)
 		{
             transform.position = new Vector3(player.transform.position.x, player.transform.position.y, transform.position.z);
             float screenRation = (float)Screen.width / (float)Screen.height;

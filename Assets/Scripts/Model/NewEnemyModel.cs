@@ -9,26 +9,31 @@ namespace MyFantasy
 		/// </summary>
 		public LifeModel lifeBar;
 
-		public void SetData(dynamic data)
+		public override void SetData(ObjectRecive recive)
 		{
-			if (data.components != null) 
-			{
-				if (data.components.hp != null)
-				{
-					lifeBar.hp = (int)data.components.hp;
-				}
-				if (data.components.hpMax != null)
-					lifeBar.hpMax = (int)data.components.hpMax;
+			this.SetData((NewEnemyRecive)recive);
+		}
 
-				if (data.components.mp != null)
-					lifeBar.mp = (int)data.components.mp;
+		protected void SetData(NewEnemyRecive recive)
+        {
+			if (recive.components != null)
+			{
+				if (recive.components.hp != null)
+				{
+					lifeBar.hp = (int)recive.components.hp;
+				}
+				if (recive.components.hpMax != null)
+					lifeBar.hpMax = (int)recive.components.hpMax;
+
+				if (recive.components.mp != null)
+					lifeBar.mp = (int)recive.components.mp;
 
 				// ниже сравниваем c null тк может быть значение 0 которое надо обработать
-				if (data.components.mpMax != null)
-					lifeBar.mpMax = (int)data.components.mpMax;
+				if (recive.components.mpMax != null)
+					lifeBar.mpMax = (int)recive.components.mpMax;
 			}
 
-			base.SetData((NewEnemyRecive)data);
+			base.SetData(recive);
 		}
 	}
 }

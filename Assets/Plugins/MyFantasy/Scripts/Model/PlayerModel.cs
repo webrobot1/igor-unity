@@ -6,13 +6,17 @@ namespace MyFantasy
 	{
 		private string login;
 
-		public void SetData(PlayerRecive data)
+		public override void SetData(ObjectRecive recive)
 		{
-			
-			if (data.login!=null)
-				this.login = data.login;
+			this.SetData((PlayerRecive)recive);
+		}		
+		
+		private void SetData(PlayerRecive recive)
+		{
+			if (recive.login!=null)
+				this.login = recive.login;
 
-			base.SetData(data);
+			base.SetData(recive);
 		}	
 	}
 }

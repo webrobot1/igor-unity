@@ -4,9 +4,14 @@ namespace MyFantasy
 {
 	public class NewObjectModel : ObjectModel
 	{
-		public void SetData(dynamic data)
+		public override void SetData(ObjectRecive recive)
 		{
-			base.SetData((NewObjectRecive)data);
+			this.SetData((NewObjectRecive)recive);
+		}		
+		
+		protected void SetData(NewObjectRecive recive)
+		{
+			base.SetData(recive);
 		}
 	}
 }

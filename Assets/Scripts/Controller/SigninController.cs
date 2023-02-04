@@ -30,7 +30,6 @@ namespace MyFantasy
         public override void Error(string error)
         {
             Debug.LogError(error);
-            Websocket.errors.Clear();
             GameObject.Find("error").GetComponent<Text>().text = error;
         }
     }

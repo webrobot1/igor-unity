@@ -17,7 +17,7 @@ namespace MyFantasy
 		protected static string login;
 		protected static string password;
 
-	#if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
 			// заплатка для потери фокуса в webgl (если фокус падает на канву с игрой то обратно на странице html не доступны для ввода поля)
 			 public void Focus(int focus)
 			 {
@@ -33,7 +33,7 @@ namespace MyFantasy
 					Input.ResetInputAxes();
 				}
 			}        
-	#endif
+#endif
 
 		public abstract void Error(string text);
 
@@ -109,7 +109,8 @@ namespace MyFantasy
 					SceneManager.UnloadScene("RegisterScene");
 				}
 
-				((dynamic)Camera.main.GetComponent("ConnectController")).SetPlayer(data);
+				// он вывзовет того наследника от ConnectController который повешан на камеру (в игре-песочнице Игорь это PlayerController)
+				Camera.main.GetComponent<ConnectController>().Connect(data);
 
 				// asyncLoad.allowSceneActivation = true;
 			}

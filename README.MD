@@ -13,7 +13,7 @@
 			Map\										- описание стрктур на которые разбивается декодированная карта с сервера
 			Recive\  									- описание структур полученных от сервера данных (это базовые полученыне пакеты которые не зависят от компонтентов и механик в админке, например карты, авторизация и тд)
 			Response\  									- описание структур отправляемых на сервер данных (это базовые запросы которые не зависят от компонтентов и механик в админке, например для движения) 
-		Assets\Plugins\MyFantasy\Model  				- классы моделей (PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за стандартные данные (например координаты) пришли
+		Assets\Plugins\MyFantasy\Model  				- базовые классы моделей (PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за стандартные данные (например координаты) пришли
 		Assets\Plugins\MyFantasy\Protocol  			- содержит классы что создают WebSocket класс (для браузера и ПК с мобилками он разный) и вешают на него обработчики
 	  Assets\Plugins\SharpZipLib		    		- плагин распаковки игровых карт (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTd9) которые приходят с сервера
 	  Assets\Plugins\Startup		    			- добалвяет сцену RegisterScene и MainScene в настрйоки сборки билда + может подтягивать доп плагины из unity (не обязателен в проекте)
@@ -26,18 +26,18 @@
 	  PlayerController.cs   			- класc обрабатывает что нажал игрок и что надо отправлять на сервер, наследуется от ConnectController
 	  RegisterController.cs				- класс обработчик сцены входа и регистрации в игру , после загружает сцену Main и передает управление PlayerController.cs 
 	Assets\Scripts\Struct  				- описание структур запросов и ответов от сервера
-	  Recive\  							- описание структур полученных от сервера данных (в частности это пользовательские поля (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9))
+	  Recive\  							- стуктуры что нужно переопределить в плагине (в частности это стукруты игроков, монстров и объектов и их пользовательские поля (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9))
 	Assets\Scripts\Model  				- классы моделей префабов (унаследованных от PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за данные пришли (в частности компоненты)
 	Assets\WebGLTemplates  				- содержит шаблон WebGl для работы панели отладки (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjB9) - отличается от стандартного наличием дополнительного JavaScript кода 
 
 
 Для разработки непосредственно вашей игры вам понадобиться обновлять из данного репозитория Assest/Plugins (тк я доблавяю все новые функции) и работать в папке Assets/Scripts:
 
-+ изменить дизайн RegisterScene (опционально)
-+ изменить PlayerController (что бы обрабатывать action команды которые глобально что то делают из [событий](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) в админ панели) - он висит на Camera MainScene, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Controller/PlayerController.cs) 
++ изменить дизайн Assets\Scenes\RegisterScene (опционально)
++ изменить Assets\Scripts\Controller\PlayerController (что бы обрабатывать action команды которые глобально что то делают из [событий](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) в админ панели) - он висит на Camera MainScene, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Controller/PlayerController.cs) 
 + изменить CameraController из примера  (опционально возможно захочется добавить pixelPerfect или cinemachine camera механики и тд) - он так же висит на на Camera в MainScene, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Controller/CameraController.cs)
-+ изменить EnemyComponentsRecive, PlayerComponentsRecive, ObjectComponentsRecive добавив туда те пользовательские поля - [компонтенты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9) из админ панели, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Struct/Recive/) 
-+ изменить NewPlayerModel, NewEnemyModel, NewObjectModel что бы указвать что делать в игре при изменении стандартных полей (типа координат, сортировки, action поля существа) и компонентов (какую анимацию включать. компонетнты меняются на сервере благодаря [игровым событиям](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) - [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Model/)	
++ изменить Assets\Scripts\Struct\Recive\ComponentsRecive добавив туда пользовательские поля - [компонтенты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9) созданные Вами в админ панели, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Struct/Recive/) 
++ изменить Assets\Scripts\Model\NewPlayerModel, NewEnemyModel, NewObjectModel что бы указвать что делать в игре при изменении полей и компонентов (какую анимацию включать. компонетнты меняются на сервере благодаря [игровым событиям](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) - [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Model/)	
 + скомпилировать билд webgl для [отладки](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjB9), после чего [загрузить его](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjF9) в админ панель и добавлять [карты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTd9), игровые механики, [пользователские поля](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9). 
 + После откладки можно так же создать игру для мобильных устройств и ПК с загрузкой ее на маркет плейсы (Google Play Market, Steam) тк данная демо игра поддерживает портирование своих библиотек на различные устройства
 	
@@ -45,7 +45,6 @@
 
 
 	PS NewTonJson выбран взамен стандартного UnityJson для работы со структурами не просто так, менять его на UnityJson - на свой страх и риск 
-	PS В Project Settion -> Player во вкладке Other Settings в поле Api Compatibility Level должен быть .NET Framework (.NET Standard не подходит из за наследования структур и моделей от плагина)
 	PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой (тк в коде много Debug отладок что бы понимать в консоле редактора что откуда приходит)
 	PS если вы захотите поставить взамен WebsocketSharp из данного проекта что то свое знайте:
 

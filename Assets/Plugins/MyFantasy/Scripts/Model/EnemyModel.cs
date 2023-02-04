@@ -6,9 +6,14 @@ namespace MyFantasy
 {
 	public class EnemyModel : ObjectModel
 	{
-		public void SetData(EnemyRecive data)
+		public override void SetData(ObjectRecive recive)
 		{
-			base.SetData(data);
+			this.SetData((EnemyRecive)recive);
+		}		
+		
+		protected void SetData(EnemyRecive recive)
+		{
+			base.SetData(recive);
 		}
 	}
 }

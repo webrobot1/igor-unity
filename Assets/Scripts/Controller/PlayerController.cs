@@ -1,4 +1,6 @@
+using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -7,7 +9,7 @@ namespace MyFantasy
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class PlayerController : ConnectController
+    public class PlayerController : UpdateController
     {
         /// <summary>
         /// наш джойстик
@@ -23,7 +25,6 @@ namespace MyFantasy
         /// нажата кнопка двигаться по вертикали
         /// </summary>
         private double vertical;
-
         private Vector2Int moveTo = Vector2Int.zero;
 
         private void Start()
@@ -43,16 +44,6 @@ namespace MyFantasy
             #endif
         }
 
-        protected override Recive GetReciveStruct()
-        {
-            return new NewRecive();
-        }      
-        
-        protected void HandleData(NewRecive recive)
-        {
-            base.HandleData(recive);
-        }
-
         private void Update()
         {
             // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
@@ -64,11 +55,12 @@ namespace MyFantasy
         }
 
         // Update is called once per frame
-        private void FixedUpdate()
+        protected override void FixedUpdate()
         {
-            base.FixedUpdate();
+            // это позволит нам при декодировании ответа использовать новые структуры игроков, врагов и обектов где по сути из нового  - компоненты
+            base.HandleData<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>();
 
-            if (playerModel != null && connect!=null && connect.pause==null)
+            if (player != null && loading == null)
             {
                 // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
                 // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
@@ -106,12 +98,12 @@ namespace MyFantasy
                             response.action = "move/left";
                         }
                     }
-                    else if (Vector2.Distance(playerModel.transform.position, moveTo) >= 1)
+                    else if (Vector2.Distance(player.transform.position, moveTo) >= 1)
                     {
                         response.action = "move/to";
                         response.x = moveTo.x;
                         response.y = moveTo.y;
-                        response.z = (int)playerModel.transform.position.z;
+                        response.z = (int)player.transform.position.z;
 
                         // очищаем переменную после того как команда отправлена (дальше сам пойдет)
                         moveTo = Vector2Int.zero;
@@ -121,7 +113,7 @@ namespace MyFantasy
                         return;
                     }
 
-                    connect.Send(response);
+                    base.Send(response);
                 }
             }
         }

@@ -6,9 +6,9 @@ namespace MyFantasy
     /// —cтруктура получаемых данных данных
     /// </summary>
     [System.Serializable]
-    public class Recive
+    public class Recive<P, E, O> where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
     {
-        public Dictionary<string, MapRecive> world;
+        public Dictionary<string, MapRecive<P, E, O>> world;
         public Dictionary<string, int> sides;
 
         /// <summary>

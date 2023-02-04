@@ -6,6 +6,6 @@ namespace MyFantasy
     [System.Serializable]
     public class NewEnemyRecive : NewObjectRecive
     {
-		public new NewComponentsRecive components;
+
     }
 }

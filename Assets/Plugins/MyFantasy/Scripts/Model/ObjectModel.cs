@@ -90,40 +90,40 @@ namespace MyFantasy
 			}
 		}
 
-		public void SetData(ObjectRecive data)
+		public virtual void SetData(ObjectRecive recive) 
 		{
 			activeLast = DateTime.Now;
 
-			if (data.action!=null && data.action.Length > 0 && this.action != data.action && trigers.ContainsKey(data.action))
+			if (recive.action!=null && recive.action.Length > 0 && this.action != recive.action && trigers.ContainsKey(recive.action))
 			{
-				Debug.Log("Обновляем анимацию " + data.action);
-				this.action = data.action;
+				Debug.Log("Обновляем анимацию " + recive.action);
+				this.action = recive.action;
 				if(anim !=null)
 					anim.SetTrigger(action);
 			}
 
 			// пришла команды удаления с карты объекта
-			if(data.action == "remove/index")
+			if(recive.action == "remove/index")
 			{ 		
 				DestroyImmediate(gameObject);
 				return;
 			}
 
 			// сортировку не сменить в SetData тк я не хочу менять уровент изоляции spawn_sort
-			if (data.sort > 0)
-				this.sort = (int)data.sort;
+			if (recive.sort > 0)
+				this.sort = (int)recive.sort;
 
-			if (this.key.Length == 0 && data.x!=null && data.y != null && data.z != null)
+			if (this.key.Length == 0 && recive.x!=null && recive.y != null && recive.z != null)
 			{	
-				transform.position = new Vector3((float)data.x, (float)data.y, (float)data.z);
+				transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
 			}
 
-			if (this.key.Length > 0 && (data.x != null || data.y != null || data.z != null))
+			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))
 			{
 				if (moveCoroutine != null)
 					StopCoroutine(moveCoroutine);
 
-				Vector3 moveTo = new Vector3((float)(data.x != null ? data.x : transform.position.x), (float)(data.y != null ? data.y : transform.position.y), (float)(data.z != null ? data.z : transform.position.z));
+				Vector3 moveTo = new Vector3((float)(recive.x != null ? recive.x : transform.position.x), (float)(recive.y != null ? recive.y : transform.position.y), (float)(recive.z != null ? recive.z : transform.position.z));
 
 				// todo пока 1 шаг - 1 единици позиции  и если больше - это не ходьба а телепорт. в будушем может быть меньше 1 единицы
 				// если отставание от текущей позиции больше чем полтора шага телепортнем (а може это и есть телепорт)
@@ -134,22 +134,22 @@ namespace MyFantasy
 			}
 
 			// тут если speed=0 значит ничего не пришло
-			if (data.speed > 0)
+			if (recive.speed > 0)
 			{
-				this.speed = data.speed;
+				this.speed = recive.speed;
 
 				// todo переделать основываясь на таймаутах событий
 				distancePerUpdate = this.speed * Time.fixedDeltaTime;
 			}
 
-			if (data.created !=null)
-				this.created = data.created;	
+			if (recive.created !=null)
+				this.created = recive.created;	
 		
-			if (data.prefab != null)
-				this.prefab = data.prefab;
+			if (recive.prefab != null)
+				this.prefab = recive.prefab;
 
-			if (data.map_id > 0)
-				this.map_id = data.map_id;
+			if (recive.map_id > 0)
+				this.map_id = recive.map_id;
 
 			if(this.key.Length==0)
 				this.key = this.gameObject.name;

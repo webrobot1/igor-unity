@@ -22,7 +22,6 @@ namespace MyFantasy
 		public float speed;
 
 		public DateTime created = DateTime.Now;
-
 		public ComponentsRecive components;
 	}
 }
