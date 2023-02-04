@@ -271,7 +271,7 @@ namespace MyFantasy
 		// TODO придумать как отказаться от этого
 		private void Load()
 		{
-			if (connect == null || pauloadingse) return;
+			if (connect == null || loading != null) return;
 
 			Response response = new Response();
 			response.action = "load/index";
@@ -284,9 +284,7 @@ namespace MyFantasy
 		public void OnApplicationPause(bool pause)
 		{
 			Debug.Log("Пауза " + pause);
-
-			if(!loading)
-				Load();
+			Load();
 		}
 #endif
 
@@ -294,9 +292,7 @@ namespace MyFantasy
 		public void OnApplicationFocus(bool focus)
 		{
 			Debug.Log("фокус " + focus);
-
-			if(focus || loading)
-				Load();
+			Load();
 		}
 
 		public void Api(string json)
