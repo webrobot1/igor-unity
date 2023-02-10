@@ -62,6 +62,33 @@ namespace MyFantasy
 		{
 			this.SetData((NewObjectRecive)recive);
 		}
+		protected void SetData(NewObjectRecive recive)
+		{
+			if (recive.action != null && recive.action.Length > 0 && anim != null && trigers.ContainsKey(recive.action))
+			{
+				Debug.Log("Обновляем анимацию " + recive.action);
+				anim.SetTrigger(action);
+			}
+
+			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))
+			{
+				if (moveCoroutine != null)
+					StopCoroutine(moveCoroutine);
+
+				Vector3 moveTo = new Vector3((float)(recive.x != null ? recive.x : transform.position.x), (float)(recive.y != null ? recive.y : transform.position.y), (float)(recive.z != null ? recive.z : transform.position.z));
+
+				// todo пока 1 шаг - 1 единици позиции  и если больше - это не ходьба а телепорт. в будушем может быть меньше 1 единицы
+				// если отставание от текущей позиции больше чем полтора шага телепортнем (а може это и есть телепорт)
+				if (Vector3.Distance(moveTo, transform.position) <= 1.5)
+					moveCoroutine = StartCoroutine(Move(moveTo));
+				else
+					transform.position = moveTo;
+
+				// что бы не менять в base.SetData()
+				recive.x = recive.y = recive.z = null;
+			}
+			base.SetData(recive);
+		}
 
 		/// <summary>
 		/// анимация движения NPC или игрока. скорость равна времени паузы между командами
@@ -84,35 +111,6 @@ namespace MyFantasy
 
 			activeLast = DateTime.Now;
 			moveCoroutine = null;
-		}
-
-		protected void SetData(NewObjectRecive recive)
-		{
-			if (recive.action != null && recive.action.Length > 0 && this.action != recive.action && trigers.ContainsKey(recive.action))
-			{
-				Debug.Log("Обновляем анимацию " + recive.action);
-				if (anim != null)
-					anim.SetTrigger(action);
-			}
-
-			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))
-			{
-				if (moveCoroutine != null)
-					StopCoroutine(moveCoroutine);
-
-				Vector3 moveTo = new Vector3((float)(recive.x != null ? recive.x : transform.position.x), (float)(recive.y != null ? recive.y : transform.position.y), (float)(recive.z != null ? recive.z : transform.position.z));
-
-				// todo пока 1 шаг - 1 единици позиции  и если больше - это не ходьба а телепорт. в будушем может быть меньше 1 единицы
-				// если отставание от текущей позиции больше чем полтора шага телепортнем (а може это и есть телепорт)
-				if (Vector3.Distance(moveTo, transform.position) <= 1.5)
-					moveCoroutine = StartCoroutine(Move(moveTo));
-				else
-					transform.position = moveTo;
-
-				// что бы не менять в base.SetData()
-				recive.x = recive.y = recive.z = null;
-			}
-			base.SetData(recive);
 		}
 	}
 }

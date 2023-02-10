@@ -62,6 +62,7 @@ namespace MyFantasy
 			if (recive.sort > 0)
 				this.sort = (int)recive.sort;
 
+			// переместится телепортоами
 			if (this.key.Length == 0 && recive.x!=null && recive.y != null && recive.z != null)
 			{	
 				transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
