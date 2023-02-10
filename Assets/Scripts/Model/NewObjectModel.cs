@@ -9,8 +9,6 @@ namespace MyFantasy
 	public class NewObjectModel : ObjectModel
 	{
 		protected Animator anim = null;
-		protected SpriteRenderer sprite = null;
-
 		protected static Dictionary<string, bool> trigers;
 		
 		/// <summary>
@@ -18,7 +16,7 @@ namespace MyFantasy
 		/// </summary>
 		protected Coroutine moveCoroutine = null;
 
-		protected void Awake()
+		protected virtual void Awake()
 		{
 			if (anim = GetComponent<Animator>())
 			{
@@ -32,8 +30,6 @@ namespace MyFantasy
 					}
 				}
 			}
-
-			sprite = GetComponent<SpriteRenderer>();
 		}
 
 		// Update is called once per frame

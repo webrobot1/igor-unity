@@ -6,6 +6,15 @@ namespace MyFantasy
 	{
 		private string login;
 
+		// для превращения в призрака игроков
+		protected SpriteRenderer sprite = null;
+
+		protected override void Awake()
+		{
+			sprite = GetComponent<SpriteRenderer>();
+			base.Awake();
+		}
+
 		public override void SetData(ObjectRecive recive)
 		{
 			this.SetData((NewPlayerRecive)recive);
