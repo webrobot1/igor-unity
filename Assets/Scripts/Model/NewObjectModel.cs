@@ -9,15 +9,32 @@ namespace MyFantasy
 	public class NewObjectModel : ObjectModel
 	{
 		protected Animator anim = null;
-
 		protected SpriteRenderer sprite = null;
-		private static Dictionary<string, bool> trigers;
 
+		protected static Dictionary<string, bool> trigers;
+		
 		/// <summary>
 		/// если не null - движемся
 		/// </summary>
-		private Coroutine moveCoroutine = null;
+		protected Coroutine moveCoroutine = null;
 
+		protected void Awake()
+		{
+			if (anim = GetComponent<Animator>())
+			{
+				// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
+				if (trigers == null)
+				{
+					trigers = new Dictionary<string, bool>();
+					foreach (var parameter in anim.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
+					{
+						trigers.Add(parameter.name, true);
+					}
+				}
+			}
+
+			sprite = GetComponent<SpriteRenderer>();
+		}
 
 		// Update is called once per frame
 		void FixedUpdate()
@@ -40,34 +57,17 @@ namespace MyFantasy
 			}
 		}
 
-		protected void Awake()
-		{
-			if (anim  = GetComponent<Animator>())
-			{
-				// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
-				if (trigers == null)
-				{
-					trigers = new Dictionary<string, bool>();
-					foreach (var parameter in anim.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
-					{
-						trigers.Add(parameter.name, true);
-					}
-				}
-			}
-
-			sprite = GetComponent<SpriteRenderer>();
-		}
-
 		public override void SetData(ObjectRecive recive)
 		{
 			this.SetData((NewObjectRecive)recive);
 		}
+
 		protected void SetData(NewObjectRecive recive)
 		{
-			if (recive.action != null && recive.action.Length > 0 && anim != null && trigers.ContainsKey(recive.action))
+			if (recive.action != null && recive.action.Length > 0 && anim != null && this.action != recive.action && trigers.ContainsKey(recive.action))
 			{
 				Debug.Log("Обновляем анимацию " + recive.action);
-				anim.SetTrigger(action);
+				anim.SetTrigger(recive.action);
 			}
 
 			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))
@@ -84,11 +84,12 @@ namespace MyFantasy
 				else
 					transform.position = moveTo;
 
-				// что бы не менять в base.SetData()
 				recive.x = recive.y = recive.z = null;
 			}
+
 			base.SetData(recive);
 		}
+
 
 		/// <summary>
 		/// анимация движения NPC или игрока. скорость равна времени паузы между командами
