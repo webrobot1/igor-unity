@@ -96,7 +96,7 @@ namespace MyFantasy
 
 			else
 			{
-				if (SceneManager.GetActiveScene().name != "MainScene")
+				if (!SceneManager.GetSceneByName("MainScene").IsValid())
 				{
 					AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
 					// asyncLoad.allowSceneActivation = false;

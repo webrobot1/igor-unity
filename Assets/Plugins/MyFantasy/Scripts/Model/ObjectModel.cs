@@ -24,6 +24,7 @@ namespace MyFantasy
 		protected string prefab;
 
 		protected string action = "idle";
+		protected string side = "down";
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
 		protected DateTime activeLast = DateTime.Now;
@@ -50,7 +51,10 @@ namespace MyFantasy
 			}
 
 			if (recive.action != null && recive.action.Length > 0)
-				this.action = recive.action;
+				this.action = recive.action;		
+			
+			if (recive.side != null && recive.side.Length > 0)
+				this.side = recive.side;
 
 			// сортировку не сменить в SetData тк я не хочу менять уровент изоляции spawn_sort
 				if (recive.sort > 0)

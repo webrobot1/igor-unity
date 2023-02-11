@@ -200,12 +200,20 @@ namespace MyFantasy
 
 								commands.timeouts[data.group()].time = DateTime.Now;
 							}
+							else
+								Debug.LogWarning("Ждем ответа на предыдущие команды "+ data.action);
 						}
+						else
+							Debug.LogError("Слишком частый вызов команды " + data.action);
 					}
 					else
-						Error("нельзя напрямую вызвать " + data.action);
+						Error("не существует публичной команды " + data.action);
 				}
+				else
+					Error("не существует группу команд " + data.group());
 			}
+			else
+				Debug.LogWarning("Загрузка мира, команда " + data.action+" отклонена");
 		}
 
 		private void Close()
@@ -248,7 +256,7 @@ namespace MyFantasy
 				connect = null;
 			}
 
-			if (SceneManager.GetActiveScene().name != "RegisterScene")
+			if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 			{
 				//SceneManager.UnloadScene("MainScene");
 				AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("RegisterScene", new LoadSceneParameters(LoadSceneMode.Additive));
@@ -257,10 +265,11 @@ namespace MyFantasy
 				while (!asyncLoad.isDone)
 				{
 					yield return null;
-				}
+				}	
 			}
 
 			SceneManager.UnloadScene("MainScene");
+
 			Camera.main.GetComponent<BaseController>().Error(error);
 		}
 

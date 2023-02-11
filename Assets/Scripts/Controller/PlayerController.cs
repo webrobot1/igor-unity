@@ -72,37 +72,36 @@ namespace MyFantasy
 
         private void Update()
         {
-            // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
-            if (Input.GetMouseButtonDown(0))
-            {
-                moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
-                Debug.Log(moveTo);
-            }
-        }
-
-        // Update is called once per frame
-        protected override void FixedUpdate()
-        {
-            // это позволит нам при декодировании ответа использовать новые структуры игроков, врагов и обектов где по сути из нового  - компоненты
-            base.HandleData<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>();
-
             if (player != null && loading == null)
             {
+                // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
+                if (Input.GetMouseButtonDown(0))
+                {
+                    moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+                    Debug.Log(moveTo);
+                }
+
+                if (Input.GetKeyDown("space"))
+                {
+                    AttackResponse response = new AttackResponse();
+                    response.action = "attack/index";
+                    base.Send(response);
+                }
+
                 // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
                 // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
                 if (
-                    (vertical = Input.GetAxis("Vertical")) != 0 
-                         || 
-                    (vertical = variableJoystick.Vertical) != 0 
-                         || 
-                    (horizontal = Input.GetAxis("Horizontal")) != 0 
+                    (vertical = Input.GetAxis("Vertical")) != 0
+                         ||
+                    (vertical = variableJoystick.Vertical) != 0
+                         ||
+                    (horizontal = Input.GetAxis("Horizontal")) != 0
                         ||
-                    (horizontal = variableJoystick.Horizontal) != 0 
-                        || 
+                    (horizontal = variableJoystick.Horizontal) != 0
+                        ||
                     moveTo != Vector2Int.zero
-                ) 
+                )
                 {
-                
                     MoveResponse response = new MoveResponse();
 
                     if (vertical != 0 || horizontal != 0)
@@ -142,6 +141,13 @@ namespace MyFantasy
                     base.Send(response);
                 }
             }
+        }
+
+        // Update is called once per frame
+        protected override void FixedUpdate()
+        {
+            // это позволит нам при декодировании ответа использовать новые структуры игроков, врагов и обектов где по сути из нового  - компоненты
+            base.HandleData<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>();
         }
     }
 }

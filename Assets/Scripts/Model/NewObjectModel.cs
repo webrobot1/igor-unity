@@ -33,22 +33,13 @@ namespace MyFantasy
 		}
 
 		// Update is called once per frame
-		void FixedUpdate()
+		void Update()
 		{
 			// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
-			if (anim!=null && action.IndexOf("idle") == -1 && moveCoroutine == null && (anim.GetCurrentAnimatorStateInfo(0).loop || anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1)
+			if (anim!=null && anim.GetCurrentAnimatorClipInfo(0)[0].clip.name.IndexOf("idle") == -1 && moveCoroutine == null && (anim.GetCurrentAnimatorStateInfo(0).loop || anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1)
 			{
 				Debug.LogWarning("останавливаем " + this.key);
-
-				if (action.IndexOf("left") > -1)
-					action = "idle_left";
-				else if (action.IndexOf("right") > -1)
-					action = "idle_right";
-				else if (action.IndexOf("up") > -1)
-					action = "idle_up";
-				else
-					action = "idle_down";
-
+				action = "idle_"+side;
 				anim.SetTrigger(action);
 			}
 		}
@@ -60,10 +51,17 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
-			if (recive.action != null && recive.action.Length > 0 && anim != null && this.action != recive.action && trigers.ContainsKey(recive.action))
+			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
+			if (recive.action != null || recive.side != null )
 			{
-				Debug.Log("Обновляем анимацию " + recive.action);
-				anim.SetTrigger(recive.action);
+				string trigger = (recive.action != null ? recive.action : action) + "_" + (recive.side != null ? recive.side : side);
+				if(anim!=null && trigers.ContainsKey(trigger))
+                {
+					Debug.Log("Обновляем анимацию " + trigger);
+					anim.SetTrigger(trigger);
+				}
+				else
+					Debug.LogWarning("Положение без анимации " + trigger);
 			}
 
 			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))

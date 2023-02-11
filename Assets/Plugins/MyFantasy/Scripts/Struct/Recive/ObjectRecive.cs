@@ -16,6 +16,7 @@ namespace MyFantasy
 		public int map_id;
 		public string prefab;
 
+		public string side;
 		public string action;
 		public int? sort = null;
 
