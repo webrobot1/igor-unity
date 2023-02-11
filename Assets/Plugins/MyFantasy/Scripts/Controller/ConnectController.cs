@@ -27,7 +27,7 @@ namespace MyFantasy
 		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
 		/// </summary>
-		protected string player_key;
+		public string player_key;
 
 		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
@@ -91,7 +91,6 @@ namespace MyFantasy
 				};
 				connect.OnClose += (sender, ev) =>
 				{
-					connect = null;
 					Error("Соединение с сервером закрыто");
 				};
 				connect.OnError += (sender, ev) =>
@@ -122,29 +121,19 @@ namespace MyFantasy
 			}
 		}
 
-		public void Close()
-		{
-			recives.Clear();
-			if (connect != null && connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
-			{
-				connect.Close();
-				Debug.LogError("Соединение закрыто");
-			}
-		}
-
 		/// <summary>
 		/// не отправляется моментально а ставиться в очередь на отправку (перезаписывает текущю). придет время - отправится на сервер (может чуть раньше если пинг большой)
 		/// </summary>
 		public void Send(Response data)
 		{
-			if (connect == null || (connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting))
-			{
-				Error("Соединение не открыто для запросов");
-			}
-
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			else if (loading == null)
+			if (loading == null)
 			{
+				if (connect == null || (connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting))
+				{
+					Error("Соединение не открыто для запросов");
+				}
+
 				// поставим на паузу отправку и получение любых кроме данной команды данных
 				if (data.action == "load/index")
 				{
@@ -219,6 +208,17 @@ namespace MyFantasy
 			}
 		}
 
+		private void Close()
+		{
+			recives.Clear();
+			if (connect != null && connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+			{
+				connect.Close();
+				connect = null;
+				Debug.LogError("Соединение закрыто");
+			}
+		}
+
 		private void Put2Send(string json)
 		{
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
@@ -228,7 +228,6 @@ namespace MyFantasy
 		public override void Error (string text)
 		{
 			StartCoroutine(LoadRegister(text));
-
 			throw new Exception(text);
 		}
 
@@ -245,11 +244,11 @@ namespace MyFantasy
 			}
 			else
 			{
-				connect.Close();
+				Close();
 				connect = null;
 			}
-				
-			if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
+
+			if (SceneManager.GetActiveScene().name != "RegisterScene")
 			{
 				//SceneManager.UnloadScene("MainScene");
 				AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("RegisterScene", new LoadSceneParameters(LoadSceneMode.Additive));
@@ -260,7 +259,7 @@ namespace MyFantasy
 					yield return null;
 				}
 			}
-		
+
 			SceneManager.UnloadScene("MainScene");
 			Camera.main.GetComponent<BaseController>().Error(error);
 		}
@@ -306,7 +305,7 @@ namespace MyFantasy
 			Debug.Log("Закрытие приложения");
 
 			if(connect!=null)
-				connect.Close();
+				Close();
 		}
 	}
 }

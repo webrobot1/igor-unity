@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.UI;
 
 namespace MyFantasy
 {
@@ -26,6 +27,31 @@ namespace MyFantasy
         /// </summary>
         private double vertical;
         private Vector2Int moveTo = Vector2Int.zero;
+
+        public Image hpFrame;
+        public Image mpFrame;
+
+        public static PlayerController Instance { get; private set; }
+        protected new void Awake()
+        {
+            // If there is an instance, and it's not me, delete myself.
+            if (hpFrame == null)
+                Error("не присвоен GameObject для линии жизни");
+
+            if (mpFrame == null)
+                Error("не присвоен GameObject для линии маны");
+
+            if (Instance != null && Instance != this)
+            {
+                Destroy(this);
+            }
+            else
+            {
+                Instance = this;
+            }
+
+            base.Awake();
+        }
 
         private void Start()
         {

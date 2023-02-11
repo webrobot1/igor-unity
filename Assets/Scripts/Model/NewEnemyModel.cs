@@ -5,9 +5,15 @@ namespace MyFantasy
 	public class NewEnemyModel : NewObjectModel
 	{
 		/// <summary>
-		/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
+		/// модель расчета фигурок жизней и маны
 		/// </summary>
-		public LifeModel lifeBar;
+		protected StatModel statModel;
+
+		protected override void Awake()
+		{
+			statModel = GetComponent<StatModel>();
+			base.Awake();
+		}
 
 		public override void SetData(ObjectRecive recive)
 		{
@@ -20,17 +26,17 @@ namespace MyFantasy
 			{
 				if (recive.components.hp != null)
 				{
-					lifeBar.hp = (int)recive.components.hp;
+					statModel.hp = (int)recive.components.hp;
 				}
 				if (recive.components.hpMax != null)
-					lifeBar.hpMax = (int)recive.components.hpMax;
+					statModel.hpMax = (int)recive.components.hpMax;
 
 				if (recive.components.mp != null)
-					lifeBar.mp = (int)recive.components.mp;
+					statModel.mp = (int)recive.components.mp;
 
 				// ниже сравниваем c null тк может быть значение 0 которое надо обработать
 				if (recive.components.mpMax != null)
-					lifeBar.mpMax = (int)recive.components.mpMax;
+					statModel.mpMax = (int)recive.components.mpMax;
 			}
 
 			base.SetData(recive);
