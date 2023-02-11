@@ -51,17 +51,26 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
+			string trigger;
+
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null || recive.side != null )
 			{
-				string trigger = (recive.action != null ? recive.action : action) + "_" + (recive.side != null ? recive.side : side);
-				if(anim!=null && trigers.ContainsKey(trigger))
+				trigger = (recive.action != null ? recive.action : action) + "_" + (recive.side != null ? recive.side : side);
+				if(anim!=null)
                 {
-					Debug.Log("Обновляем анимацию " + trigger);
-					anim.SetTrigger(trigger);
-				}
-				else
-					Debug.LogWarning("Положение без анимации " + trigger);
+					if (trigers.ContainsKey(trigger)) 
+					{ 
+						Debug.Log("Обновляем анимацию " + trigger);
+						anim.SetTrigger(trigger);
+					}
+					else
+					{
+						Debug.LogWarning("Положение без анимации " + trigger);
+						trigger = "idle_" + (recive.side != null ? recive.side : side);
+						anim.SetTrigger(trigger);
+					}
+				}    
 			}
 
 			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))
