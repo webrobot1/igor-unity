@@ -106,9 +106,8 @@ namespace MyFantasy
 					{
 						yield return null;
 					}
-				}
-
-				SceneManager.UnloadScene("RegisterScene");
+					SceneManager.UnloadScene("RegisterScene");
+				}			
 
 				// он вывзовет того наследника от ConnectController который повешан на камеру (в игре-песочнице Игорь это PlayerController)
 				Camera.main.GetComponent<ConnectController>().Connect(data);

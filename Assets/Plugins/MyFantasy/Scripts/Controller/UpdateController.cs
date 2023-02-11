@@ -58,9 +58,8 @@ namespace MyFantasy
 						else if (recive.action == "load/reconnect")
 						{			
 							loading = DateTime.Now;
-							StartCoroutine(HttpRequest("auth"));
-
 							Debug.LogWarning("Перезаходим");
+							StartCoroutine(HttpRequest("auth"));
 						}
 						else
 						{
@@ -232,8 +231,8 @@ namespace MyFantasy
 					this.player = prefab;
 				}
 			}
-			else
-				Debug.Log("Обновляем " + key);
+			//else
+			//	Debug.Log("Обновляем " + key);
 
 			// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
 			if (maps.ContainsKey(side) && recive.sort != null)

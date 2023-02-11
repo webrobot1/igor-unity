@@ -129,89 +129,89 @@ namespace MyFantasy
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
 			if (loading == null)
 			{
-				if (connect == null || (connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting))
+				if (connect!=null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.Connecting))
 				{
-					Error("Соединение не открыто для запросов");
-				}
-
-				// поставим на паузу отправку и получение любых кроме данной команды данных
-				if (data.action == "load/index")
-				{
-					// актуально когда после разрыва соединения возвращаемся
-					recives.Clear();
-					loading = DateTime.Now;
-				}
-
-				// проверим можем ли отправить мы эту команду сейчас.  и если можем доадим есть временную метку
-				if (commands.timeouts.ContainsKey(data.group()))
-				{
-					if (commands.timeouts[data.group()].actions.ContainsKey(data.method()))
+					// поставим на паузу отправку и получение любых кроме данной команды данных
+					if (data.action == "load/index")
 					{
-						// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
-						if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(Math.Min(commands.timeouts[data.group()].timeout, COMMAND_PAUSE_SECONDS)), DateTime.Now) < 0)
+						// актуально когда после разрыва соединения возвращаемся
+						recives.Clear();
+						loading = DateTime.Now;
+					}
+
+					// проверим можем ли отправить мы эту команду сейчас.  и если можем доадим есть временную метку
+					if (commands.timeouts.ContainsKey(data.group()))
+					{
+						if (commands.timeouts[data.group()].actions.ContainsKey(data.method()))
 						{
-							long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-
-							if (commands.timeouts[data.group()].requests.Count > 0)
+							// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
+							if (commands.timeouts[data.group()].time == null || DateTime.Compare(((DateTime)commands.timeouts[data.group()].time).AddSeconds(Math.Min(commands.timeouts[data.group()].timeout, COMMAND_PAUSE_SECONDS)), DateTime.Now) < 0)
 							{
-								double wait = commands.timeouts[data.group()].timeout + commands.ping();
+								long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 
-								// проверим может какие то старые команды там и пора удалить их
-								foreach (long kvp in commands.timeouts[data.group()].requests.ToList())
+								if (commands.timeouts[data.group()].requests.Count > 0)
 								{
-									float last = (float)(command_id - kvp) / 1000;
-									if (last > wait)
+									double wait = commands.timeouts[data.group()].timeout + commands.ping();
+
+									// проверим может какие то старые команды там и пора удалить их
+									foreach (long kvp in commands.timeouts[data.group()].requests.ToList())
 									{
-										Debug.LogError(DateTime.Now.Millisecond + "Слишком должго ждали ответа команды " + kvp + ": " + last);
-										commands.timeouts[data.group()].requests.Remove(kvp);
+										float last = (float)(command_id - kvp) / 1000;
+										if (last > wait)
+										{
+											Debug.LogError(DateTime.Now.Millisecond + "Слишком должго ждали ответа команды " + kvp + ": " + last);
+											commands.timeouts[data.group()].requests.Remove(kvp);
+										}
 									}
 								}
-							}
 
-							//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
-							if (commands.timeouts[data.group()].requests.Count < 2)
-							{
-								//Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
-
-								// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-								data.command_id = command_id;
-								commands.timeouts[data.group()].requests.Add(command_id);
-
-								// если подсчитан пинг то передаем его с запросом нашей команды
-								if (commands.pings.Count > 10)
+								//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
+								if (commands.timeouts[data.group()].requests.Count < 2)
 								{
-									data.ping = commands.ping();
-									commands.pings.RemoveRange(0, 5);
-								}
+									//Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
 
-								string json = JsonConvert.SerializeObject(
-									data
-									,
-									Newtonsoft.Json.Formatting.None
-									,
-									new JsonSerializerSettings
+									// создадим условно уникальный номер нашего сообщения (она же и временная метка)
+									data.command_id = command_id;
+									commands.timeouts[data.group()].requests.Add(command_id);
+
+									// если подсчитан пинг то передаем его с запросом нашей команды
+									if (commands.pings.Count > 10)
 									{
-										NullValueHandling = NullValueHandling.Ignore
+										data.ping = commands.ping();
+										commands.pings.RemoveRange(0, 5);
 									}
-								);
 
-								Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
-								Put2Send(json);
+									string json = JsonConvert.SerializeObject(
+										data
+										,
+										Newtonsoft.Json.Formatting.None
+										,
+										new JsonSerializerSettings
+										{
+											NullValueHandling = NullValueHandling.Ignore
+										}
+									);
 
-								commands.timeouts[data.group()].time = DateTime.Now;
+									Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+									Put2Send(json);
+
+									commands.timeouts[data.group()].time = DateTime.Now;
+								}
+								else
+									Debug.LogWarning("Ждем ответа на предыдущие команды " + data.action);
 							}
 							else
-								Debug.LogWarning("Ждем ответа на предыдущие команды "+ data.action);
+								Debug.LogError("Слишком частый вызов команды " + data.action);
 						}
 						else
-							Debug.LogError("Слишком частый вызов команды " + data.action);
+							Error("не существует публичной команды " + data.action);
 					}
 					else
-						Error("не существует публичной команды " + data.action);
+						Error("не существует группу команд " + data.group());
 				}
 				else
-					Error("не существует группу команд " + data.group());
-			}
+					Error("Соединение не открыто для запросов");
+		}
 			else
 				Debug.LogWarning("Загрузка мира, команда " + data.action+" отклонена");
 		}

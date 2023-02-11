@@ -26,7 +26,6 @@ namespace MyFantasy
         /// нажата кнопка двигаться по вертикали
         /// </summary>
         private double vertical;
-        private Vector2Int moveTo = Vector2Int.zero;
 
         public Image hpFrame;
         public Image mpFrame;
@@ -74,17 +73,19 @@ namespace MyFantasy
         {
             if (player != null && loading == null)
             {
+                Vector2Int moveTo = Vector2Int.zero;
+
                 // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
                 if (Input.GetMouseButtonDown(0))
                 {
                     moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
-                    Debug.Log(moveTo);
                 }
 
                 if (Input.GetKeyDown("space"))
                 {
-                    AttackResponse response = new AttackResponse();
-                    response.action = "attack/index";
+                    Response response = new Response();
+                   // response.action = "attack/index";
+                    response.action = "firebolt/index";
                     base.Send(response);
                 }
 
@@ -123,19 +124,12 @@ namespace MyFantasy
                             response.action = "move/left";
                         }
                     }
-                    else if (Vector2.Distance(player.transform.position, moveTo) >= 1)
+                    else 
                     {
                         response.action = "move/to";
                         response.x = moveTo.x;
                         response.y = moveTo.y;
                         response.z = (int)player.transform.position.z;
-
-                        // очищаем переменную после того как команда отправлена (дальше сам пойдет)
-                        moveTo = Vector2Int.zero;
-                    }
-                    else
-                    {
-                        return;
                     }
 
                     base.Send(response);
