@@ -24,20 +24,15 @@ namespace MyFantasy
 		protected string prefab;
 
 		protected string action = "idle";
-		protected string side = "down";
+		public string side = "down";
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
-		protected DateTime activeLast = DateTime.Now;
+		public DateTime activeLast = DateTime.Now;
 
 		/// <summary>
 		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
 		/// </summary>
 		protected float speed;
-
-		/// <summary>
-		/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
-		/// </summary>
-		public float distancePerUpdate;
 
 		public virtual void SetData(ObjectRecive recive)
 		{
@@ -74,9 +69,6 @@ namespace MyFantasy
 			if (recive.speed > 0)
 			{
 				this.speed = recive.speed;
-
-				// todo переделать основываясь на таймаутах событий
-				distancePerUpdate = this.speed * Time.fixedDeltaTime;
 			}
 
 			if (recive.created != null)

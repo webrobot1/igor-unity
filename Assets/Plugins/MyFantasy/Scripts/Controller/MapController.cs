@@ -39,13 +39,15 @@ namespace MyFantasy
 		/// </summary>
 		protected Dictionary<string, MapDecode> maps = new Dictionary<string, MapDecode>();
 
-		protected void Awake()
+		protected new void Awake()
 		{
 			if (mapObject == null)
 				Error("не присвоен GameObject для карт");
 
 			if (worldObject == null)
 				Error("не присвоен GameObject для игровых обектов");
+
+			base.Awake();
 		}
 
 		protected virtual IEnumerator GetMap(string side)

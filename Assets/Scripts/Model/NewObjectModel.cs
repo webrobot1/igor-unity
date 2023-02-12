@@ -10,11 +10,17 @@ namespace MyFantasy
 	{
 		protected Animator anim = null;
 		protected static Dictionary<string, bool> trigers;
-		
+
 		/// <summary>
 		/// если не null - движемся
 		/// </summary>
-		protected Coroutine moveCoroutine = null;
+		private Coroutine moveCoroutine = null;
+
+		/// <summary>
+		/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
+		/// </summary>
+		private float distancePerUpdate;
+
 
 		protected virtual void Awake()
 		{
@@ -71,6 +77,13 @@ namespace MyFantasy
 						anim.SetTrigger(trigger);
 					}
 				}    
+			}
+
+			// тут если speed=0 значит ничего не пришло
+			if (recive.speed > 0)
+			{
+				// todo переделать основываясь на таймаутах событий
+				distancePerUpdate = recive.speed * Time.fixedDeltaTime;
 			}
 
 			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))

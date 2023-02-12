@@ -24,14 +24,9 @@ namespace MyFantasy
 		public GameObject player;
 
 		/// <summary>
-		/// максимальное количество секунд системной паузы
-		/// </summary>
-		private const int PAUSE_SECONDS = 10;
-
-		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
 		/// </summary>
-		protected virtual void FixedUpdate()
+		protected override void FixedUpdate()
 		{
 			HandleData<PlayerRecive, EnemyRecive, ObjectRecive>();
 		}
@@ -68,14 +63,7 @@ namespace MyFantasy
 								loading = null;
 							}
 								 
-							if (loading != null)
-							{
-								if (DateTime.Compare(((DateTime)loading).AddSeconds(PAUSE_SECONDS), DateTime.Now) < 1)
-									Error("Слишком долгая системная пауза загрузки");
-								else
-									Debug.Log("Пауза");
-							}
-                            else 
+							if (loading == null)
 							{ 
 								if (recive.timeouts.Count > 0)
 								{

@@ -69,8 +69,10 @@ namespace MyFantasy
             #endif
         }
 
-        private void Update()
+        protected override void Update()
         {
+            base.Update();
+
             if (player != null && loading == null)
             {
                 Vector2Int moveTo = Vector2Int.zero;
@@ -92,36 +94,56 @@ namespace MyFantasy
                 // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
                 // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
                 if (
-                    (vertical = Input.GetAxis("Vertical")) != 0
-                         ||
-                    (vertical = variableJoystick.Vertical) != 0
-                         ||
-                    (horizontal = Input.GetAxis("Horizontal")) != 0
-                        ||
-                    (horizontal = variableJoystick.Horizontal) != 0
-                        ||
-                    moveTo != Vector2Int.zero
+                    (
+                        (vertical = Input.GetAxis("Vertical")) != 0
+                             ||
+                        (vertical = variableJoystick.Vertical) != 0
+                             ||
+                        (horizontal = Input.GetAxis("Horizontal")) != 0
+                            ||
+                        (horizontal = variableJoystick.Horizontal) != 0
+                            ||
+                        moveTo != Vector2Int.zero
+                    )
+                        &&
+                    (
+                       getTimeout("side")<=0
+                    )
                 )
                 {
                     MoveResponse response = new MoveResponse();
 
                     if (vertical != 0 || horizontal != 0)
                     {
+                        string side = player.GetComponent<NewPlayerModel>().side;
+
                         if (vertical > 0)
                         {
-                            response.action = "move/up";
+                            if(side != "up")
+                                response.action = "side/up";
+                            else
+                                response.action = "move/up";
                         }
                         else if (vertical < 0)
                         {
-                            response.action = "move/down";
+                            if (side != "down")
+                                response.action = "side/down";
+                            else
+                                response.action = "move/down";
                         }
                         else if (horizontal > 0)
                         {
-                            response.action = "move/right";
+                            if (side != "right")
+                                response.action = "side/right";
+                            else
+                                response.action = "move/right";
                         }
                         else if (horizontal < 0)
                         {
-                            response.action = "move/left";
+                            if (side != "left")
+                                response.action = "side/left";
+                            else
+                                response.action = "move/left";
                         }
                     }
                     else 
