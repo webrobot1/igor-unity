@@ -5,6 +5,7 @@ using MyFantasy;
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {
+    public ObjectModel player;
     float last_size;
 
     private void Start()
@@ -15,7 +16,8 @@ public class CameraController : MonoBehaviour
 
     private void Update()
     {
-        var player = GetComponent<UpdateController>().player;
+        if(player == null)
+            player = GetComponent<PlayerController>().player;
          
         if (player != null)
 		{

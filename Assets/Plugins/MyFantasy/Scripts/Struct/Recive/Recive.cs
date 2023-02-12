@@ -14,12 +14,7 @@ namespace MyFantasy
         /// <summary>
         /// список таймаутов (высылается при load)
         /// </summary>
-        public Dictionary<string, TimeoutRecive> timeouts = new Dictionary<string, TimeoutRecive>();
-
-        /// <summary>
-        /// список отработанных комманд
-        /// </summary>
-        public Dictionary<string, CommandRecive> commands = new Dictionary<string, CommandRecive>();
+        public Dictionary<string, float> timeouts;
 
         /// <summary>
         /// возможные ошибки (если не пусто - произойдет разъединение, но где быстрее - в клиенте или на сервере сказать сложно)

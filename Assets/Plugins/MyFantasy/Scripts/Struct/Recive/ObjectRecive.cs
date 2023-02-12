@@ -1,5 +1,5 @@
 using System;
-
+using System.Collections.Generic;
 
 namespace MyFantasy
 {
@@ -23,6 +23,12 @@ namespace MyFantasy
 		public float speed;
 
 		public DateTime created = DateTime.Now;
-		public ComponentsRecive components;
+		
+		public Dictionary<string, EventRecive> events;
+
+		/// <summary>
+		/// тк в каждой игре свои компоненты и разного типа (строки, цифры и даже массивы) то этот класс нуждается в переопределелни (отнаследоваться и указать свой класс этому полю)
+		/// </summary>
+		public object components;	
 	}
 }

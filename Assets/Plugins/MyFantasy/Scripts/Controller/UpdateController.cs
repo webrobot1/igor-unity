@@ -17,12 +17,6 @@ namespace MyFantasy
 	/// </summary>
 	public abstract class UpdateController : MapController
 	{
-		/// <summary>
-		/// Префаб нашего игрока
-		/// </summary>
-		[NonSerialized]
-		public GameObject player;
-
 		protected override void Handle()
 		{
 			HandleData<PlayerRecive, EnemyRecive, ObjectRecive>();
@@ -31,7 +25,7 @@ namespace MyFantasy
 		/// <summary>
 		/// Обработка пришедших от сервера значений
 		/// </summary>
-		protected void HandleData<P, E, O>() where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
+		protected virtual void HandleData<P, E, O>() where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
 		{
 			// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
 			int count = recives.Count;
@@ -42,127 +36,92 @@ namespace MyFantasy
 					try
 					{
 						Recive<P, E, O> recive = JsonConvert.DeserializeObject<Recive<P, E, O>>(recives[i]);
+						if (recive.action != null)
+						{
+							switch (recive.action)
+							{
+								case "load/index":
+									// удаляет не сразу а на следующем кадре все карты
+									// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
+									foreach (var child in base.worldObject.transform.Cast<Transform>().ToList())
+									{
+										DestroyImmediate(child.gameObject);
+									}
+									Debug.LogWarning("полная перезагрузка мира");
+								break;								
+								case "load/reconnect":
+									Debug.LogWarning("Перезаходим в игру");
+
+									StartCoroutine(HttpRequest("auth"));
+								break;
+							}
+						}
 
 						if (recive.error.Length > 0)
 						{
 							Error(recive.error);
 						}
-						else if (recive.action == "load/reconnect")
-						{			
-							loading = DateTime.Now;
-							Debug.LogWarning("Перезаходим");
-							StartCoroutine(HttpRequest("auth"));
-						}
-						else
+
+						if (recive.sides != null)
 						{
-							if (recive.action == "load/index")
+							UpdateSides(recive.sides);
+						}
+
+						if (recive.world != null)
+						{
+							Debug.Log("Обрабатываем мир");
+							foreach (var map in recive.world)
 							{
-								loading = null;
-							}
-								 
-							if (loading == null)
-							{ 
-								if (recive.timeouts.Count > 0)
+								// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
+								Transform map_zone = base.worldObject.transform.Find(map.Key);
+								if (map_zone == null)
 								{
-									Debug.Log("Обновляем таймауты");
-									foreach (KeyValuePair<string, TimeoutRecive> kvp in recive.timeouts)
-									{
-										if (!commands.timeouts.ContainsKey(kvp.Key))
-											commands.timeouts[kvp.Key] = kvp.Value;
-										else
-											commands.timeouts[kvp.Key].timeout = kvp.Value.timeout;
-									}
+									map_zone = new GameObject(map.Key).transform;
+									map_zone.SetParent(base.worldObject.transform, false);
+									Debug.LogWarning("Создаем область для объектов " + map.Key);
 								}
 
-								if (recive.commands.Count > 0)
+								// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
+								if (map.Value.players == null && map.Value.enemys == null && map.Value.objects == null)
 								{
-									Debug.Log("Обновляем пинги");
-									foreach (KeyValuePair<string, CommandRecive> kvp in recive.commands)
+									Debug.LogWarning("локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
+
+									// если саму зону оставить надо
+									/*foreach (var child in map_zone.Cast<Transform>().ToList())
 									{
-										commands.check(kvp.Key, kvp.Value);
-									}
-								}
+										DestroyImmediate(child.gameObject);
+									}*/
 
-								if (recive.action != null)
+									DestroyImmediate(map_zone.gameObject);
+								}
+								else
 								{
-									switch (recive.action)
+									if (map.Value.players != null)
 									{
-										case "load/index":
-
-											// удаляет не сразу а на следующем кадре все карты
-											// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
-											foreach (var child in base.worldObject.transform.Cast<Transform>().ToList())
-											{
-												DestroyImmediate(child.gameObject);
-											}
-											Debug.Log("полная перезагрузка мира");
-										break;
-									}
-								}
-									
-
-								if (recive.sides != null)
-								{
-									UpdateSides(recive.sides);
-								}
-
-								if (recive.world != null)
-								{
-									Debug.Log("Обрабатываем мир");
-									foreach (var map in recive.world)
-									{
-										// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
-										Transform map_zone = base.worldObject.transform.Find(map.Key);
-										if (map_zone == null)
+										Debug.Log("Обновляем игроков");
+										foreach (var player in map.Value.players)
 										{
-											map_zone = new GameObject(map.Key).transform;
-											map_zone.SetParent(base.worldObject.transform, false);
-											Debug.LogWarning("Создаем область для объектов " + map.Key);
+											UpdateObject(map.Key, player.Key, player.Value, "Players");
 										}
+									}
 
-										// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
-										if (map.Value.players == null && map.Value.enemys == null && map.Value.objects == null)
+									// если есть враги
+									if (map.Value.enemys != null)
+									{
+										Debug.Log("Обновляем enemy");
+										foreach (var enemy in map.Value.enemys)
 										{
-											Debug.LogWarning("локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
-
-											// если саму зону оставить надо
-											/*foreach (var child in map_zone.Cast<Transform>().ToList())
-											{
-												DestroyImmediate(child.gameObject);
-											}*/
-
-											DestroyImmediate(map_zone.gameObject);
+											UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
 										}
-										else
+									}
+
+									// если есть объекты
+									if (map.Value.objects != null)
+									{
+										Debug.Log("Обновляем объекты");
+										foreach (var obj in map.Value.objects)
 										{
-											if (map.Value.players != null)
-											{
-												Debug.Log("Обновляем игроков");
-												foreach (var player in map.Value.players)
-												{
-													UpdateObject(map.Key, player.Key, player.Value, "Players");
-												}
-											}
-
-											// если есть враги
-											if (map.Value.enemys != null)
-											{
-												Debug.Log("Обновляем enemy");
-												foreach (var enemy in map.Value.enemys)
-												{
-													UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
-												}
-											}
-
-											// если есть объекты
-											if (map.Value.objects != null)
-											{
-												Debug.Log("Обновляем объекты");
-												foreach (var obj in map.Value.objects)
-												{
-													UpdateObject(map.Key, obj.Key, obj.Value, "Objects");
-												}
-											}
+											UpdateObject(map.Key, obj.Key, obj.Value, "Objects");
 										}
 									}
 								}
@@ -184,7 +143,7 @@ namespace MyFantasy
 		/// <summary>
 		/// обработка кокнретной сущности (создание и обновлелние)
 		/// </summary>
-		protected void UpdateObject(string side, string key, ObjectRecive recive, string type)
+		protected virtual void UpdateObject(string side, string key, ObjectRecive recive, string type)
 		{
 			Debug.Log("Обрабатываем "+type+" "+key+" на карте "+side);
 
@@ -212,7 +171,7 @@ namespace MyFantasy
 
 				if (key == base.player_key)
 				{
-					this.player = prefab;
+					this.player = prefab.GetComponent<ObjectModel>();
 				}
 			}
 			//else
@@ -236,14 +195,14 @@ namespace MyFantasy
 			catch (Exception ex)
 			{
 				Debug.LogException(ex);
-				Error("Не удалось загрузить игрока " + key);
+				Error("Не удалось загрузить " + key);
 			}
 		}
 
 		/// <summary>
 		/// Обработка пакета - с какой стороны какая ID карты на сцене
 		/// </summary>
-		protected void UpdateSides(Dictionary<string, int> sides)
+		protected virtual void UpdateSides(Dictionary<string, int> sides)
 		{
 			Debug.Log("Обрабатываем стороны карт");
 

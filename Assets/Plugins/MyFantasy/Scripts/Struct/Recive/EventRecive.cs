@@ -5,12 +5,13 @@ namespace MyFantasy
 {
     public class EventRecive
     {
-        public DateTime? time = null;
+        public string action = "";
+        public float? remain = null;
 
         public long command_id;
-
-        public string action = "";
+        public float wait_time;
 
         public object data;
+        public DateTime? finish = null;
     }
 }

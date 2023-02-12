@@ -25,6 +25,12 @@ namespace MyFantasy
 	public abstract class ConnectController : BaseController
 	{
 		/// <summary>
+		/// Префаб нашего игрока
+		/// </summary>
+		[NonSerialized]
+		public ObjectModel player;
+
+		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
 		/// </summary>
 		public string player_key;
@@ -45,40 +51,63 @@ namespace MyFantasy
 		protected List<string> recives = new List<string>();		
 		
 		/// <summary>
+		/// список таймаутов по умолчанию
+		/// </summary>
+		[NonSerialized]
+		public static Dictionary<string, float> timeouts = new Dictionary<string, float>();		
+		
+		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 		/// </summary>
 		private List<string> errors = new List<string>();
 
 		/// <summary>
-		/// true - пауза (выходим, входим или перезагружаем мир игры)
+		/// пауза если не null (может быть как первая загрузка мира, так и перезаход в игру когда может прийти ошибка о закрытие старого соединения)
 		/// </summary>
-		protected DateTime? loading = DateTime.Now;
-
-		/// <summary>
-		/// время таймаутов (для вывода игроку статистики)
-		/// </summary>
-		protected CommandModel commands = new CommandModel();
+		private DateTime? loading = DateTime.Now;
 
 		/// <summary>
 		/// максимальное количество секунд системной паузы
 		/// </summary>
 		private const int PAUSE_SECONDS = 10;
-
+		
 		[SerializeField]
 		private Text ping;
 
-		protected void Awake()
+
+		/// <summary>
+		/// Проверка наличие новых данных или ошибок соединения
+		/// </summary>
+		protected virtual void Update()
 		{
-			// If there is an instance, and it's not me, delete myself.
-			if (ping == null)
-				Error("не присвоен GameObject для вывода текущего PING");
+			if (loading != null)
+			{
+				if (DateTime.Compare(((DateTime)loading).AddSeconds(PAUSE_SECONDS), DateTime.Now) < 1)
+				{
+					loading = null;
+					Error("Слишком долгая системная пауза загрузки");
+				}
+				else
+					Debug.Log("Пауза");
+			}
+
+			if (errors.Count > 0)
+			{
+				if (loading == null) StartCoroutine(LoadRegister());
+			}
+			else 
+				Handle();
 		}
+
+
+		abstract protected void Handle();
+
 
 		/// <summary>
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-		public void Connect(SigninRecive data)
+		public virtual void Connect(SigninRecive data)
 		{
 			errors.Clear();
 			recives.Clear();
@@ -107,7 +136,10 @@ namespace MyFantasy
 				connect.OnClose += (sender, ev) =>
 				{
 					if (ev.Code != ((ushort)CloseStatusCode.Normal))
-						Error("Соединение с сервером закрыто " + ev.Code + "/" + ev.Reason);
+					{
+						if(connect!=null)
+							Error("Соединение с сервером закрыто " + ev.Code + "/" + ev.Reason);
+					}
 					else
 						Debug.LogWarning("Нормальное закрытие соединения");
 				};
@@ -122,6 +154,29 @@ namespace MyFantasy
 
 					try
 					{
+						// это хозйство относится к пингам и таймингам, не хочу обрабатывать это в UpdateController
+						Recive<PlayerRecive, EnemyRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<PlayerRecive, EnemyRecive, ObjectRecive>>(text);
+						if (recive.action == "load/reconnect")
+						{
+							player = null;
+							connect = null;
+						}						
+						else if (recive.action == "load/index")
+						{
+							loading = null;
+						}
+
+                        if (recive.timeouts!=null)
+                        {
+							foreach (KeyValuePair<string, float> kvp in recive.timeouts)
+							{
+								if (!timeouts.ContainsKey(kvp.Key))
+									timeouts.Add(kvp.Key, kvp.Value);
+								else
+									timeouts[kvp.Key] = kvp.Value;
+							}
+						}
+
 						recives.Add(text);
 					}
 					catch (Exception ex)
@@ -133,43 +188,9 @@ namespace MyFantasy
 			}
 			catch (Exception ex)
 			{
-				Debug.LogException(ex);
-				Error("Ошибка октрытия соединения");
+				Error("Ошибка октрытия соединения " + ex.Message);
 			}
 		}
-
-		protected virtual void FixedUpdate()
-		{
-
-		}
-
-		/// <summary>
-		/// Проверка наличие новых данных или ошибок соединения
-		/// </summary>
-		protected virtual void Update()
-        {
-			if (loading != null)
-			{
-				if (DateTime.Compare(((DateTime)loading).AddSeconds(PAUSE_SECONDS), DateTime.Now) < 1)
-				{
-					Error("Слишком долгая системная пауза загрузки");
-					loading = null;
-				}
-				else
-					Debug.Log("Пауза");
-			}
-
-			// обработка скопившихся данных
-			Handle();
-
-			if (errors.Count > 0)
-			{
-				if(loading == null)
-					StartCoroutine(LoadRegister());
-			}
-		}
-
-		abstract protected void Handle();
 
 		/// <summary>
 		/// не отправляется моментально а ставиться в очередь на отправку (перезаписывает текущю). придет время - отправится на сервер (может чуть раньше если пинг большой)
@@ -189,70 +210,40 @@ namespace MyFantasy
 						loading = DateTime.Now;
 					}
 
-					// проверим можем ли отправить мы эту команду сейчас.  и если можем доадим есть временную метку
-					if (getTimeout(data.group())<=0)
+					double ping = player.Ping();
+					double timeout = player.GetTimeout(data.group()) - (ping / 2);
+						
+					// проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
+					if (timeout <= 0)
 					{
-						if (commands.timeouts[data.group()].actions.ContainsKey(data.method()))
+						if (ping > 0)
 						{
-							long command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-
-							if (commands.timeouts[data.group()].requests.Count > 0)
-							{
-								double wait = commands.timeouts[data.group()].timeout + commands.ping();
-
-								// проверим может какие то старые команды там и пора удалить их
-								foreach (long kvp in commands.timeouts[data.group()].requests.ToList())
-								{
-									float last = (float)(command_id - kvp) / 1000;
-									if (last > wait)
-									{
-										Debug.LogError(DateTime.Now.Millisecond + "Слишком должго ждали ответа команды " + kvp + ": " + last);
-										commands.timeouts[data.group()].requests.Remove(kvp);
-									}
-								}
-							}
-
-							//если уже очередь есть 2 команды далее не даем слать запроса пока непридет ответ(это TCP тут они гарантировано придут) тк вторая заранее поставит в очередь следующую и 3й+ не надо
-							if (commands.timeouts[data.group()].requests.Count < 2)
-							{
-								//Debug.LogWarning(commands.timeouts[data.group()].requests.Count);
-
-								// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-								data.command_id = command_id;
-								commands.timeouts[data.group()].requests.Add(command_id);
-
-								// если подсчитан пинг то передаем его с запросом нашей команды
-								if (commands.pings.Count > 10)
-								{
-									data.ping = commands.ping();
-									ping.text = (int)(1/data.ping)+" RPS";
-									commands.pings.RemoveRange(0, 5);
-								}
-
-								string json = JsonConvert.SerializeObject(
-									data
-									,
-									Newtonsoft.Json.Formatting.None
-									,
-									new JsonSerializerSettings
-									{
-										NullValueHandling = NullValueHandling.Ignore
-									}
-								);
-
-								Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
-								Put2Send(json);
-
-								commands.timeouts[data.group()].time = DateTime.Now;
-							}
-							else
-								Debug.LogWarning("Ждем ответа на предыдущие 2 команды " + data.action); 
+							data.ping = ping;
+							if (this.ping != null)
+								this.ping.text = (int)(1 / ping) + " RPS";
 						}
-						else
-							Error("не существует публичной команды " + data.action);
+
+						// создадим условно уникальный номер нашего сообщения (она же и временная метка)
+						data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+
+						string json = JsonConvert.SerializeObject(
+							data
+							,
+							Newtonsoft.Json.Formatting.None
+							,
+							new JsonSerializerSettings
+							{
+								NullValueHandling = NullValueHandling.Ignore
+							}
+						);
+
+						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+						Put2Send(json);
+
+						player.SetTimeout(data.group());
 					}
 					else
-						Debug.LogError("Слишком частый вызов команды " + data.group());
+						Debug.LogError("Слишком частый вызов команды " + data.group()+" ("+ timeout + " секунд осталось)");
 				}
 				else
 					Error("Соединение не открыто для запросов");
@@ -260,27 +251,6 @@ namespace MyFantasy
 			else
 				Debug.LogWarning("Загрузка мира, команда " + data.action+" отклонена");
 		}
-
-
-		protected double getTimeout(string group)
-        {
-			TimeSpan seconds = new TimeSpan();
-
-			if (commands.timeouts.ContainsKey(group))
-			{
-				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
-				if (commands.timeouts[group].time != null)
-				{
-					// время таймаута группы событий за вычетом половины пинга (времени на доставку запроса)
-					seconds = (((DateTime)commands.timeouts[group].time).AddSeconds(commands.timeouts[group].timeout).AddSeconds(commands.ping()/2*-1)).Subtract(DateTime.Now);
-				}
-			}
-			else
-				Error("не существует группу команд " + group);
-
-			return seconds.TotalSeconds;
-        }
-
 
 		private void Close()
 		{	

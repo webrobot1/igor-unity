@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace MyFantasy
@@ -33,6 +35,9 @@ namespace MyFantasy
 		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
 		/// </summary>
 		protected float speed;
+
+		private Dictionary<string, EventRecive> events = new Dictionary<string, EventRecive>();
+		private List<float> pings = new List<float>();
 
 		public virtual void SetData(ObjectRecive recive)
 		{
@@ -82,6 +87,75 @@ namespace MyFantasy
 
 			if (this.key.Length == 0)
 				this.key = this.gameObject.name;
+
+			if (recive.events!=null && recive.events.Count > 0)
+			{
+				Debug.Log("Обновляем таймауты событий");
+				foreach (KeyValuePair<string, EventRecive> kvp in recive.events)
+				{
+					if (!events.ContainsKey(kvp.Key))
+						events.Add(kvp.Key, kvp.Value);
+                    else
+					{
+						if (kvp.Value.command_id > 0)
+						{
+							if (pings.Count > 10)
+							{
+								pings.RemoveRange(0, 5);
+							}
+
+							pings.Add((float)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - kvp.Value.command_id) / 1000 - kvp.Value.wait_time);
+						}
+
+						if (kvp.Value.remain != null) 
+						{ 
+							// мы отномаем от оставшегося времени до исполнения половину пинга как то время которое было потрачено пока ответ шел с сервера к нам
+							events[kvp.Key].finish = DateTime.Now.AddSeconds((float)kvp.Value.remain - (Ping() / 2));
+						}
+
+						if (kvp.Value.action!="")
+							events[kvp.Key].action = kvp.Value.action;
+					}
+				}
+			}
+		}
+
+		public double GetTimeout(string group)
+		{
+			// если на нас нет данного события то значит можно его вполнять на сервере
+			if (!events.ContainsKey(group))
+			{
+				return 0;
+			}
+            else 
+				return ((DateTime)events[group].finish).Subtract(DateTime.Now).TotalSeconds;
+		}
+
+		/// <summary>
+		/// для установки таймаута по последним известным вводным (с сервера придут данные для точного значения)
+		/// </summary>
+		public void SetTimeout(string group)
+		{
+			if (!events.ContainsKey(group))
+			{
+				events.Add(group, new EventRecive());
+			}
+
+			float remain;
+
+			// если таймаутов нет установим дефолтные значения
+			if (events[group].remain == null)
+				remain = ConnectController.timeouts[group];
+			else
+				remain = (float)events[group].remain;
+
+			// если мы только вошли в игру, у нас нет текущего события на нас и мы не знаем сколько там таймаут и еще не пришел ответ со значениями - установим по дефолту (он придет скоро)
+			events[group].finish = DateTime.Now.AddSeconds(remain);
+		}
+
+		public double Ping()
+		{
+			return (pings.Count > 0 ? Math.Round((pings.Sum() / pings.Count), 3) : 0);
 		}
 	}
 }

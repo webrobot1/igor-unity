@@ -69,10 +69,18 @@ namespace MyFantasy
             #endif
         }
 
+        public override void Connect(SigninRecive data)
+        {
+            // сбросим префаб на камере (при переходе на другую локацию у нас он сменится)
+            Camera.main.GetComponent<CameraController>().player = null;
+
+            base.Connect(data);
+        }
+
         protected override void Update()
         {
             base.Update();
-            if (player != null && loading == null)
+            if (player != null)
             {
                 Vector2Int moveTo = Vector2Int.zero;
 
@@ -80,12 +88,14 @@ namespace MyFantasy
                 if (Input.GetMouseButtonDown(0))
                 {
                     moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+                    if(moveTo == new Vector2Int((int)player.transform.position.x, (int)player.transform.position.y))
+                        moveTo = Vector2Int.zero;
                 }
 
                 if (Input.GetKeyDown("space"))
                 {
                     Response response = new Response();
-                   // response.action = "attack/index";
+                    // response.action = "attack/index";
                     response.action = "firebolt/index";
                     base.Send(response);
                 }
@@ -106,7 +116,7 @@ namespace MyFantasy
                     )
                         &&
                     (
-                       getTimeout("side")<=0
+                       player.GetTimeout("side") <= 0
                     )
                 )
                 {
@@ -114,11 +124,11 @@ namespace MyFantasy
 
                     if (vertical != 0 || horizontal != 0)
                     {
-                        string side = player.GetComponent<NewPlayerModel>().side;
+                        string side = player.side;
 
                         if (vertical > 0)
                         {
-                            if(side != "up")
+                            if (side != "up")
                                 response.action = "side/up";
                             else
                                 response.action = "move/up";
@@ -145,7 +155,7 @@ namespace MyFantasy
                                 response.action = "move/left";
                         }
                     }
-                    else 
+                    else
                     {
                         response.action = "move/to";
                         response.x = moveTo.x;
@@ -156,6 +166,8 @@ namespace MyFantasy
                     base.Send(response);
                 }
             }
+            else
+                Debug.LogWarning("Ждем присвоения игрока");
         }
 
         // Update is called once per frame
