@@ -108,6 +108,10 @@ namespace MyFantasy
 				connect.OnClose += (sender, ev) =>
 				{
 					Error("Соединение с сервером закрыто");
+					if (ev.Code != ((ushort)CloseStatusCode.Normal))
+						Error("Соединение с сервером закрыто " + ev.Code + "/" + ev.Reason);
+					else
+						Debug.LogWarning("Нормальное закрытие соединения");
 				};
 				connect.OnError += (sender, ev) =>
 				{
@@ -283,16 +287,17 @@ namespace MyFantasy
 
 		private void Close()
 		{	
-			Debug.LogError("Закрытие соединения");
+			Debug.LogWarning("Закрытие соединения вручную");
+			
 			recives.Clear();
-			loading = DateTime.Now;
-
-			if (connect != null && connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+			if (connect != null)
 			{
-				connect.Close();
+				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+					connect.Close(CloseStatusCode.Normal);
+
 				connect = null;
-				Debug.LogError("Соединение закрыто");
 			}
+			loading = DateTime.Now;
 		}
 
 		private void Put2Send(string json)
@@ -304,6 +309,7 @@ namespace MyFantasy
 		public override void Error (string text)
 		{
 			errors.Add(text);
+			Debug.LogError(text);
 			throw new Exception(text);
 		}
 
@@ -313,7 +319,7 @@ namespace MyFantasy
 		/// <param name="error">сама ошибка</param>
 		private IEnumerator LoadRegister()
 		{
-			if (connect == null)
+			if (loading != null)
 			{
 				Debug.LogWarning("уже закрываем игру");
 				yield break;
@@ -321,7 +327,6 @@ namespace MyFantasy
 			else
 			{
 				Close();
-				connect = null;
 			}
 			
 			if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
