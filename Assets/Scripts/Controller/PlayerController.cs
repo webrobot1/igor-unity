@@ -72,7 +72,6 @@ namespace MyFantasy
         protected override void Update()
         {
             base.Update();
-
             if (player != null && loading == null)
             {
                 Vector2Int moveTo = Vector2Int.zero;
@@ -160,7 +159,7 @@ namespace MyFantasy
         }
 
         // Update is called once per frame
-        protected override void FixedUpdate()
+        protected override void Handle()
         {
             // это позволит нам при декодировании ответа использовать новые структуры игроков, врагов и обектов где по сути из нового  - компоненты
             base.HandleData<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>();

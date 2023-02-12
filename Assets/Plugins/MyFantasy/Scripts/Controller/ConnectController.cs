@@ -25,12 +25,12 @@ namespace MyFantasy
 	public abstract class ConnectController : BaseController
 	{
 		/// <summary>
-		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
+		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
 		/// </summary>
 		public string player_key;
 
 		/// <summary>
-		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (нужен только между методом Sign и Load)
+		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
 		/// </summary>
 		protected string player_token;
 
@@ -142,6 +142,9 @@ namespace MyFantasy
 
 		}
 
+		/// <summary>
+		/// Проверка наличие новых данных или ошибок соединения
+		/// </summary>
 		protected virtual void Update()
         {
 			if (loading != null)
@@ -154,14 +157,18 @@ namespace MyFantasy
 				else
 					Debug.Log("Пауза");
 			}
-			
+
+			// обработка скопившихся данных
+			Handle();
+
 			if (errors.Count > 0)
 			{
-				FixedUpdate();
 				if(loading == null)
 					StartCoroutine(LoadRegister());
 			}
 		}
+
+		abstract protected void Handle();
 
 		/// <summary>
 		/// не отправляется моментально а ставиться в очередь на отправку (перезаписывает текущю). придет время - отправится на сервер (может чуть раньше если пинг большой)

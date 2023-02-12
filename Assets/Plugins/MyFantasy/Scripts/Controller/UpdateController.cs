@@ -23,10 +23,7 @@ namespace MyFantasy
 		[NonSerialized]
 		public GameObject player;
 
-		/// <summary>
-		/// Проверка наличие новых данных или ошибок соединения
-		/// </summary>
-		protected override void FixedUpdate()
+		protected override void Handle()
 		{
 			HandleData<PlayerRecive, EnemyRecive, ObjectRecive>();
 		}
@@ -34,7 +31,7 @@ namespace MyFantasy
 		/// <summary>
 		/// Обработка пришедших от сервера значений
 		/// </summary>
-		protected void HandleData<P,E,O>() where P: ObjectRecive where E : ObjectRecive where O : ObjectRecive
+		protected void HandleData<P, E, O>() where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
 		{
 			// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
 			int count = recives.Count;
