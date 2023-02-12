@@ -147,7 +147,10 @@ namespace MyFantasy
 			if (loading != null)
 			{
 				if (DateTime.Compare(((DateTime)loading).AddSeconds(PAUSE_SECONDS), DateTime.Now) < 1)
+				{
 					Error("Слишком долгая системная пауза загрузки");
+					loading = null;
+				}
 				else
 					Debug.Log("Пауза");
 			}
@@ -260,8 +263,8 @@ namespace MyFantasy
 				// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
 				if (commands.timeouts[group].time != null)
 				{
-					// что бы небыло дабл кликов выдерживыем некую паузу между запросами и
-					seconds = (((DateTime)commands.timeouts[group].time).AddSeconds(commands.timeouts[group].timeout)).Subtract(DateTime.Now);
+					// время таймаута группы событий за вычетом половины пинга (времени на доставку запроса)
+					seconds = (((DateTime)commands.timeouts[group].time).AddSeconds(commands.timeouts[group].timeout).AddSeconds(commands.ping()/2*-1)).Subtract(DateTime.Now);
 				}
 			}
 			else
