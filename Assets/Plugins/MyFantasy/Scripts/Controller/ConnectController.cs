@@ -92,7 +92,6 @@ namespace MyFantasy
 			if (this.connect != null && (this.connect.ReadyState == WebSocketSharp.WebSocketState.Open || this.connect.ReadyState == WebSocketSharp.WebSocketState.Closing))
 			{
 				Error("WebSocket is already connected or is closing.");
-				return;
 			}
 
 			try
@@ -107,7 +106,6 @@ namespace MyFantasy
 				};
 				connect.OnClose += (sender, ev) =>
 				{
-					Error("Соединение с сервером закрыто");
 					if (ev.Code != ((ushort)CloseStatusCode.Normal))
 						Error("Соединение с сервером закрыто " + ev.Code + "/" + ev.Reason);
 					else
@@ -128,8 +126,7 @@ namespace MyFantasy
 					}
 					catch (Exception ex)
 					{
-						Debug.LogException(ex);
-						Error("Ошибка добавления данных websocket");
+						Error("Ошибка добавления данных websocket "+ ex.Message);
 					}
 				};
 				connect.Connect();
