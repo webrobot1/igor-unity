@@ -309,6 +309,8 @@ namespace MyFantasy
 		public override void Error (string text)
 		{
 			errors.Add(text);
+			loading = null;
+
 			Debug.LogError(text);
 			throw new Exception(text);
 		}
