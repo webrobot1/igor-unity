@@ -53,7 +53,7 @@ namespace MyFantasy
 		protected void SetData(NewObjectRecive recive)
 		{
 			// если мы двигались и что то нас прервало (потом уточним что может а что не может нас прерывать анимацию) то сразу переместимся на локацию к которой идем
-			if (moveCoroutine != null && ((recive.action != null && recive.action!=action) || (recive.side != null && recive.side!=side)))
+			if (moveCoroutine != null && ((recive.action != null && recive.action!=action) || (recive.side != null && recive.side!=side) || (recive.x != null || recive.y != null || recive.z != null)))
 			{
 				StopCoroutine(moveCoroutine);
 				transform.position = position;
@@ -98,22 +98,22 @@ namespace MyFantasy
 		/// <param name="position">куда движемя</param>
 		private IEnumerator Move(Vector3 position)
 		{
-			float distance;
+			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)getEvent("move").timeout / Time.fixedDeltaTime);
 
-			float distancePerUpdate = (float)getEvent("move").timeout / Time.fixedDeltaTime;
+			Debug.Log(distancePerUpdate);
+
+			float distance;
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
+				activeLast = DateTime.Now;
+
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
 
 				transform.position = Vector3.MoveTowards(transform.position, position, (distance < distancePerUpdate ? distance : distancePerUpdate));
-				transform.position = new Vector3(transform.position.x, transform.position.y, transform.position.z);
 
-				Debug.Log(GetEventRemain("move"));
 				yield return new WaitForFixedUpdate();
 			}
-
-			activeLast = DateTime.Now;
 			moveCoroutine = null;
 		}
 	}
