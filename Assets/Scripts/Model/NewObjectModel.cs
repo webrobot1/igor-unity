@@ -63,7 +63,8 @@ namespace MyFantasy
 				StopCoroutine(moveCoroutine);
 
 				// установим позицию  к которой шли
-				transform.position = position;
+				if(recive.action != "move")
+					transform.position = position;
 			}
 
 			base.SetData(recive);

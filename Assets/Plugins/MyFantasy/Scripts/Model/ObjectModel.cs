@@ -112,6 +112,11 @@ namespace MyFantasy
 					if (kvp.Value.timeout != null) 
 					{ 
 						events[kvp.Key].timeout = kvp.Value.timeout;
+					}				
+					
+					if (kvp.Value.data != null) 
+					{ 
+						events[kvp.Key].data = kvp.Value.data;
 					}
 
 					if (kvp.Value.action!="")
