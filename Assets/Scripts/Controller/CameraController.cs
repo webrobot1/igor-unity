@@ -5,8 +5,7 @@ using MyFantasy;
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {
-    public ObjectModel player;
-    float last_size;
+     float last_size;
 
     private void Start()
     {
@@ -16,12 +15,9 @@ public class CameraController : MonoBehaviour
 
     private void Update()
     {
-        if(player == null)
-            player = GetComponent<PlayerController>().player;
-         
-        if (player != null)
+        if (ConnectController.player != null)
 		{
-            transform.position = new Vector3(player.transform.position.x, player.transform.position.y, transform.position.z);
+            transform.position = new Vector3(ConnectController.player.transform.position.x, ConnectController.player.transform.position.y, transform.position.z);
             float screenRation = (float)Screen.width / (float)Screen.height;
 
             /// <summary>

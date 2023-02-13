@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace MyFantasy
@@ -11,10 +12,8 @@ namespace MyFantasy
         public Dictionary<string, MapRecive<P, E, O>> world;
         public Dictionary<string, int> sides;
 
-        /// <summary>
-        /// список таймаутов (высылается при load)
-        /// </summary>
-        public Dictionary<string, float> timeouts;
+
+        public List<PingRecive> pings;
 
         /// <summary>
         /// возможные ошибки (если не пусто - произойдет разъединение, но где быстрее - в клиенте или на сервере сказать сложно)

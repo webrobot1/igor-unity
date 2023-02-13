@@ -16,11 +16,6 @@ namespace MyFantasy
 		/// </summary>
 		private Coroutine moveCoroutine = null;
 
-		/// <summary>
-		/// проходимая дистанция за FixedUpdate (учитывается скорость игрока)
-		/// </summary>
-		private float distancePerUpdate;
-
 
 		protected virtual void Awake()
 		{
@@ -57,12 +52,28 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
-			string trigger;
+			// если мы двигались и что то нас прервало (потом уточним что может а что не может нас прерывать анимацию) то сразу переместимся на локацию к которой идем
+			if (moveCoroutine != null && (recive.action != null && recive.action!=action) || (recive.side != null && recive.side!=side))
+			{
+				StopCoroutine(moveCoroutine);
+				transform.position = position;
+			}
 
+			base.SetData(recive);
+
+			if ((recive.x != null || recive.y != null || recive.z != null) && position != transform.position)
+			{
+				if (recive.action == "move")
+					moveCoroutine = StartCoroutine(Move(position));
+				else
+					transform.position = position;
+			}
+
+			string trigger;
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null || recive.side != null )
 			{
-				trigger = (recive.action != null ? recive.action : action) + "_" + (recive.side != null ? recive.side : side);
+				trigger = action + "_" + side;
 				if(anim!=null)
                 {
 					if (trigers.ContainsKey(trigger)) 
@@ -73,37 +84,11 @@ namespace MyFantasy
 					else
 					{
 						Debug.LogWarning("Положение без анимации " + trigger);
-						trigger = "idle_" + (recive.side != null ? recive.side : side);
+						trigger = "idle_" + side;
 						anim.SetTrigger(trigger);
 					}
-				}    
+				}
 			}
-
-			// тут если speed=0 значит ничего не пришло
-			if (recive.speed > 0)
-			{
-				// todo переделать основываясь на таймаутах событий
-				distancePerUpdate = recive.speed * Time.fixedDeltaTime;
-			}
-
-			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))
-			{
-				if (moveCoroutine != null)
-					StopCoroutine(moveCoroutine);
-
-				Vector3 moveTo = new Vector3((float)(recive.x != null ? recive.x : transform.position.x), (float)(recive.y != null ? recive.y : transform.position.y), (float)(recive.z != null ? recive.z : transform.position.z));
-
-				// todo пока 1 шаг - 1 единици позиции  и если больше - это не ходьба а телепорт. в будушем может быть меньше 1 единицы
-				// если отставание от текущей позиции больше чем полтора шага телепортнем (а може это и есть телепорт)
-				if (Vector3.Distance(moveTo, transform.position) <= 1.5)
-					moveCoroutine = StartCoroutine(Move(moveTo));
-				else
-					transform.position = moveTo;
-
-				recive.x = recive.y = recive.z = null;
-			}
-
-			base.SetData(recive);
 		}
 
 
@@ -115,6 +100,7 @@ namespace MyFantasy
 		{
 			float distance;
 
+			float distancePerUpdate = (float)getEvent("move").timeout / Time.fixedDeltaTime;
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
@@ -123,6 +109,7 @@ namespace MyFantasy
 				transform.position = Vector3.MoveTowards(transform.position, position, (distance < distancePerUpdate ? distance : distancePerUpdate));
 				transform.position = new Vector3(transform.position.x, transform.position.y, transform.position.z);
 
+				Debug.Log(GetEventRemain("move"));
 				yield return new WaitForFixedUpdate();
 			}
 

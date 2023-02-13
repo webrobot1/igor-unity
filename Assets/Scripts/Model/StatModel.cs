@@ -76,7 +76,7 @@ namespace MyFantasy
 
 		protected void Update()
 		{
-			if (objectModel.key == PlayerController.Instance.player_key)
+			if (objectModel.key == PlayerController.player_key)
 			{
 				if (PlayerController.Instance.hpFrame.fillAmount != hp / hpMax)
 				{

@@ -5,6 +5,11 @@ namespace MyFantasy
 	public class NewEnemyModel : NewObjectModel
 	{
 		/// <summary>
+		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
+		/// </summary>
+		protected float speed;
+
+		/// <summary>
 		/// модель расчета фигурок жизней и маны
 		/// </summary>
 		protected StatModel statModel;
@@ -24,10 +29,12 @@ namespace MyFantasy
         {
 			if (recive.components != null)
 			{
+				if (recive.components.speed != null)
+					speed = (int)recive.components.speed;
+
 				if (recive.components.hp != null)
-				{
 					statModel.hp = (int)recive.components.hp;
-				}
+
 				if (recive.components.hpMax != null)
 					statModel.hpMax = (int)recive.components.hpMax;
 

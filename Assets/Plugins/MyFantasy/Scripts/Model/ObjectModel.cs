@@ -8,36 +8,38 @@ namespace MyFantasy
 	public class ObjectModel : MonoBehaviour
 	{
 		/// <summary>
+		/// для того что бы менять сортировку при загрузке карты
+		/// </summary>
+		public int sort;
+
+		/// <summary>
 		/// индентификатор сущности
 		/// </summary>
 		public string key;
 
 		/// <summary>
-		/// для того что бы менять сортировку при загрузке карты
+		/// сторона в которую направлена сущность
 		/// </summary>
-		public int sort;
+		public string side = "down";
 
 		/// <summary>
 		/// может изменится в процессе игры (переход на другую локацию)
 		/// </summary>
 		protected int map_id;
 
+		protected string action = "idle";
 		protected DateTime created;
 		protected string prefab;
 
-		protected string action = "idle";
-		public string side = "down";
-
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
-		public DateTime activeLast = DateTime.Now;
-
-		/// <summary>
-		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
-		/// </summary>
-		protected float speed;
+		protected DateTime activeLast = DateTime.Now;
 
 		private Dictionary<string, EventRecive> events = new Dictionary<string, EventRecive>();
-		private List<float> pings = new List<float>();
+
+		/// <summary>
+		/// координаты в которых  уже находится наш объект на сервере
+		/// </summary>
+		protected Vector3 position = Vector3.zero;
 
 		public virtual void SetData(ObjectRecive recive)
 		{
@@ -46,6 +48,10 @@ namespace MyFantasy
 			// пришла команды удаления с карты объекта
 			if (recive.action == "remove/index")
 			{
+				// удалим нашего игрока (этот признак принято использовать что бы првоерить можно ли слать команды на сервер), тк после этого сообщения соединение будет разорвано
+				if (key == ConnectController.player_key)
+					ConnectController.player = null;
+
 				DestroyImmediate(gameObject);
 				return;
 			}
@@ -57,7 +63,7 @@ namespace MyFantasy
 				this.side = recive.side;
 
 			// сортировку не сменить в SetData тк я не хочу менять уровент изоляции spawn_sort
-				if (recive.sort > 0)
+			if (recive.sort > 0)
 				this.sort = (int)recive.sort;
 
 			if (this.key.Length == 0 && recive.x != null && recive.y != null && recive.z != null)
@@ -65,15 +71,19 @@ namespace MyFantasy
 				transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
 			}
 
-			if (this.key.Length > 0 && (recive.x != null || recive.y != null || recive.z != null))
+			if (recive.x != null)
 			{
-				transform.position = new Vector3((float)(recive.x != null ? recive.x : transform.position.x), (float)(recive.y != null ? recive.y : transform.position.y), (float)(recive.z != null ? recive.z : transform.position.z));
-			}
-
-			// тут если speed=0 значит ничего не пришло
-			if (recive.speed > 0)
+				position.x = (float)recive.x;
+			}			
+			
+			if (recive.y != null)
 			{
-				this.speed = recive.speed;
+				position.y = (float)recive.y;
+			}			
+			
+			if (recive.z != null)
+			{
+				position.z = (float)recive.z;
 			}
 
 			if (recive.created != null)
@@ -90,72 +100,50 @@ namespace MyFantasy
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{
-				Debug.Log("Обновляем таймауты событий");
+				Debug.Log("Обновляем события");
 				foreach (KeyValuePair<string, EventRecive> kvp in recive.events)
 				{
 					if (!events.ContainsKey(kvp.Key))
 						events.Add(kvp.Key, kvp.Value);
-                    else
-					{
-						if (kvp.Value.command_id > 0)
-						{
-							if (pings.Count > 10)
-							{
-								pings.RemoveRange(0, 5);
-							}
 
-							pings.Add((float)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - kvp.Value.command_id) / 1000 - kvp.Value.wait_time);
-						}
+					// если мы сбрасяваем таймаут (например из каких то механик) - придет это поле (оно придет кстати и при таймауте события и может еще более точно скорректировать время таймаута)
+					if (kvp.Value.remain != null) 
+					{ 
+						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
+						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - (ConnectController.Ping()/2));
 
-						if (kvp.Value.remain != null) 
-						{ 
-							// мы отномаем от оставшегося времени до исполнения половину пинга как то время которое было потрачено пока ответ шел с сервера к нам
-							events[kvp.Key].finish = DateTime.Now.AddSeconds((float)kvp.Value.remain - (Ping() / 2));
-						}
-
-						if (kvp.Value.action!="")
-							events[kvp.Key].action = kvp.Value.action;
+						Debug.LogWarning(GetEventRemain(kvp.Key));
+					}				
+					
+					if (kvp.Value.timeout != null) 
+					{ 
+						events[kvp.Key].timeout = kvp.Value.timeout;
 					}
+
+					if (kvp.Value.action!="")
+						events[kvp.Key].action = kvp.Value.action;
 				}
 			}
 		}
 
-		public double GetTimeout(string group)
-		{
-			// если на нас нет данного события то значит можно его вполнять на сервере
-			if (!events.ContainsKey(group))
-			{
-				return 0;
-			}
-            else 
-				return ((DateTime)events[group].finish).Subtract(DateTime.Now).TotalSeconds;
-		}
-
-		/// <summary>
-		/// для установки таймаута по последним известным вводным (с сервера придут данные для точного значения)
-		/// </summary>
-		public void SetTimeout(string group)
+		public EventRecive getEvent(string group)
 		{
 			if (!events.ContainsKey(group))
 			{
 				events.Add(group, new EventRecive());
+				events[group].timeout = 0;
 			}
 
-			float remain;
-
-			// если таймаутов нет установим дефолтные значения
-			if (events[group].remain == null)
-				remain = ConnectController.timeouts[group];
-			else
-				remain = (float)events[group].remain;
-
-			// если мы только вошли в игру, у нас нет текущего события на нас и мы не знаем сколько там таймаут и еще не пришел ответ со значениями - установим по дефолту (он придет скоро)
-			events[group].finish = DateTime.Now.AddSeconds(remain);
+			return events[group];
 		}
 
-		public double Ping()
+		/// <summary>
+		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами) 
+		/// </summary>
+		public virtual double GetEventRemain(string group)
 		{
-			return (pings.Count > 0 ? Math.Round((pings.Sum() / pings.Count), 3) : 0);
+			// вычтем из времени время на доставку пакета (половина пинга)
+			return getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
 		}
 	}
 }

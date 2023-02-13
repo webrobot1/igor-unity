@@ -15,5 +15,6 @@ namespace MyFantasy
 		public int? mp;
 		public int? mpMax;
 
+		public int? speed;
 	}
 }

@@ -20,8 +20,6 @@ namespace MyFantasy
 		public string action;
 		public int? sort = null;
 
-		public float speed;
-
 		public DateTime created = DateTime.Now;
 		
 		public Dictionary<string, EventRecive> events;

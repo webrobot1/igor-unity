@@ -25,15 +25,14 @@ namespace MyFantasy
 	public abstract class ConnectController : BaseController
 	{
 		/// <summary>
-		/// Префаб нашего игрока
-		/// </summary>
-		[NonSerialized]
-		public ObjectModel player;
-
-		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
 		/// </summary>
-		public string player_key;
+		public static string player_key;
+
+		/// <summary>
+		/// Префаб нашего игрока
+		/// </summary>
+		public static ObjectModel player;
 
 		/// <summary>
 		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
@@ -51,29 +50,23 @@ namespace MyFantasy
 		protected List<string> recives = new List<string>();		
 		
 		/// <summary>
-		/// список таймаутов по умолчанию
-		/// </summary>
-		[NonSerialized]
-		public static Dictionary<string, float> timeouts = new Dictionary<string, float>();		
-		
-		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 		/// </summary>
-		private List<string> errors = new List<string>();
+		private List<string> errors = new List<string>();			
 
 		/// <summary>
 		/// пауза если не null (может быть как первая загрузка мира, так и перезаход в игру когда может прийти ошибка о закрытие старого соединения)
 		/// </summary>
 		private DateTime? loading = DateTime.Now;
 
+		private double last_ping = 0;
+
 		/// <summary>
 		/// максимальное количество секунд системной паузы
 		/// </summary>
 		private const int PAUSE_SECONDS = 10;
-		
-		[SerializeField]
-		private Text ping;
 
+		private static List<double> pings = new List<double>();
 
 		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
@@ -95,12 +88,33 @@ namespace MyFantasy
 			{
 				if (loading == null) StartCoroutine(LoadRegister());
 			}
-			else 
-				Handle();
+			else
+            {
+				// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
+				int count = recives.Count;
+				if (count > 0)
+				{
+					for (int i = 0; i < count; i++)
+					{
+						try
+						{
+							Handle(recives[i]);
+						}
+						catch (Exception ex)
+						{
+							Debug.LogException(ex);
+							Error("Ошибка разбора входящих данных" + ex.Message);
+							break;
+						}
+					}
+
+					// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
+					recives.RemoveRange(0, count);
+				}
+			}		
 		}
 
-
-		abstract protected void Handle();
+		abstract protected void Handle(string json);
 
 
 		/// <summary>
@@ -112,7 +126,7 @@ namespace MyFantasy
 			errors.Clear();
 			recives.Clear();
 
-			this.player_key = data.key;
+			player_key = data.key;
 			this.player_token = data.token;
 
 			string address = "ws://" + data.host;
@@ -154,8 +168,9 @@ namespace MyFantasy
 
 					try
 					{
-						// это хозйство относится к пингам и таймингам, не хочу обрабатывать это в UpdateController
-						Recive<PlayerRecive, EnemyRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<PlayerRecive, EnemyRecive, ObjectRecive>>(text);
+						// эти данные нужно обработать немедленно тк они связаны с открытием - закрытием соединения
+						Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
+
 						if (recive.action == "load/reconnect")
 						{
 							player = null;
@@ -166,14 +181,22 @@ namespace MyFantasy
 							loading = null;
 						}
 
-                        if (recive.timeouts!=null)
-                        {
-							foreach (KeyValuePair<string, float> kvp in recive.timeouts)
+						if (recive.error.Length > 0)
+						{
+							errors.Add(recive.error);
+							loading = null;
+						}						
+						
+						if (recive.pings!=null)
+						{
+							foreach (PingRecive ping in recive.pings)
 							{
-								if (!timeouts.ContainsKey(kvp.Key))
-									timeouts.Add(kvp.Key, kvp.Value);
-								else
-									timeouts[kvp.Key] = kvp.Value;
+								if (pings.Count > 10)
+								{
+									pings.RemoveRange(0, 5);
+								}
+
+								pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - ping.command_id) / 1000 - ping.wait_time);
 							}
 						}
 
@@ -181,6 +204,7 @@ namespace MyFantasy
 					}
 					catch (Exception ex)
 					{
+						Debug.LogException(ex);
 						Error("Ошибка добавления данных websocket "+ ex.Message);
 					}
 				};
@@ -188,6 +212,7 @@ namespace MyFantasy
 			}
 			catch (Exception ex)
 			{
+				Debug.LogException(ex);
 				Error("Ошибка октрытия соединения " + ex.Message);
 			}
 		}
@@ -202,54 +227,75 @@ namespace MyFantasy
 			{
 				if (connect!=null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.Connecting))
 				{
-					// поставим на паузу отправку и получение любых кроме данной команды данных
-					if (data.action == "load/index")
+					try
 					{
-						// актуально когда после разрыва соединения возвращаемся
-						recives.Clear();
-						loading = DateTime.Now;
-					}
-
-					double ping = player.Ping();
-					double timeout = player.GetTimeout(data.group()) - (ping / 2);
-						
-					// проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
-					if (timeout <= 0)
-					{
-						if (ping > 0)
+						// поставим на паузу отправку и получение любых кроме данной команды данных
+						if (data.action == "load/index")
 						{
-							data.ping = ping;
-							if (this.ping != null)
-								this.ping.text = (int)(1 / ping) + " RPS";
+							// актуально когда после разрыва соединения возвращаемся
+							recives.Clear();
+							loading = DateTime.Now;
 						}
 
-						// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-						data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+						double ping = Ping();
+						double remain = player.GetEventRemain(data.group()) - (Ping() / 2); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 
-						string json = JsonConvert.SerializeObject(
-							data
-							,
-							Newtonsoft.Json.Formatting.None
-							,
-							new JsonSerializerSettings
+						// проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
+						if (remain <= 0)
+						{
+							if (ping > 0 && ping!=last_ping)
 							{
-								NullValueHandling = NullValueHandling.Ignore
+								data.ping = last_ping = ping;
 							}
-						);
 
-						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
-						Put2Send(json);
+							// создадим условно уникальный номер нашего сообщения (она же и временная метка)
+							data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 
-						player.SetTimeout(data.group());
+							string json = JsonConvert.SerializeObject(
+								data
+								,
+								Newtonsoft.Json.Formatting.None
+								,
+								new JsonSerializerSettings
+								{
+									NullValueHandling = NullValueHandling.Ignore
+								}
+							);
+
+							SetTimeout(data.group());
+
+							Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+							Put2Send(json);	
+						}
+						else
+							Debug.LogError("Слишком частый вызов команды " + data.group() + " (" + remain + " секунд осталось)");
 					}
-					else
-						Debug.LogError("Слишком частый вызов команды " + data.group()+" ("+ timeout + " секунд осталось)");
+					catch (Exception ex)
+					{
+						Debug.LogException(ex);
+						Error("Ошибка отправки данных: "+ex.Message);
+					}
 				}
 				else
 					Error("Соединение не открыто для запросов");
 			}
 			else
 				Debug.LogWarning("Загрузка мира, команда " + data.action+" отклонена");
+		}
+
+		public static double Ping()
+		{
+			return (pings.Count > 0 ? Math.Round((pings.Sum() / pings.Count), 3) : 0);
+		}
+
+		/// <summary>
+		/// утановить таймаут не дожидаясь ответа от сервера на оснвое имещихся данных (при возврата с сервера данных таймаут будет пересчитан)
+		/// </summary>
+		private void SetTimeout(string group)
+		{
+			// поставим примерно време когда наступит таймаут (с овтетом он нам более точно скажет тк таймаут может и плавающий в механике быть)
+			double timeout = player.getEvent(group).timeout ?? 5;
+			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout + Ping() / 2);
 		}
 
 		private void Close()
@@ -264,6 +310,7 @@ namespace MyFantasy
 
 				connect = null;
 			}
+			player = null;
 			loading = DateTime.Now;
 		}
 

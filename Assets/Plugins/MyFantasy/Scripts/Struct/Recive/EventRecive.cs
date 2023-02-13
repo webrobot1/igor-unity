@@ -6,12 +6,11 @@ namespace MyFantasy
     public class EventRecive
     {
         public string action = "";
-        public float? remain = null;
 
-        public long command_id;
-        public float wait_time;
+        public double? remain = null;
+        public double? timeout = null;
 
         public object data;
-        public DateTime? finish = null;
+        public DateTime finish = DateTime.Now;
     }
 }
