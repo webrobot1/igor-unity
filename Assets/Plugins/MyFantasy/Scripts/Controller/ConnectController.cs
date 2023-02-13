@@ -157,10 +157,10 @@ namespace MyFantasy
 				};
 				connect.OnClose += (sender, ev) =>
 				{
-					if (ev.Code != ((ushort)CloseStatusCode.Normal))
+					if ((ushort)ev.Code != ((ushort)WebSocketSharp.CloseStatusCode.Normal))
 					{
 						if(connect!=null)
-							Error("Соединение с сервером закрыто " + ev.Code + "/" + ev.Reason);
+							Error("Соединение с сервером прервано");
 					}
 					else
 						Debug.LogWarning("Нормальное закрытие соединения");
@@ -315,7 +315,7 @@ namespace MyFantasy
 			if (connect != null)
 			{
 				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
-					connect.Close(CloseStatusCode.Normal);
+					connect.Close(WebSocketSharp.CloseStatusCode.Normal);
 
 				connect = null;
 			}
