@@ -16,6 +16,8 @@ namespace MyFantasy
 		/// </summary>
 		private Coroutine moveCoroutine = null;
 
+		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
+		private DateTime activeLast = DateTime.Now;
 
 		protected virtual void Awake()
 		{
@@ -52,10 +54,15 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
+			activeLast = DateTime.Now;
+
 			// если мы двигались и что то нас прервало (потом уточним что может а что не может нас прерывать анимацию) то сразу переместимся на локацию к которой идем
 			if (moveCoroutine != null && ((recive.action != null && recive.action!=action) || (recive.side != null && recive.side!=side) || (recive.x != null || recive.y != null || recive.z != null)))
 			{
+				// остановим корутину движения
 				StopCoroutine(moveCoroutine);
+
+				// установим позицию  к которой шли
 				transform.position = position;
 			}
 
@@ -100,13 +107,9 @@ namespace MyFantasy
 		{
 			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)getEvent("move").timeout / Time.fixedDeltaTime);
 
-			Debug.Log(distancePerUpdate);
-
 			float distance;
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
-				activeLast = DateTime.Now;
-
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
 
@@ -114,6 +117,8 @@ namespace MyFantasy
 
 				yield return new WaitForFixedUpdate();
 			}
+
+			activeLast = DateTime.Now;
 			moveCoroutine = null;
 		}
 	}

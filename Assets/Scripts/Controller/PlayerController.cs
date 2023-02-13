@@ -137,10 +137,10 @@ namespace MyFantasy
                                 ||
                             moveTo != Vector2Int.zero
                         )
-                            &&
+                          /*  &&
                         (
                            player.GetEventRemain("side") <= 0
-                        )
+                        )*/
                     )
                     {
                         MoveResponse response = new MoveResponse();
@@ -151,30 +151,30 @@ namespace MyFantasy
 
                             if (vertical > 0)
                             {
-                                if (side != "up")
-                                    response.action = "side/up";
-                                else
+                               // if (side != "up")
+                               //     response.action = "side/up";
+                              //  else
                                     response.action = "move/up";
                             }
                             else if (vertical < 0)
                             {
-                                if (side != "down")
-                                    response.action = "side/down";
-                                else
+                               // if (side != "down")
+                               //     response.action = "side/down";
+                               // else
                                     response.action = "move/down";
                             }
                             else if (horizontal > 0)
                             {
-                                if (side != "right")
-                                    response.action = "side/right";
-                                else
+                              //  if (side != "right")
+                               //     response.action = "side/right";
+                              //  else
                                     response.action = "move/right";
                             }
                             else if (horizontal < 0)
                             {
-                                if (side != "left")
-                                    response.action = "side/left";
-                                else
+                               // if (side != "left")
+                               //     response.action = "side/left";
+                               // else
                                     response.action = "move/left";
                             }
                         }

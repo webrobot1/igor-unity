@@ -31,8 +31,6 @@ namespace MyFantasy
 		protected DateTime created;
 		protected string prefab;
 
-		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
-		protected DateTime activeLast = DateTime.Now;
 
 		private Dictionary<string, EventRecive> events = new Dictionary<string, EventRecive>();
 
@@ -43,8 +41,6 @@ namespace MyFantasy
 
 		public virtual void SetData(ObjectRecive recive)
 		{
-			activeLast = DateTime.Now;
-
 			// пришла команды удаления с карты объекта
 			if (recive.action == "remove/index")
 			{

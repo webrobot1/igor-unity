@@ -66,7 +66,15 @@ namespace MyFantasy
 		/// </summary>
 		private const int PAUSE_SECONDS = 10;
 
-		private static List<double> pings = new List<double>();
+		/// <summary>
+		/// среднее значение пинга.
+		/// </summary>
+		private static double ping = 0;
+		
+		/// <summary>
+		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
+		/// </summary>
+		private List<double> pings = new List<double>();
 
 		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
@@ -189,14 +197,15 @@ namespace MyFantasy
 						
 						if (recive.pings!=null)
 						{
-							foreach (PingRecive ping in recive.pings)
+							foreach (PingRecive _ping in recive.pings)
 							{
 								if (pings.Count > 10)
 								{
 									pings.RemoveRange(0, 5);
+									ping = (pings.Count > 0 ? Math.Round((pings.Sum() / pings.Count), 3) : 0);
 								}
 
-								pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - ping.command_id) / 1000 - ping.wait_time);
+								pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - _ping.command_id) / 1000 - _ping.wait_time);
 							}
 						}
 
@@ -285,7 +294,7 @@ namespace MyFantasy
 
 		public static double Ping()
 		{
-			return (pings.Count > 0 ? Math.Round((pings.Sum() / pings.Count), 3) : 0);
+			return ping;
 		}
 
 		/// <summary>
@@ -295,7 +304,7 @@ namespace MyFantasy
 		{
 			// поставим примерно време когда наступит таймаут (с овтетом он нам более точно скажет тк таймаут может и плавающий в механике быть)
 			double timeout = player.getEvent(group).timeout ?? 5;
-			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout + Ping() / 2);
+			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout + (Ping() / 2));
 		}
 
 		private void Close()
