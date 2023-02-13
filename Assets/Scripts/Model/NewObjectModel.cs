@@ -53,7 +53,7 @@ namespace MyFantasy
 		protected void SetData(NewObjectRecive recive)
 		{
 			// если мы двигались и что то нас прервало (потом уточним что может а что не может нас прерывать анимацию) то сразу переместимся на локацию к которой идем
-			if (moveCoroutine != null && (recive.action != null && recive.action!=action) || (recive.side != null && recive.side!=side))
+			if (moveCoroutine != null && ((recive.action != null && recive.action!=action) || (recive.side != null && recive.side!=side)))
 			{
 				StopCoroutine(moveCoroutine);
 				transform.position = position;
