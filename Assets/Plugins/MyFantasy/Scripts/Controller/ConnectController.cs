@@ -111,7 +111,7 @@ namespace MyFantasy
 						catch (Exception ex)
 						{
 							Debug.LogException(ex);
-							Error("Ошибка разбора входящих данных" + ex.Message);
+							Error("Ошибка разбора входящих данных" + recives[i]+ " ("+ex.Message+")");
 							break;
 						}
 					}

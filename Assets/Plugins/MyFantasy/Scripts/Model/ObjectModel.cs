@@ -119,7 +119,7 @@ namespace MyFantasy
 						events[kvp.Key].data = kvp.Value.data;
 					}
 
-					if (kvp.Value.action!="")
+					if (kvp.Value.action!=null)
 						events[kvp.Key].action = kvp.Value.action;
 				}
 			}
@@ -130,7 +130,6 @@ namespace MyFantasy
 			if (!events.ContainsKey(group))
 			{
 				events.Add(group, new EventRecive());
-				events[group].timeout = 0;
 			}
 
 			return events[group];

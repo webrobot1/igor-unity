@@ -5,13 +5,16 @@ namespace MyFantasy
 {
     public class EventRecive
     {
-        public string action = "";
+        public string action = null;
 
         /// <summary>
         /// сколько осталось до таймаута секунд .€ не рассылаю точное врем€ тк 100% на клиенте и сервере врем€ не совпадет и будет рассинхрон пару секунд
         /// </summary>
         public double? remain = null;
 
+        /// <summary>
+        /// сколько секуд таймаут событи€. приходит при загрузке или если в процессе игры изменилс€ на группу событи€
+        /// </summary>
         public double? timeout = null;
 
         public object data;

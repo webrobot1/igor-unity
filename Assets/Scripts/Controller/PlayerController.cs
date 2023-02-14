@@ -89,7 +89,7 @@ namespace MyFantasy
         {
             base.HandleData(recive);
 
-            if(recive.pings!=null)
+            if(recive.pings!=null && Ping()>0)
                 ping.text = (int)(1 / Ping()) + " RPS";
         }
 
