@@ -119,8 +119,16 @@ namespace MyFantasy
 						events[kvp.Key].data = kvp.Value.data;
 					}
 
-					if (kvp.Value.action!=null)
+					if (kvp.Value.action != null) 
+					{ 
 						events[kvp.Key].action = kvp.Value.action;
+
+						// если обнулилось событие то и обнуляются данные события (просто не высылаем что бы не тратить время)
+						if(kvp.Value.action == "")
+                        {
+							events[kvp.Key].data = null;
+						}
+					}
 				}
 			}
 		}
