@@ -39,6 +39,9 @@ namespace MyFantasy
 		/// </summary>
 		protected Vector3 position = Vector3.zero;
 
+		/// <summary>
+		/// установка данных пришедших с сервера объекту 
+		/// </summary>
 		public virtual void SetData(ObjectRecive recive)
 		{
 			// пришла команды удаления с карты объекта

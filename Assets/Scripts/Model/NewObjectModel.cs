@@ -12,18 +12,24 @@ namespace MyFantasy
 		protected static Dictionary<string, bool> trigers;
 
 		/// <summary>
-		/// если не null - движемся
+		/// РµСЃР»Рё РЅРµ null - РґРІРёР¶РµРјСЃСЏ
 		/// </summary>
 		private Coroutine moveCoroutine = null;
 
-		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
+		/// <summary>
+		///  Р°РєС‚РёРІРЅС‹Р№ СЃР»РѕР№ Р°РЅРёРјР°С†РёРё
+		/// </summary>
+		private int? layerIndex = null;
+		private string layerTrigger = null;
+
+		// РєРѕРіРґР° РїРѕСЃР»РµРґРЅРёР№ СЂР°Р· РѕР±РЅРѕРІР»СЏР»Рё РґР°РЅРЅС‹Рµ (РґР»СЏ РїСЂРёСЃРІРѕРµРЅРёСЏ action - idle РїРѕ С‚Р°Р№РјР°СѓС‚Сѓ)
 		private DateTime activeLast = DateTime.Now;
 
 		protected virtual void Awake()
 		{
 			if (anim = GetComponent<Animator>())
 			{
-				// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
+				// СЃРѕС…СЂР°РЅРёРј РІСЃРµ РІРѕР·РјРѕР¶РЅС‹Рµ РўСЂРёРіРµСЂС‹ Р°РЅРёРјР°С†РёР№ Рё, РµСЃР»Рё РЅР°Рј РїСЂРёС€РµР» action РєР°Рє С‚РёРіРµСЂ - РѕР±РЅРѕРІРёРј Р°РЅРёРјР°С†РёСЋ
 				if (trigers == null)
 				{
 					trigers = new Dictionary<string, bool>();
@@ -38,12 +44,11 @@ namespace MyFantasy
 		// Update is called once per frame
 		void Update()
 		{
-			// если мы не стоит и нет корутины что двигаемся и мы не жде ответа от сервера о движении (актуально лишь на нашего игрока)
-			if (anim!=null && anim.GetCurrentAnimatorClipInfo(0)[0].clip.name.IndexOf("idle") == -1 && moveCoroutine == null && (anim.GetCurrentAnimatorStateInfo(0).loop || anim.GetCurrentAnimatorStateInfo(0).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1)
+			// РµСЃР»Рё С‚РµРєСѓС‰РёР№ РЅР°С€ СЃС‚Р°С‚СѓСЃ Р°РЅРёРјР°С†РёРё - РЅРµ СЃС‚РѕСЏРЅРёРµ Рё РґР°РІРЅРѕ РЅРµР±С‹Р»Рѕ Р°РєС‚РёРІРЅРѕСЃС‚Рё - РІРєР»СЋС‡РёРј Р°РЅРјР°С†РёСЋ РѕСЃС‚Р°РЅРѕРІРєРё
+			if (anim!=null && layerIndex != null && anim.GetLayerName((int)layerIndex) != "idle"  && (anim.GetCurrentAnimatorStateInfo((int)layerIndex).loop || anim.GetCurrentAnimatorStateInfo((int)layerIndex).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1)
 			{
-				Debug.LogWarning("останавливаем " + this.key);
-				action = "idle_"+side;
-				anim.SetTrigger(action);
+				Debug.Log("РѕСЃС‚Р°РЅРѕРІРєР° РїРѕ С‚Р°Р№РјР°СѓС‚Сѓ Р°РЅРёРјР°С†РёРё");
+				Animate("idle", side);
 			}
 		}
 
@@ -54,19 +59,24 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
-			activeLast = DateTime.Now;
-
-			// если мы двигались и что то нас прервало (потом уточним что может а что не может нас прерывать анимацию) то сразу переместимся на локацию к которой идем
-			if (moveCoroutine != null && ((recive.action != null && recive.action!=action) || (recive.side != null && recive.side!=side) || (recive.x != null || recive.y != null || recive.z != null)))
+			// РµСЃР»Рё РјС‹ РґРІРёРіР°РµРјСЃСЏ Рё РїСЂРёС€Р»Рё РЅРѕРІС‹Рµ РєРѕРѕСЂРґРёРЅР°С‚С‹ - С‚Рѕ СЃСЂР°Р·Сѓ РїРµСЂРµРјРµСЃС‚РёРјСЃСЏ РЅР° Р»РѕРєР°С†РёСЋ Рє РєРѕС‚РѕСЂРѕР№ РёРґРµРј
+			// PS РЅРµ РґРІРёРіР°С‚СЊ СЌС‚РѕС‚ Р±Р»РѕРє РЅРёР¶Рµ base.SetData  С‚Рє Р·Р°С‚СЂРµС‚СЃСЏ РєРѕРѕСЂРґРёРЅР°С‚Р° Рє РєРѕС‚РѕСЂС‹Р№ РјС‹ РґРІРёРіР°Р»РёСЃСЊ РґРѕ РЅРѕРІС‹С… РґР°РЅРЅС‹С…
+			if (moveCoroutine != null && (recive.x != null || recive.y != null || recive.z != null))
 			{
-				// остановим корутину движения
+				// РѕСЃС‚Р°РЅРѕРІРёРј РєРѕСЂСѓС‚РёРЅСѓ РґРІРёР¶РµРЅРёСЏ
 				StopCoroutine(moveCoroutine);
 
-				// установим позицию  к которой шли
+				// СѓСЃС‚Р°РЅРѕРІРёРј РїРѕР·РёС†РёСЋ  Рє РєРѕС‚РѕСЂРѕР№ С€Р»Рё
 				transform.position = position;
 			}
 
 			base.SetData(recive);
+
+			// СЃРіРµРЅРµСЂРёСЂСѓРµРј С‚СЂРёРіРµСЂ - РЅР°Р·РІР°РЅРёРµ Р°РЅРёРјР°С†РёРё РёСЃС…РѕРґСЏ РёР· РїРѕР»РѕР¶РµРЅРёСЏ РЅР°С€РµРіРѕ РїРµСЂСЃРѕРЅР°Р¶Р° Рё РµРіРѕ РґРµР№СЃС‚РІРёСЏ
+			if (recive.action != null || recive.side != null )
+			{
+				Animate(action, side);
+			}
 
 			if ((recive.x != null || recive.y != null || recive.z != null) && position != transform.position)
 			{
@@ -75,34 +85,53 @@ namespace MyFantasy
 				else
 					transform.position = position;
 			}
+		}
 
-			string trigger;
-			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
-			if (recive.action != null || recive.side != null )
+		protected void Animate(string layer, string side)
+		{
+			if (anim != null)
 			{
-				trigger = action + "_" + side;
-				if(anim!=null)
-                {
-					if (trigers.ContainsKey(trigger)) 
-					{ 
-						Debug.Log("Обновляем анимацию " + trigger);
+				int layerIndex = anim.GetLayerIndex(layer);
+				if (layerIndex != -1)
+				{
+					string trigger = layer + "_" + side;
+
+					if (this.layerTrigger == trigger) return;
+
+					this.layerIndex = layerIndex;
+
+					if (trigers.ContainsKey(trigger))
+					{
+						activeLast = DateTime.Now;
+						this.layerTrigger = trigger;
+
+						// "РѕСЃС‚Р°РЅРѕРІРёРј" РІСЃРµ СЃР»РѕРё Р°РЅРјРёР°С†РёРё
+						for (int i = 0; i < anim.layerCount; i++)
+						{
+							anim.SetLayerWeight(i, 0);
+						}
+
+						anim.SetLayerWeight(layerIndex, 1);
 						anim.SetTrigger(trigger);
+
+						Debug.Log("РћР±РЅРѕРІР»СЏРµРј Р°РЅРёРјР°С†РёСЋ " + trigger);
 					}
 					else
 					{
-						Debug.LogWarning("Положение без анимации " + trigger);
-						trigger = "idle_" + side;
-						anim.SetTrigger(trigger);
+						PlayerController.Instance.Error("РћС‚СЃСѓС‚РІСѓРµС‚ С‚СЂРёРіРµСЂ Р°РЅРјРёР°С†РёРё " + trigger + " Сѓ СЃР»РѕСЏ Р°РЅРјРёР°С†РёРё " + layer);
 					}
 				}
-			}
+				else
+				{
+					Debug.LogWarning("РџРѕР»РѕР¶РµРЅРёРµ Р±РµР· РіСЂСѓРїРїС‹-СЃР»РѕСЏ Р°РЅРёРјР°С†РёРё " + layer);
+				}
+			}		
 		}
 
-
 		/// <summary>
-		/// анимация движения NPC или игрока. скорость равна времени паузы между командами
+		/// РїСЂРё РїРµСЂРµРґРёР¶РµРЅРёРё РёРіСЂРѕРєР° РїСЂРѕРёРіСЂС‹РІР°РµС‚СЃСЏ Р°РЅРјРёР°С†РёСЏ РїРµСЂРµРґРІРёР¶РµРЅРёСЏ РїРѕ РєР»РµС‚РєРµ (С…РѕС‚СЏ РґР»СЏ СЃРµСЂРІРµСЂР° РјС‹ СѓР¶Рµ РЅР° РЅРѕРІРѕР№ РїРѕР·РёС†РёРё). СЃРєРѕСЂРѕСЃС‚СЊ СЂР°РІРЅР° РІСЂРµРјРµРЅРё РїР°СѓР·С‹ РјРµР¶РґСѓ РєРѕРјР°РЅРґР°РјРё РЅР° РЅРѕРІРѕРµ РґРІРёР¶РµРЅРёРµ
 		/// </summary>
-		/// <param name="position">куда движемя</param>
+		/// <param name="position">РєСѓРґР° РґРІРёР¶РµРјСЏ</param>
 		private IEnumerator Move(Vector3 position, string group)
 		{
 			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)getEvent(group).timeout / Time.fixedDeltaTime);
@@ -110,15 +139,15 @@ namespace MyFantasy
 			float distance;
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
-				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
-				// в ином случае - дистанцию с учетом скорости проходим целиком
+				// РµСЃР»Рё РѕСЃС‚Р°Р»СЊСЃСЊ РїСЂРѕР№С‚Рё РјРµРЅСЊС€Рµ С‡РµРј  РјС‹ РїСЂРѕС…РѕРґРёРј Р·Р° FixedUpdate (СѓСЃР»РѕРІРЅРѕ РєР°РґСЂ) С‚Рѕ РґРІРёР¶РёРјСЃСЏ СЌС‚Рѕ РѕС‚СЂРµР·РѕРє
+				// РІ РёРЅРѕРј СЃР»СѓС‡Р°Рµ - РґРёСЃС‚Р°РЅС†РёСЋ СЃ СѓС‡РµС‚РѕРј СЃРєРѕСЂРѕСЃС‚Рё РїСЂРѕС…РѕРґРёРј С†РµР»РёРєРѕРј
 
 				transform.position = Vector3.MoveTowards(transform.position, position, (distance < distancePerUpdate ? distance : distancePerUpdate));
+				activeLast = DateTime.Now;
 
 				yield return new WaitForFixedUpdate();
 			}
 
-			activeLast = DateTime.Now;
 			moveCoroutine = null;
 		}
 	}

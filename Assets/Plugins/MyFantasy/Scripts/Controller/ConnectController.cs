@@ -59,6 +59,9 @@ namespace MyFantasy
 		/// </summary>
 		private DateTime? loading = DateTime.Now;
 
+		/// <summary>
+		/// последний отправленный пинг на сервер
+		/// </summary>
 		private double last_send_ping = 0;
 
 		/// <summary>
@@ -282,7 +285,7 @@ namespace MyFantasy
 							}
 
                             // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
-                            if (DateTime.Compare(last_ping_request, DateTime.Now) < 1)
+                            if (DateTime.Compare(last_ping_request, DateTime.Now) <= 1)
                             {
 								data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 								last_ping_request = DateTime.Now.AddSeconds(ping_request_sec);
@@ -304,8 +307,8 @@ namespace MyFantasy
 							Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 							Put2Send(json);	
 						}
-						else
-							Debug.LogError("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
+						//else
+						//	Debug.LogError("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
 					}
 					catch (Exception ex)
 					{
