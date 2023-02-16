@@ -59,15 +59,39 @@ namespace MyFantasy
 		/// </summary>
 		private DateTime? loading = DateTime.Now;
 
-		private double last_ping = 0;
+		private double last_send_ping = 0;
 
 		/// <summary>
-		/// максимальное количество секунд системной паузы
+		/// максимальное количество секунд паузы между загрузками
 		/// </summary>
-		private const int PAUSE_SECONDS = 10;
+		[SerializeField]
+		private int max_pause_sec = 10;		
+		
+		/// <summary>
+		/// через сколько секунд мы отправляем на серер запрос для анализа пинга
+		/// </summary>
+		[SerializeField]
+		private double ping_request_sec = 3;
 
 		/// <summary>
-		/// среднее значение пинга.
+		/// время последнего запроса пинга на сервер
+		/// </summary>
+		private DateTime last_ping_request = DateTime.Now;
+
+		/// <summary>
+		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
+		/// </summary>
+		[SerializeField]
+		private int max_ping_history = 10;	
+		
+		/// <summary>
+		/// до какой длинные обрезается историй пингов после достижения максимального количества
+		/// </summary>
+		[SerializeField]
+		private int min_ping_history = 5;
+
+		/// <summary>
+		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
 		/// </summary>
 		private static double ping = 0;
 		
@@ -83,7 +107,7 @@ namespace MyFantasy
 		{
 			if (loading != null)
 			{
-				if (DateTime.Compare(((DateTime)loading).AddSeconds(PAUSE_SECONDS), DateTime.Now) < 1)
+				if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1)
 				{
 					loading = null;
 					Error("Слишком долгая системная пауза загрузки");
@@ -176,7 +200,7 @@ namespace MyFantasy
 
 					try
 					{
-						// эти данные нужно обработать немедленно тк они связаны с открытием - закрытием соединения
+						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
 						Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
 
 						if (recive.action == "load/reconnect")
@@ -189,23 +213,23 @@ namespace MyFantasy
 							loading = null;
 						}
 
-						if (recive.error.Length > 0)
+						if (recive.error!=null)
 						{
 							errors.Add(recive.error);
 							loading = null;
-						}						
-						
-						if (recive.pings!=null)
-						{
-							foreach (PingRecive _ping in recive.pings)
-							{
-								if (pings.Count > 10)
-								{
-									pings.RemoveRange(0, 5);
-									ping = (pings.Count > 0 ? Math.Round((pings.Sum() / pings.Count), 3) : 0);
-								}
+						}
 
-								pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - _ping.command_id) / 1000 - _ping.wait_time);
+						// это тоже обновим тут что бы pings не открывать
+						if (recive.unixtime>0)
+						{
+							pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
+
+							if ((max_ping_history>0 && pings.Count > max_ping_history) || pings.Count == 1)
+							{
+								ping = Math.Round((pings.Sum() / pings.Count), 3);
+
+								if (max_ping_history > 0 && pings.Count > max_ping_history)
+									pings.RemoveRange(0, pings.Count - min_ping_history);
 							}
 						}
 
@@ -247,18 +271,22 @@ namespace MyFantasy
 						}
 
 						double ping = Ping();
-						double remain = player.GetEventRemain(data.group()) - (Ping() / 2); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
+						double remain = player.GetEventRemain(data.group) - (Ping() / 2); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 
 						// проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
 						if (remain <= 0)
 						{
-							if (ping > 0 && ping!=last_ping)
+							if (ping > 0 && ping != last_send_ping)
 							{
-								data.ping = last_ping = ping;
+								data.ping = last_send_ping = ping;
 							}
 
-							// создадим условно уникальный номер нашего сообщения (она же и временная метка)
-							data.command_id = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+                            // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
+                            if (DateTime.Compare(last_ping_request, DateTime.Now) < 1)
+                            {
+								data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+								last_ping_request = DateTime.Now.AddSeconds(ping_request_sec);
+							}		
 
 							string json = JsonConvert.SerializeObject(
 								data
@@ -271,13 +299,13 @@ namespace MyFantasy
 								}
 							);
 
-							SetTimeout(data.group());
+							SetTimeout(data.group);
 
 							Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 							Put2Send(json);	
 						}
 						else
-							Debug.LogError("Слишком частый вызов команды " + data.group() + " (" + remain + " секунд осталось)");
+							Debug.LogError("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
 					}
 					catch (Exception ex)
 					{

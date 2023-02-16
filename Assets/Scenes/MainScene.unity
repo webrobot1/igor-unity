@@ -319,8 +319,8 @@ GameObject:
   - component: {fileID: 290111639}
   - component: {fileID: 290111638}
   - component: {fileID: 290111637}
-  - component: {fileID: 290111640}
   - component: {fileID: 290111642}
+  - component: {fileID: 290111643}
   m_Layer: 0
   m_Name: Camera
   m_TagString: MainCamera
@@ -395,24 +395,6 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &290111640
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 290111636}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0af6b1e6c1ae08d4bb79bf33d6353a50, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  player_key: 
-  ping: {fileID: 376761668}
-  mapObject: {fileID: 961570895}
-  worldObject: {fileID: 217698843}
-  hpFrame: {fileID: 201437677}
-  mpFrame: {fileID: 418402465}
 --- !u!114 &290111642
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -425,6 +407,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 93d7961188444634b9fa7f95d7b2bc77, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &290111643
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 290111636}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df6782994527c0344aa2a1123d0a09f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  max_pause_sec: 10
+  ping_request_sec: 3
+  max_ping_history: 10
+  min_ping_history: 5
+  mapObject: {fileID: 961570895}
+  worldObject: {fileID: 217698843}
+  hpFrame: {fileID: 201437677}
+  mpFrame: {fileID: 418402465}
+  ping: {fileID: 376761668}
 --- !u!1 &376761666
 GameObject:
   m_ObjectHideFlags: 0

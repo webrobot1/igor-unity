@@ -70,8 +70,8 @@ namespace MyFantasy
 
 			if ((recive.x != null || recive.y != null || recive.z != null) && position != transform.position)
 			{
-				if (recive.action == "move")
-					moveCoroutine = StartCoroutine(Move(position));
+				if (action == "move")
+					moveCoroutine = StartCoroutine(Move(position, recive.action));
 				else
 					transform.position = position;
 			}
@@ -103,9 +103,9 @@ namespace MyFantasy
 		/// анимация движения NPC или игрока. скорость равна времени паузы между командами
 		/// </summary>
 		/// <param name="position">куда движемя</param>
-		private IEnumerator Move(Vector3 position)
+		private IEnumerator Move(Vector3 position, string group)
 		{
-			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)getEvent("move").timeout / Time.fixedDeltaTime);
+			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)getEvent(group).timeout / Time.fixedDeltaTime);
 
 			float distance;
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)

@@ -7,37 +7,25 @@ namespace MyFantasy
     /// </summary>
     public class Response
     {
-        private string _action = "";
-        public string action
-        {
-            set {
-                if (!value.Contains('/'))
-                {
-                    value = value + "/index";
-                }
-                _action = value;
-            }
+        /// <summary>
+        /// группа событе которое которое мы хотим что бы наш игрок сделал на сервер
+        /// </summary>
+        public string group;
 
-            get {
-                return _action;
-            }
-        }
+        /// <summary>
+        /// метод события который хотим что бы был вызван. по умолчанию index (удоно если в событии сервера - один метод, что бы не указвать )
+        /// </summary>
+        public string action = "index";
+        
 
         /// <summary>
         /// нужно для вычисления пинга (временная метка по которой мы поймем сколько прошло времени между отправкой)
         /// </summary>
-        public long command_id;
+        public long unixtime;
 
+        /// <summary>
+        /// сам пинг (тк клиент подводит итоги пинга сервер не знает пока ему не передать напрямую. можно и подделать но мы на сервере не подвязываемся к пингу, а на клиенте отправляя раньше запросы)
+        /// </summary>
         public double? ping = null;
-
-        public string group()
-        {
-            return action.Split("/")[0];
-        }
-
-        public string method()
-        {
-            return action.Split("/")[1];
-        }
     }
 }

@@ -52,7 +52,7 @@ namespace MyFantasy
 				return;
 			}
 
-			if (recive.action != null && recive.action.Length > 0)
+			if (recive.action != null)
 				this.action = recive.action;		
 			
 			if (recive.side != null && recive.side.Length > 0)
