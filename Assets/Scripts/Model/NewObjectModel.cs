@@ -114,6 +114,27 @@ namespace MyFantasy
 						anim.SetLayerWeight(layerIndex, 1);
 						anim.SetTrigger(trigger);
 
+						// Так же работает с Blend Tree
+						switch (side)
+                        {
+							case "left":
+								anim.SetFloat("x", 1);
+								anim.SetFloat("y", 0);
+							break;							
+							case "right":
+								anim.SetFloat("x", -1);
+								anim.SetFloat("y", 0);
+							break;							
+							case "up":
+								anim.SetFloat("x", 0);
+								anim.SetFloat("y", 1);
+							break;						
+							case "down":
+								anim.SetFloat("x", 0);
+								anim.SetFloat("y", -1);
+							break;
+                        }
+
 						Debug.Log("Обновляем анимацию " + trigger);
 					}
 					else
