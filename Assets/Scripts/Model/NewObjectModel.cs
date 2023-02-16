@@ -94,53 +94,54 @@ namespace MyFantasy
 				int layerIndex = anim.GetLayerIndex(layer);
 				if (layerIndex != -1)
 				{
-					string trigger = layer + "_" + side;
-
-					if (this.layerTrigger == trigger) return;
-
 					this.layerIndex = layerIndex;
+					activeLast = DateTime.Now;
 
-					if (trigers.ContainsKey(trigger))
-					{
-						activeLast = DateTime.Now;
-						this.layerTrigger = trigger;
-
-						// "остановим" все слои анмиации
-						for (int i = 0; i < anim.layerCount; i++)
+                    // "остановим" все слои анмиации
+                    if (anim.layerCount > 1) 
+					{ 
+						for (int i = 1; i < anim.layerCount; i++)
 						{
 							anim.SetLayerWeight(i, 0);
 						}
+					}
 
-						anim.SetLayerWeight(layerIndex, 1);
-						anim.SetTrigger(trigger);
+					anim.SetLayerWeight(layerIndex, 1);
 
-						// Так же работает с Blend Tree
-						switch (side)
-                        {
-							case "left":
-								anim.SetFloat("x", 1);
-								anim.SetFloat("y", 0);
-							break;							
-							case "right":
-								anim.SetFloat("x", -1);
-								anim.SetFloat("y", 0);
-							break;							
-							case "up":
-								anim.SetFloat("x", 0);
-								anim.SetFloat("y", 1);
-							break;						
-							case "down":
-								anim.SetFloat("x", 0);
-								anim.SetFloat("y", -1);
+					// Так же работает с Blend Tree
+					switch (side)
+					{
+						case "left":
+							anim.SetFloat("x", 1);
+							anim.SetFloat("y", 0);
 							break;
-                        }
+						case "right":
+							anim.SetFloat("x", -1);
+							anim.SetFloat("y", 0);
+							break;
+						case "up":
+							anim.SetFloat("x", 0);
+							anim.SetFloat("y", 1);
+							break;
+						case "down":
+							anim.SetFloat("x", 0);
+							anim.SetFloat("y", -1);
+							break;
+					}
 
+/*					string trigger = layer + "_" + side;
+					if (this.layerTrigger == trigger) return;
+					if (trigers.ContainsKey(trigger))
+					{
+						
+						this.layerTrigger = trigger;
+						anim.SetTrigger(trigger);
 						Debug.Log("Обновляем анимацию " + trigger);
 					}
 					else
 					{
 						PlayerController.Instance.Error("Отсутвует тригер анмиации " + trigger + " у слоя анмиации " + layer);
-					}
+					}*/
 				}
 				else
 				{
