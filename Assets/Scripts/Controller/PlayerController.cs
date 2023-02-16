@@ -49,7 +49,7 @@ namespace MyFantasy
             base.HandleData(recive);
 
             if(recive.unixtime>0)
-                ping.text = (int)(1 / Ping()) + " RPS";
+                ping.text = "PING: "+ Ping() * 1000+" мс.";
         }
 
         public override void Connect(SigninRecive data)
