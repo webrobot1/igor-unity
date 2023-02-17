@@ -2,6 +2,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 
@@ -15,7 +16,14 @@ namespace MyFantasy
         /// <summary>
         /// наш джойстик
         /// </summary>
-        private VariableJoystick variableJoystick;      
+        [SerializeField]
+        private VariableJoystick joystick;
+
+        /// <summary>
+        /// наш джойстик
+        /// </summary>
+        [SerializeField]
+        private Button button_attack;      
 
         /// <summary>
         /// нажата кнопка двигаться по горизонтали
@@ -27,38 +35,66 @@ namespace MyFantasy
         /// </summary>
         private double vertical;
 
-        private void Start()
+        protected override void Awake()
         {
             // продолжать принимать данные и обновляться в фоновом режиме
             Application.runInBackground = true;
 
-            // наш джойстик
-            variableJoystick = GameObject.Find("joystick").GetComponent<VariableJoystick>();
-            variableJoystick.SnapX = true;
-            variableJoystick.SnapY = true;
+            if (joystick == null)
+                Error("не указан джойстик");
+
+            if (button_attack == null)
+                Error("не указана кнопка атаки");
+
+            button_attack.onClick.AddListener(Attack);
+
+            joystick.SnapX = true;
+            joystick.SnapY = true;
 
            #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.unityLogger.logEnabled = true;
             #else
                Debug.unityLogger.logEnabled = false;
             #endif
+
+            base.Awake();
         }
 
-        protected override void Update()
+        private void Attack()
+        {
+            Response response = new Response();
+            // response.action = "attack/index";
+            response.group = "firebolt";
+            base.Send(response);
+        }
+
+        protected override void Update() 
         {
             base.Update();
-            if (player != null)
+            if (player != null && loading == null)
             {
                 try
-                {          
-                    Vector2Int moveTo = Vector2Int.zero;
+                {
+                    Vector2Int move_to = Vector2Int.zero;
 
                     // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
                     if (Input.GetMouseButtonDown(0))
                     {
-                        moveTo = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
-                        if(moveTo == new Vector2Int((int)player.transform.position.x, (int)player.transform.position.y))
-                            moveTo = Vector2Int.zero;
+                        ObjectModel enemy;
+                        if (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
+                        {
+                            Debug.Log("Clicked the UI");
+                            if (enemy = UnityEngine.EventSystems.EventSystem.current.GetComponent<ObjectModel>())
+                            {
+                                Debug.Log("Кликнули на враг "+ enemy.key);
+                            }
+                        }
+                        else
+                        {
+                            move_to = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
+                            if (move_to == new Vector2Int((int)player.transform.position.x, (int)player.transform.position.y))
+                                move_to = Vector2Int.zero;
+                        }
                     }
 
                     if (Input.GetKeyDown("space"))
@@ -75,13 +111,13 @@ namespace MyFantasy
                         (
                             (vertical = Input.GetAxis("Vertical")) != 0
                                  ||
-                            (vertical = variableJoystick.Vertical) != 0
+                            (vertical = joystick.Vertical) != 0
                                  ||
                             (horizontal = Input.GetAxis("Horizontal")) != 0
                                 ||
-                            (horizontal = variableJoystick.Horizontal) != 0
+                            (horizontal = joystick.Horizontal) != 0
                                 ||
-                            moveTo != Vector2Int.zero
+                            move_to != Vector2Int.zero
                         )
                           /*  &&
                         (
@@ -131,9 +167,11 @@ namespace MyFantasy
                         else
                         {
                             response.action = "to";
-                            response.x = moveTo.x;
-                            response.y = moveTo.y;
+                            response.x = move_to.x;
+                            response.y = move_to.y;
                             response.z = (int)player.transform.position.z;
+
+                            move_to = Vector2Int.zero;
                         }
 
                         base.Send(response);

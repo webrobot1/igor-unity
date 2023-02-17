@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace MyFantasy
 {
@@ -166,9 +167,11 @@ namespace MyFantasy
 		/// <param name="position">куда движемя</param>
 		private IEnumerator Move(Vector3 position, string group)
 		{
-			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)getEvent(group).timeout / Time.fixedDeltaTime);
-
 			float distance;
+
+			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
+			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)(getEvent(group).timeout ?? GetEventRemain(group)) / Time.fixedDeltaTime);
+
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок

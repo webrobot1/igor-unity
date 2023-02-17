@@ -15,7 +15,7 @@ namespace MyFantasy
         public Text ping;
 
         public static PlayerController Instance { get; private set; }
-        protected new void Awake()
+        protected override void Awake()
         {
             // If there is an instance, and it's not me, delete myself.
             if (hpFrame == null)

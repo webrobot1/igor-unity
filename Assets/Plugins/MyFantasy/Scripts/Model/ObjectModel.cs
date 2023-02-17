@@ -99,7 +99,6 @@ namespace MyFantasy
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{
-				Debug.Log("Обновляем события");
 				foreach (KeyValuePair<string, EventRecive> kvp in recive.events)
 				{
 					if (!events.ContainsKey(kvp.Key))

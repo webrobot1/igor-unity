@@ -42,22 +42,22 @@ namespace MyFantasy
 		/// <summary>
 		/// Ссылка на конектор
 		/// </summary>
-		private WebSocket connect;
+		protected WebSocket connect;
 
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 		/// </summary>
-		protected List<string> recives = new List<string>();		
-		
+		private List<string> recives = new List<string>();
+
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 		/// </summary>
 		private List<string> errors = new List<string>();			
 
 		/// <summary>
-		/// пауза если не null (может быть как первая загрузка мира, так и перезаход в игру когда может прийти ошибка о закрытие старого соединения)
+		/// блокирует отправку любых запросов на сервер (тк уже идет соединение)
 		/// </summary>
-		private DateTime? loading = DateTime.Now;
+		protected DateTime? loading = DateTime.Now;
 
 		/// <summary>
 		/// последний отправленный пинг на сервер
@@ -82,26 +82,11 @@ namespace MyFantasy
 		private DateTime last_ping_request = DateTime.Now;
 
 		/// <summary>
-		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
-		/// </summary>
-		[SerializeField]
-		private int max_ping_history = 10;	
-		
-		/// <summary>
-		/// до какой длинные обрезается историй пингов после достижения максимального количества
-		/// </summary>
-		[SerializeField]
-		private int min_ping_history = 5;
-
-		/// <summary>
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
 		/// </summary>
-		private static double ping = 0;
+		protected static double ping = 0;
 		
-		/// <summary>
-		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
-		/// </summary>
-		private List<double> pings = new List<double>();
+		protected Coroutine coroutine = null;
 
 		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
@@ -110,43 +95,44 @@ namespace MyFantasy
 		{
 			if (loading != null)
 			{
-				if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1)
+				if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1 && coroutine == null)
 				{
-					loading = null;
-					Error("Слишком долгая системная пауза загрузки");
+					coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
 				}
 				else
 					Debug.Log("Пауза");
 			}
 
-			if (errors.Count > 0)
+			// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
+			int count = recives.Count;
+			if (count > 0)
 			{
-				if (loading == null) StartCoroutine(LoadRegister());
-			}
-			else
-            {
-				// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
-				int count = recives.Count;
-				if (count > 0)
+				for (int i = 0; i < count; i++)
 				{
-					for (int i = 0; i < count; i++)
+					try
 					{
-						try
-						{
-							Handle(recives[i]);
-						}
-						catch (Exception ex)
-						{
-							Debug.LogException(ex);
-							Error("Ошибка разбора входящих данных" + recives[i]+ " ("+ex.Message+")");
-							break;
-						}
+						Handle(recives[i]);
 					}
-
-					// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
-					recives.RemoveRange(0, count);
+					catch (Exception ex)
+					{
+						Debug.LogException(ex);
+						Error("Ошибка разбора входящих данных" + recives[i]+ " ("+ex.Message+")");
+						break;
+					}
 				}
-			}		
+
+				// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
+				recives.RemoveRange(0, count);
+			}
+
+			if (errors.Count > 0 && coroutine == null)
+			{
+				coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
+				errors.Clear();
+			}
+
+			else if (coroutine == null && loading == null && connect != null && connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting)
+				coroutine = StartCoroutine(LoadRegister("Соединение не открыто для запросов"));
 		}
 
 		abstract protected void Handle(string json);
@@ -186,8 +172,8 @@ namespace MyFantasy
 				{
 					if ((ushort)ev.Code != ((ushort)WebSocketSharp.CloseStatusCode.Normal))
 					{
-						if(connect!=null)
-							Error("Соединение с сервером прервано");
+						loading = null;
+						Debug.LogError("Соединение с сервером прервано");
 					}
 					else
 						Debug.LogWarning("Нормальное закрытие соединения");
@@ -201,48 +187,7 @@ namespace MyFantasy
 					string text = Encoding.UTF8.GetString(ev.RawData);
 					Debug.Log(DateTime.Now.Millisecond + ": " + text);
 
-					try
-					{
-						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
-						Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
-
-						if (recive.action == "load/reconnect")
-						{
-							player = null;
-							connect = null;
-						}						
-						else if (recive.action == "load/index")
-						{
-							loading = null;
-						}
-
-						if (recive.error!=null)
-						{
-							errors.Add(recive.error);
-							loading = null;
-						}
-
-						// это тоже обновим тут что бы pings не открывать
-						if (recive.unixtime>0)
-						{
-							pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
-
-							if ((max_ping_history>0 && pings.Count > max_ping_history) || pings.Count == 1)
-							{
-								ping = Math.Round((pings.Sum() / pings.Count), 3);
-
-								if (max_ping_history > 0 && pings.Count > max_ping_history)
-									pings.RemoveRange(0, pings.Count - min_ping_history);
-							}
-						}
-
-						recives.Add(text);
-					}
-					catch (Exception ex)
-					{
-						Debug.LogException(ex);
-						Error("Ошибка добавления данных websocket "+ ex.Message);
-					}
+					recives.Add(text);
 				};
 				connect.Connect();
 			}
@@ -259,65 +204,65 @@ namespace MyFantasy
 		public void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (loading == null)
+			if (player != null && loading == null)
 			{
-				if (connect!=null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.Connecting))
+				try
 				{
-					try
+					if(data.group == null)
+                    {
+						Error("Не указана группа событий в запросе");
+					}
+
+					// поставим на паузу отправку и получение любых кроме данной команды данных
+					if (data.action == "load/index")
 					{
-						// поставим на паузу отправку и получение любых кроме данной команды данных
-						if (data.action == "load/index")
+						// актуально когда после разрыва соединения возвращаемся
+						recives.Clear();
+						loading = DateTime.Now;
+					}
+
+					double ping = Ping();
+					double remain = player.GetEventRemain(data.group) - (Ping() / 2); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
+
+					// Здесь интерполяция - проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
+					if (remain <= 0)
+					{
+						if (ping > 0 && ping != last_send_ping)
 						{
-							// актуально когда после разрыва соединения возвращаемся
-							recives.Clear();
-							loading = DateTime.Now;
+							data.ping = last_send_ping = ping;
 						}
 
-						double ping = Ping();
-						double remain = player.GetEventRemain(data.group) - (Ping() / 2); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
+                        // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
+                        if (DateTime.Compare(last_ping_request, DateTime.Now) <= 1)
+                        {
+							data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+							last_ping_request = DateTime.Now.AddSeconds(ping_request_sec);
+						}		
 
-						// проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
-						if (remain <= 0)
-						{
-							if (ping > 0 && ping != last_send_ping)
+						string json = JsonConvert.SerializeObject(
+							data
+							,
+							Newtonsoft.Json.Formatting.None
+							,
+							new JsonSerializerSettings
 							{
-								data.ping = last_send_ping = ping;
+								NullValueHandling = NullValueHandling.Ignore
 							}
+						);
 
-                            // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
-                            if (DateTime.Compare(last_ping_request, DateTime.Now) <= 1)
-                            {
-								data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-								last_ping_request = DateTime.Now.AddSeconds(ping_request_sec);
-							}		
+						SetTimeout(data.group);
 
-							string json = JsonConvert.SerializeObject(
-								data
-								,
-								Newtonsoft.Json.Formatting.None
-								,
-								new JsonSerializerSettings
-								{
-									NullValueHandling = NullValueHandling.Ignore
-								}
-							);
-
-							SetTimeout(data.group);
-
-							Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
-							Put2Send(json);	
-						}
-						//else
-						//	Debug.LogError("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
+						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+						Put2Send(json);	
 					}
-					catch (Exception ex)
-					{
-						Debug.LogException(ex);
-						Error("Ошибка отправки данных: "+ex.Message);
-					}
+					//else
+					//	Debug.LogError("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
 				}
-				else
-					Error("Соединение не открыто для запросов");
+				catch (Exception ex)
+				{
+					Debug.LogException(ex);
+					Error("Ошибка отправки данных: "+ex.Message);
+				}		
 			}
 			else
 				Debug.LogWarning("Загрузка мира, команда " + data.action+" отклонена");
@@ -351,7 +296,6 @@ namespace MyFantasy
 				connect = null;
 			}
 			player = null;
-			loading = DateTime.Now;
 		}
 
 		private void Put2Send(string json)
@@ -363,7 +307,7 @@ namespace MyFantasy
 		public override void Error (string text)
 		{
 			errors.Add(text);
-			loading = null;
+			player = null;
 
 			Debug.LogError(text);
 			throw new Exception(text);
@@ -373,18 +317,11 @@ namespace MyFantasy
 		/// Страница ошибок - загрузка страницы входа
 		/// </summary>
 		/// <param name="error">сама ошибка</param>
-		private IEnumerator LoadRegister()
+		protected IEnumerator LoadRegister(string error)
 		{
-			if (loading != null)
-			{
-				Debug.LogWarning("уже закрываем игру");
-				yield break;
-			}
-			else
-			{
-				Close();
-			}
-			
+			Debug.LogWarning("загружаем сцену регистрации");
+			Close();
+
 			if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 			{
 				//SceneManager.UnloadScene("MainScene");
@@ -399,7 +336,7 @@ namespace MyFantasy
 
 			SceneManager.UnloadScene("MainScene");
 
-			Camera.main.GetComponent<BaseController>().Error(String.Join(", ", errors));
+			Camera.main.GetComponent<BaseController>().Error(error);
 		}
 
 #if !UNITY_EDITOR && (UNITY_WEBGL || UNITY_ANDROID || UNITY_IOS)
@@ -411,7 +348,7 @@ namespace MyFantasy
 			if (connect == null || loading != null) return;
 
 			Response response = new Response();
-			response.action = "load/index";
+			response.group = "load";
 
 			Send(response);
 		}
