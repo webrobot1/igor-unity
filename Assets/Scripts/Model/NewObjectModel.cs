@@ -79,6 +79,13 @@ namespace MyFantasy
 			if (recive.action != null || recive.side != null )
 			{
 				Animate(action, side);
+
+				if (side == "down_left" || side == "up_left") 
+					transform.localScale = new Vector3(0.4f, 1f, 1f);
+				else if (side == "down_right" || side == "up_right") 
+					transform.localScale = new Vector3(-0.4f, 1f, 1f);
+				else
+					transform.localScale = new Vector3(1f, 1f, 1f);
 			}
 		}
 

@@ -60,7 +60,7 @@ namespace MyFantasy
 		private bool reload = false;		
 		
 		/// <summary>
-		/// блокирует отправку любых запросов на сервер (тк уже идет соединение)
+		/// блокирует отправку любых запросов на сервер (тк уже идет соединение). только событие load (получения с сервера игрового мира) снимает его
 		/// </summary>
 		private DateTime? loading = DateTime.Now;
 
@@ -122,28 +122,30 @@ namespace MyFantasy
 			// если не загружаем сцену регистрации (по ошибке)
 			if (coroutine == null)
 			{
+				if (loading != null)
+				{
+					if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1 && coroutine == null)
+					{
+						Error("Слишком долгая пауза загрузки");
+					}
+					else
+						Debug.Log("Пауза");
+				}
+
 				if (reload)
 				{
+					// этот флаг снимем что бы повторно не загружать карту
 					reload = false;
+
 					StartCoroutine(HttpRequest("auth"));
 				}
 				if (errors.Count == 0)
 				{
-					if (loading != null)
-					{
-						if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1 && coroutine == null)
-						{
-							Error("Слишком долгая пауза загрузки");
-						}
-						else
-							Debug.Log("Пауза");
-					}
-
 					// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
 					int count = recives.Count;
 					if (count > 0)
 					{
-						for (int i = 0; i < count && !reload; i++)
+						for (int i = 0; i < count && loading==null; i++)
 						{
 							try
 							{
@@ -228,13 +230,15 @@ namespace MyFantasy
 
 						if (recive.error != null)
 						{
-							coroutine = StartCoroutine(LoadRegister(String.Join(", ", recive.error)));
+							Error(recive.error);
 						}
 						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
 						else if (recive.action == "load/reconnect")
 						{
+							// обнулим наше соединение и данные игрока что бы не слалось ничего более
 							Close();
-							loading = DateTime.Now;
+
+							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя)
 							reload = true;
 						}
 						else
@@ -288,7 +292,8 @@ namespace MyFantasy
 				{
 					if(data.group == null)
                     {
-						Error("Не указана группа событий в запросе");
+						errors.Add("Не указана группа событий в запросе");
+						return;
 					}
 
 					// поставим на паузу отправку и получение любых кроме данной команды данных
@@ -337,7 +342,7 @@ namespace MyFantasy
 				catch (Exception ex)
 				{
 					Debug.LogException(ex);
-					Error("Ошибка отправки данных: "+ex.Message);
+					errors.Add("Ошибка отправки данных: "+ex.Message);
 				}		
 			}
 			else
@@ -361,7 +366,12 @@ namespace MyFantasy
 
 		private void Close()
 		{	
-			Debug.LogWarning("Закрытие соединения вручную");
+			// что бы игрок более не мог посылать команды
+			player = null;
+
+			// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
+			loading = DateTime.Now;
+
 			if (connect != null)
 			{
 				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
@@ -369,7 +379,7 @@ namespace MyFantasy
 
 				connect = null;
 			}
-			player = null;
+			Debug.LogWarning("Закрытие соединения вручную");
 		}
 
 		private void Put2Send(string json)
@@ -381,7 +391,7 @@ namespace MyFantasy
 		public override void Error (string text)
 		{
 			errors.Add(text);
-			player = null;
+			Close();
 
 			Debug.LogError(text);
 			throw new Exception(text);

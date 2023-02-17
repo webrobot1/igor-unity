@@ -48,9 +48,6 @@ namespace MyFantasy
 
             button_attack.onClick.AddListener(Attack);
 
-            joystick.SnapX = true;
-            joystick.SnapY = true;
-
            #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.unityLogger.logEnabled = true;
             #else
@@ -105,8 +102,8 @@ namespace MyFantasy
                         base.Send(response);
                     }
 
-                    vertical = Input.GetAxisRaw("Vertical") != 0 ? Input.GetAxisRaw("Vertical") : joystick.Vertical;
-                    horizontal = Input.GetAxisRaw("Horizontal") != 0 ? Input.GetAxisRaw("Horizontal") : joystick.Horizontal;
+                    vertical = Input.GetAxis("Vertical") != 0 ? Input.GetAxis("Vertical") : joystick.Vertical;
+                    horizontal = Input.GetAxis("Horizontal") != 0 ? Input.GetAxis("Horizontal") : joystick.Horizontal;
  
                     // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
                     // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
@@ -118,18 +115,15 @@ namespace MyFantasy
                                 ||
                             move_to != Vector2Int.zero
                         )
-                          /*  &&
-                        (
-                           player.GetEventRemain("side") <= 0
-                        )*/
                     )
                     {
-                        MoveResponse response = new MoveResponse();
-                        response.group = "move";
-
                         if (vertical != 0 || horizontal != 0)
                         {
                             string side = player.side;
+                            Vector2 vector = new Vector2((float)horizontal, (float)vertical);
+
+                            Response response = new Response();
+                            response.group = vector.magnitude>0.5f?"move":"side";
 
                             if (vertical > 0 && horizontal > 0)
                             {
@@ -163,18 +157,21 @@ namespace MyFantasy
                             {
                                 response.action = "left";
                             }
+
+                            base.Send(response);
                         }
                         else
                         {
+                            MoveResponse response = new MoveResponse();
                             response.action = "to";
+                            response.group = "move";
                             response.x = move_to.x;
                             response.y = move_to.y;
                             response.z = (int)player.transform.position.z;
 
                             move_to = Vector2Int.zero;
-                        }
-
-                        base.Send(response);
+                            base.Send(response);
+                        } 
                     }
                 }
                 catch (Exception ex)

@@ -51,7 +51,7 @@ namespace MyFantasy
 				if (key == ConnectController.player_key)
 					ConnectController.player = null;
 
-				DestroyImmediate(gameObject);
+				Destroy(gameObject);
 				return;
 			}
 

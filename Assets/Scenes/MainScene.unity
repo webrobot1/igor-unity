@@ -421,10 +421,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   max_pause_sec: 10
   ping_request_sec: 3
-  mapObject: {fileID: 961570895}
-  worldObject: {fileID: 217698843}
   max_ping_history: 10
   min_ping_history: 5
+  mapObject: {fileID: 961570895}
+  worldObject: {fileID: 217698843}
   hpFrame: {fileID: 201437677}
   mpFrame: {fileID: 418402465}
   ping: {fileID: 376761668}
@@ -1023,6 +1023,14 @@ PrefabInstance:
     - target: {fileID: 3881087803549984437, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_Name
       value: joystick
+      objectReference: {fileID: 0}
+    - target: {fileID: 3881087803549984439, guid: ec536a7718376554185e4a856d5ae230, type: 3}
+      propertyPath: handleRange
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3881087803549984439, guid: ec536a7718376554185e4a856d5ae230, type: 3}
+      propertyPath: joystickType
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3881087803815115471, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_SizeDelta.x
