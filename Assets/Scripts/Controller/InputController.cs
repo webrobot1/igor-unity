@@ -95,21 +95,37 @@ namespace MyFantasy
                         if (vertical != 0 || horizontal != 0)
                         {
                             string side = player.side;
-                            if (vertical > 0)
+                            if (vertical > 0 && horizontal == 0)
                             {
                                 response.action = "up";
                             }
-                            else if (vertical < 0)
+                            else if (vertical < 0 && horizontal == 0)
                             {
                                 response.action = "down";
-                            }
-                            else if (horizontal > 0)
+                            }                           
+                            else if (horizontal > 0 && vertical == 0)
                             {
                                 response.action = "right";
                             }
-                            else if (horizontal < 0)
+                            else if (horizontal < 0 && vertical == 0)
                             {
                                 response.action = "left";
+                            }
+                            else if (vertical > 0 && horizontal > 0)
+                            {
+                                response.action = "up_right";
+                            }                            
+                            else if (vertical > 0 && horizontal < 0)
+                            {
+                                response.action = "up_left";
+                            }
+                            else if (vertical < 0 && horizontal > 0)
+                            {
+                                response.action = "down_right";
+                            }                           
+                            else if (vertical < 0 && horizontal < 0)
+                            {
+                                response.action = "down_left";
                             }
                         }
                         else

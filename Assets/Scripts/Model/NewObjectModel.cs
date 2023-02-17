@@ -30,14 +30,14 @@ namespace MyFantasy
 			if (anim = GetComponent<Animator>())
 			{
 				// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
-				if (trigers == null)
+/*				if (trigers == null)
 				{
 					trigers = new Dictionary<string, bool>();
 					foreach (var parameter in anim.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
 					{
 						trigers.Add(parameter.name, true);
 					}
-				}
+				}*/
 			}
 		}
 
@@ -59,31 +59,25 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
+			base.SetData(recive);
+
 			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
-			// PS не двигать этот блок ниже base.SetData  тк затрется координата к который мы двигались до новых данных
-			if (moveCoroutine != null && (recive.x != null || recive.y != null || recive.z != null))
+			if (recive.x != null || recive.y != null || recive.z != null)
 			{
 				// остановим корутину движения
-				StopCoroutine(moveCoroutine);
+				if (moveCoroutine != null)
+					StopCoroutine(moveCoroutine);
 
-				// установим позицию  к которой шли
-				transform.position = position;
+				if (recive.action == "move")
+					moveCoroutine = StartCoroutine(Move(position, recive.action));
+				else
+					transform.position = position;
 			}
-
-			base.SetData(recive);
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null || recive.side != null )
 			{
 				Animate(action, side);
-			}
-
-			if ((recive.x != null || recive.y != null || recive.z != null) && position != transform.position)
-			{
-				if (action == "move")
-					moveCoroutine = StartCoroutine(Move(position, recive.action));
-				else
-					transform.position = position;
 			}
 		}
 
@@ -112,20 +106,36 @@ namespace MyFantasy
 					switch (side)
 					{
 						case "left":
-							anim.SetFloat("x", 1);
+							anim.SetFloat("x", -1);
 							anim.SetFloat("y", 0);
 							break;
 						case "right":
-							anim.SetFloat("x", -1);
+							anim.SetFloat("x", 1);
 							anim.SetFloat("y", 0);
 							break;
 						case "up":
 							anim.SetFloat("x", 0);
 							anim.SetFloat("y", 1);
+							break;					
+						case "up_left":
+							anim.SetFloat("x", -0.5f);
+							anim.SetFloat("y", 0.5f);
+							break;						
+						case "up_right":
+							anim.SetFloat("x", 0.5f);
+							anim.SetFloat("y", 0.5f);
 							break;
 						case "down":
 							anim.SetFloat("x", 0);
 							anim.SetFloat("y", -1);
+							break;					
+						case "down_left":
+							anim.SetFloat("x", -0.5f);
+							anim.SetFloat("y", -0.5f);
+							break;				
+						case "down_right":
+							anim.SetFloat("x", 0.5f);
+							anim.SetFloat("y", -0.5f);
 							break;
 					}
 
