@@ -17,23 +17,6 @@ namespace MyFantasy
 	/// </summary>
 	public abstract class UpdateController : MapController
 	{
-		/// <summary>
-		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
-		/// </summary>
-		private List<double> pings = new List<double>();
-	
-		/// <summary>
-		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
-		/// </summary>
-		[SerializeField]
-		private int max_ping_history = 10;
-
-		/// <summary>
-		/// до какой длинные обрезается историй пингов после достижения максимального количества
-		/// </summary>
-		[SerializeField]
-		private int min_ping_history = 5;
-
 		protected override void Handle(string json)
 		{		
 			HandleData(JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(json));				
@@ -44,115 +27,83 @@ namespace MyFantasy
 		/// </summary>
 		protected virtual void HandleData<P,E,O>(Recive<P, E, O> recive) where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
 		{
-			if (recive.error != null)
+			if (recive.action != null)
 			{
-				if(coroutine!=null)
-					coroutine = StartCoroutine(LoadRegister(String.Join(", ", recive.error)));
+				switch (recive.action)
+				{
+					case "load/index":
+
+						// удаляет не сразу а на следующем кадре все карты
+						// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
+						foreach (var child in base.worldObject.transform.Cast<Transform>().ToList())
+						{
+							DestroyImmediate(child.gameObject);
+						}
+						Debug.LogWarning("полная перезагрузка мира");
+						break;
+				}
 			}
-            else
-            {
-				if (recive.action != null)
+
+			if (recive.sides != null)
+			{
+				UpdateSides(recive.sides);
+			}
+
+			if (recive.world != null)
+			{
+				Debug.Log("Обрабатываем мир");
+				foreach (var map in recive.world)
 				{
-					switch (recive.action)
+					// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
+					Transform map_zone = base.worldObject.transform.Find(map.Key);
+					if (map_zone == null)
 					{
-						case "load/index":
-
-							loading = null;
-							// удаляет не сразу а на следующем кадре все карты
-							// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
-							foreach (var child in base.worldObject.transform.Cast<Transform>().ToList())
-							{
-								DestroyImmediate(child.gameObject);
-							}
-							Debug.LogWarning("полная перезагрузка мира");
-							break;
-						case "load/reconnect":
-							Debug.LogWarning("Перезаходим в игру");
-
-							player = null;
-							connect = null;
-							loading = DateTime.Now;
-
-							StartCoroutine(HttpRequest("auth"));
-							break;
+						map_zone = new GameObject(map.Key).transform;
+						map_zone.SetParent(base.worldObject.transform, false);
+						Debug.LogWarning("Создаем область для объектов " + map.Key);
 					}
-				}
 
-				// это тоже обновим тут что бы pings не открывать
-				if (recive.unixtime > 0)
-				{
-					pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
-
-					if ((max_ping_history > 0 && pings.Count > max_ping_history) || pings.Count == 1)
+					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
+					if (map.Value.players == null && map.Value.enemys == null && map.Value.objects == null)
 					{
-						ping = Math.Round((pings.Sum() / pings.Count), 3);
+						Debug.LogWarning("локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
 
-						if (max_ping_history > 0 && pings.Count > max_ping_history)
-							pings.RemoveRange(0, pings.Count - min_ping_history);
-					}
-				}
-
-				if (recive.sides != null)
-				{
-					UpdateSides(recive.sides);
-				}
-
-				if (recive.world != null)
-				{
-					Debug.Log("Обрабатываем мир");
-					foreach (var map in recive.world)
-					{
-						// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
-						Transform map_zone = base.worldObject.transform.Find(map.Key);
-						if (map_zone == null)
+						// если саму зону оставить надо
+						/*foreach (var child in map_zone.Cast<Transform>().ToList())
 						{
-							map_zone = new GameObject(map.Key).transform;
-							map_zone.SetParent(base.worldObject.transform, false);
-							Debug.LogWarning("Создаем область для объектов " + map.Key);
+							DestroyImmediate(child.gameObject);
+						}*/
+
+						DestroyImmediate(map_zone.gameObject);
+					}
+					else
+					{
+						if (map.Value.players != null)
+						{
+							Debug.Log("Обновляем игроков");
+							foreach (var player in map.Value.players)
+							{
+								UpdateObject(map.Key, player.Key, player.Value, "Players");
+							}
 						}
 
-						// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
-						if (map.Value.players == null && map.Value.enemys == null && map.Value.objects == null)
+						// если есть враги
+						if (map.Value.enemys != null)
 						{
-							Debug.LogWarning("локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
-
-							// если саму зону оставить надо
-							/*foreach (var child in map_zone.Cast<Transform>().ToList())
+							Debug.Log("Обновляем enemy");
+							foreach (var enemy in map.Value.enemys)
 							{
-								DestroyImmediate(child.gameObject);
-							}*/
-
-							DestroyImmediate(map_zone.gameObject);
+								UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
+							}
 						}
-						else
+
+						// если есть объекты
+						if (map.Value.objects != null)
 						{
-							if (map.Value.players != null)
+							Debug.Log("Обновляем объекты");
+							foreach (var obj in map.Value.objects)
 							{
-								Debug.Log("Обновляем игроков");
-								foreach (var player in map.Value.players)
-								{
-									UpdateObject(map.Key, player.Key, player.Value, "Players");
-								}
-							}
-
-							// если есть враги
-							if (map.Value.enemys != null)
-							{
-								Debug.Log("Обновляем enemy");
-								foreach (var enemy in map.Value.enemys)
-								{
-									UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
-								}
-							}
-
-							// если есть объекты
-							if (map.Value.objects != null)
-							{
-								Debug.Log("Обновляем объекты");
-								foreach (var obj in map.Value.objects)
-								{
-									UpdateObject(map.Key, obj.Key, obj.Value, "Objects");
-								}
+								UpdateObject(map.Key, obj.Key, obj.Value, "Objects");
 							}
 						}
 					}

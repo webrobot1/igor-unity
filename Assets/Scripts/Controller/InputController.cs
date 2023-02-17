@@ -71,7 +71,7 @@ namespace MyFantasy
         protected override void Update() 
         {
             base.Update();
-            if (player != null && loading == null)
+            if (player != null)
             {
                 try
                 {
@@ -105,17 +105,16 @@ namespace MyFantasy
                         base.Send(response);
                     }
 
+                    vertical = Input.GetAxisRaw("Vertical") != 0 ? Input.GetAxisRaw("Vertical") : joystick.Vertical;
+                    horizontal = Input.GetAxisRaw("Horizontal") != 0 ? Input.GetAxisRaw("Horizontal") : joystick.Horizontal;
+ 
                     // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
                     // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
                     if (
                         (
-                            (vertical = Input.GetAxis("Vertical")) != 0
-                                 ||
-                            (vertical = joystick.Vertical) != 0
-                                 ||
-                            (horizontal = Input.GetAxis("Horizontal")) != 0
+                            vertical != 0
                                 ||
-                            (horizontal = joystick.Horizontal) != 0
+                            horizontal != 0
                                 ||
                             move_to != Vector2Int.zero
                         )
@@ -131,26 +130,11 @@ namespace MyFantasy
                         if (vertical != 0 || horizontal != 0)
                         {
                             string side = player.side;
-                            if (vertical > 0 && horizontal == 0)
-                            {
-                                response.action = "up";
-                            }
-                            else if (vertical < 0 && horizontal == 0)
-                            {
-                                response.action = "down";
-                            }                           
-                            else if (horizontal > 0 && vertical == 0)
-                            {
-                                response.action = "right";
-                            }
-                            else if (horizontal < 0 && vertical == 0)
-                            {
-                                response.action = "left";
-                            }
-                            else if (vertical > 0 && horizontal > 0)
+
+                            if (vertical > 0 && horizontal > 0)
                             {
                                 response.action = "up_right";
-                            }                            
+                            }
                             else if (vertical > 0 && horizontal < 0)
                             {
                                 response.action = "up_left";
@@ -158,10 +142,26 @@ namespace MyFantasy
                             else if (vertical < 0 && horizontal > 0)
                             {
                                 response.action = "down_right";
-                            }                           
+                            }
                             else if (vertical < 0 && horizontal < 0)
                             {
                                 response.action = "down_left";
+                            }
+                            else if (vertical > 0)
+                            {
+                                response.action = "up";
+                            }
+                            else if (vertical < 0)
+                            {
+                                response.action = "down";
+                            }                           
+                            else if (horizontal > 0)
+                            {
+                                response.action = "right";
+                            }
+                            else if (horizontal < 0)
+                            {
+                                response.action = "left";
                             }
                         }
                         else
@@ -183,8 +183,6 @@ namespace MyFantasy
                     Error("Ошибка управелния игроком: "+ex.Message);
                 }
             }
-            else
-                Debug.LogWarning("Ждем присвоения игрока");
         }
     }
 }

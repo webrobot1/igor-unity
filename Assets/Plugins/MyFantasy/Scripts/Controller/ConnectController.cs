@@ -42,7 +42,7 @@ namespace MyFantasy
 		/// <summary>
 		/// Ссылка на конектор
 		/// </summary>
-		protected WebSocket connect;
+		private WebSocket connect;
 
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
@@ -52,12 +52,22 @@ namespace MyFantasy
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 		/// </summary>
-		private List<string> errors = new List<string>();			
+		private List<string> errors = new List<string>();
 
+		/// <summary>
+		/// флаг что нужно переподключаться игнорируюя все запросы в очереди
+		/// </summary>
+		private bool reload = false;		
+		
 		/// <summary>
 		/// блокирует отправку любых запросов на сервер (тк уже идет соединение)
 		/// </summary>
-		protected DateTime? loading = DateTime.Now;
+		private DateTime? loading = DateTime.Now;
+
+		/// <summary>
+		/// если не null - загружаем сцену регистрации при ошибке или переподключаемся
+		/// </summary>
+		private Coroutine coroutine = null;
 
 		/// <summary>
 		/// последний отправленный пинг на сервер
@@ -84,59 +94,84 @@ namespace MyFantasy
 		/// <summary>
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
 		/// </summary>
-		protected static double ping = 0;
+		private static double ping = 0;
 		
-		protected Coroutine coroutine = null;
+		/// <summary>
+		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
+		/// </summary>
+		private List<double> pings = new List<double>();
+
+		/// <summary>
+		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
+		/// </summary>
+		[SerializeField]
+		private int max_ping_history = 10;
+
+		/// <summary>
+		/// до какой длинные обрезается историй пингов после достижения максимального количества
+		/// </summary>
+		[SerializeField]
+		private int min_ping_history = 5;
+
 
 		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
 		/// </summary>
 		protected virtual void Update()
-		{
-			if (loading != null)
+		{       
+			// если не загружаем сцену регистрации (по ошибке)
+			if (coroutine == null)
 			{
-				if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1 && coroutine == null)
+				if (reload)
 				{
-					coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
+					reload = false;
+					StartCoroutine(HttpRequest("auth"));
+				}
+				if (errors.Count == 0)
+				{
+					if (loading != null)
+					{
+						if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1 && coroutine == null)
+						{
+							Error("Слишком долгая пауза загрузки");
+						}
+						else
+							Debug.Log("Пауза");
+					}
+
+					// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
+					int count = recives.Count;
+					if (count > 0)
+					{
+						for (int i = 0; i < count && !reload; i++)
+						{
+							try
+							{
+								Handle(recives[i]);
+							}
+							catch (Exception ex)
+							{
+								Debug.LogException(ex);
+								Error("Ошибка разбора входящих данных" + recives[i] + " (" + ex.Message + ")");
+							}
+						}
+
+						// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
+						recives.RemoveRange(0, count);
+					}
+
+					if (connect != null && !reload && connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting)
+						Error("Соединение не открыто для запросов (" + connect.ReadyState + ")");
 				}
 				else
-					Debug.Log("Пауза");
-			}
-
-			// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
-			int count = recives.Count;
-			if (count > 0)
-			{
-				for (int i = 0; i < count; i++)
 				{
-					try
-					{
-						Handle(recives[i]);
-					}
-					catch (Exception ex)
-					{
-						Debug.LogException(ex);
-						Error("Ошибка разбора входящих данных" + recives[i]+ " ("+ex.Message+")");
-						break;
-					}
-				}
-
-				// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
-				recives.RemoveRange(0, count);
+					coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
+					errors.Clear();
+				}	
 			}
-
-			if (errors.Count > 0 && coroutine == null)
-			{
-				coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
-				errors.Clear();
-			}
-
-			else if (coroutine == null && loading == null && connect != null && connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting)
-				coroutine = StartCoroutine(LoadRegister("Соединение не открыто для запросов"));
 		}
 
 		abstract protected void Handle(string json);
-
 
 		/// <summary>
 		/// Звпускается после авторизации - заполяет id и token 
@@ -172,7 +207,7 @@ namespace MyFantasy
 				{
 					if ((ushort)ev.Code != ((ushort)WebSocketSharp.CloseStatusCode.Normal))
 					{
-						loading = null;
+						// следующий Update вызовет ошибку , если мы конечно не переподключаемся и это не старое соединеник
 						Debug.LogError("Соединение с сервером прервано");
 					}
 					else
@@ -187,7 +222,50 @@ namespace MyFantasy
 					string text = Encoding.UTF8.GetString(ev.RawData);
 					Debug.Log(DateTime.Now.Millisecond + ": " + text);
 
-					recives.Add(text);
+					if (coroutine == null && !reload) 
+					{
+						Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
+
+						if (recive.error != null)
+						{
+							coroutine = StartCoroutine(LoadRegister(String.Join(", ", recive.error)));
+						}
+						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
+						else if (recive.action == "load/reconnect")
+						{
+							Close();
+							loading = DateTime.Now;
+							reload = true;
+						}
+						else
+						{ 
+							if (recive.action == "load/index")
+							{
+								// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
+								// очищать можно только тут loading  не давал Update  
+								recives.Clear();
+
+								// снимем флаг загрузки и разрешим отправлять пакеты к серверу
+								loading = null;
+							}
+
+							// это тоже обновим тут что бы ping и pings не делать protected 
+							if (recive.unixtime > 0)
+							{
+								pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
+
+								if ((max_ping_history > 0 && pings.Count > max_ping_history) || pings.Count == 1)
+								{
+									ping = Math.Round((pings.Sum() / pings.Count), 3);
+
+									if (max_ping_history > 0 && pings.Count > max_ping_history)
+										pings.RemoveRange(0, pings.Count - min_ping_history);
+								}
+							}
+
+							recives.Add(text);
+						}
+					}
 				};
 				connect.Connect();
 			}
@@ -204,7 +282,7 @@ namespace MyFantasy
 		public void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (player != null && loading == null)
+			if (player != null && loading == null && connect!=null && !reload)
 			{
 				try
 				{
@@ -216,8 +294,6 @@ namespace MyFantasy
 					// поставим на паузу отправку и получение любых кроме данной команды данных
 					if (data.action == "load/index")
 					{
-						// актуально когда после разрыва соединения возвращаемся
-						recives.Clear();
 						loading = DateTime.Now;
 					}
 
@@ -286,12 +362,10 @@ namespace MyFantasy
 		private void Close()
 		{	
 			Debug.LogWarning("Закрытие соединения вручную");
-			
-			recives.Clear();
 			if (connect != null)
 			{
 				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
-					connect.Close(WebSocketSharp.CloseStatusCode.Normal);
+					connect.CloseAsync(WebSocketSharp.CloseStatusCode.Normal);
 
 				connect = null;
 			}
@@ -317,7 +391,7 @@ namespace MyFantasy
 		/// Страница ошибок - загрузка страницы входа
 		/// </summary>
 		/// <param name="error">сама ошибка</param>
-		protected IEnumerator LoadRegister(string error)
+		private IEnumerator LoadRegister(string error)
 		{
 			Debug.LogWarning("загружаем сцену регистрации");
 			Close();
@@ -345,8 +419,6 @@ namespace MyFantasy
 		// TODO придумать как отказаться от этого
 		private void Load()
 		{
-			if (connect == null || loading != null) return;
-
 			Response response = new Response();
 			response.group = "load";
 
@@ -378,9 +450,7 @@ namespace MyFantasy
 		void OnApplicationQuit()
 		{
 			Debug.Log("Закрытие приложения");
-
-			if(connect!=null)
-				Close();
+			Close();
 		}
 	}
 }
