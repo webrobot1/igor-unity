@@ -10,12 +10,12 @@ namespace MyFantasy
         /// <summary>
         /// сколько осталось до таймаута секунд .€ не рассылаю точное врем€ тк 100% на клиенте и сервере врем€ не совпадет и будет рассинхрон пару секунд
         /// </summary>
-        public double? remain = null;
+        public float? remain = null;
 
         /// <summary>
         /// сколько секуд таймаут событи€. приходит при загрузке или если в процессе игры изменилс€ на группу событи€
         /// </summary>
-        public double? timeout = null;
+        public float? timeout = null;
 
         public object data;
         public DateTime finish = DateTime.Now;

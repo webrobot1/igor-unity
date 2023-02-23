@@ -9,7 +9,7 @@ namespace MyFantasy
 {
 	public class NewObjectModel : ObjectModel
 	{
-		protected Animator anim = null;
+		public Animator anim = null;
 		protected static Dictionary<string, bool> trigers;
 
 		/// <summary>
@@ -21,10 +21,31 @@ namespace MyFantasy
 		///  активный слой анимации
 		/// </summary>
 		private int? layerIndex = null;
-		private string layerTrigger = null;
+		//private string layerTrigger = null;
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
 		private DateTime activeLast = DateTime.Now;
+
+		/// <summary>
+		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
+		/// </summary>
+		public override Vector3 forward
+		{
+			get { return base.forward; }
+			set 
+			{
+				// вообще сервер сам это сделает но так уменьшиться пакет размера символов
+				base.forward = value.normalized;
+				if (anim)
+				{
+					if (anim.GetFloat("x") != value.x)
+						anim.SetFloat("x", value.x);
+					if (anim.GetFloat("y") != value.y)
+						anim.SetFloat("y", value.y);
+				}
+			}
+		}
+
 
 		protected virtual void Awake()
 		{
@@ -49,7 +70,7 @@ namespace MyFantasy
 			if (anim!=null && layerIndex != null && anim.GetLayerName((int)layerIndex) != "idle"  && (anim.GetCurrentAnimatorStateInfo((int)layerIndex).loop || anim.GetCurrentAnimatorStateInfo((int)layerIndex).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1)
 			{
 				Debug.Log("остановка по таймауту анимации");
-				Animate("idle", side);
+				Animate("idle");
 			}
 		}
 
@@ -76,20 +97,13 @@ namespace MyFantasy
 			}
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
-			if (recive.action != null || recive.side != null )
+			if (recive.action != null)
 			{
-				Animate(action, side);
-
-				if (side == "down_left" || side == "up_left") 
-					transform.localScale = new Vector3(0.4f, 1f, 1f);
-				else if (side == "down_right" || side == "up_right") 
-					transform.localScale = new Vector3(-0.4f, 1f, 1f);
-				else
-					transform.localScale = new Vector3(1f, 1f, 1f);
+				Animate(action);
 			}
 		}
 
-		protected void Animate(string layer, string side)
+		protected void Animate(string layer)
 		{
 			if (anim != null)
 			{
@@ -109,57 +123,6 @@ namespace MyFantasy
 					}
 
 					anim.SetLayerWeight(layerIndex, 1);
-
-					// Так же работает с Blend Tree
-					switch (side)
-					{
-						case "left":
-							anim.SetFloat("x", -1);
-							anim.SetFloat("y", 0);
-							break;
-						case "right":
-							anim.SetFloat("x", 1);
-							anim.SetFloat("y", 0);
-							break;
-						case "up":
-							anim.SetFloat("x", 0);
-							anim.SetFloat("y", 1);
-							break;					
-						case "up_left":
-							anim.SetFloat("x", -0.5f);
-							anim.SetFloat("y", 0.5f);
-							break;						
-						case "up_right":
-							anim.SetFloat("x", 0.5f);
-							anim.SetFloat("y", 0.5f);
-							break;
-						case "down":
-							anim.SetFloat("x", 0);
-							anim.SetFloat("y", -1);
-							break;					
-						case "down_left":
-							anim.SetFloat("x", -0.5f);
-							anim.SetFloat("y", -0.5f);
-							break;				
-						case "down_right":
-							anim.SetFloat("x", 0.5f);
-							anim.SetFloat("y", -0.5f);
-							break;
-					}
-
-/*					string trigger = layer + "_" + side;
-					if (this.layerTrigger == trigger) return;
-					if (trigers.ContainsKey(trigger))
-					{
-						
-						this.layerTrigger = trigger;
-						anim.SetTrigger(trigger);
-						Debug.Log("Обновляем анимацию " + trigger);
-					}
-					else
-					{
-						PlayerController.Instance.Error("Отсутвует тригер анмиации " + trigger + " у слоя анмиации " + layer);
-					}*/
 				}
 				else
 				{

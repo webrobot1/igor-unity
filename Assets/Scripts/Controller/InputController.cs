@@ -28,12 +28,12 @@ namespace MyFantasy
         /// <summary>
         /// нажата кнопка двигаться по горизонтали
         /// </summary>
-        private double horizontal;
+        private float horizontal;
 
         /// <summary>
         /// нажата кнопка двигаться по вертикали
         /// </summary>
-        private double vertical;
+        private float vertical;
 
         protected override void Awake()
         {
@@ -59,9 +59,13 @@ namespace MyFantasy
 
         private void Attack()
         {
-            Response response = new Response();
-            // response.action = "attack/index";
+            AttackResponse response = new AttackResponse();
+            // response.group = "attack";
             response.group = "firebolt";
+
+            response.x = Math.Round(player.forward.x, 1);
+            response.y = Math.Round(player.forward.y, 1);
+
             base.Send(response);
         }
 
@@ -72,7 +76,7 @@ namespace MyFantasy
             {
                 try
                 {
-                    Vector2Int move_to = Vector2Int.zero;
+                    Vector3 move_to = Vector3Int.zero;
 
                     // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
                     if (Input.GetMouseButtonDown(0))
@@ -88,18 +92,15 @@ namespace MyFantasy
                         }
                         else
                         {
-                            move_to = Vector2Int.RoundToInt(GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
-                            if (move_to == new Vector2Int((int)player.transform.position.x, (int)player.transform.position.y))
-                                move_to = Vector2Int.zero;
+                            move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
+                             if ((move_to - player.transform.position).magnitude<1.5f)
+                                 move_to = Vector3.zero;
                         }
                     }
 
                     if (Input.GetKeyDown("space"))
                     {
-                        Response response = new Response();
-                        // response.action = "attack/index";
-                        response.group = "firebolt";
-                        base.Send(response);
+                        Attack();
                     }
 
                     vertical = Input.GetAxis("Vertical") != 0 ? Input.GetAxis("Vertical") : joystick.Vertical;
@@ -113,63 +114,37 @@ namespace MyFantasy
                                 ||
                             horizontal != 0
                                 ||
-                            move_to != Vector2Int.zero
+                            move_to != Vector3.zero
                         )
                     )
                     {
                         if (vertical != 0 || horizontal != 0)
                         {
-                            string side = player.side;
-                            Vector2 vector = new Vector2((float)horizontal, (float)vertical);
+                            player.forward = new Vector3(horizontal, vertical, 0);
 
-                            Response response = new Response();
-                            response.group = vector.magnitude>0.5f?"move":"side";
+                            // я подогнал магнитуду под размер круга джойстика (выйдя за него мы уже будем идти а не менять направления)
+                            if ((new Vector2(horizontal, vertical)).magnitude > 0.5)
+                            {
+                                MoveResponse response = new MoveResponse();
 
-                            if (vertical > 0 && horizontal > 0)
-                            {
-                                response.action = "up_right";
-                            }
-                            else if (vertical > 0 && horizontal < 0)
-                            {
-                                response.action = "up_left";
-                            }
-                            else if (vertical < 0 && horizontal > 0)
-                            {
-                                response.action = "down_right";
-                            }
-                            else if (vertical < 0 && horizontal < 0)
-                            {
-                                response.action = "down_left";
-                            }
-                            else if (vertical > 0)
-                            {
-                                response.action = "up";
-                            }
-                            else if (vertical < 0)
-                            {
-                                response.action = "down";
-                            }                           
-                            else if (horizontal > 0)
-                            {
-                                response.action = "right";
-                            }
-                            else if (horizontal < 0)
-                            {
-                                response.action = "left";
-                            }
+                                response.group = "move";
+                                response.x = (float)Math.Round(player.forward.x, 1);
+                                response.y = (float)Math.Round(player.forward.y, 1);
 
-                            base.Send(response);
+                                base.Send(response);
+                            }  
                         }
                         else
                         {
                             MoveResponse response = new MoveResponse();
+                            
                             response.action = "to";
                             response.group = "move";
-                            response.x = move_to.x;
-                            response.y = move_to.y;
+                            response.x = (float)Math.Round(move_to.x, 1);
+                            response.y = (float)Math.Round(move_to.y, 1);
                             response.z = (int)player.transform.position.z;
 
-                            move_to = Vector2Int.zero;
+                            move_to = Vector3.zero;
                             base.Send(response);
                         } 
                     }

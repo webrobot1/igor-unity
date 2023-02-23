@@ -4,7 +4,7 @@ namespace MyFantasy
 	public class NewPlayerModel : NewEnemyModel
 	{
 		private string login;
-
+		public int hp;
 		// для превращения в призрака игроков
 		protected SpriteRenderer sprite = null;
 
@@ -31,6 +31,7 @@ namespace MyFantasy
 				{
 					if (statModel.hp == 0 && recive.components.hp > 0)
 					{
+						hp = (int)recive.components.hp;
 						sprite.color = new Color(sprite.color.r, sprite.color.g, sprite.color.b, 1f);
 					}
 					else if (recive.components.hp == 0)

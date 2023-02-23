@@ -18,11 +18,6 @@ namespace MyFantasy
 		public string key;
 
 		/// <summary>
-		/// сторона в которую направлена сущность
-		/// </summary>
-		public string side = "down";
-
-		/// <summary>
 		/// может изменится в процессе игры (переход на другую локацию)
 		/// </summary>
 		protected int map_id;
@@ -31,6 +26,15 @@ namespace MyFantasy
 		protected DateTime created;
 		protected string prefab;
 
+		private Vector3 _forward = Vector3.zero;
+		public virtual Vector3 forward
+		{
+			get { return _forward; }
+			set
+			{
+				_forward = value;
+			}
+		}
 
 		private Dictionary<string, EventRecive> events = new Dictionary<string, EventRecive>();
 
@@ -58,9 +62,9 @@ namespace MyFantasy
 			if (recive.action != null)
 				this.action = recive.action;		
 			
-			if (recive.side != null && recive.side.Length > 0)
-				this.side = recive.side;
-
+			if (recive.forward_x != null || recive.forward_y != null)
+				this.transform.forward.Set(recive.forward_x ?? this.transform.forward.x, recive.forward_y ?? this.transform.forward.y, this.transform.forward.z);			
+			
 			// сортировку не сменить в SetData тк я не хочу менять уровент изоляции spawn_sort
 			if (recive.sort > 0)
 				this.sort = (int)recive.sort;
@@ -83,7 +87,12 @@ namespace MyFantasy
 			if (recive.z != null)
 			{
 				position.z = (float)recive.z;
-			}
+			}			
+			
+			if (recive.forward_x != null || recive.forward_y!=null)
+			{
+				forward = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
+			}			
 
 			if (recive.created != null)
 				this.created = recive.created;
@@ -148,10 +157,10 @@ namespace MyFantasy
 		/// <summary>
 		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами) 
 		/// </summary>
-		public virtual double GetEventRemain(string group)
+		public virtual float GetEventRemain(string group)
 		{
 			// вычтем из времени время на доставку пакета (половина пинга)
-			return getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
+			return (float)getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
 		}
 	}
 }

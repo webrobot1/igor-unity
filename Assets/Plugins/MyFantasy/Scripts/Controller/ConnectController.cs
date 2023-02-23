@@ -84,7 +84,7 @@ namespace MyFantasy
 		/// через сколько секунд мы отправляем на серер запрос для анализа пинга
 		/// </summary>
 		[SerializeField]
-		private double ping_request_sec = 3;
+		private int ping_request_sec = 5;
 
 		/// <summary>
 		/// время последнего запроса пинга на сервер
@@ -314,21 +314,19 @@ namespace MyFantasy
 						}
 
                         // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
-                        if (DateTime.Compare(last_ping_request, DateTime.Now) <= 1)
+                        if (DateTime.Compare(last_ping_request, DateTime.Now) < 1)
                         {
 							data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 							last_ping_request = DateTime.Now.AddSeconds(ping_request_sec);
-						}		
+						}
 
+					
 						string json = JsonConvert.SerializeObject(
 							data
 							,
 							Newtonsoft.Json.Formatting.None
 							,
-							new JsonSerializerSettings
-							{
-								NullValueHandling = NullValueHandling.Ignore
-							}
+							new JsonSerializerSettings { Converters = { new NewJsonConverter() }, NullValueHandling = NullValueHandling.Ignore }
 						);
 
 						SetTimeout(data.group);
@@ -374,8 +372,8 @@ namespace MyFantasy
 
 			if (connect != null)
 			{
-				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
-					connect.CloseAsync(WebSocketSharp.CloseStatusCode.Normal);
+				//if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+				//	connect.CloseAsync(WebSocketSharp.CloseStatusCode.Normal);
 
 				connect = null;
 			}

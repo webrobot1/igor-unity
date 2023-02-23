@@ -9,6 +9,12 @@ namespace MyFantasy
 {
     public class PlayerController : UpdateController
     {
+        public static new NewPlayerModel player
+        {
+            get { return (NewPlayerModel)ConnectController.player; }
+            set { ConnectController.player = value; }
+        }
+
         public Image hpFrame;
         public Image mpFrame;
 

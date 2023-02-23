@@ -16,8 +16,11 @@ namespace MyFantasy
 		public int map_id;
 		public string prefab;
 
-		public string side;
 		public string action;
+
+		public float? forward_x = null;
+		public float? forward_y = null;
+	
 		public int? sort = null;
 
 		public DateTime created = DateTime.Now;
