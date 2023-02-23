@@ -26,10 +26,10 @@ namespace MyFantasy
 				if (focus == 0) 
 				{
 					Input.ResetInputAxes();
-					UnityEngine.WebGLInput.captureAllKeyboardInput = false;
+					//UnityEngine.WebGLInput.captureAllKeyboardInput = false;
 				} else
 				{
-					WebGLInput.captureAllKeyboardInput = true;
+					//UnityEngine.WebGLInput.captureAllKeyboardInput = true;
 					Input.ResetInputAxes();
 				}
 			}        

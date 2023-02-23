@@ -93,8 +93,8 @@ namespace MyFantasy
                         else
                         {
                             move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
-                             if ((move_to - player.transform.position).magnitude<1.5f)
-                                 move_to = Vector3.zero;
+                            if (Vector3.Distance(player.position, move_to) < 1.15f) 
+                                move_to = Vector3.zero;
                         }
                     }
 
@@ -128,8 +128,8 @@ namespace MyFantasy
                                 MoveResponse response = new MoveResponse();
 
                                 response.group = "move";
-                                response.x = (float)Math.Round(player.forward.x, 1);
-                                response.y = (float)Math.Round(player.forward.y, 1);
+                                response.x = Math.Round(player.forward.x, 1);
+                                response.y = Math.Round(player.forward.y, 1);
 
                                 base.Send(response);
                             }  
@@ -140,9 +140,9 @@ namespace MyFantasy
                             
                             response.action = "to";
                             response.group = "move";
-                            response.x = (float)Math.Round(move_to.x, 1);
-                            response.y = (float)Math.Round(move_to.y, 1);
-                            response.z = (int)player.transform.position.z;
+                            response.x = Math.Round(move_to.x, 1);
+                            response.y = Math.Round(move_to.y, 1);
+                            response.z = player.transform.position.z;
 
                             move_to = Vector3.zero;
                             base.Send(response);
@@ -156,5 +156,37 @@ namespace MyFantasy
                 }
             }
         }
+
+        #if !UNITY_EDITOR && (UNITY_WEBGL || UNITY_ANDROID || UNITY_IOS)
+		    // повторная загрузка всего пира по новой при переключении между вкладками браузера
+		    // если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
+		    // TODO придумать как отказаться от этого
+		    private void Load()
+		    {
+                if (player != null)
+                {
+			        Response response = new Response();
+			        response.group = "load";
+
+			        Send(response);
+                }
+		    }
+        #endif
+
+        #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+		    public void OnApplicationPause(bool pause)
+		    {
+			    Debug.Log("Пауза " + pause);
+			    Load();
+		    }
+        #endif
+
+        #if UNITY_WEBGL && !UNITY_EDITOR
+		    public void OnApplicationFocus(bool focus)
+		    {
+			    Debug.Log("фокус " + focus);
+			    Load();
+		    }
+        #endif
     }
 }

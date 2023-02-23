@@ -84,7 +84,7 @@ namespace MyFantasy
 		/// через сколько секунд мы отправляем на серер запрос для анализа пинга
 		/// </summary>
 		[SerializeField]
-		private int ping_request_sec = 5;
+		private int ping_request_sec = 1;
 
 		/// <summary>
 		/// время последнего запроса пинга на сервер
@@ -421,34 +421,7 @@ namespace MyFantasy
 			Camera.main.GetComponent<BaseController>().Error(error);
 		}
 
-#if !UNITY_EDITOR && (UNITY_WEBGL || UNITY_ANDROID || UNITY_IOS)
-		// повторная загрузка всего пира по новой при переключении между вкладками браузера
-		// если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
-		// TODO придумать как отказаться от этого
-		private void Load()
-		{
-			Response response = new Response();
-			response.group = "load";
-
-			Send(response);
-		}
-#endif
-
-#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
-		public void OnApplicationPause(bool pause)
-		{
-			Debug.Log("Пауза " + pause);
-			Load();
-		}
-#endif
-
 #if UNITY_WEBGL && !UNITY_EDITOR
-		public void OnApplicationFocus(bool focus)
-		{
-			Debug.Log("фокус " + focus);
-			Load();
-		}
-
 		public void Api(string json)
 		{
 			Put2Send(json);

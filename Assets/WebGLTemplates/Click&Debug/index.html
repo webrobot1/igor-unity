@@ -137,7 +137,6 @@
 				e.preventDefault();
 				const data = new FormData(e.target);
 				let value = Object.fromEntries(data.entries());
-				value.command_id = Date.now();
 				unityInstance.SendMessage('Camera', 'Api', JSON.stringify(value));
 			  });
 		  }

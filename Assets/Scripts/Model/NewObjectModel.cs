@@ -88,7 +88,9 @@ namespace MyFantasy
 			{
 				// остановим корутину движения
 				if (moveCoroutine != null)
+				{
 					StopCoroutine(moveCoroutine);
+				}
 
 				if (recive.action == "move")
 					moveCoroutine = StartCoroutine(Move(position, recive.action));
@@ -132,22 +134,25 @@ namespace MyFantasy
 		}
 
 		/// <summary>
-		/// при передижении игрока проигрывается анмиация передвижения по клетке (хотя для сервера мы уже на новой позиции). скорость равна времени паузы между командами на новое движение
+		/// при передижении игрока проигрывается анмиация передвижения по клетке (хотя для сервера мы уже на новой позиции). скорость равна времени паузы между командами на новое движение.
+		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
 		/// </summary>
 		/// <param name="position">куда движемя</param>
 		private IEnumerator Move(Vector3 position, string group)
 		{
+			yield return new WaitForFixedUpdate();
+
 			float distance;
 
 			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
-			float distancePerUpdate = Vector3.Distance(transform.position, position) / ((float)(getEvent(group).timeout ?? GetEventRemain(group)) / Time.fixedDeltaTime);
+			double distancePerUpdate = Vector3.Distance(transform.position, position) / ((getEvent(group).timeout ?? GetEventRemain(group)) / Time.fixedDeltaTime);
 
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
 
-				transform.position = Vector3.MoveTowards(transform.position, position, (distance < distancePerUpdate ? distance : distancePerUpdate));
+				transform.position = Vector3.MoveTowards(transform.position, position, (float)(distance < distancePerUpdate ? distance : distancePerUpdate));
 				activeLast = DateTime.Now;
 
 				yield return new WaitForFixedUpdate();

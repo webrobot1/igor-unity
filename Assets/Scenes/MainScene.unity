@@ -420,7 +420,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   max_pause_sec: 10
-  ping_request_sec: 3
+  ping_request_sec: 1
   max_ping_history: 10
   min_ping_history: 5
   mapObject: {fileID: 961570895}

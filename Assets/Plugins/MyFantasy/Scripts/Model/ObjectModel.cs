@@ -41,7 +41,7 @@ namespace MyFantasy
 		/// <summary>
 		/// координаты в которых  уже находится наш объект на сервере
 		/// </summary>
-		protected Vector3 position = Vector3.zero;
+		public Vector3 position = Vector3.zero;
 
 		/// <summary>
 		/// установка данных пришедших с сервера объекту 
@@ -115,7 +115,7 @@ namespace MyFantasy
 
 					// если мы сбрасяваем таймаут (например из каких то механик) - придет это поле (оно придет кстати и при таймауте события и может еще более точно скорректировать время таймаута)
 					if (kvp.Value.remain != null) 
-					{ 
+					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
 						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - (ConnectController.Ping()/2));
 					}				
@@ -157,10 +157,10 @@ namespace MyFantasy
 		/// <summary>
 		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами) 
 		/// </summary>
-		public virtual float GetEventRemain(string group)
+		public virtual double GetEventRemain(string group)
 		{
 			// вычтем из времени время на доставку пакета (половина пинга)
-			return (float)getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
+			return getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
 		}
 	}
 }

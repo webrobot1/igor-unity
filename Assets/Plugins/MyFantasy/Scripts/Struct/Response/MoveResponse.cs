@@ -5,8 +5,8 @@ namespace MyFantasy
     /// </summary>
     public class MoveResponse : Response
     {   
-        public float? x;
-        public float? y;
-        public float? z;
+        public double? x;
+        public double? y;
+        public double? z;
     }
 }
