@@ -62,9 +62,11 @@ namespace MyFantasy
             AttackResponse response = new AttackResponse();
             // response.group = "attack";
             response.group = "firebolt";
+            response.action = "to"; 
+            response.key = "enemys_1";
 
-            response.x = Math.Round(player.forward.x, 1);
-            response.y = Math.Round(player.forward.y, 1);
+            // response.x = Math.Round(player.forward.x, 1);
+            // response.y = Math.Round(player.forward.y, 1);
 
             base.Send(response);
         }
