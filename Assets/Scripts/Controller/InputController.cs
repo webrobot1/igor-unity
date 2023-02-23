@@ -56,9 +56,9 @@ namespace MyFantasy
             if (button_skill3 == null)
                 Error("не указана кнопка атаки 2");
 
-            button_skill1.onClick.AddListener(Attack);
-            button_skill2.onClick.AddListener(Attack);
-            button_skill3.onClick.AddListener(Attack);
+            button_skill1.onClick.AddListener(delegate { Attack("firebolt"); });
+            button_skill2.onClick.AddListener(delegate { Attack("icebolt"); });
+            button_skill3.onClick.AddListener(delegate { Attack("lightbolt"); });
 
            #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.unityLogger.logEnabled = true;
@@ -69,14 +69,14 @@ namespace MyFantasy
             base.Awake();
         }
 
-        private void Attack()
+        private void Attack(string prefab)
         {
             BoltResponse response = new BoltResponse();
             // response.group = "attack";
             response.group = "bolt";
             response.action = "to";
 
-            response.prefab = "icebolt";
+            response.prefab = prefab;
             response.key = "enemys_1";
 
             // response.x = Math.Round(player.forward.x, 1);
@@ -117,7 +117,7 @@ namespace MyFantasy
 
                     if (Input.GetKeyDown("space"))
                     {
-                        Attack();
+                        Attack("firebolt");
                     }
 
                     vertical = Input.GetAxis("Vertical") != 0 ? Input.GetAxis("Vertical") : joystick.Vertical;
