@@ -19,11 +19,15 @@ namespace MyFantasy
         [SerializeField]
         private VariableJoystick joystick;
 
-        /// <summary>
-        /// наш джойстик
-        /// </summary>
+
         [SerializeField]
-        private Button button_attack;      
+        private Button button_skill1;              
+        
+        [SerializeField]
+        private Button button_skill2;       
+        
+        [SerializeField]
+        private Button button_skill3;      
 
         /// <summary>
         /// нажата кнопка двигаться по горизонтали
@@ -43,10 +47,18 @@ namespace MyFantasy
             if (joystick == null)
                 Error("не указан джойстик");
 
-            if (button_attack == null)
-                Error("не указана кнопка атаки");
+            if (button_skill1 == null)
+                Error("не указана кнопка атаки 1");          
+            
+            if (button_skill2 == null)
+                Error("не указана кнопка атаки 2");
 
-            button_attack.onClick.AddListener(Attack);
+            if (button_skill3 == null)
+                Error("не указана кнопка атаки 2");
+
+            button_skill1.onClick.AddListener(Attack);
+            button_skill2.onClick.AddListener(Attack);
+            button_skill3.onClick.AddListener(Attack);
 
            #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.unityLogger.logEnabled = true;
@@ -59,10 +71,12 @@ namespace MyFantasy
 
         private void Attack()
         {
-            AttackResponse response = new AttackResponse();
+            BoltResponse response = new BoltResponse();
             // response.group = "attack";
-            response.group = "firebolt";
-            response.action = "to"; 
+            response.group = "bolt";
+            response.action = "to";
+
+            response.prefab = "icebolt";
             response.key = "enemys_1";
 
             // response.x = Math.Round(player.forward.x, 1);

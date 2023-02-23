@@ -98,6 +98,13 @@ namespace MyFantasy
 					transform.position = position;
 			}
 
+			// следующий код применим только к объектам - предметам, он повернет их
+            if(this.GetType().Name == "NewObjectModel")
+			{ 
+				float angle = Vector3.Angle(new Vector3(0.0f, 1.0f, 0.0f), forward);
+				transform.rotation = Quaternion.Euler(0, 0, angle);
+			}
+
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null)
 			{
