@@ -101,7 +101,7 @@ namespace MyFantasy
 			// следующий код применим только к объектам - предметам, он повернет их
             if(this.GetType().Name == "NewObjectModel")
 			{ 
-				float angle = Vector3.Angle(new Vector3(0.0f, 1.0f, 0.0f), forward);
+				float angle = Mathf.Atan2(forward.x, forward.y) * Mathf.Rad2Deg*-1;
 				transform.rotation = Quaternion.Euler(0, 0, angle);
 			}
 
