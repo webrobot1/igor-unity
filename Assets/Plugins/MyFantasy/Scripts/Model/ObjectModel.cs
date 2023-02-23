@@ -130,6 +130,9 @@ namespace MyFantasy
 						events[kvp.Key].data = kvp.Value.data;
 					}
 
+					// если false то сервер создал это событие. true по умолчанию 
+					events[kvp.Key].remote = kvp.Value.remote;
+
 					if (kvp.Value.action != null) 
 					{ 
 						events[kvp.Key].action = kvp.Value.action;

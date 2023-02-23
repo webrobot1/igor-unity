@@ -297,7 +297,7 @@ namespace MyFantasy
 					}
 
 					// поставим на паузу отправку и получение любых кроме данной команды данных
-					if (data.action == "load/index")
+					if (data.group == "load" && data.action == "index")
 					{
 						loading = DateTime.Now;
 					}
@@ -306,7 +306,8 @@ namespace MyFantasy
 					double remain = player.GetEventRemain(data.group) - (Ping() / 2); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 
 					// Здесь интерполяция - проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
-					if (remain <= 0)
+					// так же мы даем возможность слать запрос повторно если события генерируются сервером и мы хотим их сбросить
+					if (remain <= 0 || player.getEvent(data.group).remote == false)
 					{
 						if (ping > 0 && ping != last_send_ping)
 						{
@@ -330,6 +331,9 @@ namespace MyFantasy
 						);
 
 						SetTimeout(data.group);
+
+						// сразу пометим что текущее событие нами было выслано 
+						player.getEvent(data.group).remote = true;
 
 						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 						Put2Send(json);	

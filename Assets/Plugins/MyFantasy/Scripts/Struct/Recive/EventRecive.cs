@@ -19,5 +19,7 @@ namespace MyFantasy
 
         public object data;
         public DateTime finish = DateTime.Now;
+
+        public bool remote = true;          // флаг что команду отправили мы. если false то над разрешить до таймаута отправлять подобные комнад (если они пуличные) если хотим сбросить
     }
 }
