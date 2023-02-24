@@ -119,6 +119,7 @@ namespace MyFantasy
 			Debug.Log("Обрабатываем "+type+" "+key+" на карте "+side);
 
 			GameObject prefab = GameObject.Find(key);
+			ObjectModel model;
 
 			// если игрока нет на сцене
 			if (prefab == null)
@@ -140,28 +141,29 @@ namespace MyFantasy
 				prefab.name = key;
 				prefab.transform.SetParent(worldObject.transform.Find(side).transform, false);
 
+				model = prefab.GetComponent<ObjectModel>();
+				if (model == null) Error("Отсутвует скрипт модели на объекте " + key);
+
 				if (key == player_key)
 				{
 					player = prefab.GetComponent<ObjectModel>();
 				}
-			}
-			//else
-			//	Debug.Log("Обновляем " + key);
 
-			// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
-			if (maps.ContainsKey(side) && recive.sort != null)
-			{
-				if (prefab.GetComponent<SpriteRenderer>())
-					prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + (int)recive.sort;
-				if (prefab.GetComponentInChildren<Canvas>())
-					prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + (int)recive.sort;
+				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
+				if (maps.ContainsKey(side))
+				{
+					if (prefab.GetComponent<SpriteRenderer>())
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + model.sort;
+					if (prefab.GetComponentInChildren<Canvas>())
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + model.sort;
+				}
 			}
+			else
+				model = prefab.GetComponent<ObjectModel>();
 
 			try
 			{
-				var model = prefab.GetComponent<ObjectModel>();
-				if (model != null)
-					model.SetData(recive);
+				model.SetData(recive);
 			}
 			catch (Exception ex)
 			{

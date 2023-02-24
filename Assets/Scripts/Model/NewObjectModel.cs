@@ -9,8 +9,8 @@ namespace MyFantasy
 {
 	public class NewObjectModel : ObjectModel
 	{
-		public Animator anim = null;
-		protected static Dictionary<string, bool> trigers;
+		protected Animator anim = null;
+		//protected static Dictionary<string, bool> trigers;
 
 		/// <summary>
 		/// если не null - движемся
@@ -21,7 +21,6 @@ namespace MyFantasy
 		///  активный слой анимации
 		/// </summary>
 		private int? layerIndex = null;
-		//private string layerTrigger = null;
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
 		private DateTime activeLast = DateTime.Now;

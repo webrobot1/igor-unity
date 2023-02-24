@@ -66,9 +66,6 @@ namespace MyFantasy
 			if (recive.forward_x != null || recive.forward_y != null)
 				this.transform.forward.Set(recive.forward_x ?? this.transform.forward.x, recive.forward_y ?? this.transform.forward.y, this.transform.forward.z);			
 			
-			// сортировку не сменить в SetData тк я не хочу менять уровент изоляции spawn_sort
-			if (recive.sort > 0)
-				this.sort = (int)recive.sort;
 
 			if (this.key.Length == 0 && recive.x != null && recive.y != null && recive.z != null)
 			{
