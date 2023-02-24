@@ -98,7 +98,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7b33be156f0519c4bbfb1440273fadfb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  sort: 1
+  sort: 0
   key: 
   position: {x: 0, y: 0, z: 0}
 --- !u!95 &2346394093561608101
