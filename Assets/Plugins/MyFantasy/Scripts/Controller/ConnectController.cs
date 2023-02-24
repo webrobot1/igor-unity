@@ -235,10 +235,11 @@ namespace MyFantasy
 						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
 						else if (recive.action == "load/reconnect")
 						{
-							// обнулим наше соединение и данные игрока что бы не слалось ничего более
+							// обнулим наше соединение что бы Close() не пытался его закрыть его сам асинхроно (а то уже при установке нового соединения может закрыть новое )
+							connect = null;
 							Close();
 
-							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя)
+							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
 							reload = true;
 						}
 						else
@@ -246,7 +247,7 @@ namespace MyFantasy
 							if (recive.action == "load/index")
 							{
 								// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
-								// очищать можно только тут loading  не давал Update  
+								// очищать можно только тут loading  не давал Update
 								recives.Clear();
 
 								// снимем флаг загрузки и разрешим отправлять пакеты к серверу
@@ -376,8 +377,8 @@ namespace MyFantasy
 
 			if (connect != null)
 			{
-				//if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
-				//	connect.CloseAsync(WebSocketSharp.CloseStatusCode.Normal);
+				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+					connect.CloseAsync(WebSocketSharp.CloseStatusCode.Normal);
 
 				connect = null;
 			}
@@ -406,7 +407,6 @@ namespace MyFantasy
 		private IEnumerator LoadRegister(string error)
 		{
 			Debug.LogWarning("загружаем сцену регистрации");
-			Close();
 
 			if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 			{

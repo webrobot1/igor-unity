@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -55,7 +56,7 @@ namespace MyFantasy
 				if (key == ConnectController.player_key)
 					ConnectController.player = null;
 
-				Destroy(gameObject);
+				StartCoroutine(Remove());
 				return;
 			}
 
@@ -165,6 +166,15 @@ namespace MyFantasy
 		{
 			// вычтем из времени время на доставку пакета (половина пинга)
 			return getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
+		}
+
+		/// <summary>
+		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
+		/// </summary>
+		protected virtual IEnumerator Remove()
+		{
+			yield return new WaitForSeconds(0.5f);
+			Destroy(gameObject);
 		}
 	}
 }

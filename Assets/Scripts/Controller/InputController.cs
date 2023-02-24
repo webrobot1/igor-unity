@@ -39,6 +39,9 @@ namespace MyFantasy
         /// </summary>
         private float vertical;
 
+        private NewEnemyModel target = null;
+
+
         protected override void Awake()
         {
             // продолжать принимать данные и обновляться в фоновом режиме
@@ -74,13 +77,18 @@ namespace MyFantasy
             BoltResponse response = new BoltResponse();
             // response.group = "attack";
             response.group = "bolt";
-            response.action = "to";
-
             response.prefab = prefab;
-            response.key = "enemys_1";
 
-            // response.x = Math.Round(player.forward.x, 1);
-            // response.y = Math.Round(player.forward.y, 1);
+            if (target!=null)
+            {
+                response.action = "to";
+                response.key = target.key;
+            }
+            else
+            {
+                response.x = Math.Round(player.forward.x, 1);
+                response.y = Math.Round(player.forward.y, 1);
+            }
 
             base.Send(response);
         }
@@ -97,21 +105,30 @@ namespace MyFantasy
                     // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
                     if (Input.GetMouseButtonDown(0))
                     {
-                        ObjectModel enemy;
-                        if (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
+                        if 
+                        (
+                            (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
+                                &&
+                            EventSystem.current.GetComponentInParent<ObjectModel>() == null
+                        )
                         {
                             Debug.Log("Clicked the UI");
-                            if (enemy = UnityEngine.EventSystems.EventSystem.current.GetComponent<ObjectModel>())
-                            {
-                                Debug.Log("Кликнули на враг "+ enemy.key);
-                            }
                         }
                         else
                         {
-                            move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
-                           
-                            if (Vector3.Distance(player.position, move_to) < 1.15f) 
-                                move_to = Vector3.zero;
+                            RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
+                            if (hit.collider != null && hit.collider.GetComponent<NewEnemyModel>())
+                            {
+                                target = hit.collider.GetComponent<NewEnemyModel>();
+                                Debug.Log("Кликнули на врага " + target.key);
+                            }
+                            else
+                            {
+                                target = null;
+                                move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
+                                if (Vector3.Distance(player.position, move_to) < 1.15f)
+                                    move_to = Vector3.zero;
+                            }
                         }
                     }
 
