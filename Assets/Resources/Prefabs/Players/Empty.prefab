@@ -11,6 +11,8 @@ GameObject:
   - component: {fileID: 8183853009444224598}
   - component: {fileID: 3772401252243616345}
   - component: {fileID: 3772401252243616348}
+  - component: {fileID: 1711894219807296504}
+  - component: {fileID: -7819957273003518426}
   - component: {fileID: 900850483002313526}
   - component: {fileID: 675114404803140465}
   - component: {fileID: 4058465560104286914}
@@ -109,6 +111,43 @@ Animator:
   m_HasTransformHierarchy: 1
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorControllerStateOnDisable: 0
+--- !u!50 &1711894219807296504
+Rigidbody2D:
+  serializedVersion: 4
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4988170014554180871}
+  m_BodyType: 0
+  m_Simulated: 1
+  m_UseFullKinematicContacts: 0
+  m_UseAutoMass: 0
+  m_Mass: 1
+  m_LinearDrag: 0
+  m_AngularDrag: 0.05
+  m_GravityScale: 0
+  m_Material: {fileID: 0}
+  m_Interpolate: 0
+  m_SleepingMode: 1
+  m_CollisionDetection: 0
+  m_Constraints: 7
+--- !u!70 &-7819957273003518426
+CapsuleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4988170014554180871}
+  m_Enabled: 1
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_UsedByComposite: 0
+  m_Offset: {x: 0.0077622533, y: 1.0068548}
+  m_Size: {x: 1.3671367, y: 1.8584673}
+  m_Direction: 0
 --- !u!114 &900850483002313526
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -141,7 +180,6 @@ MonoBehaviour:
   currentHurt: {fileID: 8325603950898817104}
   maxMana: {fileID: 4703062020587169064}
   currentMana: {fileID: 648634726091510178}
-  lineSpeed: 6
 --- !u!225 &4058465560104286914
 CanvasGroup:
   m_ObjectHideFlags: 0

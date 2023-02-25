@@ -49,21 +49,21 @@ namespace MyFantasy
 				}
 			}
 		}
-
+		protected static Dictionary<string, bool> trigers;
 
 		protected virtual void Awake()
 		{
 			if (anim = GetComponent<Animator>())
 			{
 				// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
-/*				if (trigers == null)
+				if (trigers == null)
 				{
 					trigers = new Dictionary<string, bool>();
 					foreach (var parameter in anim.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
 					{
 						trigers.Add(parameter.name, true);
 					}
-				}*/
+				}
 			}
 		}
 
@@ -129,17 +129,16 @@ namespace MyFantasy
 			}
 		}
 
-		protected void Animate(string layer)
+		protected void Animate(string name)
 		{
 			if (anim != null)
 			{
-				int layerIndex = anim.GetLayerIndex(layer);
+				
+				int layerIndex = anim.GetLayerIndex(name);
 				if (layerIndex != -1)
 				{
-					//if(this.layerIndex != layerIndex) 
-					//{ 
-						this.layerIndex = layerIndex;
-
+					if(this.layerIndex != layerIndex) 
+					{ 
 						// "остановим" все слои анмиации
 						if (anim.layerCount > 1) 
 						{ 
@@ -150,11 +149,18 @@ namespace MyFantasy
 						}
 
 						anim.SetLayerWeight(layerIndex, 1);
-					//}
+						this.layerIndex = layerIndex;
+					}
+
+					if (trigers.ContainsKey(name))
+					{
+						Debug.Log("запускаем тригер " + name);
+						anim.SetTrigger(name);
+					}
 				}
 				else
 				{
-					Debug.LogWarning("Положение без группы-слоя анимации " + layer);
+					Debug.LogWarning("Положение без группы-слоя анимации " + name);
 				}
 			}		
 		}

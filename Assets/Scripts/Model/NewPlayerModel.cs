@@ -1,7 +1,7 @@
 using UnityEngine;
 namespace MyFantasy
 {
-	[RequireComponent(typeof(Collider))]
+
 	public class NewPlayerModel : NewEnemyModel
 	{
 		private string login;

@@ -5,8 +5,6 @@ namespace MyFantasy
 	/// <summary>
 	/// объекты могут быть не анимированы. враги и игроки что анследуют этот класс - обязательно должны иметь анмицию + модель статистики (жизни и тп)
 	/// </summary>
-	[RequireComponent(typeof(Animator))]
-	[RequireComponent(typeof(StatModel))]
 	public class NewEnemyModel : NewObjectModel
 	{
 		/// <summary>
@@ -59,7 +57,10 @@ namespace MyFantasy
 			if (recive.components != null)
 			{
 				if (recive.components.speed != null)
+				{
 					speed = (int)recive.components.speed;
+					//anim.speed = speed;
+				}
 
 				if (recive.components.hp != null)
                 {
