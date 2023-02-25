@@ -20,6 +20,8 @@ namespace MyFantasy
 
         public Text ping;
 
+        protected NewEnemyModel target = null;
+
         public static PlayerController Instance { get; private set; }
         protected override void Awake()
         {
@@ -43,6 +45,29 @@ namespace MyFantasy
             }
 
             base.Awake();
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            if (target != null)
+            {
+                if (target.hp == 0) Select(null);
+            }
+        }
+
+        protected void Select(NewEnemyModel new_target = null)
+        {
+            if (target != null)
+                target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 0;
+
+            if (new_target != null && new_target.hp > 0)
+                new_target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 1;
+            else
+                new_target = null;
+
+            target = new_target;
         }
 
         protected override void Handle(string json)

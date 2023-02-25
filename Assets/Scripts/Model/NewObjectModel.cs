@@ -7,6 +7,11 @@ using UnityEngine.EventSystems;
 
 namespace MyFantasy
 {
+
+	/// <summary>
+	/// колайдер обязателен тк мы кликаем на gameObject что бы выделить его  в область колайдера
+	/// </summary>
+	[RequireComponent(typeof(Collider))]
 	public class NewObjectModel : ObjectModel
 	{
 		protected Animator anim = null;
@@ -66,9 +71,21 @@ namespace MyFantasy
 		void Update()
 		{
 			// если текущий наш статус анимации - не стояние и давно небыло активности - включим анмацию остановки
-			if (anim!=null && layerIndex != null && anim.GetLayerName((int)layerIndex) != "idle"  && (anim.GetCurrentAnimatorStateInfo((int)layerIndex).loop || anim.GetCurrentAnimatorStateInfo((int)layerIndex).normalizedTime >= 1.0f) && DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1)
+			if (
+				anim!=null 
+					&& 
+				layerIndex != null 
+					&& 
+				anim.GetLayerName((int)layerIndex) != "idle"  
+					&& 				
+				action != "dead"  
+					&& 
+				(anim.GetCurrentAnimatorStateInfo((int)layerIndex).loop || anim.GetCurrentAnimatorStateInfo((int)layerIndex).normalizedTime >= 1.0f) 
+					&& 
+				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
+			)
 			{
-				Debug.Log("остановка по таймауту анимации");
+				Debug.Log(key+" остановка по таймауту анимации");
 				Animate("idle");
 			}
 		}

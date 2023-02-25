@@ -80,7 +80,7 @@ namespace MyFantasy
 					{
 						if (map.Value.players != null)
 						{
-							Debug.Log("Обновляем игроков");
+							//Debug.Log("Обновляем игроков");
 							foreach (var player in map.Value.players)
 							{
 								UpdateObject(map.Key, player.Key, player.Value, "Players");
@@ -90,7 +90,7 @@ namespace MyFantasy
 						// если есть враги
 						if (map.Value.enemys != null)
 						{
-							Debug.Log("Обновляем enemy");
+							//Debug.Log("Обновляем enemy");
 							foreach (var enemy in map.Value.enemys)
 							{
 								UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
@@ -100,7 +100,7 @@ namespace MyFantasy
 						// если есть объекты
 						if (map.Value.objects != null)
 						{
-							Debug.Log("Обновляем объекты");
+							//Debug.Log("Обновляем объекты");
 							foreach (var obj in map.Value.objects)
 							{
 								UpdateObject(map.Key, obj.Key, obj.Value, "Objects");

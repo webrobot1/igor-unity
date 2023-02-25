@@ -2,6 +2,11 @@ using UnityEngine;
 
 namespace MyFantasy
 {
+	/// <summary>
+	/// объекты могут быть не анимированы. враги и игроки что анследуют этот класс - обязательно должны иметь анмицию + модель статистики (жизни и тп)
+	/// </summary>
+	[RequireComponent(typeof(Animator))]
+	[RequireComponent(typeof(StatModel))]
 	public class NewEnemyModel : NewObjectModel
 	{
 		/// <summary>
@@ -13,6 +18,30 @@ namespace MyFantasy
 		/// модель расчета фигурок жизней и маны
 		/// </summary>
 		protected StatModel statModel;
+
+		public int hp
+        {
+			get { return statModel.hp; }
+			set { statModel.hp = value; }
+		}		
+		
+		protected int hpMax
+        {
+			get { return statModel.hpMax; }
+			set { statModel.hpMax = value; }
+		}		
+		
+		protected int mp
+        {
+			get { return statModel.mp; }
+			set { statModel.mp = value; }
+		}	
+		
+		protected int mpMax
+        {
+			get { return statModel.mpMax; }
+			set { statModel.mpMax = value; }
+		}
 
 		protected override void Awake()
 		{
@@ -33,20 +62,41 @@ namespace MyFantasy
 					speed = (int)recive.components.speed;
 
 				if (recive.components.hp != null)
-					statModel.hp = (int)recive.components.hp;
+                {
+					if (hp == 0 && recive.components.hp > 0)
+					{
+						Resurrect();
+					}
+					else if (recive.components.hp == 0)
+					{
+						Dead();
+					}
+					hp = (int)recive.components.hp;
+                }
+					
 
 				if (recive.components.hpMax != null)
-					statModel.hpMax = (int)recive.components.hpMax;
+					hpMax = (int)recive.components.hpMax;
 
 				if (recive.components.mp != null)
-					statModel.mp = (int)recive.components.mp;
+					mp = (int)recive.components.mp;
 
 				// ниже сравниваем c null тк может быть значение 0 которое надо обработать
 				if (recive.components.mpMax != null)
-					statModel.mpMax = (int)recive.components.mpMax;
+					mpMax = (int)recive.components.mpMax;
 			}
 
 			base.SetData(recive);
+		}
+
+		protected virtual void Dead()
+        {
+			
+        }		
+		
+		protected virtual void Resurrect()
+        {
+			
 		}
 	}
 }

@@ -198,6 +198,14 @@ namespace WebGLWebsocket
         }
 
         /// <summary>
+        /// в js закрытие соединение уже идет асинхронно Close и AsyncClose для совместимости обма метода присутвуют
+        /// </summary>
+        public void CloseAsync(WebSocketSharp.CloseStatusCode code = WebSocketSharp.CloseStatusCode.Normal, string reason = null)
+        {
+            Close(code, reason);
+        }
+
+        /// <summary>
         /// Send binary data over the socket.
         /// </summary>
         /// <param name="data">Payload data.</param>

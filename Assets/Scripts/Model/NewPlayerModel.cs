@@ -1,6 +1,7 @@
 using UnityEngine;
 namespace MyFantasy
 {
+	[RequireComponent(typeof(Collider))]
 	public class NewPlayerModel : NewEnemyModel
 	{
 		private string login;
@@ -17,29 +18,24 @@ namespace MyFantasy
         public override void SetData(ObjectRecive recive)
 		{
 			this.SetData((NewPlayerRecive)recive);
-		}			
-		
+		}
+
+		protected override void Dead()
+		{
+			sprite.color = new Color(sprite.color.r, sprite.color.g, sprite.color.b, 0.5f); 
+			base.Dead();
+		}
+
+		protected override void Resurrect()
+		{
+			sprite.color = new Color(sprite.color.r, sprite.color.g, sprite.color.b, 1f);
+			base.Resurrect();
+		}
+
 		private void SetData(NewPlayerRecive recive)
 		{
 			if (recive.login != null)
 				this.login = recive.login;
-
-			// если мы умерли станем полупрозрачными. воскреились - станем нормальынми
-			if (recive.components != null)
-            {
-				if(recive.components.hp != null)
-				{
-					if (statModel.hp == 0 && recive.components.hp > 0)
-					{
-						hp = (int)recive.components.hp;
-						sprite.color = new Color(sprite.color.r, sprite.color.g, sprite.color.b, 1f);
-					}
-					else if (recive.components.hp == 0)
-					{
-						sprite.color = new Color(sprite.color.r, sprite.color.g, sprite.color.b, 0.5f);
-					}
-				}
-			}
 
 			base.SetData(recive);
 		}	

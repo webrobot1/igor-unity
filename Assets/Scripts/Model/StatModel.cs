@@ -14,9 +14,9 @@ namespace MyFantasy
 		}
 
 		public RectTransform maxHurt;
-		private float _hpMax;
+		private int _hpMax;
 
-		public float hpMax
+		public int hpMax
 		{
 			get { return _hpMax; }
 
@@ -30,7 +30,7 @@ namespace MyFantasy
 
 		[SerializeField]
 		private RectTransform currentHurt;
-		public float hp
+		public int hp
 		{
 			get { return _hp; } 
 
@@ -39,12 +39,12 @@ namespace MyFantasy
 				_hp = value;
 			}  
 		}
-		private float _hp;	
+		private int _hp;	
 	
 	
 		public RectTransform maxMana;
-		private float _mpMax;
-		public float mpMax
+		private int _mpMax;
+		public int mpMax
 		{
 			get { return _mpMax; }
 
@@ -58,7 +58,7 @@ namespace MyFantasy
 
 		[SerializeField]
 		private RectTransform currentMana;
-		public float mp
+		public int mp
 		{
 			get { return _mp; } 
 
@@ -67,26 +67,29 @@ namespace MyFantasy
 				_mp = value;
 			}  
 		}
-		private float _mp;
+		private int _mp;
 
-		// для превращения в призрака игроков
-		[SerializeField]
-		protected float lineSpeed = 2;
+		/// <summary>
+		///  скорость изменения полоски жизней и маны
+		/// </summary>
+		private float lineSpeed = 3;
 
 
 		protected void Update()
 		{
 			if (objectModel.key == PlayerController.player_key)
 			{
-				if (PlayerController.Instance.hpFrame.fillAmount != hp / hpMax)
+				float fillAmount = (float)hp / (float)hpMax;
+				if (PlayerController.Instance.hpFrame.fillAmount != fillAmount)
 				{
-					PlayerController.Instance.hpFrame.fillAmount = Mathf.Lerp(PlayerController.Instance.hpFrame.fillAmount, hp /hpMax, Time.deltaTime * lineSpeed);
+					PlayerController.Instance.hpFrame.fillAmount = Mathf.Lerp(PlayerController.Instance.hpFrame.fillAmount, fillAmount, Time.deltaTime * lineSpeed);
 					PlayerController.Instance.hpFrame.GetComponentInChildren<Text>().text = hp+" / "+hpMax;
 				}
 
+				fillAmount = (float)mp / (float)mpMax;
 				if (PlayerController.Instance.mpFrame.fillAmount != mp / mpMax)
 				{
-					PlayerController.Instance.mpFrame.fillAmount = Mathf.Lerp(PlayerController.Instance.mpFrame.fillAmount, mp / mpMax, Time.deltaTime * lineSpeed);
+					PlayerController.Instance.mpFrame.fillAmount = Mathf.Lerp(PlayerController.Instance.mpFrame.fillAmount, fillAmount, Time.deltaTime * lineSpeed);
 					PlayerController.Instance.mpFrame.GetComponentInChildren<Text>().text = mp + " / " + mpMax;
 				}
 			}

@@ -7,13 +7,13 @@ AnimatorOverrideController:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Bolt
-  m_Controller: {fileID: 9100000, guid: 08f885e0136468046a87ec04d18a75bd, type: 2}
+  m_Controller: {fileID: 9100000, guid: 91bc5ce5b4eade34583802f556df7470, type: 2}
   m_Clips:
-  - m_OriginalClip: {fileID: 7400000, guid: dc4d30f1bcf779a43941df4fad22d76b, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 28bce8e7bb8539948a86f58a345f7da7, type: 2}
     m_OverrideClip: {fileID: 7400000, guid: 78839efe94cdfb84ca2e13131f259ff9, type: 2}
-  - m_OriginalClip: {fileID: 7400000, guid: 1909a49af06b36f409b58dd8e5358602, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 27d50a0557474854fbc3b2e6b5fb61b8, type: 2}
     m_OverrideClip: {fileID: 7400000, guid: 78839efe94cdfb84ca2e13131f259ff9, type: 2}
-  - m_OriginalClip: {fileID: 7400000, guid: 5a2ebbc76d7871b43b467936a966a83d, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 9b97c04b1a86b954ebc584fb827163e2, type: 2}
     m_OverrideClip: {fileID: 7400000, guid: 78839efe94cdfb84ca2e13131f259ff9, type: 2}
-  - m_OriginalClip: {fileID: 7400000, guid: 8d53e4e44acf0634d81618c6ea1d7acc, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 09c1d5022a3b00f478472bf5f2a10ca5, type: 2}
     m_OverrideClip: {fileID: 7400000, guid: 78839efe94cdfb84ca2e13131f259ff9, type: 2}

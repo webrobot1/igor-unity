@@ -39,8 +39,6 @@ namespace MyFantasy
         /// </summary>
         private float vertical;
 
-        private NewEnemyModel target = null;
-
 
         protected override void Awake()
         {
@@ -89,9 +87,9 @@ namespace MyFantasy
                 response.x = Math.Round(player.forward.x, 1);
                 response.y = Math.Round(player.forward.y, 1);
             }
-
             base.Send(response);
         }
+
 
         protected override void Update() 
         {
@@ -119,12 +117,12 @@ namespace MyFantasy
                             RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
                             if (hit.collider != null && hit.collider.GetComponent<NewEnemyModel>())
                             {
-                                target = hit.collider.GetComponent<NewEnemyModel>();
-                                Debug.Log("Кликнули на врага " + target.key);
+                                Select(hit.collider.GetComponent<NewEnemyModel>());
+                                Debug.Log("Кликнули на врага " + hit.collider.GetComponent<NewEnemyModel>().key);
                             }
                             else
                             {
-                                target = null;
+                                Select(null);
                                 move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
                                 if (Vector3.Distance(player.position, move_to) < 1.15f)
                                     move_to = Vector3.zero;
