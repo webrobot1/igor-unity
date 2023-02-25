@@ -125,6 +125,7 @@ namespace MyFantasy
 			if (recive.action != null)
 			{
 				Animate(action);
+				activeLast = DateTime.Now;
 			}
 		}
 
@@ -135,19 +136,21 @@ namespace MyFantasy
 				int layerIndex = anim.GetLayerIndex(layer);
 				if (layerIndex != -1)
 				{
-					this.layerIndex = layerIndex;
-					activeLast = DateTime.Now;
+					//if(this.layerIndex != layerIndex) 
+					//{ 
+						this.layerIndex = layerIndex;
 
-                    // "остановим" все слои анмиации
-                    if (anim.layerCount > 1) 
-					{ 
-						for (int i = 1; i < anim.layerCount; i++)
-						{
-							anim.SetLayerWeight(i, 0);
+						// "остановим" все слои анмиации
+						if (anim.layerCount > 1) 
+						{ 
+							for (int i = 1; i < anim.layerCount; i++)
+							{
+								anim.SetLayerWeight(i, 0);
+							}
 						}
-					}
 
-					anim.SetLayerWeight(layerIndex, 1);
+						anim.SetLayerWeight(layerIndex, 1);
+					//}
 				}
 				else
 				{
