@@ -1,17 +1,21 @@
 using UnityEngine;
 using MyFantasy;
+using UnityEngine.UI;
+using System;
 
 // запуститься только в режиме Unity редактора в PlayMode
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {
-     float last_size;
+    public Image hpFrame;
+    public Image mpFrame;
+
+    private float last_size;
 
     private void Start()
     {
         last_size = GetComponent<Camera>().orthographicSize;
     }
-
 
     private void Update()
     {

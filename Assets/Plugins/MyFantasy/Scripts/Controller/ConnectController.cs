@@ -308,7 +308,7 @@ namespace MyFantasy
 
 					// Здесь интерполяция - проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
 					// так же мы даем возможность слать запрос повторно если события генерируются сервером и мы хотим их сбросить
-					if (remain <= 0 || player.getEvent(data.group).remote != true)
+					if (remain <= 0 || player.getEvent(data.group).is_client != true)
 					{
 						if (ping > 0 && ping != last_send_ping)
 						{
@@ -334,7 +334,7 @@ namespace MyFantasy
 						SetTimeout(data.group);
 
 						// сразу пометим что текущее событие нами было выслано 
-						player.getEvent(data.group).remote = true;
+						player.getEvent(data.group).is_client = true;
 
 						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 						Put2Send(json);	

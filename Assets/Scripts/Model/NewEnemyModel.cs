@@ -1,4 +1,7 @@
 using UnityEngine;
+using Newtonsoft.Json;
+using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 
 namespace MyFantasy
 {
@@ -52,7 +55,27 @@ namespace MyFantasy
 			this.SetData((NewEnemyRecive)recive);
 		}
 
-		protected void SetData(NewEnemyRecive recive)
+
+        protected void FixedUpdate()
+        {
+			// если пришли данные атаки и мы до сих пор атакуем
+			if (key != PlayerController.player.key && getEvent("attack").action != null && getEvent("attack").action.Length > 0)
+			{
+				if (PlayerController.target == null || (PlayerController.target.key!=key && (Vector3.Distance(PlayerController.target.position, PlayerController.player.position)) > (Vector3.Distance(position , PlayerController.player.position))))
+				{
+					//  и атакуем нашего игрока у игрока нетц ели атаки
+					string new_target = getEventData<AttackDataRecive>("attack").target;
+					if (new_target != null && new_target == PlayerController.player.key)
+					{
+						// то передадим инфомрацию игроку что бы мы стали его целью
+						PlayerController.Select(key);
+						Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
+					}
+				}
+			}
+		}
+
+        protected void SetData(NewEnemyRecive recive)
         {
 			if (recive.components != null)
 			{
@@ -87,7 +110,13 @@ namespace MyFantasy
 					mpMax = (int)recive.components.mpMax;
 			}
 
-			base.SetData(recive);
+			base.SetData(recive);		
+		}
+
+		public T getEventData<T>(string group) where T : new()
+		{
+			EventRecive ev = base.getEvent(group);
+			return ev.data != null ? ev.data.ToObject<T>() : new T();
 		}
 
 		protected virtual void Dead()

@@ -11,6 +11,6 @@ namespace MyFantasy
 
 
         public string prefab;
-        public string key;
+        public string target;
     }
 }

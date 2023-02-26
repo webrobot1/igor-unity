@@ -23,7 +23,7 @@ namespace MyFantasy
 		/// </summary>
 		protected int map_id;
 
-		protected string action = "idle";
+		public string action = "idle";
 		protected DateTime created;
 		protected string prefab;
 
@@ -92,6 +92,9 @@ namespace MyFantasy
 				forward = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
 			}			
 
+			if (recive.sort != null)
+				this.sort = (int)recive.sort;			
+			
 			if (recive.created != null)
 				this.created = recive.created;
 
@@ -129,8 +132,8 @@ namespace MyFantasy
 					}
 
 					// если false то сервер создал это событие. true по умолчанию 
-					if(kvp.Value.remote!=null)
-						events[kvp.Key].remote = kvp.Value.remote;
+					if(kvp.Value.is_client != null)
+						events[kvp.Key].is_client = kvp.Value.is_client;
 
 					if (kvp.Value.action != null) 
 					{ 
@@ -146,7 +149,7 @@ namespace MyFantasy
 			}
 		}
 
-		public EventRecive getEvent(string group)
+		public virtual EventRecive getEvent(string group)
 		{
 			if (!events.ContainsKey(group))
 			{

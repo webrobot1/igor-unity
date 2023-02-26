@@ -9,65 +9,69 @@ namespace MyFantasy
 {
     public class PlayerController : UpdateController
     {
+        public Text ping;
+
         public static new NewPlayerModel player
         {
             get { return (NewPlayerModel)ConnectController.player; }
             set { ConnectController.player = value; }
         }
+        public static NewEnemyModel target = null;
 
-        public Image hpFrame;
-        public Image mpFrame;
-
-        public Text ping;
-
-        protected NewEnemyModel target = null;
-
-        public static PlayerController Instance { get; private set; }
-        protected override void Awake()
+        protected override void Start()
         {
-            // If there is an instance, and it's not me, delete myself.
-            if (hpFrame == null)
-                Error("не присвоен GameObject для линии жизни");
-
-            if (mpFrame == null)
-                Error("не присвоен GameObject для линии маны");         
-            
             if (ping == null)
                 Error("не присвоен GameObject для статистики пинга");
 
-            if (Instance != null && Instance != this)
-            {
-                Destroy(this);
-            }
-            else
-            {
-                Instance = this;
-            }
+            if (Camera.main.GetComponent<CameraController>().hpFrame == null)
+                Error("не присвоен GameObject для линии жизни");
 
-            base.Awake();
+            if (Camera.main.GetComponent<CameraController>().mpFrame == null)
+                Error("не присвоен GameObject для линии маны");
         }
 
-        protected override void Update()
+        protected virtual void FixedUpdate()
         {
-            base.Update();
 
             if (target != null)
             {
                 if (target.hp == 0) Select(null);
             }
+
+            if (target == null && player.getEvent("attack").action!=null && player.getEvent("attack").action != "")
+            {
+                // если с севрера пришло что нас кто то атакует и мы сами никого не атакуем
+                string new_target = player.getEventData<AttackDataRecive>("attack").target;
+                if (new_target!=null)
+                {
+                    Select(new_target);
+                    Debug.LogWarning("Новая цель атаки с сервера: "+ new_target);
+                }
+            }
         }
 
-        protected void Select(NewEnemyModel new_target = null)
+        public static void Select(string key = null)
         {
             if (target != null)
                 target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 0;
 
-            if (new_target != null && new_target.hp > 0)
-                new_target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 1;
+            if (key != null)
+            {
+                GameObject gameObject = GameObject.Find(key);
+                if (gameObject != null)
+                {
+                    NewEnemyModel new_target = gameObject.GetComponent<NewEnemyModel>();
+                    if (new_target != null && new_target.hp > 0) 
+                    {
+                        target = new_target;
+                        new_target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 1;
+                    }
+                    else
+                        target = null;
+                }
+            }
             else
-                new_target = null;
-
-            target = new_target;
+                target = null;
         }
 
         protected override void Handle(string json)

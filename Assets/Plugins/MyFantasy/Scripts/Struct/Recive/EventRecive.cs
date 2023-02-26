@@ -1,3 +1,4 @@
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 
@@ -17,9 +18,9 @@ namespace MyFantasy
         /// </summary>
         public double? timeout = null;
 
-        public object data;
+        public JObject data;
         public DateTime finish = DateTime.Now;
 
-        public bool? remote = null;          // флаг что команду отправили мы. если false то над разрешить до таймаута отправлять подобные комнад (если они пуличные) если хотим сбросить
+        public bool? is_client = null;          // флаг что команду отправили мы. если false то над разрешить до таймаута отправлять подобные комнад (если они пуличные) если хотим сбросить
     }
 }

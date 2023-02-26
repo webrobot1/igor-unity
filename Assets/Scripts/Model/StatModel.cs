@@ -7,10 +7,12 @@ namespace MyFantasy
 	public class StatModel : MonoBehaviour
 	{
 		NewObjectModel objectModel;
+		CameraController cameraController;
 
 		void Awake()
 		{
 			objectModel = GetComponent<NewObjectModel>();
+			cameraController = Camera.main.GetComponent<CameraController>();
 		}
 
 		public RectTransform maxHurt;
@@ -80,17 +82,17 @@ namespace MyFantasy
 			if (objectModel.key == PlayerController.player_key)
 			{
 				float fillAmount = (float)hp / (float)hpMax;
-				if (PlayerController.Instance.hpFrame.fillAmount != fillAmount)
+				if (Camera.main.GetComponent<CameraController>().hpFrame.fillAmount != fillAmount)
 				{
-					PlayerController.Instance.hpFrame.fillAmount = Mathf.Lerp(PlayerController.Instance.hpFrame.fillAmount, fillAmount, Time.deltaTime * lineSpeed);
-					PlayerController.Instance.hpFrame.GetComponentInChildren<Text>().text = hp+" / "+hpMax;
+					cameraController.hpFrame.fillAmount = Mathf.Lerp(cameraController.hpFrame.fillAmount, fillAmount, Time.deltaTime * lineSpeed);
+					cameraController.hpFrame.GetComponentInChildren<Text>().text = hp+" / "+hpMax;
 				}
 
 				fillAmount = (float)mp / (float)mpMax;
-				if (PlayerController.Instance.mpFrame.fillAmount != mp / mpMax)
+				if (cameraController.mpFrame.fillAmount != mp / mpMax)
 				{
-					PlayerController.Instance.mpFrame.fillAmount = Mathf.Lerp(PlayerController.Instance.mpFrame.fillAmount, fillAmount, Time.deltaTime * lineSpeed);
-					PlayerController.Instance.mpFrame.GetComponentInChildren<Text>().text = mp + " / " + mpMax;
+					cameraController.mpFrame.fillAmount = Mathf.Lerp(cameraController.mpFrame.fillAmount, fillAmount, Time.deltaTime * lineSpeed);
+					cameraController.mpFrame.GetComponentInChildren<Text>().text = mp + " / " + mpMax;
 				}
 			}
 		}

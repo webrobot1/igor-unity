@@ -483,6 +483,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 93d7961188444634b9fa7f95d7b2bc77, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  hpFrame: {fileID: 201437677}
+  mpFrame: {fileID: 418402465}
 --- !u!114 &290111643
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -501,8 +503,6 @@ MonoBehaviour:
   min_ping_history: 5
   mapObject: {fileID: 961570895}
   worldObject: {fileID: 217698843}
-  hpFrame: {fileID: 201437677}
-  mpFrame: {fileID: 418402465}
   ping: {fileID: 376761668}
   joystick: {fileID: 1183841432}
   button_skill1: {fileID: 1185130007}

@@ -1,11 +1,10 @@
 using UnityEngine;
 namespace MyFantasy
 {
-
 	public class NewPlayerModel : NewEnemyModel
 	{
 		private string login;
-		public int hp;
+
 		// для превращения в призрака игроков
 		protected SpriteRenderer sprite = null;
 

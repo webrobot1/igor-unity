@@ -39,12 +39,8 @@ namespace MyFantasy
         /// </summary>
         private float vertical;
 
-
-        protected override void Awake()
+        protected override void Start()
         {
-            // продолжать принимать данные и обновляться в фоновом режиме
-            Application.runInBackground = true;
-
             if (joystick == null)
                 Error("не указан джойстик");
 
@@ -60,14 +56,20 @@ namespace MyFantasy
             button_skill1.onClick.AddListener(delegate { Attack("firebolt"); });
             button_skill2.onClick.AddListener(delegate { Attack("icebolt"); });
             button_skill3.onClick.AddListener(delegate { Attack("lightbolt"); });
+           
+            base.Start();
+        }
 
-           #if UNITY_EDITOR || DEVELOPMENT_BUILD
+        private void Awake()
+        {
+            // продолжать принимать данные и обновляться в фоновом режиме
+            Application.runInBackground = true;
+
+            #if UNITY_EDITOR || DEVELOPMENT_BUILD
                 Debug.unityLogger.logEnabled = true;
             #else
-               Debug.unityLogger.logEnabled = false;
+                Debug.unityLogger.logEnabled = false;
             #endif
-
-            base.Awake();
         }
 
         private void Attack(string prefab)
@@ -80,7 +82,7 @@ namespace MyFantasy
             if (target!=null)
             {
                 response.action = "to";
-                response.key = target.key;
+                response.target = target.key;
             }
             else
             {
@@ -96,6 +98,11 @@ namespace MyFantasy
             base.Update();
             if (player != null)
             {
+/*                if(player.action == "attock" && player.getEvent("attack").data.to)
+                {
+
+                }
+*/
                 try
                 {
                     Vector3 move_to = Vector3Int.zero;
@@ -117,8 +124,9 @@ namespace MyFantasy
                             RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
                             if (hit.collider != null && hit.collider.GetComponent<NewEnemyModel>())
                             {
-                                Select(hit.collider.GetComponent<NewEnemyModel>());
-                                Debug.Log("Кликнули на врага " + hit.collider.GetComponent<NewEnemyModel>().key);
+                                string key = hit.collider.GetComponent<NewEnemyModel>().key;
+                                Select(key);
+                                Debug.Log("Кликнули на врага " + key);
                             }
                             else
                             {

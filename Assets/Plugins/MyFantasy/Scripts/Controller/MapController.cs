@@ -39,7 +39,7 @@ namespace MyFantasy
 		/// </summary>
 		protected Dictionary<string, MapDecode> maps = new Dictionary<string, MapDecode>();
 
-		protected virtual void Awake()
+		protected virtual void Start()
 		{
 			if (mapObject == null)
 				Error("не присвоен GameObject для карт");
@@ -162,10 +162,10 @@ namespace MyFantasy
 						{
 
 							if (child.gameObject.GetComponent<SpriteRenderer>())
-								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + (int)model.sort;
+								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = maps[side].spawn_sort + model.sort;
 
 							if (child.gameObject.GetComponentInChildren<Canvas>())
-								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + (int)model.sort;
+								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = maps[side].spawn_sort + 1 + model.sort;
 						}
 					}
 				}
