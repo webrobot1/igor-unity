@@ -11,6 +11,15 @@ namespace MyFantasy
         [SerializeField]
         protected InputField passwordField;
 
+        private void Start()
+        {
+           if (loginField == null)
+               Error("не присвоен loginField для ввода логина");
+
+            if (passwordField == null)
+                Error("не присвоен passwordField дляввода пароля");
+        }
+
         public void Register()
         {
             login = this.loginField.text;
@@ -25,12 +34,6 @@ namespace MyFantasy
             password = this.passwordField.text;
 
             StartCoroutine(HttpRequest("auth"));     
-        }
-
-        public override void Error(string error)
-        {
-            Debug.LogError(error);
-            GameObject.Find("error").GetComponent<Text>().text = error;
         }
     }
 }

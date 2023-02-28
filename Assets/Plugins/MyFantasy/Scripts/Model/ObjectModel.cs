@@ -50,7 +50,7 @@ namespace MyFantasy
 		public virtual void SetData(ObjectRecive recive)
 		{
 			// пришла команды удаления с карты объекта
-			if (recive.action == "remove/index")
+			if (recive.action == ConnectController.ACTION_REMOVE)
 			{
 				// удалим нашего игрока (этот признак принято использовать что бы првоерить можно ли слать команды на сервер), тк после этого сообщения соединение будет разорвано
 				if (key == ConnectController.player_key)

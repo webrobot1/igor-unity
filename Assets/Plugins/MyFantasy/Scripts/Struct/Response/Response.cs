@@ -1,22 +1,37 @@
 using System;
+using System.Collections.Generic;
 
 namespace MyFantasy
 {
     /// <summary>
     /// Структура отправляемых данных
     /// </summary>
-    public class Response
+    abstract public class Response
     {
         /// <summary>
-        /// группа событе которое которое мы хотим что бы наш игрок сделал на сервер
+        /// значение action по умолчанию 
         /// </summary>
-        public string group;
+        public const string DEFAULT_ACTION = "index";
+  
+        private string _action = DEFAULT_ACTION;
+
+        /// <summary>
+        /// группа события которое которое мы хотим что бы наш игрок сделал на сервер
+        /// </summary>
+        public abstract string group
+        {
+            get;
+        }
 
         /// <summary>
         /// метод события который хотим что бы был вызван. по умолчанию index (удоно если в событии сервера - один метод, что бы не указвать )
         /// </summary>
-        public string action = "index";
-        
+        public string action
+        {
+            get { return _action; }
+            set { _action = value; }
+        }
+              
 
         /// <summary>
         /// нужно для вычисления пинга (временная метка по которой мы поймем сколько прошло времени между отправкой)

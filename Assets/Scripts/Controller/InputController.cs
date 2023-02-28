@@ -60,23 +60,10 @@ namespace MyFantasy
             base.Start();
         }
 
-        private void Awake()
-        {
-            // продолжать принимать данные и обновляться в фоновом режиме
-            Application.runInBackground = true;
-
-            #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                Debug.unityLogger.logEnabled = true;
-            #else
-                Debug.unityLogger.logEnabled = false;
-            #endif
-        }
-
         private void Attack(string prefab)
         {
             BoltResponse response = new BoltResponse();
-            // response.group = "attack";
-            response.group = "bolt";
+            // AttackResponse response = new AttackResponse();
             response.prefab = prefab;
 
             if (target!=null)
@@ -98,11 +85,6 @@ namespace MyFantasy
             base.Update();
             if (player != null)
             {
-/*                if(player.action == "attock" && player.getEvent("attack").data.to)
-                {
-
-                }
-*/
                 try
                 {
                     Vector3 move_to = Vector3Int.zero;
@@ -165,9 +147,8 @@ namespace MyFantasy
                             // я подогнал магнитуду под размер круга джойстика (выйдя за него мы уже будем идти а не менять направления)
                             if ((new Vector2(horizontal, vertical)).magnitude > 0.5)
                             {
-                                MoveResponse response = new MoveResponse();
+                                WalkResponse response = new WalkResponse();
 
-                                response.group = "move";
                                 response.x = Math.Round(player.forward.x, 1);
                                 response.y = Math.Round(player.forward.y, 1);
 
@@ -176,10 +157,9 @@ namespace MyFantasy
                         }
                         else
                         {
-                            MoveResponse response = new MoveResponse();
+                            WalkResponse response = new WalkResponse();
                             
                             response.action = "to";
-                            response.group = "move";
                             response.x = Math.Round(move_to.x, 1);
                             response.y = Math.Round(move_to.y, 1);
                             response.z = player.transform.position.z;
@@ -197,7 +177,7 @@ namespace MyFantasy
             }
         }
 
-        #if !UNITY_EDITOR && (UNITY_WEBGL || UNITY_ANDROID || UNITY_IOS)
+#if !UNITY_EDITOR && (UNITY_WEBGL || UNITY_ANDROID || UNITY_IOS)
 		    // повторная загрузка всего пира по новой при переключении между вкладками браузера
 		    // если load уже идет то метод не будет отправлен повторно пока не придет ответ на текущий load (актуально в webgl)
 		    // TODO придумать как отказаться от этого
@@ -205,28 +185,26 @@ namespace MyFantasy
 		    {
                 if (player != null)
                 {
-			        Response response = new Response();
-			        response.group = "load";
-
+			        LoadResponse response = new LoadResponse();
 			        Send(response);
                 }
 		    }
-        #endif
+#endif
 
-        #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
+#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
 		    public void OnApplicationPause(bool pause)
 		    {
 			    Debug.Log("Пауза " + pause);
 			    Load();
 		    }
-        #endif
+#endif
 
-        #if UNITY_WEBGL && !UNITY_EDITOR
+#if UNITY_WEBGL && !UNITY_EDITOR
 		    public void OnApplicationFocus(bool focus)
 		    {
 			    Debug.Log("фокус " + focus);
 			    Load();
 		    }
-        #endif
+#endif
     }
 }

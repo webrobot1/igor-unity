@@ -108,8 +108,8 @@ namespace MyFantasy
 					StopCoroutine(moveCoroutine);
 				}
 
-				if (recive.action == "move")
-					moveCoroutine = StartCoroutine(Move(position, recive.action));
+				if (recive.action == "walk")
+					moveCoroutine = StartCoroutine(Walk(position));
 				else
 					transform.position = position;
 			}
@@ -170,14 +170,14 @@ namespace MyFantasy
 		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
 		/// </summary>
 		/// <param name="position">куда движемя</param>
-		private IEnumerator Move(Vector3 position, string group)
+		private IEnumerator Walk(Vector3 position)
 		{
 			yield return new WaitForFixedUpdate();
 
 			float distance;
 
 			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
-			double distancePerUpdate = Vector3.Distance(transform.position, position) / ((getEvent(group).timeout ?? GetEventRemain(group)) / Time.fixedDeltaTime);
+			double distancePerUpdate = Vector3.Distance(transform.position, position) / ((getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)) / Time.fixedDeltaTime);
 
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{

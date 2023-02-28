@@ -66,7 +66,7 @@ namespace MyFantasy
 				 }*/
 
 				WWWForm formData = new WWWForm();
-				formData.AddField("token", this.player_token);
+				formData.AddField("token", player_token);
 				formData.AddField("side", side);
 
 				string url = "http://" + SERVER + "/server/signin/get_map";

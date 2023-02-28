@@ -34,10 +34,25 @@ namespace MyFantasy
 				}
 			}        
 #endif
+		public static void Error(string error)
+		{
+			Debug.LogError(error);
+			GameObject.Find("error").GetComponent<Text>().text = error;
+		}
 
-		public abstract void Error(string text);
+		protected virtual void Awake()
+		{
+			// продолжать принимать данные и обновляться в фоновом режиме
+			Application.runInBackground = true;
 
-		protected IEnumerator HttpRequest(string action)
+			#if UNITY_EDITOR || DEVELOPMENT_BUILD
+				Debug.unityLogger.logEnabled = true;
+			#else
+				Debug.unityLogger.logEnabled = false;
+			#endif
+		}
+
+		protected virtual IEnumerator HttpRequest(string action)
 		{
 			if (login.Length == 0 || password.Length == 0)
 			{
@@ -81,7 +96,7 @@ namespace MyFantasy
 		}
 
 		// PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой
-		private IEnumerator LoadMain(SigninRecive data)
+		protected virtual IEnumerator LoadMain(SigninRecive data)
 		{
 			Debug.Log("Загрузка главной сцены");
 
@@ -107,10 +122,10 @@ namespace MyFantasy
 						yield return null;
 					}
 					SceneManager.UnloadScene("RegisterScene");
-				}			
+				}
 
 				// он вывзовет того наследника от ConnectController который повешан на камеру (в игре-песочнице Игорь это PlayerController)
-				Camera.main.GetComponent<ConnectController>().Connect(data);
+				ConnectController.Connect(data);
 
 				// asyncLoad.allowSceneActivation = true;
 			}

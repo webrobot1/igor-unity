@@ -31,7 +31,7 @@ namespace MyFantasy
 			{
 				switch (recive.action)
 				{
-					case "load/index":
+					case ACTION_LOAD:
 
 						// удаляет не сразу а на следующем кадре все карты
 						// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться

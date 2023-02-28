@@ -22,12 +22,6 @@ namespace MyFantasy
         {
             if (ping == null)
                 Error("не присвоен GameObject для статистики пинга");
-
-            if (Camera.main.GetComponent<CameraController>().hpFrame == null)
-                Error("не присвоен GameObject для линии жизни");
-
-            if (Camera.main.GetComponent<CameraController>().mpFrame == null)
-                Error("не присвоен GameObject для линии маны");
         }
 
         protected virtual void FixedUpdate()
@@ -38,10 +32,10 @@ namespace MyFantasy
                 if (target.hp == 0) Select(null);
             }
 
-            if (target == null && player.getEvent("attack").action!=null && player.getEvent("attack").action != "")
+            if (target == null && player!=null && player.getEvent(AttackResponse.GROUP).action!=null && player.getEvent(AttackResponse.GROUP).action != "")
             {
                 // если с севрера пришло что нас кто то атакует и мы сами никого не атакуем
-                string new_target = player.getEventData<AttackDataRecive>("attack").target;
+                string new_target = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
                 if (new_target!=null)
                 {
                     Select(new_target);
@@ -85,11 +79,6 @@ namespace MyFantasy
 
             if(recive.unixtime>0)
                 ping.text = "PING: "+ Ping() * 1000+" мс.";
-        }
-
-        public override void Connect(SigninRecive data)
-        {
-            base.Connect(data);
         }
     }
 }

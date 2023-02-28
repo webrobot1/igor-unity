@@ -59,12 +59,12 @@ namespace MyFantasy
         protected void FixedUpdate()
         {
 			// если пришли данные атаки и мы до сих пор атакуем
-			if (key != PlayerController.player.key && getEvent("attack").action != null && getEvent("attack").action.Length > 0)
+			if (PlayerController.player!=null && key != PlayerController.player.key && getEvent(AttackResponse.GROUP).action != null && getEvent(AttackResponse.GROUP).action.Length > 0)
 			{
 				if (PlayerController.target == null || (PlayerController.target.key!=key && (Vector3.Distance(PlayerController.target.position, PlayerController.player.position)) > (Vector3.Distance(position , PlayerController.player.position))))
 				{
 					//  и атакуем нашего игрока у игрока нетц ели атаки
-					string new_target = getEventData<AttackDataRecive>("attack").target;
+					string new_target = getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
 					if (new_target != null && new_target == PlayerController.player.key)
 					{
 						// то передадим инфомрацию игроку что бы мы стали его целью
