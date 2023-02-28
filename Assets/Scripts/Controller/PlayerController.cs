@@ -18,6 +18,7 @@ namespace MyFantasy
         }
         public static NewEnemyModel target = null;
 
+
         protected override void Start()
         {
             if (ping == null)
@@ -49,7 +50,7 @@ namespace MyFantasy
             if (target != null)
                 target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 0;
 
-            if (key != null)
+            if (key != null && key != player.key)
             {
                 GameObject gameObject = GameObject.Find(key);
                 if (gameObject != null)

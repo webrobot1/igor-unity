@@ -2,6 +2,7 @@ using UnityEngine;
 using Newtonsoft.Json;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
+using UnityEngine.UI;
 
 namespace MyFantasy
 {
@@ -10,44 +11,33 @@ namespace MyFantasy
 	/// </summary>
 	public class NewEnemyModel : NewObjectModel
 	{
+		private Image health;
+
+		public int hp;
+
+		protected int hpMax;
+		protected int mp;
+		protected int mpMax;
+
 		/// <summary>
 		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
 		/// </summary>
 		protected float speed;
 
 		/// <summary>
-		/// модель расчета фигурок жизней и маны
+		///  скорость изменения полоски жизней и маны
 		/// </summary>
-		protected StatModel statModel;
+		private float lineSpeed = 3;
 
-		public int hp
-        {
-			get { return statModel.hp; }
-			set { statModel.hp = value; }
-		}		
-		
-		protected int hpMax
-        {
-			get { return statModel.hpMax; }
-			set { statModel.hpMax = value; }
-		}		
-		
-		protected int mp
-        {
-			get { return statModel.mp; }
-			set { statModel.mp = value; }
-		}	
-		
-		protected int mpMax
-        {
-			get { return statModel.mpMax; }
-			set { statModel.mpMax = value; }
-		}
+		CameraController cameraController;
 
-		protected override void Awake()
+
+		protected void Start()
 		{
-			statModel = GetComponent<StatModel>();
-			base.Awake();
+			transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 0;
+
+			cameraController = Camera.main.GetComponent<CameraController>();
+			health = transform.Find("LifeBar").Find("Background").Find("Health").GetComponent<Image>();
 		}
 
 		public override void SetData(ObjectRecive recive)
@@ -58,6 +48,9 @@ namespace MyFantasy
 
         protected void FixedUpdate()
         {
+			HealthUpdate();
+			ManaUpdate();
+
 			// если пришли данные атаки и мы до сих пор атакуем
 			if (PlayerController.player!=null && key != PlayerController.player.key && getEvent(AttackResponse.GROUP).action != null && getEvent(AttackResponse.GROUP).action.Length > 0)
 			{
@@ -86,7 +79,7 @@ namespace MyFantasy
 				}
 
 				if (recive.components.hp != null)
-                {
+				{
 					if (hp == 0 && recive.components.hp > 0)
 					{
 						Resurrect();
@@ -96,9 +89,7 @@ namespace MyFantasy
 						Dead();
 					}
 					hp = (int)recive.components.hp;
-                }
-					
-
+				}
 				if (recive.components.hpMax != null)
 					hpMax = (int)recive.components.hpMax;
 
@@ -111,6 +102,34 @@ namespace MyFantasy
 			}
 
 			base.SetData(recive);		
+		}
+
+		private void HealthUpdate()
+		{
+			float healthFill = (float)hp / (float)hpMax;
+			if (healthFill != health.fillAmount) //If we have a new fill amount then we know that we need to update the bar
+			{
+				//Lerps the fill amount so that we get a smooth movement
+				health.fillAmount = Mathf.Lerp(health.fillAmount, healthFill, Time.deltaTime * lineSpeed);
+			}
+			if (key == PlayerController.player_key)
+			{
+				if (Camera.main.GetComponent<CameraController>().hpFrame.fillAmount != healthFill)
+				{
+					cameraController.hpFrame.fillAmount = Mathf.Lerp(cameraController.hpFrame.fillAmount, healthFill, Time.deltaTime * lineSpeed);
+					cameraController.hpFrame.GetComponentInChildren<Text>().text = hp + " / " + hpMax;
+				}
+			}
+		}
+
+		private void ManaUpdate()
+		{
+			float manaAmount = (float)mp / (float)mpMax;
+			if (cameraController.mpFrame.fillAmount != mp / mpMax)
+			{
+				cameraController.mpFrame.fillAmount = Mathf.Lerp(cameraController.mpFrame.fillAmount, manaAmount, Time.deltaTime * lineSpeed);
+				cameraController.mpFrame.GetComponentInChildren<Text>().text = mp + " / " + mpMax;
+			}
 		}
 
 		public T getEventData<T>(string group) where T : new()
