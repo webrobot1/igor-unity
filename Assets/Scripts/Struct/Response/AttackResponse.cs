@@ -17,5 +17,6 @@ namespace MyFantasy
 
 
         public string target;
+        public string magic;
     }
 }

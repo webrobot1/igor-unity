@@ -60,15 +60,13 @@ namespace MyFantasy
             base.Start();
         }
 
-        private void Attack(string prefab)
+        private void Attack(string magic)
         {
-            BoltResponse response = new BoltResponse();
-            // AttackResponse response = new AttackResponse();
-            response.prefab = prefab;
+            AttackResponse response = new AttackResponse();
+            response.magic = magic;
 
             if (target!=null)
             {
-                response.action = "to";
                 response.target = target.key;
             }
             else

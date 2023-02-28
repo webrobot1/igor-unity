@@ -66,7 +66,7 @@ namespace MyFantasy
 		/// <summary>
 		/// блокирует отправку любых запросов на сервер (тк уже идет соединение). только событие load (получения с сервера игрового мира) снимает его
 		/// </summary>
-		private static DateTime? loading = DateTime.Now;
+		private static DateTime? loading;
 
 		/// <summary>
 		/// если не null - загружаем сцену регистрации при ошибке или переподключаемся
@@ -135,7 +135,6 @@ namespace MyFantasy
 				{
 					// этот флаг снимем что бы повторно не загружать карту
 					reload = false;
-
 					StartCoroutine(HttpRequest("auth"));
 				}
 				if (errors.Count == 0)
@@ -185,6 +184,10 @@ namespace MyFantasy
 
 			player_key = data.key;
 			player_token = data.token;
+
+			coroutine = null;
+			loading = DateTime.Now;
+
 
 			string address = "ws://" + data.host;
 			Debug.Log("Соединяемся с сервером " + address);
