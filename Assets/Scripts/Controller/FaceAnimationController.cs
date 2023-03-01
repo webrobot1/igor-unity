@@ -39,6 +39,14 @@ namespace MyFantasy
                     }
                     else
                         GetComponent<SpriteRenderer>().sprite = value.GetComponent<SpriteRenderer>().sprite;
+
+                    // заполним поле жизней сразу
+                    if (value.hp != null)
+                        hpLine.fillAmount = (float)value.hp / value.hpMax;
+
+                    if (value.mp != null)
+                        mpLine.fillAmount = (float)value.mp / value.mpMax;
+
                     lifeBar = value.GetComponentInChildren<CanvasGroup>();
                 }
 
@@ -63,7 +71,6 @@ namespace MyFantasy
             if (hpLine == null)
                 PlayerController.Error("не надено изображения жизней фрейма");
             hpText = hpLine.GetComponentInChildren<Text>();
-
 
             if (mpLine == null)
                 PlayerController.Error("не надено изображения жизней фрейма");

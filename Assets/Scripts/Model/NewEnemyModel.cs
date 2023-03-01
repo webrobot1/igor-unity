@@ -119,7 +119,7 @@ namespace MyFantasy
             float newFill = current / max;
             if (newFill != line.fillAmount) //If we have a new fill amount then we know that we need to update the bar
             {
-                line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
+				line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
 				if(text!=null)
 					text.text = current + " / " + max;
             }
