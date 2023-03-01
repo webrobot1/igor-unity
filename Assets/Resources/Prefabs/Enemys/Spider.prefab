@@ -162,8 +162,12 @@ MonoBehaviour:
   key: 
   action: idle
   position: {x: 0, y: 0, z: 0}
-  health: {fileID: 0}
+  lifeBar: {fileID: 7843700736556961829}
+  health: {fileID: 966610417505373601}
   hp: 0
+  hpMax: 0
+  mp: 0
+  mpMax: 0
 --- !u!1001 &267699243225161798
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -265,8 +269,24 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: b9a812c9e0248f94c95b78936770b1fd, type: 3}
+--- !u!114 &966610417505373601 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 1071038703394762215, guid: b9a812c9e0248f94c95b78936770b1fd, type: 3}
+  m_PrefabInstance: {fileID: 267699243225161798}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!224 &7691778234255027995 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 7568757146239209309, guid: b9a812c9e0248f94c95b78936770b1fd, type: 3}
+  m_PrefabInstance: {fileID: 267699243225161798}
+  m_PrefabAsset: {fileID: 0}
+--- !u!225 &7843700736556961829 stripped
+CanvasGroup:
+  m_CorrespondingSourceObject: {fileID: 8029182871658901603, guid: b9a812c9e0248f94c95b78936770b1fd, type: 3}
   m_PrefabInstance: {fileID: 267699243225161798}
   m_PrefabAsset: {fileID: 0}

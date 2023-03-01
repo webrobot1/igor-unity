@@ -7,20 +7,11 @@ using System;
 [ExecuteInEditMode]
 public class CameraController : MonoBehaviour
 {
-    public Image hpFrame;
-    public Image mpFrame;
-
     private float last_size;
 
     private void Start()
     {
         last_size = GetComponent<Camera>().orthographicSize;
-
-        if (hpFrame == null)
-            ConnectController.Error("не присвоен GameObject для линии жизни");
-
-        if (mpFrame == null)
-            ConnectController.Error("не присвоен GameObject для линии маны");
     }
 
     private void Update()

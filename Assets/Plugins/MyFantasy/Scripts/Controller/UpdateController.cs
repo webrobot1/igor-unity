@@ -15,7 +15,7 @@ namespace MyFantasy
 	/// <summary>
 	/// Класс для обработки запросов, конект
 	/// </summary>
-	public abstract class UpdateController : MapController
+	abstract public class UpdateController : MapController
 	{
 		protected override void Handle(string json)
 		{		
@@ -111,6 +111,11 @@ namespace MyFantasy
 			}
 		}
 
+		protected virtual void SetPlayer(ObjectModel new_player)
+        {
+			player = new_player;
+		}
+
 		/// <summary>
 		/// обработка кокнретной сущности (создание и обновлелние)
 		/// </summary>
@@ -146,7 +151,7 @@ namespace MyFantasy
 
 				if (key == player_key)
 				{
-					player = prefab.GetComponent<ObjectModel>();
+					SetPlayer(prefab.GetComponent<ObjectModel>());
 				}
 
 				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот

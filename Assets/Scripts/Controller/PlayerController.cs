@@ -7,49 +7,86 @@ using UnityEngine.UI;
 
 namespace MyFantasy
 {
-    public class PlayerController : UpdateController
+    abstract public class PlayerController : UpdateController
     {
-        public Text ping;
+        [SerializeField]
+        private Text ping;
+        
+        [SerializeField]
+        private FaceAnimationController playerFaceController;       
+        [SerializeField]
+        private FaceAnimationController targetFaceController;
 
-        public static new NewPlayerModel player
+        /// <summary>
+        ///  переопределим свйоство игрока да так что бы и вродительском оставался доступен
+        /// </summary>
+        public new NewPlayerModel player
         {
             get { return (NewPlayerModel)ConnectController.player; }
-            set { ConnectController.player = value; }
         }
-        public static NewEnemyModel target = null;
 
+        private NewEnemyModel _target;
+        public NewEnemyModel target 
+        {
+            get { return _target; } 
+            private set { _target = value; } 
+        }
+     
+        public static PlayerController Instance { get; private set; }
+        protected override void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(this);
+            }
+            else
+            {
+                Instance = this;
+            }
+
+            base.Awake();
+        }
 
         protected override void Start()
         {
             if (ping == null)
-                Error("не присвоен GameObject для статистики пинга");
+                Error("не присвоен фрейм для статистики пинга");          
+            
+            if (playerFaceController == null)
+                Error("не присвоен фрейм жизней игрока");          
+            
+            if (targetFaceController == null)
+                Error("не присвоен фрейм жизней цели");
         }
 
         protected virtual void FixedUpdate()
         {
+            if (player != null) 
+            { 
+                if (target != null && target.hp == 0)
+                    SelectTarget(null);
 
-            if (target != null)
-            {
-                if (target.hp == 0) Select(null);
-            }
-
-            if (target == null && player!=null && player.getEvent(AttackResponse.GROUP).action!=null && player.getEvent(AttackResponse.GROUP).action != "")
-            {
-                // если с севрера пришло что нас кто то атакует и мы сами никого не атакуем
-                string new_target = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
-                if (new_target!=null)
+                if (target == null && player!=null && player.getEvent(AttackResponse.GROUP).action!=null && player.getEvent(AttackResponse.GROUP).action != "")
                 {
-                    Select(new_target);
-                    Debug.LogWarning("Новая цель атаки с сервера: "+ new_target);
+                    // если с севрера пришло что мы кого то атакуем
+                    string new_target = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+                    if (new_target!=null)
+                    {
+                        SelectTarget(new_target);
+                        Debug.LogWarning("Новая цель атаки с сервера: "+ new_target);
+                    }
                 }
             }
         }
 
-        public static void Select(string key = null)
+        protected override void SetPlayer(ObjectModel player)
         {
-            if (target != null)
-                target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 0;
+            base.SetPlayer(player);
+            playerFaceController.target = (NewEnemyModel)player;
+        }
 
+        public void SelectTarget(string key = null)
+        {
             if (key != null && key != player.key)
             {
                 GameObject gameObject = GameObject.Find(key);
@@ -58,15 +95,16 @@ namespace MyFantasy
                     NewEnemyModel new_target = gameObject.GetComponent<NewEnemyModel>();
                     if (new_target != null && new_target.hp > 0) 
                     {
-                        target = new_target;
-                        new_target.transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 1;
+                        targetFaceController.target = target = new_target;
                     }
                     else
-                        target = null;
+                        targetFaceController.target = target = null;
                 }
             }
-            else
-                target = null;
+            else 
+            {
+                targetFaceController.target = target = null;
+            }
         }
 
         protected override void Handle(string json)

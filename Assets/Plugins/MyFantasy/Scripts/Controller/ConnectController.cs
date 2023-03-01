@@ -71,7 +71,7 @@ namespace MyFantasy
 		/// <summary>
 		/// если не null - загружаем сцену регистрации при ошибке или переподключаемся
 		/// </summary>
-		private static Coroutine coroutine = null;
+		private static Coroutine coroutine;
 
 		/// <summary>
 		/// последний отправленный пинг на сервер
@@ -117,7 +117,7 @@ namespace MyFantasy
 		/// Проверка наличие новых данных или ошибок соединения
 		/// </summary>
 		protected virtual void Update()
-		{       
+		{
 			// если не загружаем сцену регистрации (по ошибке)
 			if (coroutine == null)
 			{

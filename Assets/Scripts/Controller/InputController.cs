@@ -19,7 +19,6 @@ namespace MyFantasy
         [SerializeField]
         private VariableJoystick joystick;
 
-
         [SerializeField]
         private Button button_skill1;              
         
@@ -105,12 +104,12 @@ namespace MyFantasy
                             if (hit.collider != null && hit.collider.GetComponent<NewEnemyModel>())
                             {
                                 string key = hit.collider.GetComponent<NewEnemyModel>().key;
-                                Select(key);
+                                SelectTarget(key);
                                 Debug.Log("Кликнули на врага " + key);
                             }
                             else
                             {
-                                Select(null);
+                                SelectTarget(null);
                                 move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
                                 if (Vector3.Distance(player.position, move_to) < 1.15f)
                                     move_to = Vector3.zero;

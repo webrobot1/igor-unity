@@ -14,18 +14,18 @@ namespace MyFantasy
 	[RequireComponent(typeof(Collider))]
 	public class NewObjectModel : ObjectModel
 	{
-		protected Animator anim = null;
-		//protected static Dictionary<string, bool> trigers;
+		public Animator animator;
 
 		/// <summary>
 		/// если не null - движемся
 		/// </summary>
-		private Coroutine moveCoroutine = null;
+		private Coroutine moveCoroutine;
 
 		/// <summary>
 		///  активный слой анимации
 		/// </summary>
-		private int? layerIndex = null;
+		[NonSerialized]
+		public int? layerIndex = null;
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
 		private DateTime activeLast = DateTime.Now;
@@ -40,26 +40,26 @@ namespace MyFantasy
 			{
 				// вообще сервер сам это сделает но так уменьшиться пакет размера символов
 				base.forward = value.normalized;
-				if (anim)
+				if (animator)
 				{
-					if (anim.GetFloat("x") != value.x)
-						anim.SetFloat("x", value.x);
-					if (anim.GetFloat("y") != value.y)
-						anim.SetFloat("y", value.y);
+					if (animator.GetFloat("x") != value.x)
+						animator.SetFloat("x", value.x);
+					if (animator.GetFloat("y") != value.y)
+						animator.SetFloat("y", value.y);
 				}
 			}
 		}
-		protected static Dictionary<string, bool> trigers;
+		private static Dictionary<string, bool> trigers;
 
 		protected virtual void Awake()
 		{
-			if (anim = GetComponent<Animator>())
+			if (animator = GetComponent<Animator>())
 			{
 				// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
 				if (trigers == null)
 				{
 					trigers = new Dictionary<string, bool>();
-					foreach (var parameter in anim.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
+					foreach (var parameter in animator.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
 					{
 						trigers.Add(parameter.name, true);
 					}
@@ -72,21 +72,21 @@ namespace MyFantasy
 		{
 			// если текущий наш статус анимации - не стояние и давно небыло активности - включим анмацию остановки
 			if (
-				anim!=null 
+				animator != null 
 					&& 
 				layerIndex != null 
-					&& 
-				anim.GetLayerName((int)layerIndex) != "idle"  
+					&&
+				animator.GetLayerName((int)layerIndex) != "idle"  
 					&& 				
 				action != "dead"  
 					&& 
-				(anim.GetCurrentAnimatorStateInfo((int)layerIndex).loop || anim.GetCurrentAnimatorStateInfo((int)layerIndex).normalizedTime >= 1.0f) 
+				(animator.GetCurrentAnimatorStateInfo((int)layerIndex).loop || animator.GetCurrentAnimatorStateInfo((int)layerIndex).normalizedTime >= 1.0f) 
 					&& 
 				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
 			)
 			{
 				Debug.Log(key+" остановка по таймауту анимации");
-				Animate("idle");
+				Animate(animator, animator.GetLayerIndex("idle"));
 			}
 		}
 
@@ -124,45 +124,51 @@ namespace MyFantasy
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null)
 			{
-				Animate(action);
+				if (animator != null)
+				{
+					int layerIndex = animator.GetLayerIndex(recive.action);
+					if(layerIndex==-1)
+					{
+						Debug.LogWarning("Положение без группы-слоя анимации ");
+					}
+					else
+					{
+						Animate(animator, layerIndex);
+						this.layerIndex = layerIndex;
+					}
+				}
 				activeLast = DateTime.Now;
 			}
 		}
 
-		protected void Animate(string name)
+		public void Animate(Animator animator, int layerIndex)
 		{
-			if (anim != null)
+			if (layerIndex >=0)
 			{
-				
-				int layerIndex = anim.GetLayerIndex(name);
-				if (layerIndex != -1)
-				{
-					if(this.layerIndex != layerIndex) 
+				if(animator.GetLayerWeight(layerIndex) != 1) 
+				{ 
+					// "остановим" все слои анмиации
+					if (animator.layerCount > 1) 
 					{ 
-						// "остановим" все слои анмиации
-						if (anim.layerCount > 1) 
-						{ 
-							for (int i = 1; i < anim.layerCount; i++)
-							{
-								anim.SetLayerWeight(i, 0);
-							}
+						for (int i = 1; i < animator.layerCount; i++)
+						{
+							animator.SetLayerWeight(i, 0);
 						}
-
-						anim.SetLayerWeight(layerIndex, 1);
-						this.layerIndex = layerIndex;
 					}
-
-					if (trigers.ContainsKey(name))
-					{
-						Debug.Log("запускаем тригер " + name);
-						anim.SetTrigger(name);
-					}
+					animator.SetLayerWeight(layerIndex, 1);		
 				}
-				else
+
+				string name = animator.GetLayerName(layerIndex);
+				if (trigers.ContainsKey(name))
 				{
-					Debug.LogWarning("Положение без группы-слоя анимации " + name);
+					Debug.Log("запускаем тригер " + name);
+					animator.SetTrigger(name);
 				}
-			}		
+
+				this.layerIndex = layerIndex;
+			}
+			else
+				PlayerController.Error("неверный индекс анимации "+ layerIndex);
 		}
 
 		/// <summary>

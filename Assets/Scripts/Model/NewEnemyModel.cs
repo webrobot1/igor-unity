@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using UnityEngine.UI;
+using System;
 
 namespace MyFantasy
 {
@@ -11,13 +12,26 @@ namespace MyFantasy
 	/// </summary>
 	public class NewEnemyModel : NewObjectModel
 	{
+		[SerializeField]
+		private CanvasGroup lifeBar;
+		[SerializeField]
 		private Image health;
 
-		public int hp;
+		/// <summary>
+		/// может быть null если мы через этот класс выделилил объект
+		/// </summary>
+		[NonSerialized]
+		public int? hp = null;
+		/// <summary>
+		/// может быть null если мы через этот класс выделилил объект
+		/// </summary>
+		[NonSerialized]
+		public int? mp = null;
 
-		protected int hpMax;
-		protected int mp;
-		protected int mpMax;
+		[NonSerialized]
+		public int hpMax;
+		[NonSerialized]
+		public int mpMax;
 
 		/// <summary>
 		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
@@ -27,17 +41,14 @@ namespace MyFantasy
 		/// <summary>
 		///  скорость изменения полоски жизней и маны
 		/// </summary>
-		private float lineSpeed = 3;
-
-		CameraController cameraController;
-
+		private static float lineSpeed = 3;
 
 		protected void Start()
 		{
-			transform.Find("LifeBar").GetComponent<CanvasGroup>().alpha = 0;
+			if (health == null)
+				PlayerController.Error("Не найдено в группе поле жизней сущности "+key);
 
-			cameraController = Camera.main.GetComponent<CameraController>();
-			health = transform.Find("LifeBar").Find("Background").Find("Health").GetComponent<Image>();
+			health.GetComponentInParent<CanvasGroup>().alpha = 0;
 		}
 
 		public override void SetData(ObjectRecive recive)
@@ -45,23 +56,22 @@ namespace MyFantasy
 			this.SetData((NewEnemyRecive)recive);
 		}
 
-
         protected void FixedUpdate()
         {
-			HealthUpdate();
-			ManaUpdate();
+			if(hp!=null)
+				FillUpdate(health, (int)hp, hpMax);
 
 			// если пришли данные атаки и мы до сих пор атакуем
-			if (PlayerController.player!=null && key != PlayerController.player.key && getEvent(AttackResponse.GROUP).action != null && getEvent(AttackResponse.GROUP).action.Length > 0)
+			if (PlayerController.Instance.player !=null && key != PlayerController.Instance.player.key && getEvent(AttackResponse.GROUP).action != null && getEvent(AttackResponse.GROUP).action.Length > 0)
 			{
-				if (PlayerController.target == null || (PlayerController.target.key!=key && (Vector3.Distance(PlayerController.target.position, PlayerController.player.position)) > (Vector3.Distance(position , PlayerController.player.position))))
+				if (PlayerController.Instance.target == null || (PlayerController.Instance.target.key!=key && (Vector3.Distance(PlayerController.Instance.target.position, PlayerController.Instance.player.position)) > (Vector3.Distance(position , PlayerController.Instance.player.position))))
 				{
 					//  и атакуем нашего игрока у игрока нетц ели атаки
 					string new_target = getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
-					if (new_target != null && new_target == PlayerController.player.key)
+					if (new_target != null && new_target == PlayerController.Instance.player.key)
 					{
 						// то передадим инфомрацию игроку что бы мы стали его целью
-						PlayerController.Select(key);
+						PlayerController.Instance.SelectTarget(key);
 						Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
 					}
 				}
@@ -104,33 +114,16 @@ namespace MyFantasy
 			base.SetData(recive);		
 		}
 
-		private void HealthUpdate()
-		{
-			float healthFill = (float)hp / (float)hpMax;
-			if (healthFill != health.fillAmount) //If we have a new fill amount then we know that we need to update the bar
-			{
-				//Lerps the fill amount so that we get a smooth movement
-				health.fillAmount = Mathf.Lerp(health.fillAmount, healthFill, Time.deltaTime * lineSpeed);
-			}
-			if (key == PlayerController.player_key)
-			{
-				if (Camera.main.GetComponent<CameraController>().hpFrame.fillAmount != healthFill)
-				{
-					cameraController.hpFrame.fillAmount = Mathf.Lerp(cameraController.hpFrame.fillAmount, healthFill, Time.deltaTime * lineSpeed);
-					cameraController.hpFrame.GetComponentInChildren<Text>().text = hp + " / " + hpMax;
-				}
-			}
-		}
-
-		private void ManaUpdate()
-		{
-			float manaAmount = (float)mp / (float)mpMax;
-			if (cameraController.mpFrame.fillAmount != mp / mpMax)
-			{
-				cameraController.mpFrame.fillAmount = Mathf.Lerp(cameraController.mpFrame.fillAmount, manaAmount, Time.deltaTime * lineSpeed);
-				cameraController.mpFrame.GetComponentInChildren<Text>().text = mp + " / " + mpMax;
-			}
-		}
+		public void FillUpdate(Image line, float current, float max, Text text = null)
+        {
+            float newFill = current / max;
+            if (newFill != line.fillAmount) //If we have a new fill amount then we know that we need to update the bar
+            {
+                line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
+				if(text!=null)
+					text.text = current + " / " + max;
+            }
+        }
 
 		public T getEventData<T>(string group) where T : new()
 		{

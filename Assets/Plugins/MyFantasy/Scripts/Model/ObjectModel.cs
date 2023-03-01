@@ -6,16 +6,19 @@ using UnityEngine;
 
 namespace MyFantasy
 {
+
 	public class ObjectModel : MonoBehaviour
 	{
 		/// <summary>
 		/// для того что бы менять сортировку при загрузке карты
 		/// </summary>
+		[NonSerialized]
 		public int sort;
 
 		/// <summary>
 		/// индентификатор сущности
 		/// </summary>
+		[NonSerialized]
 		public string key;
 
 		/// <summary>
@@ -23,6 +26,7 @@ namespace MyFantasy
 		/// </summary>
 		protected int map_id;
 
+		[NonSerialized]
 		public string action = "idle";
 		protected DateTime created;
 		protected string prefab;
@@ -42,6 +46,7 @@ namespace MyFantasy
 		/// <summary>
 		/// координаты в которых  уже находится наш объект на сервере
 		/// </summary>
+		[NonSerialized]
 		public Vector3 position = Vector3.zero;
 
 		/// <summary>
@@ -67,9 +72,11 @@ namespace MyFantasy
 				this.transform.forward.Set(recive.forward_x ?? this.transform.forward.x, recive.forward_y ?? this.transform.forward.y, this.transform.forward.z);			
 			
 
-			if (this.key.Length == 0 && recive.x != null && recive.y != null && recive.z != null)
+			if (this.key == null)
 			{
-				transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
+				if(recive.x != null && recive.y != null && recive.z != null)
+					transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
+				this.key = this.gameObject.name;
 			}
 
 			if (recive.x != null)
@@ -103,9 +110,6 @@ namespace MyFantasy
 
 			if (recive.map_id > 0)
 				this.map_id = recive.map_id;
-
-			if (this.key.Length == 0)
-				this.key = this.gameObject.name;
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{
