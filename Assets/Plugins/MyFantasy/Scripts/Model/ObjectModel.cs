@@ -159,13 +159,13 @@ namespace MyFantasy
 
 		public virtual EventRecive getEvent(string group)
 		{
-			EventRecive value;
-			if (!events.TryGetValue(group, out value))
+			if (!events.ContainsKey(group))
 			{
 				events.Add(group, new EventRecive());
+				events[group].action = "";
 			}
 
-			return value;
+			return events[group];
 		}
 
 		/// <summary>

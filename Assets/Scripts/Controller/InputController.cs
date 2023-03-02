@@ -101,11 +101,14 @@ namespace MyFantasy
                         else
                         {
                             RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
-                            if (hit.collider != null && hit.collider.GetComponent<NewEnemyModel>())
+                            if (hit.collider != null)
                             {
-                                string key = hit.collider.GetComponent<NewEnemyModel>().key;
-                                SelectTarget(key);
-                                Debug.Log("Кликнули на врага " + key);
+                                NewObjectModel new_target = hit.collider.GetComponent<NewObjectModel>();
+                                if(new_target != null)
+                                {
+                                    SelectTarget(new_target, true);
+                                    Debug.Log("Кликнули на " + new_target.key);
+                                }
                             }
                             else
                             {

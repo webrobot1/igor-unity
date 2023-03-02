@@ -29,13 +29,18 @@ namespace MyFantasy
             get { return (NewPlayerModel)ConnectController.player; }
         }
 
-        private NewEnemyModel _target;
-        public NewEnemyModel target 
+        private NewObjectModel _target;
+        protected NewObjectModel target 
         {
             get { return _target; } 
             private set { _target = value; } 
         }
-     
+
+        /// <summary>
+        ///  это цель которую мы выбрали сами , не автоматическая
+        /// </summary>
+        private bool persist_target;
+
         public static PlayerController Instance { get; private set; }
         protected override void Awake()
         {
@@ -47,6 +52,9 @@ namespace MyFantasy
             {
                 Instance = this;
             }
+
+            Application.targetFrameRate = 300;
+           // Screen.orientation = ScreenOrientation.LandscapeLeft;
 
             base.Awake();
         }
@@ -78,17 +86,20 @@ namespace MyFantasy
         {
             if (player != null) 
             { 
-               if (target != null && (target.hp == 0 || Vector3.Distance(player.transform.position, target.transform.position) >= player.lifeRadius))
+               // если объект (может живой может нет) очень далеко снимем таргет (не важно мы ли его поставили или автоматом)
+               if (target != null && Vector3.Distance(player.transform.position, target.transform.position) >= player.lifeRadius)
                    SelectTarget(null);
 
-                if (target == null && player!=null && player.getEvent(AttackResponse.GROUP).action!=null && player.getEvent(AttackResponse.GROUP).action != "")
+                // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
+                // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
+                string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+                if (attacker != null)
                 {
-                    // если с севрера пришло что мы кого то атакуем
-                    string new_target = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
-                    if (new_target!=null)
-                    {
-                        SelectTarget(new_target);
-                        Debug.LogWarning("Новая цель атаки с сервера: "+ new_target);
+                    NewEnemyModel gameObject = GameObject.Find(attacker).GetComponent<NewEnemyModel>();
+                    if (gameObject != null && CanBeTarget(gameObject)) 
+                    { 
+                        SelectTarget(gameObject);
+                        Debug.LogWarning("Новая цель атаки с сервера: "+ attacker);
                     }
                 }
             }
@@ -100,23 +111,45 @@ namespace MyFantasy
             playerFaceController.target = (NewEnemyModel)player;
         }
 
-        public void SelectTarget(string key = null)
+        public bool CanBeTarget(NewObjectModel gameObject)
         {
-            if (player!=null && key != null && key != player.key)
+            return
+            (
+                Vector3.Distance(player.transform.position, gameObject.transform.position) < player.lifeRadius
+                    &&
+                (
+                    target == null
+                         ||
+                     (
+                         target.key != gameObject.key
+                             &&
+                         (
+                             (!persist_target && Vector3.Distance(target.position, player.position) > Vector3.Distance(gameObject.transform.position, player.position))
+                                 ||
+                             target.hp == null
+                                 ||
+                             target.hp == 0
+                         )
+                     )
+                 )
+             );
+        }
+
+        public void SelectTarget(NewObjectModel new_target, bool persist = false)
+        {
+            if (player!=null && new_target != null && new_target.key != player.key)
             {
-                GameObject gameObject = GameObject.Find(key);
-                if (gameObject != null)
+                // если дальше чем поле видимости игрока то не ставим выделение (может там другой игрок ходит рядом и существо продолжило идти к игроку поэтому)
+                if (Vector3.Distance(player.transform.position, new_target.transform.position) < player.lifeRadius)
                 {
-                    NewEnemyModel new_target = gameObject.GetComponent<NewEnemyModel>();
-                    if (new_target != null && new_target.hp > 0 && Vector3.Distance(player.transform.position, new_target.transform.position) < player.lifeRadius) 
-                    {
-                        targetFaceController.target = target = new_target;
-                    }
+                    targetFaceController.target = target = new_target;
+                    persist_target = persist;
                 }
             }
             else 
             {
                 targetFaceController.target = target = null;
+                persist_target = false;
             }
         }
 

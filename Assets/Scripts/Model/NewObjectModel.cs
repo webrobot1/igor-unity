@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace MyFantasy
 {
@@ -29,6 +30,31 @@ namespace MyFantasy
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
 		private DateTime activeLast = DateTime.Now;
+
+
+		/// <summary>
+		/// может быть null если мы через этот класс выделилил объект оно именно тут для совместимости как и то что ниже
+		/// </summary>
+		[NonSerialized]
+		public int? hp = null;
+		[SerializeField]
+		protected Image health;
+
+		/// <summary>
+		/// может быть null если мы через этот класс выделилил объект
+		/// </summary>
+		[NonSerialized]
+		public int? mp = null;
+
+		[NonSerialized]
+		public int hpMax;
+		[NonSerialized]
+		public int mpMax;
+
+		/// <summary>
+		///  скорость изменения полоски жизней и маны
+		/// </summary>
+		private static float lineSpeed = 3;
 
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
@@ -87,6 +113,21 @@ namespace MyFantasy
 			{
 				Debug.Log(key+" остановка по таймауту анимации");
 				Animate(animator, animator.GetLayerIndex("idle"));
+			}
+		}
+
+		public void FillUpdate(Image line, float current, float max, Text text = null, bool force = false)
+		{
+			line.transform.parent.gameObject.SetActive(true);
+			float newFill = current / max;
+			if (newFill != line.fillAmount) //If we have a new fill amount then we know that we need to update the bar
+			{
+				if (force)
+					line.fillAmount = newFill;
+				else
+					line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
+				if (text != null)
+					text.text = current + " / " + max;
 			}
 		}
 

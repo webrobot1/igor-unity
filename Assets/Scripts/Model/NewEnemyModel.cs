@@ -12,36 +12,10 @@ namespace MyFantasy
 	/// </summary>
 	public class NewEnemyModel : NewObjectModel
 	{
-		[SerializeField]
-		private CanvasGroup lifeBar;
-		[SerializeField]
-		private Image health;
-
-		/// <summary>
-		/// может быть null если мы через этот класс выделилил объект
-		/// </summary>
-		[NonSerialized]
-		public int? hp = null;
-		/// <summary>
-		/// может быть null если мы через этот класс выделилил объект
-		/// </summary>
-		[NonSerialized]
-		public int? mp = null;
-
-		[NonSerialized]
-		public int hpMax;
-		[NonSerialized]
-		public int mpMax;
-
 		/// <summary>
 		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
 		/// </summary>
 		protected float speed;
-
-		/// <summary>
-		///  скорость изменения полоски жизней и маны
-		/// </summary>
-		private static float lineSpeed = 3;
 
 		protected void Start()
 		{
@@ -61,23 +35,17 @@ namespace MyFantasy
 			if(hp!=null)
 				FillUpdate(health, (int)hp, hpMax);
 
-			// если пришли данные атаки и мы до сих пор атакуем
-			if (PlayerController.Instance.player !=null && key != PlayerController.Instance.player.key && getEvent(AttackResponse.GROUP).action != null && getEvent(AttackResponse.GROUP).action.Length > 0)
+			// если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
+			if (
+				PlayerController.Instance.player != null
+					&&
+				PlayerController.Instance.CanBeTarget(this)
+					&&
+				getEventData<AttackDataRecive>(AttackResponse.GROUP).target == PlayerController.Instance.player.key)
 			{
-				if (PlayerController.Instance.target == null || (PlayerController.Instance.target.key!=key && (Vector3.Distance(PlayerController.Instance.target.position, PlayerController.Instance.player.position)) > (Vector3.Distance(position , PlayerController.Instance.player.position))))
-				{
-					if(Vector3.Distance(PlayerController.Instance.player.transform.position, transform.position) < PlayerController.Instance.player.lifeRadius) 
-					{ 
-						//  и атакуем нашего игрока у игрока нетц ели атаки
-						string new_target = getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
-						if (new_target != null && new_target == PlayerController.Instance.player.key)
-						{
-							// то передадим инфомрацию игроку что бы мы стали его целью
-							PlayerController.Instance.SelectTarget(key);
-							Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
-						}
-					}
-				}
+				// то передадим инфомрацию игроку что бы мы стали его целью
+				PlayerController.Instance.SelectTarget(this);
+				Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
 			}
 		}
 
@@ -116,20 +84,6 @@ namespace MyFantasy
 
 			base.SetData(recive);		
 		}
-
-		public void FillUpdate(Image line, float current, float max, Text text = null, bool force = false)
-        {
-            float newFill = current / max;
-            if (newFill != line.fillAmount) //If we have a new fill amount then we know that we need to update the bar
-            {
-				if (force)
-					line.fillAmount = newFill;
-				else
-					line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
-				if(text!=null)
-					text.text = current + " / " + max;
-            }
-        }
 
 		public T getEventData<T>(string group) where T : new()
 		{

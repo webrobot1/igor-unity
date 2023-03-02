@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 7553784671447538157}
   - component: {fileID: 7553784671447538155}
   - component: {fileID: -1146154029608065848}
+  - component: {fileID: 1090071434176276160}
   m_Layer: 0
   m_Name: Altar
   m_TagString: Untagged
@@ -97,6 +98,20 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7b33be156f0519c4bbfb1440273fadfb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  key: 
-  sort: 0
-  distancePerUpdate: 0
+  animator: {fileID: 0}
+--- !u!58 &1090071434176276160
+CircleCollider2D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7553784671447538154}
+  m_Enabled: 1
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_UsedByComposite: 0
+  m_Offset: {x: 0, y: 0}
+  serializedVersion: 2
+  m_Radius: 1.46875
