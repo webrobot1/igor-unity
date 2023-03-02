@@ -30,24 +30,36 @@ namespace MyFantasy
                 return _target; 
             }
             set 
-            { 
-                if(value!=null)
-                { 
-                    if (value.animator != null)
+            {
+                if (lifeBar != null)
+                    lifeBar.alpha = 0;
+
+                targetFrame.alpha = 0;
+
+                if (value != null)
+                {
+                    if (_target != value)
                     {
-                        animator.runtimeAnimatorController = value.animator.runtimeAnimatorController;
+                        if (value.animator != null)
+                        {
+                            animator.runtimeAnimatorController = value.animator.runtimeAnimatorController;
+                        }
+                        else
+                            GetComponent<SpriteRenderer>().sprite = value.GetComponent<SpriteRenderer>().sprite;
+
+                        // заполним поле жизней сразу
+                        if (value.hp != null)
+                            value.FillUpdate(hpLine, (float)value.hp, value.hpMax, hpText, true);
+
+                        if (value.mp != null)
+                            value.FillUpdate(mpLine, (float)value.mp, value.mpMax, mpText, true);
+
+                        lifeBar = value.GetComponentInChildren<CanvasGroup>();
                     }
-                    else
-                        GetComponent<SpriteRenderer>().sprite = value.GetComponent<SpriteRenderer>().sprite;
+                    if (lifeBar != null)
+                        lifeBar.alpha = 1;
 
-                    // заполним поле жизней сразу
-                    if (value.hp != null)
-                        hpLine.fillAmount = (float)value.hp / value.hpMax;
-
-                    if (value.mp != null)
-                        mpLine.fillAmount = (float)value.mp / value.mpMax;
-
-                    lifeBar = value.GetComponentInChildren<CanvasGroup>();
+                    targetFrame.alpha = 1;
                 }
 
                 _target = value;
@@ -58,13 +70,18 @@ namespace MyFantasy
         private Animator animator;
         private CanvasGroup targetFrame;
 
-        private void Start()
+        private void Awake()
         {
             targetFrame = GetComponentInParent<CanvasGroup>();
+            animator = GetComponent<Animator>();
+        }
+
+        private void Start()
+        {
+           
             if (targetFrame == null)
                 PlayerController.Error("не наден фрейм жизней");
 
-            animator = GetComponent<Animator>();
             if (animator == null)
                 PlayerController.Error("не наден аниматор фрейма жизней");
 
@@ -77,7 +94,7 @@ namespace MyFantasy
             mpText = mpLine.GetComponentInChildren<Text>();
         }
 
-        private void Update()
+        private void FixedUpdate()
         {
             if (target!=null)
             {
@@ -87,24 +104,12 @@ namespace MyFantasy
                 if (target.mp != null)
                     target.FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
 
-                targetFrame.alpha = 1;
-
-                if(lifeBar!=null)
-                    lifeBar.alpha = 1;
-
                 if (target.animator!=null && target.layerIndex!=null && target.layerIndex != layerIndex)
                 {
                     target.Animate(animator, (int)target.layerIndex);
                     layerIndex = (int)target.layerIndex;
                 }
-            }
-            else
-            {
-                targetFrame.alpha = 0;
-
-                if (lifeBar != null)
-                    lifeBar.alpha = 0;
-            }      
+            }     
         }
     }
 }

@@ -66,13 +66,16 @@ namespace MyFantasy
 			{
 				if (PlayerController.Instance.target == null || (PlayerController.Instance.target.key!=key && (Vector3.Distance(PlayerController.Instance.target.position, PlayerController.Instance.player.position)) > (Vector3.Distance(position , PlayerController.Instance.player.position))))
 				{
-					//  и атакуем нашего игрока у игрока нетц ели атаки
-					string new_target = getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
-					if (new_target != null && new_target == PlayerController.Instance.player.key)
-					{
-						// то передадим инфомрацию игроку что бы мы стали его целью
-						PlayerController.Instance.SelectTarget(key);
-						Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
+					if(Vector3.Distance(PlayerController.Instance.player.transform.position, transform.position) < PlayerController.Instance.player.lifeRadius) 
+					{ 
+						//  и атакуем нашего игрока у игрока нетц ели атаки
+						string new_target = getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+						if (new_target != null && new_target == PlayerController.Instance.player.key)
+						{
+							// то передадим инфомрацию игроку что бы мы стали его целью
+							PlayerController.Instance.SelectTarget(key);
+							Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
+						}
 					}
 				}
 			}
@@ -114,12 +117,15 @@ namespace MyFantasy
 			base.SetData(recive);		
 		}
 
-		public void FillUpdate(Image line, float current, float max, Text text = null)
+		public void FillUpdate(Image line, float current, float max, Text text = null, bool force = false)
         {
             float newFill = current / max;
             if (newFill != line.fillAmount) //If we have a new fill amount then we know that we need to update the bar
             {
-				line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
+				if (force)
+					line.fillAmount = newFill;
+				else
+					line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
 				if(text!=null)
 					text.text = current + " / " + max;
             }

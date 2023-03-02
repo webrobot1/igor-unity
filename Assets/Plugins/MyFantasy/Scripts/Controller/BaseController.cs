@@ -10,8 +10,12 @@ namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		protected const string SERVER = "185.117.153.89";
-		//protected const string SERVER = "my-fantasy";                   // сервер авторизации и карт. тк у меня wsl и WWWForm (http из под C#) надо ставить что то отличное от localhost
+		// сервер авторизации и карт. тк у меня wsl и WWWForm (http из под C#) надо ставить что то отличное от localhost
+		#if UNITY_EDITOR
+				protected const string SERVER = "my-fantasy";
+		#else
+				protected const string SERVER = "185.117.153.89";     
+		#endif
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
@@ -45,11 +49,11 @@ namespace MyFantasy
 			// продолжать принимать данные и обновляться в фоновом режиме
 			Application.runInBackground = true;
 
-			#if UNITY_EDITOR || DEVELOPMENT_BUILD
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
 				Debug.unityLogger.logEnabled = true;
-			#else
+#else
 				Debug.unityLogger.logEnabled = false;
-			#endif
+#endif
 		}
 
 		protected virtual IEnumerator HttpRequest(string action)

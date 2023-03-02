@@ -22,6 +22,7 @@ namespace MyFantasy
 		public float? forward_y = null;
 	
 		public int? sort = null;
+		public int? lifeRadius = null;
 
 		public DateTime created = DateTime.Now;
 		

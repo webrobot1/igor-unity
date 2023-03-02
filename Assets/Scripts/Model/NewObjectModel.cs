@@ -134,7 +134,6 @@ namespace MyFantasy
 					else
 					{
 						Animate(animator, layerIndex);
-						this.layerIndex = layerIndex;
 					}
 				}
 				activeLast = DateTime.Now;
@@ -145,7 +144,7 @@ namespace MyFantasy
 		{
 			if (layerIndex >=0)
 			{
-				if(animator.GetLayerWeight(layerIndex) != 1) 
+				if (layerIndex == 0 || animator.GetLayerWeight(layerIndex) != 1) 
 				{ 
 					// "остановим" все слои анмиации
 					if (animator.layerCount > 1) 
@@ -157,6 +156,7 @@ namespace MyFantasy
 					}
 					animator.SetLayerWeight(layerIndex, 1);		
 				}
+				this.layerIndex = layerIndex;
 
 				string name = animator.GetLayerName(layerIndex);
 				if (trigers.ContainsKey(name))
@@ -164,8 +164,6 @@ namespace MyFantasy
 					Debug.Log("запускаем тригер " + name);
 					animator.SetTrigger(name);
 				}
-
-				this.layerIndex = layerIndex;
 			}
 			else
 				PlayerController.Error("неверный индекс анимации "+ layerIndex);

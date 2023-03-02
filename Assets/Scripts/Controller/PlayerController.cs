@@ -10,8 +10,12 @@ namespace MyFantasy
     abstract public class PlayerController : UpdateController
     {
         [SerializeField]
-        private Text ping;
-        
+        private Text ping;      
+        [SerializeField]
+        private Text fps;
+        private float deltaTime;
+
+
         [SerializeField]
         private FaceAnimationController playerFaceController;       
         [SerializeField]
@@ -49,6 +53,8 @@ namespace MyFantasy
 
         protected override void Start()
         {
+            SelectTarget(null);
+
             if (ping == null)
                 Error("не присвоен фрейм для статистики пинга");          
             
@@ -59,12 +65,21 @@ namespace MyFantasy
                 Error("не присвоен фрейм жизней цели");
         }
 
+        protected override void Update()
+        {
+            deltaTime += (Time.deltaTime - deltaTime) * 0.1f;
+            float fps = 1.0f / deltaTime;
+            this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString() + " мс.";
+
+            base.Update();
+        }
+
         protected virtual void FixedUpdate()
         {
             if (player != null) 
             { 
-                if (target != null && target.hp == 0)
-                    SelectTarget(null);
+               if (target != null && (target.hp == 0 || Vector3.Distance(player.transform.position, target.transform.position) >= player.lifeRadius))
+                   SelectTarget(null);
 
                 if (target == null && player!=null && player.getEvent(AttackResponse.GROUP).action!=null && player.getEvent(AttackResponse.GROUP).action != "")
                 {
@@ -87,18 +102,16 @@ namespace MyFantasy
 
         public void SelectTarget(string key = null)
         {
-            if (key != null && key != player.key)
+            if (player!=null && key != null && key != player.key)
             {
                 GameObject gameObject = GameObject.Find(key);
                 if (gameObject != null)
                 {
                     NewEnemyModel new_target = gameObject.GetComponent<NewEnemyModel>();
-                    if (new_target != null && new_target.hp > 0) 
+                    if (new_target != null && new_target.hp > 0 && Vector3.Distance(player.transform.position, new_target.transform.position) < player.lifeRadius) 
                     {
                         targetFaceController.target = target = new_target;
                     }
-                    else
-                        targetFaceController.target = target = null;
                 }
             }
             else 

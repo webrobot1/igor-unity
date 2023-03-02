@@ -7,7 +7,6 @@ namespace MyFantasy
 	public class NewPlayerRecive : NewEnemyRecive
 	{
 		public string login;
-
 	}
 }
 

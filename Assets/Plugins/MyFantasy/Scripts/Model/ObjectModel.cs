@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace MyFantasy
 {
-
 	public class ObjectModel : MonoBehaviour
 	{
 		/// <summary>
@@ -14,6 +13,8 @@ namespace MyFantasy
 		/// </summary>
 		[NonSerialized]
 		public int sort;
+		[NonSerialized]
+		public int lifeRadius;
 
 		/// <summary>
 		/// индентификатор сущности
@@ -100,8 +101,11 @@ namespace MyFantasy
 			}			
 
 			if (recive.sort != null)
-				this.sort = (int)recive.sort;			
-			
+				this.sort = (int)recive.sort;
+
+			if (recive.lifeRadius != null)
+				this.lifeRadius = (int)recive.lifeRadius;
+
 			if (recive.created != null)
 				this.created = recive.created;
 
@@ -155,12 +159,13 @@ namespace MyFantasy
 
 		public virtual EventRecive getEvent(string group)
 		{
-			if (!events.ContainsKey(group))
+			EventRecive value;
+			if (!events.TryGetValue(group, out value))
 			{
 				events.Add(group, new EventRecive());
 			}
 
-			return events[group];
+			return value;
 		}
 
 		/// <summary>
