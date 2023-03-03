@@ -17,9 +17,9 @@ namespace MyFantasy
 
 
         [SerializeField]
-        private FaceAnimationController playerFaceController;       
+        private TargetController playerFaceController;       
         [SerializeField]
-        private FaceAnimationController targetFaceController;
+        private TargetController targetFaceController;
 
         /// <summary>
         ///  переопределим свйоство игрока да так что бы и вродительском оставался доступен

@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 namespace MyFantasy
 {
-    public class FaceAnimationController: MonoBehaviour
+    public class TargetController: MonoBehaviour
     {
         [SerializeField]
         private float aspect = 30;
@@ -78,7 +78,11 @@ namespace MyFantasy
                         // заполним поле жизней сразу
                         if (value.hp != null)
                         {
-                            EnableLine(hpLine);
+                            if (value.hp > 0)
+                                EnableLine(hpLine);
+                            else
+                                DisableLine(hpLine);
+
                             FillUpdate(hpLine, (float)value.hp, value.hpMax, hpText, true);
 
                             if (value.lifeBar != null && (PlayerController.Instance.player == null || value.key != PlayerController.Instance.player.key))
@@ -93,7 +97,12 @@ namespace MyFantasy
 
                         if (value.mp != null)
                         {
-                            EnableLine(mpLine);
+                            // ДА! Тоже завязан показ на жизни
+                            if (value.mpMax>0 && ((value.hp != null && value.hp > 0) || (PlayerController.Instance.player != null && target.key == PlayerController.Instance.player.key)))
+                                EnableLine(mpLine);
+                            else
+                                DisableLine(mpLine);
+
                             FillUpdate(mpLine, (float)value.mp, value.mpMax, mpText, true);
                         }
                         else
@@ -167,21 +176,35 @@ namespace MyFantasy
 
                 if (target.hp != null)
                 {
+                    if (target.hp > 0 || (PlayerController.Instance.player != null && target.key == PlayerController.Instance.player.key))
+                        EnableLine(hpLine);
+                    else
+                        DisableLine(hpLine);
+
                     FillUpdate(hpLine, (float)target.hp, target.hpMax, hpText);
+
                     if (target.lifeBar != null && (PlayerController.Instance.player == null || target.key != PlayerController.Instance.player.key))
                     {
-                        if (target.hp==0)
-                            DisableLine(target.lifeBar);
+                        if (target.hp>0)
+                            EnableLine(target.lifeBar); 
                         else
-                            EnableLine(target.lifeBar);
+                            DisableLine(target.lifeBar);
 
                         FillUpdate(target.lifeBar, (float)target.hp, target.hpMax);
                     }     
                 }
                     
-                if (target.mp != null)
-                    FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
+                if (target.mp!=null)
+                {
+                    // ДА! Тоже завязан показ на жизни
+                    if (target.mpMax>0 && ((target.hp!=null && target.hp>0) || (PlayerController.Instance.player != null && target.key == PlayerController.Instance.player.key)))
+                        EnableLine(mpLine);
+                    else
+                        DisableLine(mpLine);
 
+                    FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
+                }
+                   
                 if (target.animator!=null && target.layerIndex != layerIndex)
                 {
                     Animate();

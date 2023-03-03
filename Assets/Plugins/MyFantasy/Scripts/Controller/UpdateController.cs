@@ -140,6 +140,8 @@ namespace MyFantasy
 				if (ob == null)
 					ob = Resources.Load("Prefabs/" + type + "/Empty", typeof(GameObject));
 
+				if (ob == null) Error("Отсутвует префаб Empty (по умолчанию) для объекта типа " + type);
+
 				prefab = Instantiate(ob) as GameObject;
 				prefab.name = key;
 

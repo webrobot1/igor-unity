@@ -23,7 +23,7 @@ namespace MyFantasy
 			lifeBar = GetComponentInChildren<CanvasGroup>().transform.GetChild(0).GetChild(0).GetComponent<Image>();
 
 			// скороет если при работе со сценой забыли скрыть (оно показается только при выделении на карте существа) 
-			FaceAnimationController.DisableLine(lifeBar);
+			TargetController.DisableLine(lifeBar);
 		}
 
         protected void Start()
