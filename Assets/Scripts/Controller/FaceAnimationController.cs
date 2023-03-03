@@ -18,8 +18,8 @@ namespace MyFantasy
 
         private Text hpText;
         private Text mpText;
+        private Image lifeBarHp;
 
-        private CanvasGroup lifeBar;
         private Animator animator;
         private CanvasGroup targetFrame;
         private SpriteRenderer spriteRender;
@@ -31,6 +31,11 @@ namespace MyFantasy
         [NonSerialized]
         public int layerIndex;
 
+        /// <summary>
+        ///  скорость изменени€ полоски жизней и маны
+        /// </summary>
+        private static float lineSpeed = 3;
+
         private NewObjectModel _target;
         public NewObjectModel target
         {
@@ -39,11 +44,18 @@ namespace MyFantasy
             }
             set 
             {
+                // ниже не даигать тк тут может быть null и мы повторно его присваиваем что бы скрыть заплатки тестовые
+                // +  при переходе с севрера на сервер и объекты уничтожа€сь Ќ≈ вызвают тут set, но null будет сто€ть
+                if(value == null) 
+                    targetFrame.alpha = 0;
+
                 if (_target != value)
                 {
                     // если с прошлого существа есть 
-                    if (_target != null && lifeBar != null)
-                        lifeBar.alpha = 0;
+                    if (_target != null && _target.lifeBar != null)
+                    {
+                        DisableLine(_target.lifeBar);
+                    }
 
                     _target = value;
                     if (value != null)
@@ -66,29 +78,43 @@ namespace MyFantasy
                         // заполним поле жизней сразу
                         if (value.hp != null)
                         {
-                            value.FillUpdate(hpLine, (float)value.hp, value.hpMax, hpText, true);
+                            EnableLine(hpLine);
+                            FillUpdate(hpLine, (float)value.hp, value.hpMax, hpText, true);
 
-                            lifeBar = value.GetComponentInChildren<CanvasGroup>();
-                            if (lifeBar != null && value.hp > 0)
-                                lifeBar.alpha = 1;
+                            if (value.lifeBar != null && (PlayerController.Instance.player == null || value.key != PlayerController.Instance.player.key))
+                            {
+                                if (value.hp > 0)
+                                    EnableLine(value.lifeBar);
+                                FillUpdate(value.lifeBar, (float)value.hp, value.hpMax, null, true);
+                            }
                         }
                         else
-                            hpLine.transform.parent.gameObject.SetActive(false);
+                            DisableLine(hpLine); 
 
                         if (value.mp != null)
                         {
-                            value.FillUpdate(mpLine, (float)value.mp, value.mpMax, mpText, true);
+                            EnableLine(mpLine);
+                            FillUpdate(mpLine, (float)value.mp, value.mpMax, mpText, true);
                         }
                         else
-                            mpLine.transform.parent.gameObject.SetActive(false);
+                            DisableLine(mpLine); 
 
-                        
+                        // покажем целиком верхнюю группу с анимаци€ми      
                         targetFrame.alpha = 1;
                     }
-                    else
-                        targetFrame.alpha = 0;
                 }  
             }
+        }
+
+
+        private void EnableLine(Image line)
+        {
+            line.transform.parent.gameObject.SetActive(true);
+        }
+
+        public static void DisableLine(Image line)
+        {
+            line.transform.parent.gameObject.SetActive(false);
         }
 
         private void Awake()
@@ -136,26 +162,46 @@ namespace MyFantasy
             if (target!=null)
             {
                 CameraUpdate();
+                if (PlayerController.Instance.player == null || (target.key != PlayerController.Instance.player.key && Vector3.Distance(PlayerController.Instance.player.transform.position, target.transform.position) >= PlayerController.Instance.player.lifeRadius))
+                    target = null;
+
                 if (target.hp != null)
                 {
-                    target.FillUpdate(hpLine, (float)target.hp, target.hpMax, hpText);
-                    if (lifeBar != null)
+                    FillUpdate(hpLine, (float)target.hp, target.hpMax, hpText);
+                    if (target.lifeBar != null && (PlayerController.Instance.player == null || target.key != PlayerController.Instance.player.key))
                     {
-                        if (target.hp==0) 
-                            lifeBar.alpha = 0;
-                        else 
-                            lifeBar.alpha = 1;
+                        if (target.hp==0)
+                            DisableLine(target.lifeBar);
+                        else
+                            EnableLine(target.lifeBar);
+
+                        FillUpdate(target.lifeBar, (float)target.hp, target.hpMax);
                     }     
                 }
                     
                 if (target.mp != null)
-                    target.FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
+                    FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
 
                 if (target.animator!=null && target.layerIndex != layerIndex)
                 {
                     Animate();
                 }
             }     
+        }
+
+        private void FillUpdate(Image line, float current, float max, Text text = null, bool force = false)
+        {
+            float newFill = current / max;
+            if (newFill != line.fillAmount || force) //If we have a new fill amount then we know that we need to update the bar
+            {
+                if (force)
+                    line.fillAmount = newFill;
+                else
+                    line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
+
+                if (text != null)
+                    text.text = current + " / " + max;
+            }
         }
 
         private void Animate()

@@ -23,23 +23,29 @@ namespace MyFantasy
 
         /// <summary>
         ///  переопределим свйоство игрока да так что бы и вродительском оставался доступен
+        ///  Todo кроме cameraContoller и FaceController не используется и то оттуда можно убрать перенеся функционал сюда и сделав protected это свойство
         /// </summary>
         public new NewPlayerModel player
         {
             get { return (NewPlayerModel)base.player; }
         }
 
-        private NewObjectModel _target;
         protected NewObjectModel target 
         {
-            get { return _target; } 
-            private set { _target = value; } 
+            get { return targetFaceController.target; } 
+            set 
+            {
+                if (player != null && value != null && value.key != player.key)
+                   targetFaceController.target = value; 
+                else
+                   targetFaceController.target = null;
+            } 
         }
 
         /// <summary>
         ///  это цель которую мы выбрали сами , не автоматическая
         /// </summary>
-        private bool persist_target;
+        protected bool persist_target;
 
         public static PlayerController Instance { get; private set; }
         protected override void Awake()
@@ -61,7 +67,7 @@ namespace MyFantasy
 
         protected override void Start()
         {
-            SelectTarget(null);
+            target = null;
 
             if (ping == null)
                 Error("не присвоен фрейм для статистики пинга");          
@@ -71,6 +77,9 @@ namespace MyFantasy
             
             if (targetFaceController == null)
                 Error("не присвоен фрейм жизней цели");
+
+            // скроем наши заплатки (там тестовые иконки выделенного персонажа и врага)
+            playerFaceController.target = targetFaceController.target = null;
         }
 
         protected override void Update()
@@ -84,36 +93,96 @@ namespace MyFantasy
 
         protected override void FixedUpdate()
         {
-            if (player != null) 
-            { 
-               // если объект (может живой может нет) очень далеко снимем таргет (не важно мы ли его поставили или автоматом)
-               if (target != null && Vector3.Distance(player.transform.position, target.transform.position) >= player.lifeRadius)
-                   SelectTarget(null);
+            base.FixedUpdate();
+        }
 
-                // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
-                // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
-                string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
-                if (attacker != null)
+        protected override void Handle(string json)
+        {
+            HandleData(JsonConvert.DeserializeObject<NewRecive<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>>(json));
+        }
+
+        protected void HandleData(NewRecive<NewPlayerRecive, NewEnemyRecive, NewObjectRecive> recive)
+        {
+            // после ACTION_LOAD старые объекты будут заменены новыми объектами клонами и надо сохранить все ключи что нам нужно будет залинковать с игроком (напрмиер цель)
+            string tmp_target = null;
+            if (recive.action == ACTION_LOAD)
+            {
+                if (target != null)
                 {
-                    NewEnemyModel gameObject = GameObject.Find(attacker).GetComponent<NewEnemyModel>();
-                    if (gameObject != null && CanBeTarget(gameObject)) 
-                    { 
-                        SelectTarget(gameObject);
-                        Debug.LogWarning("Новая цель атаки с сервера: "+ attacker);
+                    tmp_target = target.key;
+                }
+            }
+     
+            base.HandleData(recive);
+
+            if (recive.action == ACTION_LOAD)
+            {
+                // установим иконку нашего персонажа в превью и свяжем его анимацию с ней
+                playerFaceController.target = player;
+
+                if (tmp_target != null && target == null)
+                {
+                    Debug.LogError("Потерялась цель игрока при загрузке " + tmp_target);
+                    GameObject gameObject = GameObject.Find(tmp_target);
+                    if (gameObject == null)
+                    {
+                        target = null;
+                    }
+                    else
+                    {
+                        Debug.LogError("Цель была найдена снова " + tmp_target);
+                        target = gameObject.GetComponent<NewObjectModel>();
+                    }
+                }
+            }
+           
+            if (recive.unixtime > 0)
+                ping.text = "PING: " + Ping() * 1000 + " мс."; 
+        }
+
+        protected override GameObject UpdateObject(string side, string key, ObjectRecive recive, string type)
+        {
+            NewObjectModel model = base.UpdateObject(side, key, recive, type).GetComponent<NewObjectModel>();
+
+            if (player!=null)
+            {
+                if (key == player.key)
+                {
+                    if (recive.events!=null && recive.events.ContainsKey(AttackResponse.GROUP))
+                    {
+                        // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
+                        // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
+                        string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+                        if (attacker != null)
+                        {
+                            NewEnemyModel gameObject = GameObject.Find(attacker).GetComponent<NewEnemyModel>();
+                            if (gameObject != null && CanBeTarget(gameObject))
+                            {
+                                target = gameObject;
+                                Debug.LogWarning("Новая цель атаки с сервера: " + attacker);
+                            }
+                        }
+                    }
+                }
+                else if(recive.events != null && recive.events.ContainsKey(AttackResponse.GROUP))
+                {
+                    // если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
+                    if (
+                        CanBeTarget(model)
+                            &&
+                        model.getEventData<AttackDataRecive>(AttackResponse.GROUP).target == player.key)
+                    {
+                        // то передадим инфомрацию игроку что бы мы стали его целью
+                        target = model;
+                        Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
                     }
                 }
             }
 
-            base.FixedUpdate();
+            return model.gameObject;
         }
 
-        protected override void SetPlayer(ObjectModel player)
-        {
-            base.SetPlayer(player);
-            playerFaceController.target = (NewEnemyModel)player;
-        }
-
-        public bool CanBeTarget(NewObjectModel gameObject)
+        private bool CanBeTarget(NewObjectModel gameObject)
         {
             return
             (
@@ -135,37 +204,6 @@ namespace MyFantasy
                      )
                  )
              );
-        }
-
-        public void SelectTarget(NewObjectModel new_target, bool persist = false)
-        {
-            if (player!=null && new_target != null && new_target.key != player.key)
-            {
-                // если дальше чем поле видимости игрока то не ставим выделение (может там другой игрок ходит рядом и существо продолжило идти к игроку поэтому)
-                if (Vector3.Distance(player.transform.position, new_target.transform.position) < player.lifeRadius)
-                {
-                    targetFaceController.target = target = new_target;
-                    persist_target = persist;
-                }
-            }
-            else 
-            {
-                targetFaceController.target = target = null;
-                persist_target = false;
-            }
-        }
-
-        protected override void Handle(string json)
-        {
-            HandleData(JsonConvert.DeserializeObject<NewRecive<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>>(json));
-        }
-
-        protected void HandleData(NewRecive<NewPlayerRecive, NewEnemyRecive, NewObjectRecive> recive)
-        {
-            base.HandleData(recive);
-
-            if(recive.unixtime>0)
-                ping.text = "PING: "+ Ping() * 1000+" мс.";
         }
     }
 }

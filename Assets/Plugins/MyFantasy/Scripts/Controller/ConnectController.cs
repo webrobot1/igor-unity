@@ -232,59 +232,66 @@ namespace MyFantasy
 				};
 				connect.OnMessage += (sender, ev) =>
 				{
-					string text = Encoding.UTF8.GetString(ev.RawData);
-
-					#if UNITY_EDITOR
-						Debug.Log(DateTime.Now.Millisecond + ": " + text);
-					#endif
-
-					if (coroutine == null && !reload) 
+					try
 					{
-						Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
+						string text = Encoding.UTF8.GetString(ev.RawData);
 
-						if (recive.error != null)
+#if UNITY_EDITOR
+						Debug.Log(DateTime.Now.Millisecond + ": " + text);
+#endif
+
+						if (coroutine == null && !reload)
 						{
-							Error(recive.error);
-						}
-						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
-						else if (recive.action == ACTION_RECONNECT)
-						{
-							Debug.LogWarning("Перезаход в игру");
-							
-							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-							reload = true;
-							// обнулим наше соединение что бы Close() не пытался его закрыть его сам асинхроно (а то уже при установке нового соединения может закрыть новое )
-							connect = null;
-							Close();
-						}
-						else
-						{ 
-							if (recive.action == ACTION_LOAD)
+							Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
+
+							if (recive.error != null)
 							{
-								// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
-								// очищать можно только тут loading  не давал Update
-								recives.Clear();
-
-								// снимем флаг загрузки и разрешим отправлять пакеты к серверу
-								loading = null;
+								Error(recive.error);
 							}
-
-							// это тоже обновим тут что бы ping и pings не делать protected 
-							if (recive.unixtime > 0)
+							// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
+							else if (recive.action == ACTION_RECONNECT)
 							{
-								pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
+								Debug.LogWarning("Перезаход в игру");
 
-								if ((max_ping_history > 0 && pings.Count > max_ping_history) || pings.Count == 1)
+								// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
+								reload = true;
+								// обнулим наше соединение что бы Close() не пытался его закрыть его сам асинхроно (а то уже при установке нового соединения может закрыть новое )
+								connect = null;
+								Close();
+							}
+							else
+							{
+								if (recive.action == ACTION_LOAD)
 								{
-									ping = Math.Round((pings.Sum() / pings.Count), 3);
+									// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
+									// очищать можно только тут loading  не давал Update
+									recives.Clear();
 
-									if (max_ping_history > 0 && pings.Count > max_ping_history)
-										pings.RemoveRange(0, pings.Count - min_ping_history);
+									// снимем флаг загрузки и разрешим отправлять пакеты к серверу
+									loading = null;
 								}
-							}
 
-							recives.Add(text);
+								// это тоже обновим тут что бы ping и pings не делать protected 
+								if (recive.unixtime > 0)
+								{
+									pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
+
+									if ((max_ping_history > 0 && pings.Count > max_ping_history) || pings.Count == 1)
+									{
+										ping = Math.Round((pings.Sum() / pings.Count), 3);
+
+										if (max_ping_history > 0 && pings.Count > max_ping_history)
+											pings.RemoveRange(0, pings.Count - min_ping_history);
+									}
+								}
+
+								recives.Add(text);
+							}
 						}
+					}
+					catch(Exception ex)
+                    {
+						Error("Ошибка получения сообщения от сервера: "+ex);
 					}
 				};
 				connect.Connect();
@@ -396,7 +403,10 @@ namespace MyFantasy
 		private void Put2Send(string json)
 		{
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
-			connect.Send(sendBytes);
+
+			// тк у нас в аралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
+			if(connect!=null)
+				connect.Send(sendBytes);
 		}
 
 		public static new void Error (string text)

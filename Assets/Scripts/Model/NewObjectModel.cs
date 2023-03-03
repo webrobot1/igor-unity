@@ -15,6 +15,7 @@ namespace MyFantasy
 	[RequireComponent(typeof(Collider))]
 	public class NewObjectModel : ObjectModel
 	{
+		[NonSerialized]
 		public Animator animator;
 
 		/// <summary>
@@ -37,8 +38,12 @@ namespace MyFantasy
 		/// </summary>
 		[NonSerialized]
 		public int? hp = null;
-		[SerializeField]
-		protected Image health;
+
+		/// <summary>
+		/// поле с жизнями выделленого существа
+		/// </summary>
+		[NonSerialized]
+		public Image lifeBar;
 
 		/// <summary>
 		/// может быть null если мы через этот класс выделилил объект
@@ -51,10 +56,6 @@ namespace MyFantasy
 		[NonSerialized]
 		public int mpMax;
 
-		/// <summary>
-		///  скорость изменения полоски жизней и маны
-		/// </summary>
-		private static float lineSpeed = 3;
 
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
@@ -103,6 +104,8 @@ namespace MyFantasy
 				animator.GetLayerName(layerIndex) != "idle"  
 					&& 				
 				action != "dead"  
+					&& 				
+				action != ConnectController.ACTION_REMOVE 
 					&& 
 				(animator.GetCurrentAnimatorStateInfo(layerIndex).loop || animator.GetCurrentAnimatorStateInfo(layerIndex).normalizedTime >= 1.0f) 
 					&& 
@@ -114,20 +117,6 @@ namespace MyFantasy
 			}
 		}
 
-		public void FillUpdate(Image line, float current, float max, Text text = null, bool force = false)
-		{
-			line.transform.parent.gameObject.SetActive(true);
-			float newFill = current / max;
-			if (newFill != line.fillAmount) //If we have a new fill amount then we know that we need to update the bar
-			{
-				if (force)
-					line.fillAmount = newFill;
-				else
-					line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
-				if (text != null)
-					text.text = current + " / " + max;
-			}
-		}
 
 		public override void SetData(ObjectRecive recive)
 		{
@@ -147,27 +136,17 @@ namespace MyFantasy
 					StopCoroutine(moveCoroutine);
 				}
 
-				if (recive.action == ConnectController.ACTION_REMOVE)
-					recive.action = "walk";
-
 				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
-				if (recive.action == "walk" && position != transform.position)
+				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && position != transform.position)
 					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
 				else
 					transform.position = position;
 			}
 
-			// следующий код применим только к объектам - предметам, он повернет их
-            if(this.GetType().Name == "NewObjectModel")
-			{ 
-				float angle = Mathf.Atan2(forward.x, forward.y) * Mathf.Rad2Deg*-1;
-				transform.rotation = Quaternion.Euler(0, 0, angle);
-			}
-
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null)
 			{
-				if (animator != null)
+				if (animator != null && recive.action!=ConnectController.ACTION_REMOVE)
 				{
 					int layerIndex = animator.GetLayerIndex(recive.action);
 					if(layerIndex==-1)
@@ -236,6 +215,13 @@ namespace MyFantasy
 			}
 
 			moveCoroutine = null;
+		}
+
+		protected override IEnumerator Destroy()
+		{
+			Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));
+			yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.01f);
+			Destroy(gameObject);
 		}
 	}
 }

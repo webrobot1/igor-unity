@@ -69,16 +69,25 @@ namespace MyFantasy
 				this.action = recive.action;		
 			
 			if (recive.forward_x != null || recive.forward_y != null)
-				this.transform.forward.Set(recive.forward_x ?? this.transform.forward.x, recive.forward_y ?? this.transform.forward.y, this.transform.forward.z);
+            {
+				forward = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y, this.transform.forward.z);
+
+				this.transform.forward.Set(forward.x, forward.y, forward.z);
+
+				// следующий код применим только к объектам - предметам, он повернет их
+				if (type == "objects") 
+				{ 
+					float angle = Mathf.Atan2(forward.x, forward.y) * Mathf.Rad2Deg * -1;
+					transform.rotation = Quaternion.Euler(0, 0, angle);
+				}
+			}
+				
 
 			if (recive.x != null && recive.y != null && recive.z != null && recive.map_id > 0)
             {
 				Vector3 vector = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
 				if(transform.position!= vector)
                 {
-					if(position!=Vector3.zero)
-						Debug.LogWarning("Моментальные телепорт " + key + " при загрузке в " + vector.ToString());
-
 					transform.position = vector;
 				}					
 			}
@@ -101,12 +110,7 @@ namespace MyFantasy
 			if (recive.z != null)
 			{
 				position.z = (float)recive.z;
-			}			
-			
-			if (recive.forward_x != null || recive.forward_y!=null)
-			{
-				forward = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
-			}			
+			}					
 
 			if (recive.sort != null)
 				this.sort = (int)recive.sort;
@@ -148,8 +152,7 @@ namespace MyFantasy
 					}
 
 					// если false то сервер создал это событие. true по умолчанию 
-					if(kvp.Value.is_client != null)
-						events[kvp.Key].is_client = kvp.Value.is_client;
+					events[kvp.Key].is_client = kvp.Value.is_client;
 
 					if (kvp.Value.action != null) 
 					{ 
@@ -176,6 +179,12 @@ namespace MyFantasy
 			return events[group];
 		}
 
+		public T getEventData<T>(string group) where T : new()
+		{
+			EventRecive ev = getEvent(group);
+			return ev.data != null ? ev.data.ToObject<T>() : new T();
+		}
+
 		/// <summary>
 		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами) 
 		/// </summary>
@@ -191,16 +200,24 @@ namespace MyFantasy
 		protected virtual IEnumerator Remove(int map_id, bool change_map = false)
 		{
 			DateTime start = DateTime.Now;
-            while (DateTime.Compare(start.AddSeconds(change_map?5:0.5f), DateTime.Now) >= 1)
-            {
-				// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
-				if (this.map_id != map_id)
-					yield break;
+            if (change_map) 
+			{ 
+				while (DateTime.Compare(start.AddSeconds(5), DateTime.Now) >= 1)
+				{
+					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
+					if (this.map_id != map_id)
+						yield break;
 					
-				yield return new WaitForFixedUpdate();
+					yield return new WaitForFixedUpdate();
+				}
 			}
-
+			StartCoroutine(this.Destroy());
+		}
+		
+		protected virtual IEnumerator Destroy()
+		{
 			Destroy(gameObject);
+			yield return null;
 		}
 	}
 }

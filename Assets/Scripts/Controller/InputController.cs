@@ -106,13 +106,14 @@ namespace MyFantasy
                                 NewObjectModel new_target = hit.collider.GetComponent<NewObjectModel>();
                                 if(new_target != null)
                                 {
-                                    SelectTarget(new_target, true);
+                                    target = new_target;
+                                    base.persist_target = true;
                                     Debug.Log("Кликнули на " + new_target.key);
                                 }
                             }
                             else
                             {
-                                SelectTarget(null);
+                                target = null;
                                 move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
                                 if (Vector3.Distance(player.position, move_to) < 1.15f)
                                     move_to = Vector3.zero;

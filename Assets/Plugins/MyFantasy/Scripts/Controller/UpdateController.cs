@@ -119,15 +119,11 @@ namespace MyFantasy
 			}
 		}
 
-		protected virtual void SetPlayer(ObjectModel new_player)
-        {
-			player = new_player;
-		}
 
 		/// <summary>
 		/// обработка кокнретной сущности (создание и обновлелние)
 		/// </summary>
-		protected virtual void UpdateObject(string side, string key, ObjectRecive recive, string type)
+		protected virtual GameObject UpdateObject(string side, string key, ObjectRecive recive, string type)
 		{
 			Debug.Log("Обрабатываем "+type+" "+key+" на карте "+side);
 
@@ -137,12 +133,6 @@ namespace MyFantasy
 			// если игрока нет на сцене
 			if (prefab == null)
 			{
-				// если игрок не добавляется на карту и при этом нет такого игркоа на карте - это запоздавшие сообщение разлогиненного
-				if (recive.prefab == null || recive.prefab.Length == 0)
-				{
-					return;
-				}
-
 				Debug.Log("Создаем " + recive.prefab + " " + key);
 
 				UnityEngine.Object ob = Resources.Load("Prefabs/" + type + "/" + recive.prefab, typeof(GameObject));
@@ -160,7 +150,7 @@ namespace MyFantasy
 
 				if (key == player_key)
 				{
-					SetPlayer(prefab.GetComponent<ObjectModel>());
+					player = model;
 				}
 
 				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
@@ -188,6 +178,8 @@ namespace MyFantasy
 				Debug.LogException(ex);
 				Error("Не удалось загрузить " + key);
 			}
+
+			return prefab;
 		}
 
 		/// <summary>

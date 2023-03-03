@@ -19,34 +19,17 @@ namespace MyFantasy
 
 		protected void Start()
 		{
-			if (health == null)
-				PlayerController.Error("Не найдено в группе поле жизней сущности "+key);
+			lifeBar = GetComponentInChildren<CanvasGroup>().transform.GetChild(0).GetChild(0).GetComponent<Image>();
+			if (lifeBar == null)
+				PlayerController.Error("Не найдено в группе поле статистики сущности "+key);
 
-			health.GetComponentInParent<CanvasGroup>().alpha = 0;
+			// скороет если при работе со сценой забыли скрыть (оно показается только при выделении на карте существа) 
+			FaceAnimationController.DisableLine(lifeBar);
 		}
 
 		public override void SetData(ObjectRecive recive)
 		{
 			this.SetData((NewEnemyRecive)recive);
-		}
-
-        protected void FixedUpdate()
-        {
-			if(hp!=null)
-				FillUpdate(health, (int)hp, hpMax);
-
-			// если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
-			if (
-				PlayerController.Instance.player != null
-					&&
-				PlayerController.Instance.CanBeTarget(this)
-					&&
-				getEventData<AttackDataRecive>(AttackResponse.GROUP).target == PlayerController.Instance.player.key)
-			{
-				// то передадим инфомрацию игроку что бы мы стали его целью
-				PlayerController.Instance.SelectTarget(this);
-				Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
-			}
 		}
 
         protected void SetData(NewEnemyRecive recive)
@@ -85,11 +68,6 @@ namespace MyFantasy
 			base.SetData(recive);		
 		}
 
-		public T getEventData<T>(string group) where T : new()
-		{
-			EventRecive ev = base.getEvent(group);
-			return ev.data != null ? ev.data.ToObject<T>() : new T();
-		}
 
 		protected virtual void Dead()
         {
