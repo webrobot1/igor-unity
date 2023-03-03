@@ -26,7 +26,7 @@ namespace MyFantasy
 		///  активный слой анимации
 		/// </summary>
 		[NonSerialized]
-		public int? layerIndex = null;
+		public int layerIndex = 0;
 
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
 		private DateTime activeLast = DateTime.Now;
@@ -100,13 +100,11 @@ namespace MyFantasy
 			if (
 				animator != null 
 					&& 
-				layerIndex != null 
-					&&
-				animator.GetLayerName((int)layerIndex) != "idle"  
+				animator.GetLayerName(layerIndex) != "idle"  
 					&& 				
 				action != "dead"  
 					&& 
-				(animator.GetCurrentAnimatorStateInfo((int)layerIndex).loop || animator.GetCurrentAnimatorStateInfo((int)layerIndex).normalizedTime >= 1.0f) 
+				(animator.GetCurrentAnimatorStateInfo(layerIndex).loop || animator.GetCurrentAnimatorStateInfo(layerIndex).normalizedTime >= 1.0f) 
 					&& 
 				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
 			)
@@ -149,7 +147,10 @@ namespace MyFantasy
 					StopCoroutine(moveCoroutine);
 				}
 
-				if (recive.action == "walk")
+				if (recive.action == ConnectController.ACTION_REMOVE)
+					recive.action = "walk";
+
+				if (recive.action == "walk" && position != transform.position)
 					moveCoroutine = StartCoroutine(Walk(position));
 				else
 					transform.position = position;

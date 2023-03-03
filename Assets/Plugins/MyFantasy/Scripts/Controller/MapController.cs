@@ -124,7 +124,7 @@ namespace MyFantasy
 			}
 		}
 
-		public void SortMap()
+		protected void SortMap()
 		{
 			foreach (Transform grid in mapObject.transform)
 			{

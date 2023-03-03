@@ -35,8 +35,9 @@ namespace MyFantasy
 
 		/// <summary>
 		/// Префаб нашего игрока
+		/// TODO переделать в нестатический
 		/// </summary>
-		public static ObjectModel player;
+		public ObjectModel player;
 
 		/// <summary>
 		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
@@ -61,8 +62,8 @@ namespace MyFantasy
 		/// <summary>
 		/// флаг что нужно переподключаться игнорируюя все запросы в очереди
 		/// </summary>
-		private static bool reload = false;		
-		
+		private static bool reload = false;
+
 		/// <summary>
 		/// блокирует отправку любых запросов на сервер (тк уже идет соединение). только событие load (получения с сервера игрового мира) снимает его
 		/// </summary>
@@ -87,7 +88,7 @@ namespace MyFantasy
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
 		/// </summary>
 		private static double ping = 0;
-		
+
 		/// <summary>
 		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
 		/// </summary>
@@ -113,10 +114,18 @@ namespace MyFantasy
 		/// </summary>
 		protected static int min_ping_history = 5;
 
+		protected virtual void Update() 
+		
+		{ 
+		
+		}
+
+
+
 		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
 		/// </summary>
-		protected virtual void Update()
+		protected virtual void FixedUpdate()
 		{
 			// если не загружаем сцену регистрации (по ошибке)
 			if (coroutine == null)
@@ -143,7 +152,7 @@ namespace MyFantasy
 					int count = recives.Count;
 					if (count > 0)
 					{
-						for (int i = 0; i < count && loading==null; i++)
+						for (int i = 0; i < count; i++)
 						{
 							try
 							{
@@ -225,7 +234,7 @@ namespace MyFantasy
 				{
 					string text = Encoding.UTF8.GetString(ev.RawData);
 
-					#if !UNITY_WEBGL || UNITY_EDITOR
+					#if UNITY_EDITOR
 						Debug.Log(DateTime.Now.Millisecond + ": " + text);
 					#endif
 
@@ -240,12 +249,13 @@ namespace MyFantasy
 						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
 						else if (recive.action == ACTION_RECONNECT)
 						{
+							Debug.LogWarning("Перезаход в игру");
+							
+							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
+							reload = true;
 							// обнулим наше соединение что бы Close() не пытался его закрыть его сам асинхроно (а то уже при установке нового соединения может закрыть новое )
 							connect = null;
 							Close();
-
-							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-							reload = true;
 						}
 						else
 						{ 
@@ -370,9 +380,6 @@ namespace MyFantasy
 
 		private static void Close()
 		{	
-			// что бы игрок более не мог посылать команды
-			player = null;
-
 			// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
 			loading = DateTime.Now;
 
@@ -382,8 +389,8 @@ namespace MyFantasy
 					connect.CloseAsync(WebSocketSharp.CloseStatusCode.Normal);
 
 				connect = null;
+				Debug.LogWarning("Закрытие соединения вручную");
 			}
-			Debug.LogWarning("Закрытие соединения вручную");
 		}
 
 		private void Put2Send(string json)

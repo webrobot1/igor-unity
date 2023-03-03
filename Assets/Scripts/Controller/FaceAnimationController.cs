@@ -9,6 +9,8 @@ namespace MyFantasy
     public class FaceAnimationController: MonoBehaviour
     {
         [SerializeField]
+        private float aspect = 30;
+        [SerializeField]
         private Image hpLine;
         [SerializeField]
         private Image mpLine;        
@@ -37,17 +39,19 @@ namespace MyFantasy
             }
             set 
             {
-                // если с прошлого существа есть 
-                if (_target != null && lifeBar != null)
-                    lifeBar.alpha = 0;
-
-                if (value != null)
+                if (_target != value)
                 {
-                    if (_target != value)
+                    // если с прошлого существа есть 
+                    if (_target != null && lifeBar != null)
+                        lifeBar.alpha = 0;
+
+                    _target = value;
+                    if (value != null)
                     {
                         if (value.animator != null)
                         {
                             animator.runtimeAnimatorController = value.animator.runtimeAnimatorController;
+                            Animate();
                         }
                         else 
                         {
@@ -81,12 +85,9 @@ namespace MyFantasy
                         
                         targetFrame.alpha = 1;
                     }
-                }
-                else
-                    targetFrame.alpha = 0;
-
-
-                _target = value;
+                    else
+                        targetFrame.alpha = 0;
+                }  
             }
         }
 
@@ -115,6 +116,7 @@ namespace MyFantasy
             mpText = mpLine.GetComponentInChildren<Text>();
         }
 
+        // если изображения анимации с сильно отличабщимеся pivot to возможно надо будет каждый FixedUpdate делать этот метод для пересчета положения камеры и объекта что бы он не выходил за рамки
         void CameraUpdate()
         {
             // формула ниже сместит изображение выделелнного предмета так что бы оно оставалось в центре (смещаться будет если pivot отличается от (0.5, 0.5) )
@@ -124,12 +126,9 @@ namespace MyFantasy
 
             float max = Mathf.Max(spriteRender.sprite.rect.size.x / spriteRender.sprite.pixelsPerUnit, spriteRender.sprite.rect.size.y / spriteRender.sprite.pixelsPerUnit);
 
-            // эта пропорция изменит отдаленность камерыб число 0.15f  это контента которая была выситана с учетом размера окна на 1х1 unit размера изображения умножается как раз на юниты размера (считаюстя как текущий размер деленый на pixelsPerUnit)
-            // face_camera.orthographicSize = 0.15f * max;
-            face_camera.fieldOfView = 26.136f * max;
-
-            //Debug.Log(1.78f-(float)Screen.width / (float)Screen.height);
-            //Debug.Log(face_camera.aspect);
+            // эта пропорция изменит отдаленность камерыб число aspect  это контента которая была выситана с учетом размера окна на 1х1 unit размера изображения умножается как раз на юниты размера (считаюстя как текущий размер деленый на pixelsPerUnit)
+            // face_camera.orthographicSize = aspect * max;
+            face_camera.fieldOfView = aspect * max;
         }
 
         private void FixedUpdate()
@@ -152,12 +151,17 @@ namespace MyFantasy
                 if (target.mp != null)
                     target.FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
 
-                if (target.animator!=null && target.layerIndex!=null && target.layerIndex != layerIndex)
+                if (target.animator!=null && target.layerIndex != layerIndex)
                 {
-                    target.Animate(animator, (int)target.layerIndex);
-                    layerIndex = (int)target.layerIndex;
+                    Animate();
                 }
             }     
+        }
+
+        private void Animate()
+        {
+            target.Animate(animator, target.layerIndex);
+            layerIndex = target.layerIndex;
         }
     }
 }

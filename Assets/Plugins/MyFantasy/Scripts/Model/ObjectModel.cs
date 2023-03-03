@@ -50,6 +50,7 @@ namespace MyFantasy
 		[NonSerialized]
 		public Vector3 position = Vector3.zero;
 
+
 		/// <summary>
 		/// установка данных пришедших с сервера объекту 
 		/// </summary>
@@ -57,22 +58,14 @@ namespace MyFantasy
 		{
 			// пришла команды удаления с карты объекта
 			if (recive.action == ConnectController.ACTION_REMOVE)
-			{
-				// удалим нашего игрока (этот признак принято использовать что бы првоерить можно ли слать команды на сервер), тк после этого сообщения соединение будет разорвано
-				if (key == ConnectController.player_key)
-					ConnectController.player = null;
-
-				StartCoroutine(Remove());
-				return;
-			}
-
+				StartCoroutine(Remove(map_id));
+				
 			if (recive.action != null)
 				this.action = recive.action;		
 			
 			if (recive.forward_x != null || recive.forward_y != null)
 				this.transform.forward.Set(recive.forward_x ?? this.transform.forward.x, recive.forward_y ?? this.transform.forward.y, this.transform.forward.z);			
 			
-
 			if (this.key == null)
 			{
 				if(recive.x != null && recive.y != null && recive.z != null)
@@ -180,9 +173,18 @@ namespace MyFantasy
 		/// <summary>
 		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
 		/// </summary>
-		protected virtual IEnumerator Remove()
+		protected virtual IEnumerator Remove(int map_id)
 		{
-			yield return new WaitForSeconds(0.5f);
+			DateTime start = DateTime.Now;
+            while (DateTime.Compare(start.AddSeconds(5), DateTime.Now) >= 1)
+            {
+				// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
+				if (this.map_id != map_id)
+					yield break;
+					
+				yield return new WaitForFixedUpdate();
+			}
+
 			Destroy(gameObject);
 		}
 	}

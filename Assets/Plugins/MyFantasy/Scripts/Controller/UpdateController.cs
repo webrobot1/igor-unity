@@ -32,15 +32,23 @@ namespace MyFantasy
 				switch (recive.action)
 				{
 					case ACTION_LOAD:
+						Debug.LogWarning("полная перезагрузка мира");
 
 						// удаляет не сразу а на следующем кадре все карты
 						// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
-						foreach (var child in base.worldObject.transform.Cast<Transform>().ToList())
-						{
-							DestroyImmediate(child.gameObject);
-						}
-						Debug.LogWarning("полная перезагрузка мира");
-						break;
+						foreach (var side in base.worldObject.transform.Cast<Transform>().ToList())
+						{ 
+							foreach (var child in side.transform.Cast<Transform>().ToList())
+							{
+								if (player == null || child.gameObject.name != player.gameObject.name)
+								{
+									DestroyImmediate(child.gameObject);
+								}
+								else
+									Debug.Log("Не очищаем игрока при перезагрузке");
+							}
+						}	
+					break;
 				}
 			}
 
@@ -144,7 +152,6 @@ namespace MyFantasy
 
 				prefab = Instantiate(ob) as GameObject;
 				prefab.name = key;
-				prefab.transform.SetParent(worldObject.transform.Find(side).transform, false);
 
 				model = prefab.GetComponent<ObjectModel>();
 				if (model == null) Error("Отсутвует скрипт модели на объекте " + key);
@@ -163,8 +170,12 @@ namespace MyFantasy
 						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + model.sort;
 				}
 			}
-			else
+            else 
+			{
 				model = prefab.GetComponent<ObjectModel>();
+			}
+
+			prefab.transform.SetParent(worldObject.transform.Find(side).transform, false);
 
 			try
 			{
@@ -180,12 +191,14 @@ namespace MyFantasy
 		/// <summary>
 		/// Обработка пакета - с какой стороны какая ID карты на сцене
 		/// </summary>
-		protected virtual void UpdateSides(Dictionary<string, int> sides)
+		private void UpdateSides(Dictionary<string, int> sides)
 		{
 			Debug.Log("Обрабатываем стороны карт");
 
 			if (!sides.ContainsKey("center")) Error("Запись о центральной карте не пришла");
+			
 			this.sides = sides;
+			mapObject.SetActive(false);
 
 			// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
 			if (this.maps.Count > 0)
@@ -221,6 +234,7 @@ namespace MyFantasy
 					SortMap();
 				}
 			}
+			mapObject.SetActive(true);
 
 			// загрузим отвутвующую графику центральной и смежных карт 
 			// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)

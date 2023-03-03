@@ -26,7 +26,7 @@ namespace MyFantasy
         /// </summary>
         public new NewPlayerModel player
         {
-            get { return (NewPlayerModel)ConnectController.player; }
+            get { return (NewPlayerModel)base.player; }
         }
 
         private NewObjectModel _target;
@@ -77,12 +77,12 @@ namespace MyFantasy
         {
             deltaTime += (Time.deltaTime - deltaTime) * 0.1f;
             float fps = 1.0f / deltaTime;
-            this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString() + " мс.";
+            this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString();
 
             base.Update();
         }
 
-        protected virtual void FixedUpdate()
+        protected override void FixedUpdate()
         {
             if (player != null) 
             { 
@@ -103,6 +103,8 @@ namespace MyFantasy
                     }
                 }
             }
+
+            base.FixedUpdate();
         }
 
         protected override void SetPlayer(ObjectModel player)

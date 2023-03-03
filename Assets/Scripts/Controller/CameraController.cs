@@ -16,26 +16,26 @@ public class CameraController : MonoBehaviour
 
     private void Update()
     {
-        if (ConnectController.player != null)
+        if (PlayerController.Instance.player != null)
 		{
-            transform.position = new Vector3(ConnectController.player.transform.position.x, ConnectController.player.transform.position.y, transform.position.z);
+            transform.position = new Vector3(PlayerController.Instance.player.transform.position.x, PlayerController.Instance.player.transform.position.y, transform.position.z);
             float screenRation = (float)Screen.width / (float)Screen.height;
 
             /// <summary>
             /// зона видимости вокруг игрока
             /// </summary>
-            float targetRation = 12 / 12;
+            float targetRation = 1;
             float size;
             if (screenRation != float.NaN) 
             {
                 if (screenRation >= targetRation)
                 { 
-                    size = 12 / 2;
+                    size = (PlayerController.Instance.player.lifeRadius - 0.5f) / 2;
                 }
                 else
                 {
                     float defferenceSize = targetRation / screenRation;
-                    size = 12 / 2 * defferenceSize;
+                    size = (PlayerController.Instance.player.lifeRadius - 0.5f) / 2 * defferenceSize;
                 }
 
                 if(this.last_size != size)
