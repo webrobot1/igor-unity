@@ -150,8 +150,9 @@ namespace MyFantasy
 				if (recive.action == ConnectController.ACTION_REMOVE)
 					recive.action = "walk";
 
+				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
 				if (recive.action == "walk" && position != transform.position)
-					moveCoroutine = StartCoroutine(Walk(position));
+					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
 				else
 					transform.position = position;
 			}
@@ -216,14 +217,12 @@ namespace MyFantasy
 		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
 		/// </summary>
 		/// <param name="position">куда движемя</param>
-		private IEnumerator Walk(Vector3 position)
+		private IEnumerator Walk(Vector3 position, double timeout)
 		{
-			yield return new WaitForFixedUpdate();
-
 			float distance;
 
 			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
-			double distancePerUpdate = Vector3.Distance(transform.position, position) / ((getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)) / Time.fixedDeltaTime);
+			double distancePerUpdate = Vector3.Distance(transform.position, position) / (timeout / Time.fixedDeltaTime);
 
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
