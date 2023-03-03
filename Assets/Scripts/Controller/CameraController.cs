@@ -16,7 +16,7 @@ public class CameraController : MonoBehaviour
 
     private void Update()
     {
-        if (PlayerController.Instance.player != null)
+        if (PlayerController.Instance!=null && PlayerController.Instance.player != null)
 		{
             transform.position = new Vector3(PlayerController.Instance.player.transform.position.x, PlayerController.Instance.player.transform.position.y, transform.position.z);
             float screenRation = (float)Screen.width / (float)Screen.height;

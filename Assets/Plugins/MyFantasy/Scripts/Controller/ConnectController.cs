@@ -37,6 +37,7 @@ namespace MyFantasy
 		/// Префаб нашего игрока
 		/// TODO переделать в нестатический
 		/// </summary>
+		[NonSerialized]
 		public ObjectModel player;
 
 		/// <summary>

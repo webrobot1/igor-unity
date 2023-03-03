@@ -21,6 +21,6 @@ namespace MyFantasy
         public JObject data;
         public DateTime finish = DateTime.Now;
 
-        public bool is_client = false;          // флаг что команду отправили мы. если false то над разрешить до таймаута отправлять подобные комнад (если они пуличные) если хотим сбросить
+        public bool? is_client = null;          // флаг что команду отправили мы. если false то над разрешить до таймаута отправлять подобные комнад (если они пуличные) если хотим сбросить
     }
 }

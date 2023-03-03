@@ -152,7 +152,8 @@ namespace MyFantasy
 					}
 
 					// если false то сервер создал это событие. true по умолчанию 
-					events[kvp.Key].is_client = kvp.Value.is_client;
+					if (kvp.Value.is_client!=null)
+						events[kvp.Key].is_client = kvp.Value.is_client;
 
 					if (kvp.Value.action != null) 
 					{ 
