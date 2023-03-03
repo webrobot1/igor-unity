@@ -17,14 +17,19 @@ namespace MyFantasy
 		/// </summary>
 		protected float speed;
 
-		protected void Start()
-		{
+        protected override void Awake()
+        {
+			base.Awake();
 			lifeBar = GetComponentInChildren<CanvasGroup>().transform.GetChild(0).GetChild(0).GetComponent<Image>();
-			if (lifeBar == null)
-				PlayerController.Error("Не найдено в группе поле статистики сущности "+key);
 
 			// скороет если при работе со сценой забыли скрыть (оно показается только при выделении на карте существа) 
 			FaceAnimationController.DisableLine(lifeBar);
+		}
+
+        protected void Start()
+		{		
+			if (lifeBar == null)
+				PlayerController.Error("Не найдено в группе поле статистики сущности "+key);
 		}
 
 		public override void SetData(ObjectRecive recive)
