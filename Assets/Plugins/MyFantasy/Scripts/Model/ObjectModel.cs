@@ -20,7 +20,13 @@ namespace MyFantasy
 		/// индентификатор сущности
 		/// </summary>
 		[NonSerialized]
-		public string key;
+		public string key;		
+		
+		/// <summary>
+		/// тип сущности
+		/// </summary>
+		[NonSerialized]
+		public string type;
 
 		/// <summary>
 		/// может изменится в процессе игры (переход на другую локацию)
@@ -50,7 +56,6 @@ namespace MyFantasy
 		[NonSerialized]
 		public Vector3 position = Vector3.zero;
 
-
 		/// <summary>
 		/// установка данных пришедших с сервера объекту 
 		/// </summary>
@@ -58,7 +63,7 @@ namespace MyFantasy
 		{
 			// пришла команды удаления с карты объекта
 			if (recive.action == ConnectController.ACTION_REMOVE)
-				StartCoroutine(Remove(map_id));
+				StartCoroutine(Remove(map_id, (recive.map_id>0)));
 				
 			if (recive.action != null)
 				this.action = recive.action;		
@@ -68,10 +73,16 @@ namespace MyFantasy
 
 			if (recive.x != null && recive.y != null && recive.z != null && recive.map_id > 0)
             {
-				if(moveCoroutine!=null) transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
+				Vector3 vector = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
+				if(transform.position!= vector)
+                {
+					if(position!=Vector3.zero)
+						Debug.LogWarning("Моментальные телепорт " + key + " при загрузке в " + vector.ToString());
+
+					transform.position = vector;
+				}					
 			}
 				
-
 			if (this.key == null)
 			{
 				this.key = this.gameObject.name;
@@ -177,10 +188,10 @@ namespace MyFantasy
 		/// <summary>
 		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
 		/// </summary>
-		protected virtual IEnumerator Remove(int map_id)
+		protected virtual IEnumerator Remove(int map_id, bool change_map = false)
 		{
 			DateTime start = DateTime.Now;
-            while (DateTime.Compare(start.AddSeconds(5), DateTime.Now) >= 1)
+            while (DateTime.Compare(start.AddSeconds(change_map?5:0.5f), DateTime.Now) >= 1)
             {
 				// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
 				if (this.map_id != map_id)

@@ -156,6 +156,8 @@ namespace MyFantasy
 				model = prefab.GetComponent<ObjectModel>();
 				if (model == null) Error("Отсутвует скрипт модели на объекте " + key);
 
+				model.type = type.ToLower();
+
 				if (key == player_key)
 				{
 					SetPlayer(prefab.GetComponent<ObjectModel>());
