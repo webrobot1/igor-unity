@@ -64,12 +64,16 @@ namespace MyFantasy
 				this.action = recive.action;		
 			
 			if (recive.forward_x != null || recive.forward_y != null)
-				this.transform.forward.Set(recive.forward_x ?? this.transform.forward.x, recive.forward_y ?? this.transform.forward.y, this.transform.forward.z);			
-			
+				this.transform.forward.Set(recive.forward_x ?? this.transform.forward.x, recive.forward_y ?? this.transform.forward.y, this.transform.forward.z);
+
+			if (recive.x != null && recive.y != null && recive.z != null && recive.map_id > 0)
+            {
+				if(moveCoroutine!=null) transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
+			}
+				
+
 			if (this.key == null)
 			{
-				if(recive.x != null && recive.y != null && recive.z != null)
-					transform.position = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
 				this.key = this.gameObject.name;
 			}
 
