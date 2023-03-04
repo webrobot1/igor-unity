@@ -5,7 +5,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Unity WebGL Player | {{{ PRODUCT_NAME }}}</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
+    <link rel="stylesheet" href="TemplateData/style.css?{{{ Date.now() }}}">
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -97,7 +97,7 @@
         // config.devicePixelRatio = 1;
 
         canvas.style.width = window.innerWidth + 'px';
-        canvas.style.height = window.innerHeight + 'px';
+        canvas.style.height = window.innerHeight-50 + 'px';		// уменьшим на 50 что бы было поле для кнопок Во весь экран на мобильниках
 
         unityShowBanner('WebGL builds are not supported on mobile devices.');
       } else {
@@ -118,38 +118,60 @@
         createUnityInstance(canvas, config, (progress) => {
           progressBarFull.style.width = 100 * progress + "%";
         }).then((unityInstance) => {
-          loadingBar.style.display = "none";
+			loadingBar.style.display = "none";
 		  
-		  // для отладки в админке 
-		  setInterval(() => 
-		  {
-			if(window.parent.document.querySelector('#map_id') && window.parent.document.querySelector('#map_id').value)
+			// для отладки в админке 
+			if(window.parent.document.querySelector('#unity-api-container'))
 			{
-				window.parent.document.querySelector('#perfomance').innerHTML = '<span class="glyphicon-refresh-animate glyphicon glyphicon-refresh"></span>';
-				fetch('/server/api/log_perfomance/'+window.parent.document.querySelector('#map_id').value).then((response) => response.text()).then((data) => window.parent.document.querySelector('#perfomance').innerHTML = data);
+				if(window.parent.document.querySelector('#map_id'))
+				{
+				  setInterval(() => 
+				  {
+					if(window.parent.document.querySelector('#map_id').value)
+					{
+						window.parent.document.querySelector('#perfomance').innerHTML = '<span class="glyphicon-refresh-animate glyphicon glyphicon-refresh"></span>';
+						fetch('/server/api/log_perfomance/'+window.parent.document.querySelector('#map_id').value).then((response) => response.text()).then((data) => window.parent.document.querySelector('#perfomance').innerHTML = data);
+					}
+				  }, 10000);
+				}
+			  
+				window.parent.document.querySelector('#unity-api-container').addEventListener('submit', function(e) 
+				{
+					e.preventDefault();
+					const data = new FormData(e.target);
+					let value = Object.fromEntries(data.entries());
+					unityInstance.SendMessage('Camera', 'Api', JSON.stringify(value));
+				});
 			}
-		  }, 10000);
-		  
-		  if(window.parent.document.querySelector('#unity-api-container'))
-		  {
-			  window.parent.document.querySelector('#unity-api-container').addEventListener('submit', function(e) 
-			  {
-				e.preventDefault();
-				const data = new FormData(e.target);
-				let value = Object.fromEntries(data.entries());
-				unityInstance.SendMessage('Camera', 'Api', JSON.stringify(value));
-			  });
-		  }
-		  // не работае нормально потеря фокуса в unity webgl поэтому ставим заплатку
-		  window.parent.document.addEventListener('click', function(e) 
-		  {
-			unityInstance.SendMessage('Camera', 'Focus', +(e.target.id == "unity-canvas"));
-		  });
-		  
+			  
+			// +не работае нормально потеря фокуса в unity webgl поэтому ставим заплатку
+			window.parent.document.addEventListener('click', function(e) 
+			{
+				unityInstance.SendMessage('Camera', 'Focus', +(e.target.id == "unity-canvas"));
+			});
+			  
+			  
+			// + метод для входа в режим полного экрана и выход меняет раскладку телефона  
+			if (document.addEventListener)
+			{
+				document.addEventListener('fullscreenchange', fulscreenHandler, false);
+				document.addEventListener('mozfullscreenchange', fulscreenHandler, false);
+				document.addEventListener('MSFullscreenChange', fulscreenHandler, false);
+				document.addEventListener('webkitfullscreenchange', fulscreenHandler, false);
+			}
+			function fulscreenHandler()
+			{
+				if (!document.webkitIsFullScreen && !document.mozFullScreen && !document.msFullscreenElement)
+				{
+					screen.orientation.unlock();
+				}
+				else
+					screen.orientation.lock("landscape");
+			}
 
-          fullscreenButton.onclick = () => {
-            unityInstance.SetFullscreen(1);
-          };
+			fullscreenButton.onclick = () => {
+				unityInstance.SetFullscreen(1);
+			};  
         }).catch((message) => {
           alert(message);
         });
