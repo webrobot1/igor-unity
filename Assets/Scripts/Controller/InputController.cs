@@ -73,7 +73,7 @@ namespace MyFantasy
                 response.x = Math.Round(player.forward.x, 1);
                 response.y = Math.Round(player.forward.y, 1);
             }
-            base.Send(response);
+            Send(response);
         }
 
 
@@ -153,7 +153,7 @@ namespace MyFantasy
                                 response.x = Math.Round(player.forward.x, 1);
                                 response.y = Math.Round(player.forward.y, 1);
 
-                                base.Send(response);
+                                Send(response);
                             }  
                         }
                         else
@@ -166,7 +166,7 @@ namespace MyFantasy
                             response.z = player.transform.position.z;
 
                             move_to = Vector3.zero;
-                            base.Send(response);
+                            Send(response);
                         } 
                     }
                 }
@@ -201,9 +201,9 @@ namespace MyFantasy
 #endif
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-		    public void OnApplicationFocus(bool focus)
+		    public override void OnApplicationFocus(bool focus)
 		    {
-			    Debug.Log("фокус " + focus);
+                base.OnApplicationFocus(focus);
 			    Load();
 		    }
 #endif

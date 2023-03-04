@@ -38,7 +38,7 @@ namespace MyFantasy
 		/// TODO переделать в нестатический
 		/// </summary>
 		[NonSerialized]
-		public ObjectModel player;
+		public static ObjectModel player;
 
 		/// <summary>
 		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
@@ -78,12 +78,12 @@ namespace MyFantasy
 		/// <summary>
 		/// последний отправленный пинг на сервер
 		/// </summary>
-		private double last_send_ping = 0;
+		private static double last_send_ping = 0;
 
 		/// <summary>
 		/// время последнего запроса пинга на сервер
 		/// </summary>
-		private DateTime last_ping_request = DateTime.Now;
+		private static DateTime last_ping_request = DateTime.Now;
 
 		/// <summary>
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
@@ -98,12 +98,12 @@ namespace MyFantasy
 		/// <summary>
 		/// максимальное количество секунд паузы между загрузками
 		/// </summary>
-		protected int max_pause_sec = 10;
+		protected static int max_pause_sec = 10;
 
 		/// <summary>
 		/// через сколько секунд мы отправляем на серер запрос для анализа пинга
 		/// </summary>
-		protected int ping_request_sec = 1;
+		protected static int ping_request_sec = 1;
 
 		/// <summary>
 		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
@@ -140,7 +140,7 @@ namespace MyFantasy
 					else
 						Debug.Log("Пауза");
 				}
-
+				
 				if (reload)
 				{
 					// этот флаг снимем что бы повторно не загружать карту
@@ -162,7 +162,7 @@ namespace MyFantasy
 							catch (Exception ex)
 							{
 								Debug.LogException(ex);
-								Error("Ошибка разбора входящих данных" + recives[i] + " (" + ex.Message + ")");
+								Error("Ошибка разбора разбора данных (" + ex.Message+ ")");
 							}
 						}
 
@@ -307,7 +307,7 @@ namespace MyFantasy
 		/// <summary>
 		/// не отправляется моментально а ставиться в очередь на отправку (перезаписывает текущю). придет время - отправится на сервер (может чуть раньше если пинг большой)
 		/// </summary>
-		public void Send(Response data)
+		public static void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
 			if (player != null && loading == null && connect!=null && !reload)
@@ -347,7 +347,7 @@ namespace MyFantasy
 							,
 							Newtonsoft.Json.Formatting.None
 							,
-							new JsonSerializerSettings { Converters = { new NewJsonConverter() }, NullValueHandling = NullValueHandling.Ignore }
+							new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }
 						);
 
 						SetTimeout(data.group);
@@ -379,7 +379,7 @@ namespace MyFantasy
 		/// <summary>
 		/// утановить таймаут не дожидаясь ответа от сервера на оснвое имещихся данных (при возврата с сервера данных таймаут будет пересчитан)
 		/// </summary>
-		private void SetTimeout(string group)
+		private static void SetTimeout(string group)
 		{
 			// поставим примерно време когда наступит таймаут (с овтетом он нам более точно скажет тк таймаут может и плавающий в механике быть)
 			double timeout = player.getEvent(group).timeout ?? 5;
@@ -401,7 +401,8 @@ namespace MyFantasy
 			}
 		}
 
-		private void Put2Send(string json)
+		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
+		public static void Put2Send(string json)
 		{
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 
@@ -442,13 +443,6 @@ namespace MyFantasy
 			SceneManager.UnloadScene("MainScene");
 			BaseController.Error(error);
 		}
-
-#if UNITY_WEBGL && !UNITY_EDITOR
-		public void Api(string json)
-		{
-			Put2Send(json);
-		}
-#endif
 
 		void OnApplicationQuit()
 		{

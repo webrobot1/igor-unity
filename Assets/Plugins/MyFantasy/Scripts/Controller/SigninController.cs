@@ -11,7 +11,7 @@ namespace MyFantasy
         [SerializeField]
         protected InputField passwordField;
 
-        private void Start()
+        protected virtual void Start()
         {
            if (loginField == null)
                Error("не присвоен loginField для ввода логина");

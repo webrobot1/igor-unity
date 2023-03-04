@@ -97,7 +97,7 @@
         // config.devicePixelRatio = 1;
 
         canvas.style.width = window.innerWidth + 'px';
-        canvas.style.height = window.innerHeight-50 + 'px';		// уменьшим на 50 что бы было поле для кнопок Во весь экран на мобильниках
+        canvas.style.height = window.innerHeight + 'px';		// уменьшим на 50 что бы было поле для кнопок Во весь экран на мобильниках
 
         unityShowBanner('WebGL builds are not supported on mobile devices.');
       } else {
@@ -120,37 +120,6 @@
         }).then((unityInstance) => {
 			loadingBar.style.display = "none";
 		  
-			// для отладки в админке 
-			if(window.parent.document.querySelector('#unity-api-container'))
-			{
-				if(window.parent.document.querySelector('#map_id'))
-				{
-				  setInterval(() => 
-				  {
-					if(window.parent.document.querySelector('#map_id').value)
-					{
-						window.parent.document.querySelector('#perfomance').innerHTML = '<span class="glyphicon-refresh-animate glyphicon glyphicon-refresh"></span>';
-						fetch('/server/api/log_perfomance/'+window.parent.document.querySelector('#map_id').value).then((response) => response.text()).then((data) => window.parent.document.querySelector('#perfomance').innerHTML = data);
-					}
-				  }, 10000);
-				}
-			  
-				window.parent.document.querySelector('#unity-api-container').addEventListener('submit', function(e) 
-				{
-					e.preventDefault();
-					const data = new FormData(e.target);
-					let value = Object.fromEntries(data.entries());
-					unityInstance.SendMessage('Camera', 'Api', JSON.stringify(value));
-				});
-			}
-			  
-			// +не работае нормально потеря фокуса в unity webgl поэтому ставим заплатку
-			window.parent.document.addEventListener('click', function(e) 
-			{
-				unityInstance.SendMessage('Camera', 'Focus', +(e.target.id == "unity-canvas"));
-			});
-			  
-			  
 			// + метод для входа в режим полного экрана и выход меняет раскладку телефона  
 			if (document.addEventListener)
 			{

@@ -115,7 +115,6 @@ namespace MyFantasy
             }
         }
 
-
         private void EnableLine(Image line)
         {
             line.transform.parent.gameObject.SetActive(true);
@@ -172,7 +171,15 @@ namespace MyFantasy
             {
                 CameraUpdate();
                 if (PlayerController.Instance.player == null || (target.key != PlayerController.Instance.player.key && Vector3.Distance(PlayerController.Instance.player.transform.position, target.transform.position) >= PlayerController.Instance.player.lifeRadius))
+                {
                     target = null;
+                    return;
+                }
+                    
+                if (target.animator != null && target.layerIndex != layerIndex)
+                {
+                    Animate();
+                }
 
                 if (target.hp != null)
                 {
@@ -203,11 +210,6 @@ namespace MyFantasy
                         DisableLine(mpLine);
 
                     FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
-                }
-                   
-                if (target.animator!=null && target.layerIndex != layerIndex)
-                {
-                    Animate();
                 }
             }     
         }

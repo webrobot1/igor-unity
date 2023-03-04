@@ -34,6 +34,9 @@ namespace MyFantasy
 		protected int map_id;
 
 		[NonSerialized]
+		public string login;
+
+		[NonSerialized]
 		public string action = "idle";
 		protected DateTime created;
 		protected string prefab;
@@ -123,6 +126,9 @@ namespace MyFantasy
 
 			if (recive.prefab != null)
 				this.prefab = recive.prefab;
+
+			if (recive.login != null)
+				this.login = recive.login;
 
 			if (recive.map_id > 0)
 				this.map_id = recive.map_id;

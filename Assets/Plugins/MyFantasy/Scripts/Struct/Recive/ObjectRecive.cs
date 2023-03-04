@@ -1,3 +1,4 @@
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 
@@ -15,7 +16,7 @@ namespace MyFantasy
 
 		public int map_id;
 		public string prefab;
-
+		
 		public string action;
 
 		public float? forward_x = null;
@@ -23,6 +24,7 @@ namespace MyFantasy
 	
 		public int? sort = null;
 		public int? lifeRadius = null;
+		public string? login;
 
 		public DateTime created = DateTime.Now;
 		
@@ -31,6 +33,6 @@ namespace MyFantasy
 		/// <summary>
 		/// тк в каждой игре свои компоненты и разного типа (строки, цифры и даже массивы) то этот класс нуждается в переопределелни (отнаследоваться и указать свой класс этому полю)
 		/// </summary>
-		public object components;	
+		public JObject components;	
 	}
 }

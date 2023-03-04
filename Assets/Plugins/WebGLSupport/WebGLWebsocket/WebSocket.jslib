@@ -230,8 +230,8 @@ var LibraryWebSocket = {
 			if (webSocketState.onError) {
 				
 				var msg = "WebSocket error.";
-				var msgBytes = lengthBytesUTF8(msg);
-				var msgBuffer = _malloc(msgBytes + 1);
+				var msgBytes = lengthBytesUTF8(msg) + 1;
+				var msgBuffer = _malloc(msgBytes);
 				stringToUTF8(msg, msgBuffer, msgBytes);
 
 				try {

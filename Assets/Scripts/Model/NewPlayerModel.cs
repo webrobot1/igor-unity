@@ -33,8 +33,6 @@ namespace MyFantasy
 
 		private void SetData(NewPlayerRecive recive)
 		{
-			if (recive.login != null)
-				this.login = recive.login;			
 
 			base.SetData(recive);
 		}	

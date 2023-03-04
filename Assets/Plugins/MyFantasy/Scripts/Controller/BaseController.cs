@@ -19,25 +19,8 @@ namespace MyFantasy
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
-		protected static string password;
+		protected static string password;      
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-			// заплатка для потери фокуса в webgl (если фокус падает на канву с игрой то обратно на странице html не доступны для ввода поля)
-			 public void Focus(int focus)
-			 {
-				Debug.Log("Фокус: "+focus);
-
-				if (focus == 0) 
-				{
-					Input.ResetInputAxes();
-					//UnityEngine.WebGLInput.captureAllKeyboardInput = false;
-				} else
-				{
-					//UnityEngine.WebGLInput.captureAllKeyboardInput = true;
-					Input.ResetInputAxes();
-				}
-			}        
-#endif
 		public static void Error(string error)
 		{
 			GameObject.Find("error").GetComponent<Text>().text = error;
@@ -49,11 +32,15 @@ namespace MyFantasy
 			// продолжать принимать данные и обновляться в фоновом режиме
 			Application.runInBackground = true;
 
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			#if UNITY_EDITOR || DEVELOPMENT_BUILD
 				Debug.unityLogger.logEnabled = true;
-#else
+			#else
 				Debug.unityLogger.logEnabled = false;
-#endif
+			#endif
+
+			#if UNITY_WEBGL && !UNITY_EDITOR
+				WebGLSupport.WebGLFocus.FocusInit();
+			#endif
 		}
 
 		protected virtual IEnumerator HttpRequest(string action)
@@ -133,6 +120,11 @@ namespace MyFantasy
 
 				// asyncLoad.allowSceneActivation = true;
 			}
+		}
+
+		public virtual void OnApplicationFocus(bool focus)
+		{
+			Debug.Log("Фокус " + focus);
 		}
 	}
 }

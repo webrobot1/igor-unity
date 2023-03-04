@@ -6,7 +6,7 @@ namespace MyFantasy
 	[System.Serializable]
 	public class NewPlayerRecive : NewEnemyRecive
 	{
-		public string login;
+		
 	}
 }
 

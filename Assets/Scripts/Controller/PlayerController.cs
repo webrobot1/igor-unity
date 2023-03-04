@@ -27,7 +27,7 @@ namespace MyFantasy
         /// </summary>
         public new NewPlayerModel player
         {
-            get { return (NewPlayerModel)base.player; }
+            get { return (NewPlayerModel)ConnectController.player; }
         }
 
         protected NewObjectModel target 
@@ -80,6 +80,8 @@ namespace MyFantasy
 
             // скроем наши заплатки (там тестовые иконки выделенного персонажа и врага)
             playerFaceController.target = targetFaceController.target = null;
+
+            Screen.orientation = ScreenOrientation.LandscapeLeft;
         }
 
         protected override void Update()
@@ -96,6 +98,11 @@ namespace MyFantasy
             base.FixedUpdate();
         }
 
+
+        /// <summary>
+        /// в целом два следующих метода нужны тошько если вы переделваете стандыртный форат ответа тк из коробки у всех сущностей одни данные (кроме логина у пользователей, а компоненты и события из универсального object можно после в любые превратить оьъекты классов)
+        /// ну может в recive что то решите добаить новое...типа новостей для расылки игркоам или еще какие то глобальные
+        /// </summary>
         protected override void Handle(string json)
         {
             HandleData(JsonConvert.DeserializeObject<NewRecive<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>>(json));
@@ -118,7 +125,8 @@ namespace MyFantasy
             if (recive.action == ACTION_LOAD)
             {
                 // установим иконку нашего персонажа в превью и свяжем его анимацию с ней
-                playerFaceController.target = player;
+                if(playerFaceController.target == null)
+                    playerFaceController.target = player;
 
                 if (tmp_target != null && target == null)
                 {
@@ -153,14 +161,21 @@ namespace MyFantasy
                         // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
                         // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
                         string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
-                        if (attacker != null)
+
+                        if (attacker != null) 
                         {
-                            NewEnemyModel gameObject = GameObject.Find(attacker).GetComponent<NewEnemyModel>();
-                            if (gameObject != null && CanBeTarget(gameObject))
+                            GameObject gameObject = GameObject.Find(attacker);
+                            if (gameObject!=null)
                             {
-                                target = gameObject;
-                                Debug.LogWarning("Новая цель атаки с сервера: " + attacker);
+                                NewObjectModel attackerModel = gameObject.GetComponent<NewEnemyModel>();
+                                if(attackerModel!=null && CanBeTarget(attackerModel)) 
+                                { 
+                                    target = attackerModel;
+                                    Debug.Log("Новая цель атаки с сервера: " + attacker);
+                                }
                             }
+                            else
+                                Debug.LogError("Цель "+ attacker + " не найдена на сцене");
                         }
                     }
                 }

@@ -8,8 +8,6 @@ using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 
-using WebGLSupport;
-
 namespace MyFantasy
 {
 	/// <summary>
@@ -80,8 +78,9 @@ namespace MyFantasy
 				string text = request.downloadHandler.text;
 				if (text.Length > 0)
 				{
-					Debug.Log("Ответ от сервера карт " + text);
-
+					#if UNITY_EDITOR
+						Debug.Log("Ответ от сервера карт " + text);
+					#endif
 					try
 					{
 						MapDecodeRecive recive = JsonConvert.DeserializeObject<MapDecodeRecive>(text);
@@ -134,9 +133,9 @@ namespace MyFantasy
 					case "center":
 
 						// если у нас webgl првоерим не а дминке ли мы с API отладкой
-#if UNITY_WEBGL && !UNITY_EDITOR
-							WebGLDebug.Check(maps[side].map_id);
-#endif
+						#if UNITY_WEBGL && !UNITY_EDITOR
+							WebGLSupport.WebGLDebug.DebugCheck(maps[side].map_id);
+						#endif
 
 						grid.localPosition = new Vector3(0f, 0f, 0f);
 						break;
