@@ -11,29 +11,31 @@ var WebGLDebug =
 	},
     Check: function (map_id) 
 	{
-		container = window.parent.document.querySelector("#unity-api-container");
+		container = window.document.querySelector("#unity-api-container");
+		if(!container) container = window.parent.document.querySelector("#unity-api-container");
+		
 		if(container)
 		{
-			container.removeAttribute("disabled");
-			window.parent.document.querySelector("#map_id").value = map_id;
+			container.querySelector("#unity-api-command").removeAttribute("disabled");
+			container.querySelector("#map_id").value = map_id;
 			
 			// для отладки в админке 
-			if(DebugState.init == false && window.parent.document.querySelector('#unity-api-container'))
+			if(DebugState.init == false)
 			{
 				DebugState.init = true;
-				if(window.parent.document.querySelector('#map_id'))
+				if(container.querySelector('#map_id'))
 				{
 				  setInterval(() => 
 				  {
-					if(window.parent.document.querySelector('#map_id').value)
+					if(container.querySelector('#map_id').value)
 					{
-						window.parent.document.querySelector('#perfomance').innerHTML = '<span class="glyphicon-refresh-animate glyphicon glyphicon-refresh"></span>';
-						fetch('/server/api/log_perfomance/'+window.parent.document.querySelector('#map_id').value).then((response) => response.text()).then((data) => window.parent.document.querySelector('#perfomance').innerHTML = data);
+						container.querySelector('#perfomance').innerHTML = '<span class="glyphicon-refresh-animate glyphicon glyphicon-refresh"></span>';
+						fetch('/server/api/log_perfomance/'+container.querySelector('#map_id').value).then((response) => response.text()).then((data) => container.querySelector('#perfomance').innerHTML = data);
 					}
 				  }, 10000);
 				}
 			  
-				window.parent.document.querySelector('#unity-api-container').addEventListener('submit', function(e) 
+				container.querySelector('#unity-api-command').addEventListener('submit', function(e) 
 				{
 					e.preventDefault();
 					const data = new FormData(e.target);

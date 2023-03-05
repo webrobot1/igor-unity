@@ -26,10 +26,10 @@ var LibraryWebSocket = {
 		Log: function(json){
 			if (webSocketState.debug)
 			{
-				if(window.parent.document.querySelector("#debug").value.length > 2000)
-					window.parent.document.querySelector("#debug").value = json;
+				if(webSocketState.debug.value.length > 2000)
+					webSocketState.debug.value = json;
 				else
-					window.parent.document.querySelector("#debug").value = json + "\n" + window.parent.document.querySelector("#debug").value;
+					webSocketState.debug.value = json + "\n" + webSocketState.debug.value;
 			}
 		}, 
 
@@ -164,11 +164,12 @@ var LibraryWebSocket = {
 
 		instance.ws.onopen = function() 
 		{
-			webSocketState.debug = window.parent.document.querySelector("#unity-api-container");
+			webSocketState.debug = window.document.querySelector("#unity-api-container #debug");
+			if (!webSocketState.debug) webSocketState.debug = window.parent.document.querySelector("#unity-api-container #debug");
+			
 			if (webSocketState.debug)
-			{
 				webSocketState.Log("Connected");
-			}
+			
 			
 			/* если от момента инициализации до конекта есть неотправленные сообщения */
 			if (webSocketState.queue.length>0)
@@ -249,7 +250,11 @@ var LibraryWebSocket = {
 			if (webSocketState.debug)
 			{
 				webSocketState.debug.setAttribute("disabled", "disabled");
-				window.parent.document.querySelector("#map_id").value = '';
+				
+				let perfomance = webSocketState.debug.closest("#unity-api-container").querySelector("#map_id");
+				if(perfomance)
+					perfomance.value = '';
+				
 				webSocketState.Log("Closed");
 			}
 

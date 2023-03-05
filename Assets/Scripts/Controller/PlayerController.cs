@@ -59,8 +59,6 @@ namespace MyFantasy
                 Instance = this;
             }
 
-            Application.targetFrameRate = 300;
-           // Screen.orientation = ScreenOrientation.LandscapeLeft;
 
             base.Awake();
         }

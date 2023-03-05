@@ -121,10 +121,5 @@ namespace MyFantasy
 				// asyncLoad.allowSceneActivation = true;
 			}
 		}
-
-		public virtual void OnApplicationFocus(bool focus)
-		{
-			Debug.Log("Фокус " + focus);
-		}
 	}
 }

@@ -38,6 +38,14 @@ namespace MyFantasy
         /// </summary>
         private float vertical;
 
+        protected override void Awake()
+        {
+            base.Awake();
+
+            Application.targetFrameRate = 300;
+            Screen.orientation = ScreenOrientation.LandscapeRight;
+        }
+
         protected override void Start()
         {
             if (joystick == null)
@@ -201,10 +209,9 @@ namespace MyFantasy
 #endif
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-		    public override void OnApplicationFocus(bool focus)
+		    public void OnApplicationFocus(bool focus)
 		    {
-                base.OnApplicationFocus(focus);
-			    Load();
+                Load();
 		    }
 #endif
     }
