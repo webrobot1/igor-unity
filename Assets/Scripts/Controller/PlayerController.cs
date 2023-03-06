@@ -59,7 +59,6 @@ namespace MyFantasy
                 Instance = this;
             }
 
-
             base.Awake();
         }
 
@@ -78,8 +77,6 @@ namespace MyFantasy
 
             // скроем наши заплатки (там тестовые иконки выделенного персонажа и врага)
             playerFaceController.target = targetFaceController.target = null;
-
-            Screen.orientation = ScreenOrientation.LandscapeLeft;
         }
 
         protected override void Update()

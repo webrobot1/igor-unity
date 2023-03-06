@@ -115,11 +115,7 @@ namespace MyFantasy
 		/// </summary>
 		protected static int min_ping_history = 5;
 
-		protected virtual void Update() 
-		
-		{ 
-		
-		}
+		protected virtual void Update() {}
 
 
 

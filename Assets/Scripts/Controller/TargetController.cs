@@ -15,10 +15,8 @@ namespace MyFantasy
         [SerializeField]
         private Image mpLine;        
         
-
         private Text hpText;
         private Text mpText;
-        private Image lifeBarHp;
 
         private Animator animator;
         private CanvasGroup targetFrame;

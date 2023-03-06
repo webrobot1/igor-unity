@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
+using WebGLSupport;
 
 namespace MyFantasy
 {
@@ -43,7 +44,14 @@ namespace MyFantasy
             base.Awake();
 
             Application.targetFrameRate = 300;
-            Screen.orientation = ScreenOrientation.LandscapeRight;
+
+            #if UNITY_WEBGL && !UNITY_EDITOR
+                 WebGLRotation.Rotation(1);
+            #else
+                Screen.orientation = ScreenOrientation.LandscapeRight;
+                Screen.autorotateToPortrait = false;
+                Screen.orientation = ScreenOrientation.AutoRotation;
+            #endif
         }
 
         protected override void Start()
@@ -83,7 +91,6 @@ namespace MyFantasy
             }
             Send(response);
         }
-
 
         protected override void Update() 
         {
@@ -127,11 +134,6 @@ namespace MyFantasy
                                     move_to = Vector3.zero;
                             }
                         }
-                    }
-
-                    if (Input.GetKeyDown("space"))
-                    {
-                        Attack("firebolt");
                     }
 
                     vertical = Input.GetAxis("Vertical") != 0 ? Input.GetAxis("Vertical") : joystick.Vertical;

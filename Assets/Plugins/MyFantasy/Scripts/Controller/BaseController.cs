@@ -11,7 +11,7 @@ namespace MyFantasy
 	abstract public class BaseController : MonoBehaviour
 	{
 		// сервер авторизации и карт. тк у меня wsl и WWWForm (http из под C#) надо ставить что то отличное от localhost
-		#if UNITY_EDITOR
+		#if UNITY_EDITOR || (DEVELOPMENT_BUILD && UNITY_WEBGL)
 				protected const string SERVER = "my-fantasy";
 		#else
 				protected const string SERVER = "185.117.153.89";     

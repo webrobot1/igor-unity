@@ -16,7 +16,7 @@ namespace MyFantasy
 
 		public int map_id;
 		public string prefab;
-		
+		public string login;
 		public string action;
 
 		public float? forward_x = null;
@@ -24,7 +24,7 @@ namespace MyFantasy
 	
 		public int? sort = null;
 		public int? lifeRadius = null;
-		public string? login;
+		
 
 		public DateTime created = DateTime.Now;
 		

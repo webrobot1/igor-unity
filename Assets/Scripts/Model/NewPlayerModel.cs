@@ -3,7 +3,6 @@ namespace MyFantasy
 {
 	public class NewPlayerModel : NewEnemyModel
 	{
-		private string login;
 
 		// для превращения в призрака игроков
 		protected SpriteRenderer sprite = null;
