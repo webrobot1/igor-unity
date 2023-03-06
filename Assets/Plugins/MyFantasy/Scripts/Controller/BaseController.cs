@@ -10,11 +10,11 @@ namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		// сервер авторизации и карт. тк у меня wsl и WWWForm (http из под C#) надо ставить что то отличное от localhost
 		#if UNITY_EDITOR || (DEVELOPMENT_BUILD && UNITY_WEBGL)
-				protected const string SERVER = "my-fantasy";
+				// это адрес-мост через наш ПК в wsl сервер Ubuntu (Аналог XAMP и Openserver), подробнее в папке /.docs проекта сервер.
+				protected const string SERVER = "127.0.0.1:8080";   //localhost не подходит тк http переадресуются, а websocket пойдут уже на наш ПК
 		#else
-				protected const string SERVER = "185.117.153.89";     
+				protected const string SERVER = "185.117.153.89";   // это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
 		#endif
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
@@ -72,7 +72,7 @@ namespace MyFantasy
 					SigninRecive recive = JsonConvert.DeserializeObject<SigninRecive>(text);
 
 					if (recive.error.Length > 0)
-						Error("Ошибка авторизации: " + recive.error);
+						Error("Ошибка авторизации с сервером "+ SERVER + ": " + recive.error);
 					else
 						StartCoroutine(LoadMain(recive));
 				}
@@ -83,7 +83,7 @@ namespace MyFantasy
 				}
 			}
 			else
-				Error("Пустой ответ авторизации " + request.error);
+				Error("Пустой ответ авторизации с сервером " + SERVER + ": " + request.error);
 		}
 
 		// PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой

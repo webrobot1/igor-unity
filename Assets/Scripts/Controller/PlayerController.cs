@@ -140,7 +140,7 @@ namespace MyFantasy
             }
            
             if (recive.unixtime > 0)
-                ping.text = "PING: " + Ping() * 1000 + " мс."; 
+                ping.text = "PING: " + Ping() * 1000 + " ms."; 
         }
 
         protected override GameObject UpdateObject(string side, string key, ObjectRecive recive, string type)

@@ -101,19 +101,21 @@ namespace MyFantasy
 			if (
 				animator != null 
 					&& 
-				animator.GetLayerName(layerIndex) != "idle"  
-					&& 				
-				action != "dead"  
-					&& 				
-				action != ConnectController.ACTION_REMOVE 
-					&& 
-				(animator.GetCurrentAnimatorStateInfo(layerIndex).loop || animator.GetCurrentAnimatorStateInfo(layerIndex).normalizedTime >= 1.0f) 
-					&& 
+				action != "dead"
+					&&
+				action != ConnectController.ACTION_REMOVE
+					&&
 				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
+					&&
+				(animator.GetCurrentAnimatorStateInfo(layerIndex).loop || animator.GetCurrentAnimatorStateInfo(layerIndex).normalizedTime >= 1.0f) 	
 			)
 			{
-				Debug.Log(key+" остановка по таймауту анимации");
-				Animate(animator, animator.GetLayerIndex("idle"));
+				string layer_name = animator.GetLayerName(layerIndex);
+                if (layer_name != "idle")
+                {
+					Debug.LogWarning(DateTime.Now.Millisecond + " " + key + ": idle с " + action +" (таймаут)");
+					Animate(animator, animator.GetLayerIndex("idle"));
+				}
 			}
 		}
 
@@ -125,6 +127,25 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
+			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
+			if (recive.action != null)
+			{
+				if (animator != null && recive.action != ConnectController.ACTION_REMOVE)
+				{
+					int layerIndex = animator.GetLayerIndex(recive.action);
+					if (layerIndex == -1)
+					{
+						Debug.LogWarning("Положение без группы-слоя анимации ");
+					}
+					else
+					{
+						Debug.LogWarning(DateTime.Now.Millisecond + " " + key + ": " + recive.action + " с " + action);
+						Animate(animator, layerIndex);
+					}
+				}
+				activeLast = DateTime.Now;
+			}
+
 			base.SetData(recive);
 
 			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
@@ -141,24 +162,6 @@ namespace MyFantasy
 					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
 				else
 					transform.position = position;
-			}
-
-			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
-			if (recive.action != null)
-			{
-				if (animator != null && recive.action!=ConnectController.ACTION_REMOVE)
-				{
-					int layerIndex = animator.GetLayerIndex(recive.action);
-					if(layerIndex==-1)
-					{
-						Debug.LogWarning("Положение без группы-слоя анимации ");
-					}
-					else
-					{
-						Animate(animator, layerIndex);
-					}
-				}
-				activeLast = DateTime.Now;
 			}
 		}
 

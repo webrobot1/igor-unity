@@ -103,7 +103,7 @@ namespace MyFantasy
 		/// <summary>
 		/// через сколько секунд мы отправляем на серер запрос для анализа пинга
 		/// </summary>
-		protected static int ping_request_sec = 1;
+		protected static float ping_request_sec = 0.5f;
 
 		/// <summary>
 		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
@@ -113,7 +113,7 @@ namespace MyFantasy
 		/// <summary>
 		/// до какой длинные обрезается историй пингов после достижения максимального количества
 		/// </summary>
-		protected static int min_ping_history = 5;
+		protected static int min_ping_history = 3;
 
 		protected virtual void Update() {}
 
@@ -218,7 +218,9 @@ namespace MyFantasy
 					if ((ushort)ev.Code != ((ushort)WebSocketSharp.CloseStatusCode.Normal))
 					{
 						// следующий Update вызовет ошибку , если мы конечно не переподключаемся и это не старое соединеник
-						Debug.LogError("Соединение с сервером прервано");
+						// оно может сработать при переходе с локаций. так что обнуляем если текущее соедиение не соединяется или не открыто
+						if (connect != null && connect.ReadyState != WebSocketState.Connecting && connect.ReadyState != WebSocketState.Open)
+							Error("Соединение с сервером  прервано");
 					}
 					else
 						Debug.LogWarning("Нормальное закрытие соединения");
@@ -233,9 +235,9 @@ namespace MyFantasy
 					{
 						string text = Encoding.UTF8.GetString(ev.RawData);
 
-#if UNITY_EDITOR
+					#if UNITY_EDITOR
 						Debug.Log(DateTime.Now.Millisecond + ": " + text);
-#endif
+					#endif
 
 						if (coroutine == null && !reload)
 						{
