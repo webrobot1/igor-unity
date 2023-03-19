@@ -105,7 +105,7 @@ namespace MyFantasy
 					&&
 				action != ConnectController.ACTION_REMOVE
 					&&
-				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
+				DateTime.Compare(activeLast, DateTime.Now) < 1
 					&&
 				(animator.GetCurrentAnimatorStateInfo(layerIndex).loop || animator.GetCurrentAnimatorStateInfo(layerIndex).normalizedTime >= 1.0f) 	
 			)
@@ -143,13 +143,13 @@ namespace MyFantasy
 						Animate(animator, layerIndex);
 					}
 				}
-				activeLast = DateTime.Now;
+				activeLast = DateTime.Now.AddMilliseconds(300);
 			}
 
 			base.SetData(recive);
 
 			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
-			if (recive.x != null || recive.y != null || recive.z != null)
+			if (recive.x != null || recive.y != null || recive.z != null || recive.action == ConnectController.ACTION_REMOVE)
 			{
 				// остановим корутину движения
 				if (moveCoroutine != null)
@@ -158,7 +158,7 @@ namespace MyFantasy
 				}
 
 				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
-				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && position != transform.position)
+				if (recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE)
 					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
 				else
 					transform.position = position;
@@ -211,8 +211,8 @@ namespace MyFantasy
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
 
-				transform.position = Vector3.MoveTowards(transform.position, position, (float)(distance < distancePerUpdate ? distance : distancePerUpdate));
-				activeLast = DateTime.Now;
+				transform.position = Vector3.MoveTowards(transform.position, position, (float)(distance < distancePerUpdate || action == "dead" || action=="hurt" ? distance : distancePerUpdate));
+				activeLast = DateTime.Now.AddMilliseconds(300);
 
 				yield return new WaitForFixedUpdate();
 			}

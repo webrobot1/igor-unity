@@ -14,7 +14,7 @@ using WebGLSupport;
 #if UNITY_WEBGL && !UNITY_EDITOR
 	using WebGLWebsocket;
 #else
-using WebSocketSharp;
+	using WebSocketSharp;
 #endif
 
 namespace MyFantasy
@@ -76,14 +76,34 @@ namespace MyFantasy
 		private static Coroutine coroutine;
 
 		/// <summary>
-		/// последний отправленный пинг на сервер
+		/// максимальное количество секунд паузы между загрузками
 		/// </summary>
-		private static double last_send_ping = 0;
+		protected static int max_pause_sec = 10;
 
 		/// <summary>
-		/// время последнего запроса пинга на сервер
+		/// время последнего отправленного на сервер Unixtime для расчета пинга 
 		/// </summary>
-		private static DateTime last_ping_request = DateTime.Now;
+		private static DateTime last_ping_request = DateTime.Now;		
+					
+		/// <summary>
+		/// время последнего отправленного расчитанного пинга на сервер
+		/// </summary>
+		private static DateTime last_ping_send = DateTime.Now;
+
+		/// <summary>
+		/// через сколько секунд передавать на сервер результаты расчета пинга (не чаще чем сохраняется игрок в бд)
+		/// </summary>
+		private static double ping_send_sec = 60;
+
+		/// <summary>
+		/// последний отправленный пинг на сервер (если не будут отличаться новые пинг не отправится)
+		/// </summary>
+		private static double last_ping_send_value = 0;
+
+		/// <summary>
+		/// через сколько секунд мы отправляем на серер запрос с Unixtime для анализа пинга
+		/// </summary>
+		protected static float ping_request_sec = 2f;
 
 		/// <summary>
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
@@ -96,16 +116,6 @@ namespace MyFantasy
 		private static List<double> pings = new List<double>();
 
 		/// <summary>
-		/// максимальное количество секунд паузы между загрузками
-		/// </summary>
-		protected static int max_pause_sec = 10;
-
-		/// <summary>
-		/// через сколько секунд мы отправляем на серер запрос для анализа пинга
-		/// </summary>
-		protected static float ping_request_sec = 0.5f;
-
-		/// <summary>
 		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
 		/// </summary>
 		protected static int max_ping_history = 10;
@@ -115,8 +125,8 @@ namespace MyFantasy
 		/// </summary>
 		protected static int min_ping_history = 3;
 
-		protected virtual void Update() {}
 
+		protected virtual void Update() {}
 
 
 		/// <summary>
@@ -129,7 +139,7 @@ namespace MyFantasy
 			{
 				if (loading != null)
 				{
-					if (DateTime.Compare(((DateTime)loading).AddSeconds(max_pause_sec), DateTime.Now) < 1)
+					if (DateTime.Compare((DateTime)loading, DateTime.Now) < 1)
 					{
 						Error("Слишком долгая пауза загрузки");
 					}
@@ -192,7 +202,7 @@ namespace MyFantasy
 			player_token = data.token;
 
 			coroutine = null;
-			loading = DateTime.Now;
+			loading = DateTime.Now.AddSeconds(max_pause_sec);
 
 
 			string address = "ws://" + data.host;
@@ -219,8 +229,8 @@ namespace MyFantasy
 					{
 						// следующий Update вызовет ошибку , если мы конечно не переподключаемся и это не старое соединеник
 						// оно может сработать при переходе с локаций. так что обнуляем если текущее соедиение не соединяется или не открыто
-						if (connect != null && connect.ReadyState != WebSocketState.Connecting && connect.ReadyState != WebSocketState.Open)
-							Error("Соединение с сервером  прервано");
+						if (connect != null && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting && connect.ReadyState != WebSocketSharp.WebSocketState.Open)
+							Error("Соединение с сервером  прервано: "+ connect.ReadyState);
 					}
 					else
 						Debug.LogWarning("Нормальное закрытие соединения");
@@ -290,7 +300,7 @@ namespace MyFantasy
 					}
 					catch(Exception ex)
                     {
-						Error("Ошибка получения сообщения от сервера: "+ex);
+						Error("Ошибка получения сообщения от сервера: "+ex.Message);
 					}
 				};
 				connect.Connect();
@@ -322,12 +332,13 @@ namespace MyFantasy
 						// поставим на паузу отправку и получение любых кроме данной команды данных
 						if (data.group == LoadResponse.GROUP)
 						{
-							loading = DateTime.Now;
+							loading = DateTime.Now.AddSeconds(max_pause_sec);
 						}
 
-						if (ping > 0 && ping != last_send_ping)
+						if (ping > 0 && ping != last_ping_send_value && DateTime.Compare(last_ping_send, DateTime.Now) < 1)
 						{
-							data.ping = last_send_ping = ping;
+							data.ping = last_ping_send_value = ping;
+							last_ping_send = DateTime.Now.AddSeconds(ping_send_sec);
 						}
 
                         // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
@@ -387,7 +398,7 @@ namespace MyFantasy
 		private static void Close()
 		{	
 			// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
-			loading = DateTime.Now;
+			loading = DateTime.Now.AddSeconds(max_pause_sec);
 
 			if (connect != null)
 			{

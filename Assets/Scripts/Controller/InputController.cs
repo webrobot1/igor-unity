@@ -39,6 +39,14 @@ namespace MyFantasy
         /// </summary>
         private float vertical;
 
+        private Vector3 move_to = Vector3.zero;
+
+        /// <summary>
+        /// если мы стреляем и продолжаем идти заблокируем поворот (он без запроса к серверу делется) в сторону хотьбы (а то спиной стреляем)
+        /// </summary>
+        private DateTime block_forward = DateTime.Now;
+
+
         protected override void Awake()
         {
             base.Awake();
@@ -92,50 +100,65 @@ namespace MyFantasy
             Send(response);
         }
 
-        protected override void Update() 
+  
+        protected override GameObject UpdateObject(string side, string key, ObjectRecive recive, string type)
+        {
+            // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
+            if (player != null && key == player.key && recive.action!=null)
+            {
+                block_forward = DateTime.Now.AddSeconds(0.2f);
+            }
+
+            return base.UpdateObject(side, key, recive, type);
+        }
+
+        protected override void Update()
         {
             base.Update();
+
+            // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
+            if (Input.GetMouseButtonDown(0))
+            {
+                if
+                (
+                    (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
+                        &&
+                    EventSystem.current.GetComponentInParent<ObjectModel>() == null
+                )
+                {
+                    Debug.Log("Clicked the UI");
+                }
+                else
+                {
+                    RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
+                    if (hit.collider != null)
+                    {
+                        NewObjectModel new_target = hit.collider.GetComponent<NewObjectModel>();
+                        if (new_target != null)
+                        {
+                            target = new_target;
+                            base.persist_target = true;
+                            Debug.Log("Кликнули на " + new_target.key);
+                        }
+                    }
+                    else
+                    {
+                        target = null;
+                        move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
+                        if (Vector3.Distance(player.position, move_to) < 1.15f)
+                            move_to = Vector3.zero;
+                    }
+                }
+            }
+        }
+
+        protected override void FixedUpdate() 
+        {
+            base.FixedUpdate();
             if (player != null)
             {
                 try
                 {
-                    Vector3 move_to = Vector3Int.zero;
-
-                    // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
-                    if (Input.GetMouseButtonDown(0))
-                    {
-                        if 
-                        (
-                            (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
-                                &&
-                            EventSystem.current.GetComponentInParent<ObjectModel>() == null
-                        )
-                        {
-                            Debug.Log("Clicked the UI");
-                        }
-                        else
-                        {
-                            RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
-                            if (hit.collider != null)
-                            {
-                                NewObjectModel new_target = hit.collider.GetComponent<NewObjectModel>();
-                                if(new_target != null)
-                                {
-                                    target = new_target;
-                                    base.persist_target = true;
-                                    Debug.Log("Кликнули на " + new_target.key);
-                                }
-                            }
-                            else
-                            {
-                                target = null;
-                                move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
-                                if (Vector3.Distance(player.position, move_to) < 1.15f)
-                                    move_to = Vector3.zero;
-                            }
-                        }
-                    }
-
                     vertical = Input.GetAxis("Vertical") != 0 ? Input.GetAxis("Vertical") : joystick.Vertical;
                     horizontal = Input.GetAxis("Horizontal") != 0 ? Input.GetAxis("Horizontal") : joystick.Horizontal;
  
@@ -143,25 +166,26 @@ namespace MyFantasy
                     // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
                     if (
                         (
+                            move_to != Vector3.zero
+                                 ||
                             vertical != 0
                                 ||
                             horizontal != 0
-                                ||
-                            move_to != Vector3.zero
                         )
                     )
                     {
                         if (vertical != 0 || horizontal != 0)
                         {
-                            player.forward = new Vector3(horizontal, vertical, 0);
+                            if(DateTime.Compare(block_forward, DateTime.Now) < 1)
+                                player.forward = new Vector3(horizontal, vertical, 0);
 
                             // я подогнал магнитуду под размер круга джойстика (выйдя за него мы уже будем идти а не менять направления)
                             if ((new Vector2(horizontal, vertical)).magnitude > 0.5)
                             {
                                 WalkResponse response = new WalkResponse();
 
-                                response.x = Math.Round(player.forward.x, 1);
-                                response.y = Math.Round(player.forward.y, 1);
+                                response.x = Math.Round(horizontal, 1);
+                                response.y = Math.Round(vertical, 1);
 
                                 Send(response);
                             }  
