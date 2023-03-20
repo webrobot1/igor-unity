@@ -144,6 +144,8 @@ namespace MyFantasy
                     else
                     {
                         target = null;
+                        base.persist_target = false;
+
                         move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
                         if (Vector3.Distance(player.position, move_to) < 1.15f)
                             move_to = Vector3.zero;
