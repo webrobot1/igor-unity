@@ -158,8 +158,8 @@ namespace MyFantasy
 				}
 
 				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
-				if (recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE)
-					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(GetEventRemain(WalkResponse.GROUP)))));
+				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && recive.map_id == null)
+					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
 				else
 					transform.position = position;
 			}
@@ -208,14 +208,19 @@ namespace MyFantasy
 
 			while ((distance = Vector3.Distance(transform.position, position)) > 0)
 			{
+
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
 
 				transform.position = Vector3.MoveTowards(transform.position, position, (float)(distance < distancePerUpdate || action == "dead" || action=="hurt" ? distance : distancePerUpdate));
 				activeLast = DateTime.Now.AddMilliseconds(300);
 
-				yield return new WaitForFixedUpdate();
+				Debug.LogError(DateTime.Now.Millisecond + " | " + distance + " | " + GetEventRemain(WalkResponse.GROUP));
+
+				yield return new WaitForSeconds(Time.fixedDeltaTime);
 			}
+
+			Debug.LogError(DateTime.Now.Millisecond + "  завершено");
 
 			moveCoroutine = null;
 		}
