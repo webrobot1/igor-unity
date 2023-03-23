@@ -203,7 +203,7 @@ namespace MyFantasy
 		/// <param name="position">куда движемя</param>
 		private IEnumerator Walk(Vector3 position, double timeout)
 		{
-			float distance;
+			double distance;
 
 			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
 			double distancePerUpdate = Vector3.Distance(transform.position, position) / (timeout / Time.fixedDeltaTime);
