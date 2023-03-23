@@ -66,7 +66,7 @@ namespace MyFantasy
 		{
 			// пришла команды удаления с карты объекта
 			if (recive.action == ConnectController.ACTION_REMOVE)
-				StartCoroutine(Remove(map_id, (recive.map_id>0)));
+				StartCoroutine(Remove(map_id, (recive.map_id!=null)));
 				
 			if (recive.action != null)
 				this.action = recive.action;		
@@ -86,7 +86,7 @@ namespace MyFantasy
 			}
 				
 
-			if (recive.x != null && recive.y != null && recive.z != null && recive.map_id > 0)
+			if (recive.x != null && recive.y != null && recive.z != null && recive.map_id !=null)
             {
 				Vector3 vector = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
 				if(transform.position!= vector)
@@ -130,8 +130,8 @@ namespace MyFantasy
 			if (recive.login != null)
 				this.login = recive.login;
 
-			if (recive.map_id > 0)
-				this.map_id = recive.map_id;
+			if (recive.map_id !=null)
+				this.map_id = (int)recive.map_id;
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{

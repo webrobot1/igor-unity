@@ -14,7 +14,7 @@ namespace MyFantasy
 		public float? y;
 		public float? z;
 
-		public int map_id;
+		public int? map_id = null;
 		public string prefab;
 		public string login;
 		public string action;

@@ -103,7 +103,7 @@ namespace MyFantasy
 		/// <summary>
 		/// через сколько секунд мы отправляем на серер запрос с Unixtime для анализа пинга
 		/// </summary>
-		protected static float ping_request_sec = 2f;
+		protected static float ping_request_sec = 0.5f;
 
 		/// <summary>
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
