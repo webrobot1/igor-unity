@@ -8,32 +8,26 @@ using UnityEngine.UI;
 
 namespace MyFantasy
 {
-
 	/// <summary>
-	/// колайдер обязателен тк мы кликаем на gameObject что бы выделить его  в область колайдера
+	/// колайдер обязателен тк мы кликаем на gameObject что бы выделить его  в область колайдера. этот клас наследуется от плагина и реулизует работу с анимацией. вы можете реализовать по своему (поэтому работа с ней не часть плагина)
 	/// </summary>
 	[RequireComponent(typeof(Collider))]
 	public class NewObjectModel : ObjectModel
 	{
-		private const bool EXTROPOLATION = false;
 
 		[NonSerialized]
 		public Animator animator;
 
 		/// <summary>
-		/// если не null - движемся
+		/// список анимационных тригеров
 		/// </summary>
-		private Coroutine moveCoroutine;
+		private static Dictionary<string, bool> trigers;
 
 		/// <summary>
 		///  активный слой анимации
 		/// </summary>
 		[NonSerialized]
 		public int layerIndex = 0;
-
-		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
-		private DateTime activeLast = DateTime.Now;
-
 
 		/// <summary>
 		/// может быть null если мы через этот класс выделилил объект оно именно тут для совместимости как и то что ниже
@@ -59,7 +53,6 @@ namespace MyFantasy
 		[NonSerialized]
 		public int mpMax;
 
-
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
 		/// </summary>
@@ -68,8 +61,10 @@ namespace MyFantasy
 			get { return base.forward; }
 			set 
 			{
-				// вообще сервер сам это сделает но так уменьшиться пакет размера символов
+				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
 				base.forward = value.normalized;
+
+				//это Blend tree аниматора (в игре Игорья решил так вопрос с анимацией движения в разных направлениях. рекомендую и Вам)
 				if (animator)
 				{
 					if (animator.GetFloat("x") != value.x)
@@ -79,7 +74,6 @@ namespace MyFantasy
 				}
 			}
 		}
-		private static Dictionary<string, bool> trigers;
 
 		protected virtual void Awake()
 		{
@@ -108,7 +102,7 @@ namespace MyFantasy
 					&&
 				action != ConnectController.ACTION_REMOVE
 					&&
-				DateTime.Compare(activeLast, DateTime.Now) < 1
+				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
 					&&
 				(animator.GetCurrentAnimatorStateInfo(layerIndex).loop || animator.GetCurrentAnimatorStateInfo(layerIndex).normalizedTime >= 1.0f) 	
 			)
@@ -122,12 +116,17 @@ namespace MyFantasy
 			}
 		}
 
-
+		/// <summary>
+		/// этот метод для возможноости переопределения его же самого нужен но с другими типами аргументов
+		/// </summary>
 		public override void SetData(ObjectRecive recive)
 		{
 			this.SetData((NewObjectRecive)recive);
 		}
 
+		/// <summary>
+		/// переопределим метод срабатываемый при присвоениеии пришедших с сервера данных и начнем включать анимацию
+		/// </summary>
 		protected void SetData(NewObjectRecive recive)
 		{
 			base.SetData(recive);
@@ -148,33 +147,12 @@ namespace MyFantasy
 						Animate(animator, layerIndex);
 					}
 				}
-				activeLast = DateTime.Now.AddMilliseconds(300);
-			}
-
-			
-
-			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
-			if (recive.x != null || recive.y != null || recive.z != null || recive.action == ConnectController.ACTION_REMOVE)
-			{
-				// остановим корутину движения
-				if (moveCoroutine != null)
-				{
-					StopCoroutine(moveCoroutine);
-				}
-
-				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
-				if ((recive.action == "walk" && recive.map_id == null) || recive.action == ConnectController.ACTION_REMOVE)
-                {
-					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
-
-					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
-					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE ? timeout*1.5 : timeout)));
-				}					
-				else
-					transform.position = position;
 			}
 		}
 
+		/// <summary>
+		/// включить анимацию - те отключить все слои анимаций других и оставить только нужную. если есть анмиационный тригер одноименный со слоем - и его выключить (для анимаций которых не зацикленные и надо запустить один раз)
+		/// </summary>
 		public void Animate(Animator animator, int layerIndex)
 		{
 			if (layerIndex >=0)
@@ -205,71 +183,8 @@ namespace MyFantasy
 		}
 
 		/// <summary>
-		/// при передижении игрока проигрывается анмиация передвижения по клетке (хотя для сервера мы уже на новой позиции). скорость равна времени паузы между командами на новое движение.
-		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
+		/// анимированное удаление объекта с карты (например когда снаряд попал в цель или игрок уходит с карты и др у кого есть анимация ACTION_REMOVE)
 		/// </summary>
-		/// <param name="position">куда движемя</param>
-		private IEnumerator Walk(Vector3 position, double timeout)
-		{
-			float distance;
-
-			// нужны только для замедления при экстрополяции
-			MoveDataRecive data;
-
-			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
-			float distancePerUpdate = (float)(Vector3.Distance(transform.position, position) / (timeout / Time.fixedDeltaTime));
-			
-			while ((distance = Vector3.Distance(transform.position, position)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && EXTROPOLATION))
-			{
-
-				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
-				if (distance < distancePerUpdate || action == "dead" || action == "hurt")
-                {
-					// не интерполируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
-					if (action != "dead" && action != "hurt" && action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius>0 && EXTROPOLATION) 
-					{
-						// чуть снизим скорость
-						//distancePerUpdate *= 0.7f;
-
-						switch (getEvent(WalkResponse.GROUP).action)
-						{
-							case "kamikadze":
-								position += Vector3.Scale(new Vector3(forward.x, forward.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
-
-								Debug.LogError("экстрополируем");
-							break;						
-							case "index":
-								data = getEventData<MoveDataRecive>(WalkResponse.GROUP);
-
-								position += Vector3.Scale(new Vector3(data.x, data.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
-
-								Debug.LogError("экстрополируем");
-							break;						
-							case "to":
-								// я немогу это экстрополировать тк незнаю в какоую сторону поиск пути сработает так что просто медленно движемся в том же направлении и ждем сервер
-								position +=  new Vector3(forward.x * ConnectController.step * distancePerUpdate, forward.y * ConnectController.step * distancePerUpdate, position.z * ConnectController.step * distancePerUpdate);
-							break;
-						}					
-					}
-                    else
-                    {
-						transform.position = position;
-						break;
-					}
-				}
-
-				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
-				// в ином случае - дистанцию с учетом скорости проходим целиком
-				activeLast = DateTime.Now.AddMilliseconds(300);
-
-				transform.position = Vector3.MoveTowards(transform.position, position, distancePerUpdate);
-				yield return new WaitForFixedUpdate();		
-			}
-
-			Debug.LogError(DateTime.Now.Millisecond + "  завершена корутина движения");
-			moveCoroutine = null;
-		}
-
 		protected override IEnumerator Destroy()
 		{
 			Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));

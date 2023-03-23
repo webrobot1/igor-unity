@@ -13,6 +13,7 @@ namespace MyFantasy
 		/// </summary>
 		[NonSerialized]
 		public int sort;
+
 		[NonSerialized]
 		public int lifeRadius;
 
@@ -36,8 +37,13 @@ namespace MyFantasy
 		[NonSerialized]
 		public string login;
 
+		/// <summary>
+		/// стандартное поле действия. хорошим тоном связать его с анимацией и в серверных механиках использовать
+		/// </summary>
 		[NonSerialized]
 		public string action = "idle";
+
+
 		protected DateTime created;
 		protected string prefab;
 
@@ -51,7 +57,11 @@ namespace MyFantasy
 			}
 		}
 
+		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
+		protected DateTime activeLast = DateTime.Now;
+
 		private Dictionary<string, EventRecive> events = new Dictionary<string, EventRecive>();
+		protected Dictionary<string, Coroutine> coroutines = new Dictionary<string, Coroutine>();
 
 		/// <summary>
 		/// координаты в которых  уже находится наш объект на сервере
@@ -69,7 +79,10 @@ namespace MyFantasy
 				StartCoroutine(Remove(map_id, (recive.map_id!=null)));
 				
 			if (recive.action != null)
-				this.action = recive.action;		
+            {
+				this.action = recive.action;
+				activeLast = DateTime.Now;
+			}				
 			
 			if (recive.forward_x != null || recive.forward_y != null)
             {
@@ -84,36 +97,42 @@ namespace MyFantasy
 					transform.rotation = Quaternion.Euler(0, 0, angle);
 				}
 			}
-				
 
-			if (recive.x != null && recive.y != null && recive.z != null && recive.map_id !=null)
-            {
-				Vector3 vector = new Vector3((float)recive.x, (float)recive.y, (float)recive.z);
-				if(transform.position!= vector)
-                {
-					transform.position = vector;
-				}					
+			if (recive.x != null)
+			{
+				position.x = (float)recive.x;
+			}
+
+			if (recive.y != null)
+			{
+				position.y = (float)recive.y;
+			}
+
+			if (recive.z != null)
+			{
+				position.z = (float)recive.z;
+			}
+
+
+			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
+			if (recive.x != null || recive.y != null || recive.z != null || recive.action == ConnectController.ACTION_REMOVE)
+			{
+				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
+				if ((recive.action == "walk" && recive.map_id == null) || recive.action == ConnectController.ACTION_REMOVE)
+				{
+					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
+
+					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
+					coroutines["walk"] = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE ? timeout * 1.5 : timeout), (coroutines.ContainsKey("walk")?coroutines["walk"]:null)));
+				}
+				else
+					transform.position = position;
 			}
 				
 			if (this.key == null)
 			{
 				this.key = this.gameObject.name;
 			}
-
-			if (recive.x != null)
-			{
-				position.x = (float)recive.x;
-			}			
-			
-			if (recive.y != null)
-			{
-				position.y = (float)recive.y;
-			}			
-			
-			if (recive.z != null)
-			{
-				position.z = (float)recive.z;
-			}					
 
 			if (recive.sort != null)
 				this.sort = (int)recive.sort;
@@ -144,7 +163,7 @@ namespace MyFantasy
 					if (kvp.Value.remain != null) 
 					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
-						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - (ConnectController.Ping()/2));
+						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - (ConnectController.Ping()/ConnectController.INTERPOLATION));
 					}				
 					
 					if (kvp.Value.timeout != null) 
@@ -175,6 +194,9 @@ namespace MyFantasy
 			}
 		}
 
+		/// <summary>
+		/// получение данных события (без поля data)
+		/// </summary>
 		public virtual EventRecive getEvent(string group)
 		{
 			if (!events.ContainsKey(group))
@@ -186,6 +208,9 @@ namespace MyFantasy
 			return events[group];
 		}
 
+		/// <summary>
+		/// получения поля data события , нужно указвать какой cnnhernehs данных мы ожидаем будет это поле (по умолчанию это просто объект)
+		/// </summary>
 		public T getEventData<T>(string group) where T : new()
 		{
 			EventRecive ev = getEvent(group);
@@ -193,7 +218,8 @@ namespace MyFantasy
 		}
 
 		/// <summary>
-		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами) 
+		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами). из него уже был вычтено время затраченное на получение пакета с этим значением отсервера на сюда клиент (пол пинга) 
+		/// если включена интерполяция при отправке команды будет еще вычтено пол пинга (время на доставку пакета команды на сервер ) для проверки можно ли уже слать запрос
 		/// </summary>
 		public virtual double GetEventRemain(string group)
 		{
@@ -202,25 +228,95 @@ namespace MyFantasy
 		}
 
 		/// <summary>
+		/// при передижении игрока проигрывается анмиация передвижения по клетке (хотя для сервера мы уже на новой позиции). скорость равна времени паузы между командами на новое движение.
+		/// она вошла в плагин тк движение нужно в любой игре а координаты часть стандартного функционала, вы можете переопределить ее
+		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
+		/// </summary>
+		/// <param name="position">куда движемя</param>
+		protected virtual IEnumerator Walk(Vector3 position, double timeout, Coroutine old_coroutine)
+		{
+			if(old_coroutine!=null)
+				StopCoroutine(old_coroutine);
+
+			MoveDataRecive data;
+			float distance;
+			float distancePerUpdate = (float)(Vector3.Distance(transform.position, position) / (timeout / Time.fixedDeltaTime));
+
+			while ((distance = Vector3.Distance(transform.position, position)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION>0))
+			{
+				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
+				if (distance < distancePerUpdate)
+				{
+					// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться если есть уже команды на следующее движение
+					// не экстрополируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
+					if (action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius > 0 && ConnectController.EXTROPOLATION > 0)
+					{
+						// чуть снизим скорость
+						distancePerUpdate *= ConnectController.EXTROPOLATION;
+
+						switch (getEvent(WalkResponse.GROUP).action)
+						{
+							case "kamikadze":
+								position += Vector3.Scale(new Vector3(forward.x, forward.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
+
+								Debug.LogError("экстрополируем");
+								break;
+							case "index":
+								data = getEventData<MoveDataRecive>(WalkResponse.GROUP);
+
+								position += Vector3.Scale(new Vector3(data.x, data.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
+
+								Debug.LogError("экстрополируем");
+								break;
+							case "to":
+								// я немогу это экстрополировать тк незнаю в какоую сторону поиск пути сработает так что просто медленно движемся в том же направлении и ждем сервер
+								position += new Vector3(forward.x * ConnectController.step * distancePerUpdate, forward.y * ConnectController.step * distancePerUpdate, position.z * ConnectController.step * distancePerUpdate);
+								break;
+						}
+					}
+					else
+					{
+						transform.position = position;
+						break;
+					}
+				}
+
+				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
+				// в ином случае - дистанцию с учетом скорости проходим целиком
+				activeLast = DateTime.Now;
+
+				transform.position = Vector3.MoveTowards(transform.position, position, distancePerUpdate);
+				yield return new WaitForFixedUpdate();
+			}
+
+			Debug.LogError(DateTime.Now.Millisecond + "  завершена корутина движения");
+
+			coroutines.Remove("walk");
+		}
+
+		/// <summary>
 		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
 		/// </summary>
 		protected virtual IEnumerator Remove(int map_id, bool change_map = false)
 		{
 			DateTime start = DateTime.Now;
-            if (change_map) 
-			{ 
+			if (change_map)
+			{
 				while (DateTime.Compare(start.AddSeconds(5), DateTime.Now) >= 1)
 				{
 					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
 					if (this.map_id != map_id)
 						yield break;
-					
+
 					yield return new WaitForFixedUpdate();
 				}
 			}
 			StartCoroutine(this.Destroy());
 		}
-		
+
+		/// <summary>
+		///  базовая корутина уничтожение с карты объекта при уничтожении с сервера. ее можно и скорее нужно переопределять насыщая анмиацией это действи
+		/// </summary>
 		protected virtual IEnumerator Destroy()
 		{
 			Destroy(gameObject);
