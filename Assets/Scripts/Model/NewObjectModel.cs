@@ -161,7 +161,10 @@ namespace MyFantasy
 
 				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
 				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && recive.map_id == null)
-					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
+                {
+					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
+					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE ? 0.2f : (getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
+				}					
 				else
 					transform.position = position;
 			}
@@ -203,27 +206,62 @@ namespace MyFantasy
 		/// <param name="position">куда движемя</param>
 		private IEnumerator Walk(Vector3 position, double timeout)
 		{
-			double distance;
+			float distance;
+
+			// нужны только для замедления при экстрополяции
+			MoveDataRecive data;
+			float speed = 1;	
 
 			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
-			double distancePerUpdate = Vector3.Distance(transform.position, position) / (timeout / Time.fixedDeltaTime);
-
-			while ((distance = Vector3.Distance(transform.position, position)) > 0)
+			float distancePerUpdate = (float)(Vector3.Distance(transform.position, position) / (timeout / Time.fixedDeltaTime));
+			
+			while ((distance = Vector3.Distance(transform.position, position)) > 0 || getEvent(WalkResponse.GROUP).action.Length > 0)
 			{
+
+				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
+				if (distance < distancePerUpdate || action == "dead" || action == "hurt")
+                {
+					// не интерполируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
+					if (action != "dead" && action != "hurt" && action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius>0) 
+					{
+						distancePerUpdate *= 0.5f;
+
+						switch (getEvent(WalkResponse.GROUP).action)
+						{
+							case "kamikadze":
+								position += new Vector3(forward.x, forward.y, position.z);
+
+								Debug.LogError("экстрополируем");
+							break;						
+							case "index":
+								data = getEventData<MoveDataRecive>(WalkResponse.GROUP);
+
+								position += new Vector3(data.x, data.y, position.z);
+
+								Debug.LogError("экстрополируем");
+							break;						
+							case "to":
+								// я немогу это экстрополировать тк незнаю в какоую сторону поиск пути сработает так что просто движемся в том же направлении и ждем сервер
+								position +=  new Vector3(forward.x * distancePerUpdate, forward.y * distancePerUpdate, position.z * distancePerUpdate);
+							break;
+						}					
+					}
+                    else
+                    {
+						transform.position = position;
+						break;
+					}
+				}
 
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
-
-				transform.position = Vector3.MoveTowards(transform.position, position, (float)(distance < distancePerUpdate || action == "dead" || action=="hurt" ? distance : distancePerUpdate));
 				activeLast = DateTime.Now.AddMilliseconds(300);
 
-				Debug.LogError(DateTime.Now.Millisecond + " | " + distance + " | " + GetEventRemain(WalkResponse.GROUP));
-
-				yield return new WaitForSeconds(Time.fixedDeltaTime);
+				transform.position = Vector3.MoveTowards(transform.position, position, distancePerUpdate);
+				yield return new WaitForFixedUpdate();		
 			}
 
-			Debug.LogError(DateTime.Now.Millisecond + "  завершено");
-
+			Debug.LogError(DateTime.Now.Millisecond + "  завершена корутина движения");
 			moveCoroutine = null;
 		}
 

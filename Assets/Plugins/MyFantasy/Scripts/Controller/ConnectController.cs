@@ -118,12 +118,12 @@ namespace MyFantasy
 		/// <summary>
 		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
 		/// </summary>
-		protected static int max_ping_history = 10;
+		protected static int max_ping_history = 15;
 
 		/// <summary>
 		/// до какой длинные обрезается историй пингов после достижения максимального количества
 		/// </summary>
-		protected static int min_ping_history = 3;
+		protected static int min_ping_history = 5;
 
 
 		protected virtual void Update() {}
