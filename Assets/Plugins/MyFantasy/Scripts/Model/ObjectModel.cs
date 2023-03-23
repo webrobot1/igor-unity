@@ -197,7 +197,7 @@ namespace MyFantasy
 		/// </summary>
 		public virtual double GetEventRemain(string group)
 		{
-			// вычтем из времени время на доставку пакета (половина пинга)
+			// тут пинг не выитаем тк для анимации еще используется (она ведь должна продолжаться пока пакет идет).а если отправка команд идет в ConnectController - сверяясь вычитая пол пинга 
 			return getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
 		}
 

@@ -159,7 +159,7 @@ namespace MyFantasy
 
 				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
 				if (recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE)
-					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
+					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE?0.2f:(GetEventRemain(WalkResponse.GROUP)))));
 				else
 					transform.position = position;
 			}
