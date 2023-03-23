@@ -160,10 +160,12 @@ namespace MyFantasy
 				}
 
 				// если у нас перемещение на другую карту то очень быстро перейдем на нее что бы небыло дергания когда загрузится наш персонад на ней (тк там моментальный телепорт если еще не дошли ,т.е. дергание)
-				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && recive.map_id == null)
+				if ((recive.action == "walk" && recive.map_id == null) || recive.action == ConnectController.ACTION_REMOVE)
                 {
+					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
+
 					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
-					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE ? 0.2f : (getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP)))));
+					moveCoroutine = StartCoroutine(Walk(position, (recive.action == ConnectController.ACTION_REMOVE ? timeout*1.5 : timeout)));
 				}					
 				else
 					transform.position = position;
