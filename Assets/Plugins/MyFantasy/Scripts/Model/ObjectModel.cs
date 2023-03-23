@@ -163,7 +163,7 @@ namespace MyFantasy
 					if (kvp.Value.remain != null) 
 					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
-						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - (ConnectController.Ping()/ConnectController.INTERPOLATION));
+						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - (ConnectController.INTERPOLATION>0?ConnectController.Ping()/ConnectController.INTERPOLATION:0));
 					}				
 					
 					if (kvp.Value.timeout != null) 

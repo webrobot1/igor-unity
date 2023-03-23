@@ -342,7 +342,7 @@ namespace MyFantasy
 				try
 				{
 					double ping = Ping();
-					double remain = player.GetEventRemain(data.group) - (Ping() / INTERPOLATION); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
+					double remain = player.GetEventRemain(data.group) - (INTERPOLATION>0?Ping() / INTERPOLATION:0); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 					
 
 					// Здесь интерполяция - проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
@@ -412,7 +412,7 @@ namespace MyFantasy
 		{
 			// поставим примерно време когда наступит таймаут (с овтетом он нам более точно скажет тк таймаут может и плавающий в механике быть)
 			double timeout = player.getEvent(group).timeout ?? 5;
-			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout + (Ping() / INTERPOLATION));
+			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout + (INTERPOLATION > 0 ? Ping() / INTERPOLATION : 0));
 		}
 
 		private static void Close()
