@@ -127,6 +127,8 @@ namespace MyFantasy
 
 		protected void SetData(NewObjectRecive recive)
 		{
+			base.SetData(recive);
+
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null)
 			{
@@ -146,7 +148,7 @@ namespace MyFantasy
 				activeLast = DateTime.Now.AddMilliseconds(300);
 			}
 
-			base.SetData(recive);
+			
 
 			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
 			if (recive.x != null || recive.y != null || recive.z != null || recive.action == ConnectController.ACTION_REMOVE)
