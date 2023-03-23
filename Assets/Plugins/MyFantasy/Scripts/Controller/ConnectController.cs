@@ -34,6 +34,11 @@ namespace MyFantasy
 		public static string player_key;
 
 		/// <summary>
+		/// установленная на сервере длинна шага. может пригодится для экстрополяции
+		/// </summary>
+		public static float step;
+
+		/// <summary>
 		/// Префаб нашего игрока
 		/// TODO переделать в нестатический
 		/// </summary>
@@ -44,6 +49,7 @@ namespace MyFantasy
 		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
 		/// </summary>
 		protected static string player_token;
+				
 
 		/// <summary>
 		/// Ссылка на конектор
@@ -200,6 +206,7 @@ namespace MyFantasy
 
 			player_key = data.key;
 			player_token = data.token;
+			step = data.step;
 
 			coroutine = null;
 			loading = DateTime.Now.AddSeconds(max_pause_sec);

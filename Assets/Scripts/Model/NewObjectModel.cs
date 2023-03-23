@@ -15,6 +15,8 @@ namespace MyFantasy
 	[RequireComponent(typeof(Collider))]
 	public class NewObjectModel : ObjectModel
 	{
+		private const bool EXTROPOLATION = false;
+
 		[NonSerialized]
 		public Animator animator;
 
@@ -53,6 +55,7 @@ namespace MyFantasy
 
 		[NonSerialized]
 		public int hpMax;
+
 		[NonSerialized]
 		public int mpMax;
 
@@ -212,39 +215,39 @@ namespace MyFantasy
 
 			// нужны только для замедления при экстрополяции
 			MoveDataRecive data;
-			float speed = 1;	
 
 			// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться (используется таймаут а не фактическое оставшееся время тк при большом пинге игрок будет скакать)
 			float distancePerUpdate = (float)(Vector3.Distance(transform.position, position) / (timeout / Time.fixedDeltaTime));
 			
-			while ((distance = Vector3.Distance(transform.position, position)) > 0 || getEvent(WalkResponse.GROUP).action.Length > 0)
+			while ((distance = Vector3.Distance(transform.position, position)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && EXTROPOLATION))
 			{
 
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate || action == "dead" || action == "hurt")
                 {
 					// не интерполируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
-					if (action != "dead" && action != "hurt" && action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius>0) 
+					if (action != "dead" && action != "hurt" && action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius>0 && EXTROPOLATION) 
 					{
-						distancePerUpdate *= 0.5f;
+						// чуть снизим скорость
+						//distancePerUpdate *= 0.7f;
 
 						switch (getEvent(WalkResponse.GROUP).action)
 						{
 							case "kamikadze":
-								position += new Vector3(forward.x, forward.y, position.z);
+								position += Vector3.Scale(new Vector3(forward.x, forward.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
 
 								Debug.LogError("экстрополируем");
 							break;						
 							case "index":
 								data = getEventData<MoveDataRecive>(WalkResponse.GROUP);
 
-								position += new Vector3(data.x, data.y, position.z);
+								position += Vector3.Scale(new Vector3(data.x, data.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
 
 								Debug.LogError("экстрополируем");
 							break;						
 							case "to":
-								// я немогу это экстрополировать тк незнаю в какоую сторону поиск пути сработает так что просто движемся в том же направлении и ждем сервер
-								position +=  new Vector3(forward.x * distancePerUpdate, forward.y * distancePerUpdate, position.z * distancePerUpdate);
+								// я немогу это экстрополировать тк незнаю в какоую сторону поиск пути сработает так что просто медленно движемся в том же направлении и ждем сервер
+								position +=  new Vector3(forward.x * ConnectController.step * distancePerUpdate, forward.y * ConnectController.step * distancePerUpdate, position.z * ConnectController.step * distancePerUpdate);
 							break;
 						}					
 					}
