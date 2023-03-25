@@ -341,7 +341,6 @@ namespace MyFantasy
 			{
 				try
 				{
-					double ping = Ping();
 					double remain = player.GetEventRemain(data.group) - (INTERPOLATION>0?Ping() / INTERPOLATION:0); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 					
 
@@ -355,9 +354,9 @@ namespace MyFantasy
 							loading = DateTime.Now.AddSeconds(max_pause_sec);
 						}
 
-						if (ping > 0 && ping != last_ping_send_value && DateTime.Compare(last_ping_send, DateTime.Now) < 1)
+						if (Ping() > 0 && Ping() != last_ping_send_value && DateTime.Compare(last_ping_send, DateTime.Now) < 1)
 						{
-							data.ping = last_ping_send_value = ping;
+							data.ping = last_ping_send_value = Ping();
 							last_ping_send = DateTime.Now.AddSeconds(ping_send_sec);
 						}
 
