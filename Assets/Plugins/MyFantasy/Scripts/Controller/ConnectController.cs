@@ -30,9 +30,10 @@ namespace MyFantasy
 
 		/// <summary>
 		/// позволить слать запрос к серверу чуть раньше (на время доставки пакета - расчитвается как пол пинга) что бы к моменту таймаута события сервера запрос на новое уже был
-		/// число - на сколько делим PING что бы обозначит время на доставку пакета в одну сторону (2 = считается половиной ping которая приближена ко времени на доставку пакета в одну сторону)
+		/// число - на сколько делим PING что бы обозначит время на доставку пакета в одну сторону (0.5 = считается половиной ping которая приближена ко времени на доставку пакета в одну сторону)
+		/// меньше можно ольше не нужно тк будет ошибка на сервере что слишком быстро пришел пакет и запрос по сути будет зря
 		/// </summary>
-		public const float INTERPOLATION = 2f;
+		private const float INTERPOLATION = 0.5f;
 
 		/// <summary>
 		/// позволить продолжить движение стандартной механики движения при наличии уже посланных интерполяцией запросов на новое событие движения. 
@@ -341,12 +342,13 @@ namespace MyFantasy
 			{
 				try
 				{
-					double remain = player.GetEventRemain(data.group) - (INTERPOLATION>0?Ping() / INTERPOLATION:0); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
-					
+					double remain = player.GetEventRemain(data.group); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
+					if (INTERPOLATION > 0)
+						remain -= Ping() * INTERPOLATION;
 
-					// Здесь интерполяция - проверим можем ли отправить мы эту команду сейчас, отнимем от времени окончания паузы события половина пинга которое будет затрачено на доставку от нас ответа серверу
-					// так же мы даем возможность слать запрос повторно если события генерируются сервером и мы хотим их сбросить
-					if (remain <= 0 || player.getEvent(data.group).is_client != true)
+
+					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
+					if (remain<=0 || (player.getEvent(data.group).action.Length==0 && remain <= player.getEvent(data.group).timeout) || player.getEvent(data.group).from_client != true)
 					{
 						// поставим на паузу отправку и получение любых кроме данной команды данных
 						if (data.group == LoadResponse.GROUP)
@@ -381,7 +383,7 @@ namespace MyFantasy
 						SetTimeout(data.group);
 
 						// сразу пометим что текущее событие нами было выслано 
-						player.getEvent(data.group).is_client = true;
+						player.getEvent(data.group).from_client = true;
 
 						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
 						Put2Send(json);	
@@ -411,7 +413,17 @@ namespace MyFantasy
 		{
 			// поставим примерно време когда наступит таймаут (с овтетом он нам более точно скажет тк таймаут может и плавающий в механике быть)
 			double timeout = player.getEvent(group).timeout ?? 5;
-			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout + (INTERPOLATION > 0 ? Ping() / INTERPOLATION : 0));
+	
+			if (player.GetEventRemain(group) > Ping() / 2)								// если до конца события осталось больше чем успеет дойти запрос до сервера (время = половины пинга)  то учитываем если
+				timeout += player.GetEventRemain(group);	
+			else
+				timeout += Ping() / 2;                                                  // если нет - то учитываем время на доставку запроса (пол пинга)
+
+			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout);
+
+
+			Debug.LogError("Новое значение оставшегося времени: "+player.GetEventRemain(group));
+
 		}
 
 		private static void Close()

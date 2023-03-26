@@ -163,7 +163,7 @@ namespace MyFantasy
 					if (kvp.Value.remain != null) 
 					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
-						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - (ConnectController.INTERPOLATION>0?ConnectController.Ping()/ConnectController.INTERPOLATION:0));
+						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - ConnectController.Ping() / 2);
 					}				
 					
 					if (kvp.Value.timeout != null) 
@@ -177,8 +177,8 @@ namespace MyFantasy
 					}
 
 					// если false то сервер создал это событие. true по умолчанию 
-					if (kvp.Value.is_client!=null)
-						events[kvp.Key].is_client = kvp.Value.is_client;
+					if (kvp.Value.from_client != null)
+						events[kvp.Key].from_client = kvp.Value.from_client;
 
 					if (kvp.Value.action != null) 
 					{ 
@@ -253,26 +253,7 @@ namespace MyFantasy
 					{
 						// чуть снизим скорость
 						distancePerUpdate *= ConnectController.EXTROPOLATION;
-
-						switch (getEvent(WalkResponse.GROUP).action)
-						{
-							case "kamikadze":
-								position += Vector3.Scale(new Vector3(forward.x, forward.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
-
-								Debug.LogError("экстрополируем");
-								break;
-							case "index":
-								data = getEventData<MoveDataRecive>(WalkResponse.GROUP);
-
-								position += Vector3.Scale(new Vector3(data.x, data.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
-
-								Debug.LogError("экстрополируем");
-								break;
-							case "to":
-								// я немогу это экстрополировать тк незнаю в какоую сторону поиск пути сработает так что просто медленно движемся в том же направлении и ждем сервер
-								position += new Vector3(forward.x * ConnectController.step * distancePerUpdate, forward.y * ConnectController.step * distancePerUpdate, position.z * ConnectController.step * distancePerUpdate);
-								break;
-						}
+						position += Vector3.Scale(new Vector3(forward.x, forward.y, position.z).normalized, new Vector3(ConnectController.step, ConnectController.step, 1));
 					}
 					else
 					{
@@ -284,6 +265,7 @@ namespace MyFantasy
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
 				activeLast = DateTime.Now;
+				Debug.LogError("Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
 
 				transform.position = Vector3.MoveTowards(transform.position, position, distancePerUpdate);
 				yield return new WaitForFixedUpdate();
