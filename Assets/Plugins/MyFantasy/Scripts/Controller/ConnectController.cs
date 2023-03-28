@@ -39,7 +39,7 @@ namespace MyFantasy
 		/// позволить продолжить движение стандартной механики движения при наличии уже посланных интерполяцией запросов на новое событие движения. 
 		/// число - с какой скоростью продолжать движение пока ждем пакет от сервера (если установить 1 то мы можем очень далеко уйти прежде чем пакеты придутб рекомендуется ставить меньше половины)
 		/// </summary>
-		public const float EXTROPOLATION = 0.3f;
+		public const bool EXTROPOLATION = true;
 
 		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
@@ -421,9 +421,7 @@ namespace MyFantasy
 
 			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout);
 
-
 			Debug.LogError("Новое значение оставшегося времени: "+player.GetEventRemain(group));
-
 		}
 
 		private static void Close()
