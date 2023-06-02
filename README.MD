@@ -1,4 +1,5 @@
 Данная игра-песочница служит для демонстрации реализации мультиплеера проекта [http://my-fantasy.ru/articles/frontend/index/eyJpZCI6Mn0=](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6Mn0=)
+Видео описание работы плагина [https://youtu.be/NyRiODUeChE](https://youtu.be/NyRiODUeChE)
 
 Общее описание папок:
 
