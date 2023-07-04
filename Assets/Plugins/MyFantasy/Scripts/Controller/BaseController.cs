@@ -19,12 +19,15 @@ namespace MyFantasy
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
-		protected static string password;      
+		protected static string password;
 
-		public static void Error(string error)
+		public static void Error(string error, Exception ex = null)
 		{
 			GameObject.Find("error").GetComponent<Text>().text = error;
 			Debug.LogError(error);
+
+			if (ex != null)
+				Debug.LogException(ex);
 		}
 
 		protected virtual void Awake()
@@ -55,7 +58,7 @@ namespace MyFantasy
 			formData.AddField("login", login);
 			formData.AddField("password", password);
 
-			string url = "http://" + SERVER + "/server/signin/" + action;
+			string url = "http://" + SERVER + "/game/signin/" + action;
 			Debug.Log("соединяемся с " + url);
 
 			UnityWebRequest request = UnityWebRequest.Post(url, formData);
@@ -78,8 +81,7 @@ namespace MyFantasy
 				}
 				catch (Exception ex)
 				{
-					Debug.LogException(ex);
-					Error("Ошибка разбора авторизации: (" + text + ")");
+					Error("Ошибка разбора авторизации: (" + text + ")", ex);
 				}
 			}
 			else

@@ -113,7 +113,6 @@ namespace MyFantasy
 				position.z = (float)recive.z;
 			}
 
-
 			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
 			if (recive.x != null || recive.y != null || recive.z != null || recive.action == ConnectController.ACTION_REMOVE)
 			{
@@ -203,6 +202,8 @@ namespace MyFantasy
 			{
 				events.Add(group, new EventRecive());
 				events[group].action = "";
+				events[group].timeout = 0.5;
+				events[group].from_client = true;
 			}
 
 			return events[group];
@@ -243,34 +244,40 @@ namespace MyFantasy
 
 			Vector3 finish = position;
 
+
 			float extropolation = ((float)ConnectController.Ping()/2+Time.fixedDeltaTime) / (float)getEvent(WalkResponse.GROUP).timeout * ConnectController.step;
 			if (extropolation < distancePerUpdate) extropolation = distancePerUpdate;
 
+			bool extropolation_start = false;
 
 			while ((distance = Vector3.Distance(transform.position, position)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION))
 			{
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
+
 					// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться если есть уже команды на следующее движение
 					// не экстрополируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
 					if (action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius > 0 && ConnectController.EXTROPOLATION && Vector3.Distance(transform.position, finish) < extropolation)
 					{
+						extropolation_start = true;
+
 						// чуть снизим скорость
 						position += Vector3.Scale(new Vector3(forward.x, forward.y, position.z).normalized, new Vector3 (extropolation, extropolation, 1));
 						Debug.LogError("Экстрополяция");
 					}
 					else
 					{
-						transform.position = position;
+						transform.position = position; 
 						break;
 					}
 				}
+				else if (extropolation_start) break;
 
 				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
 				// в ином случае - дистанцию с учетом скорости проходим целиком
 				activeLast = DateTime.Now;
-				Debug.LogError("Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
+				//Debug.LogError("Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
 
 				transform.position = Vector3.MoveTowards(transform.position, position, distancePerUpdate);
 				yield return new WaitForFixedUpdate();

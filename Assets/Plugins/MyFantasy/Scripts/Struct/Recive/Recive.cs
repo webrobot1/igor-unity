@@ -9,12 +9,12 @@ namespace MyFantasy
     [System.Serializable]
     public class Recive<P, E, O> where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
     {
-        public Dictionary<string, MapRecive<P, E, O>> world;
+        public Dictionary<int, MapRecive<P, E, O>> world;
 
         /// <summary>
         ///  с какой стороны какой номер карты (мы мо этим номерам при пеерходе на другую карту смещаем карты что бы не запрашивать их снова)
         /// </summary>
-        public Dictionary<string, int> sides;
+        public Dictionary<int, string> sides;
 
         /// <summary>
         ///  временная метка которую выслал клиент и отправленная назад за вычетом времени ожидания этой отправки на сервере (отправляется в потоке с другими данынми когда они будут)

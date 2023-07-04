@@ -17,6 +17,7 @@ using WebGLSupport;
 	using WebSocketSharp;
 #endif
 
+
 namespace MyFantasy
 {
 	/// <summary>
@@ -63,11 +64,21 @@ namespace MyFantasy
 		/// </summary>
 		protected static string player_token;
 				
-
 		/// <summary>
 		/// Ссылка на конектор
 		/// </summary>
-		private static WebSocket connect;
+		private static Dictionary <Guid, WebSocket> connects = new Dictionary<Guid, WebSocket>();
+
+		/// <summary>
+		/// флаг что нужно переподключаться игнорируюя все запросы в очереди
+		/// </summary>
+		private static ReloadStatus reload = ReloadStatus.None;
+		private enum ReloadStatus
+		{
+			Start,
+			Process,
+			None
+		};
 
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
@@ -78,11 +89,6 @@ namespace MyFantasy
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 		/// </summary>
 		private static List<string> errors = new List<string>();
-
-		/// <summary>
-		/// флаг что нужно переподключаться игнорируюя все запросы в очереди
-		/// </summary>
-		private static bool reload = false;
 
 		/// <summary>
 		/// блокирует отправку любых запросов на сервер (тк уже идет соединение). только событие load (получения с сервера игрового мира) снимает его
@@ -143,7 +149,22 @@ namespace MyFantasy
 		/// до какой длинные обрезается историй пингов после достижения максимального количества
 		/// </summary>
 		protected static int min_ping_history = 5;
+		public static ConnectController  Instance { get; private set; }
 
+
+		protected override void Awake()
+		{
+			if (Instance != null && Instance != this)
+			{
+				Destroy(this);
+			}
+			else
+			{
+				Instance = this;
+			}
+
+			base.Awake();
+		}
 
 		protected virtual void Update() {}
 
@@ -166,10 +187,14 @@ namespace MyFantasy
 						Debug.Log("Пауза");
 				}
 				
-				if (reload)
+				if (reload == ReloadStatus.Start)
 				{
 					// этот флаг снимем что бы повторно не загружать карту
-					reload = false;
+					reload = ReloadStatus.Process;
+
+					// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
+					loading = DateTime.Now.AddSeconds(max_pause_sec);
+
 					StartCoroutine(HttpRequest("auth"));
 				}
 				if (errors.Count == 0)
@@ -186,8 +211,7 @@ namespace MyFantasy
 							}
 							catch (Exception ex)
 							{
-								Debug.LogException(ex);
-								Error("Ошибка разбора разбора данных (" + ex.Message+ ")");
+								Error("Ошибка разбора разбора данных", ex);
 							}
 						}
 
@@ -195,8 +219,8 @@ namespace MyFantasy
 						recives.RemoveRange(0, count);
 					}
 
-					if (connect != null && !reload && connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting)
-						Error("Соединение не открыто для запросов (" + connect.ReadyState + ")");
+					if (connects.Count>0 && reload == ReloadStatus.None && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Open && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Connecting)
+						Error("Соединение не открыто для запросов (" + connects.Last().Value.ReadyState + ")");
 				}
 				else
 				{
@@ -224,42 +248,46 @@ namespace MyFantasy
 			coroutine = null;
 			loading = DateTime.Now.AddSeconds(max_pause_sec);
 
-
 			string address = "ws://" + data.host;
 			Debug.Log("Соединяемся с сервером " + address);
 
-			if (connect != null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.Closing))
+			if (connects.Count>0 && (connects.Last().Value.ReadyState == WebSocketSharp.WebSocketState.Open || connects.Last().Value.ReadyState == WebSocketSharp.WebSocketState.Connecting))
 			{
-				Error("WebSocket is already connected or is closing.");
+				Error("WebSocket до сих пор открыт");
 			}
 
 			try
 			{
-				connect = new WebSocket(address);
+				Guid id = Guid.NewGuid();
+				connects.Add(id, new WebSocket(address));
+
+				Debug.Log("новое соединение "+id.ToString());
 
 				// так в C# можно
-				connect.SetCredentials("" + player_key + "", player_token, true);
-				connect.OnOpen += (sender, ev) =>
+				connects.Last().Value.SetCredentials("" + player_key + "", player_token, true);
+				connects.Last().Value.OnOpen += (sender, ev) =>
 				{
 					Debug.Log("Соединение с севрером установлено");
 				};
-				connect.OnClose += (sender, ev) =>
+				connects.Last().Value.OnClose += (sender, ev)  =>
 				{
-					if ((ushort)ev.Code != ((ushort)WebSocketSharp.CloseStatusCode.Normal))
-					{
-						// следующий Update вызовет ошибку , если мы конечно не переподключаемся и это не старое соединеник
-						// оно может сработать при переходе с локаций. так что обнуляем если текущее соедиение не соединяется или не открыто
-						if (connect != null && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting && connect.ReadyState != WebSocketSharp.WebSocketState.Open)
-							Error("Соединение с сервером  прервано: "+ connect.ReadyState);
-					}
+					if (reload == ReloadStatus.None && connects.Last().Key == id)
+						Error("Соединение с сервером закрыто сервером (" + id + "): " + ev.Reason);
 					else
-						Debug.LogWarning("Нормальное закрытие соединения");
+						Debug.Log("закрылось старое соединение "+id.ToString());
+
+					connects.Remove(id);
 				};
-				connect.OnError += (sender, ev) =>
+				connects.Last().Value.OnError += (sender, ev) =>
 				{
-					Error("Ошибка соединения " + ev.Message);
+					if (reload == ReloadStatus.None && connects.Last().Key == id)
+						Error("Ошибка соединения " + ev.Message);
+					else
+						Debug.LogError("Ошибка соединения " + id.ToString()+": " + ev.Message);
+
+					connects.Remove(id);
 				};
-				connect.OnMessage += (sender, ev) =>
+				connects.Last().Value.OnMessage += (sender, ev) =>
 				{
 					try
 					{
@@ -269,7 +297,7 @@ namespace MyFantasy
 						Debug.Log(DateTime.Now.Millisecond + ": " + text);
 					#endif
 
-						if (coroutine == null && !reload)
+						if (coroutine == null && reload == ReloadStatus.None)
 						{
 							Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
 
@@ -283,10 +311,8 @@ namespace MyFantasy
 								Debug.LogWarning("Перезаход в игру");
 
 								// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-								reload = true;
-								// обнулим наше соединение что бы Close() не пытался его закрыть его сам асинхроно (а то уже при установке нового соединения может закрыть новое )
-								connect = null;
-								Close();
+								reload = ReloadStatus.Start;
+								Close((ushort)WebSocketSharp.CloseStatusCode.Normal);
 							}
 							else
 							{
@@ -320,15 +346,16 @@ namespace MyFantasy
 					}
 					catch(Exception ex)
                     {
-						Error("Ошибка получения сообщения от сервера: "+ex.Message);
+						Error("Ошибка обработки сообщения от сервера: ", ex);
 					}
 				};
-				connect.Connect();
+
+				connects.Last().Value.Connect();
+				reload = ReloadStatus.None;
 			}
 			catch (Exception ex)
 			{
-				Debug.LogException(ex);
-				Error("Ошибка октрытия соединения " + ex.Message);
+				Error("Ошибка октрытия соединения ", ex);
 			}
 		}
 
@@ -338,14 +365,14 @@ namespace MyFantasy
 		public static void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (player != null && loading == null && connect!=null && !reload)
+			if (player != null && loading == null  && reload == ReloadStatus.None && connects.Count()>0 && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closed && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closing)
 			{
 				try
 				{
 					double remain = player.GetEventRemain(data.group); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
+					
 					if (INTERPOLATION > 0)
 						remain -= Ping() * INTERPOLATION;
-
 
 					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
 					if (remain<=0 || (player.getEvent(data.group).action.Length==0 && remain <= player.getEvent(data.group).timeout) || player.getEvent(data.group).from_client != true)
@@ -412,7 +439,7 @@ namespace MyFantasy
 		private static void SetTimeout(string group)
 		{
 			// поставим примерно време когда наступит таймаут (с овтетом он нам более точно скажет тк таймаут может и плавающий в механике быть)
-			double timeout = player.getEvent(group).timeout ?? 5;
+			double timeout = (double)player.getEvent(group).timeout;
 	
 			if (player.GetEventRemain(group) > Ping() / 2)								// если до конца события осталось больше чем успеет дойти запрос до сервера (время = половины пинга)  то учитываем если
 				timeout += player.GetEventRemain(group);	
@@ -424,18 +451,17 @@ namespace MyFantasy
 			Debug.LogError("Новое значение оставшегося времени: "+player.GetEventRemain(group));
 		}
 
-		private static void Close()
+		private static void Close(ushort code = (ushort)WebSocketSharp.CloseStatusCode.Abnormal)
 		{	
-			// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
-			loading = DateTime.Now.AddSeconds(max_pause_sec);
-
-			if (connect != null)
+			if (connects.Count() > 0)
 			{
-				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
-					connect.CloseAsync(WebSocketSharp.CloseStatusCode.Normal);
-
-				connect = null;
-				Debug.LogWarning("Закрытие соединения вручную");
+				if (connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closed && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closing)
+				{
+					connects.Last().Value.Close(code);
+					Debug.Log("закрытие соедения " + code);
+				}
+				else
+					Debug.LogWarning("содинение уже закрывается");
 			}
 		}
 
@@ -445,18 +471,21 @@ namespace MyFantasy
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 
 			// тк у нас в аралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
-			if(connect!=null)
-				connect.Send(sendBytes);
+			if(connects.Count()>0 && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closed && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closing)
+				connects.Last().Value.Send(sendBytes);
 		}
 
-		public static new void Error (string text)
+		public new static void  Error (string text, Exception ex = null)
 		{
 			errors.Add(text);
 			Close();
 
 			Debug.LogError(text);
-			throw new Exception(text);
-		}
+
+			if(ex!=null)
+				Debug.LogException(ex);
+		}	
+
 
 		/// <summary>
 		/// Страница ошибок - загрузка страницы входа

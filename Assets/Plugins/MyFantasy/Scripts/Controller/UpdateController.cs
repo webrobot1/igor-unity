@@ -63,12 +63,12 @@ namespace MyFantasy
 				foreach (var map in recive.world)
 				{
 					// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
-					Transform map_zone = base.worldObject.transform.Find(map.Key);
+					Transform map_zone = base.worldObject.transform.Find(this.sides[map.Key]);
 					if (map_zone == null)
 					{
-						map_zone = new GameObject(map.Key).transform;
+						map_zone = new GameObject(this.sides[map.Key]).transform;
 						map_zone.SetParent(base.worldObject.transform, false);
-						Debug.LogWarning("Создаем область для объектов " + map.Key);
+						Debug.LogWarning("Создаем область для объектов " + map.Key+ "("+ this.sides[map.Key] + ")");
 					}
 
 					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
@@ -121,11 +121,59 @@ namespace MyFantasy
 
 
 		/// <summary>
+		/// Обработка пакета - с какой стороны какая ID карты на сцене
+		/// </summary>
+		private void UpdateSides(Dictionary<int, string> sides)
+		{
+			Debug.Log("Обрабатываем стороны карт");
+
+			if (!sides.ContainsValue("center")) Error("Запись о центральной карте не пришла");
+
+			mapObject.SetActive(false);
+			worldObject.SetActive(false);
+
+			// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
+			if (this.maps.Count > 0)
+			{
+				foreach (Transform grid in mapObject.transform)
+				{
+					int old_side = this.sides.FirstOrDefault(x => x.Value == grid.name).Key;
+
+                    if (sides.ContainsKey(old_side))
+                    {
+						Debug.Log("подмена карты с " + this.sides[old_side] + " на " + sides[old_side]);
+						grid.name = sides[old_side];
+                    }
+					else
+					{
+						Debug.Log("уничтожаем неиспользуемую карту " + old_side);
+						DestroyImmediate(mapObject.transform.Find(this.sides[old_side]).gameObject);
+						maps.Remove(old_side);
+					}				
+				}
+			}
+
+			this.sides = sides;
+			SortMap();
+			
+			mapObject.SetActive(true);
+			worldObject.SetActive(true);
+
+
+			// загрузим отвутвующую графику центральной и смежных карт 
+			// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
+			foreach (KeyValuePair<int, string> side in sides)
+			{
+				if (!maps.ContainsKey(side.Key)) StartCoroutine(GetMap(side.Key));
+			}
+		}
+
+		/// <summary>
 		/// обработка кокнретной сущности (создание и обновлелние)
 		/// </summary>
-		protected virtual GameObject UpdateObject(string side, string key, ObjectRecive recive, string type)
+		protected virtual GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
 		{
-			Debug.Log("Обрабатываем "+type+" "+key+" на карте "+side);
+			Debug.Log("Обрабатываем "+type+" "+key+" на карте "+ map_id);
 
 			GameObject prefab = GameObject.Find(key);
 			ObjectModel model;
@@ -156,12 +204,12 @@ namespace MyFantasy
 				}
 
 				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
-				if (maps.ContainsKey(side))
+				if (maps.ContainsKey(map_id))
 				{
 					if (prefab.GetComponent<SpriteRenderer>())
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[side].spawn_sort + model.sort;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map_id].spawn_sort + model.sort;
 					if (prefab.GetComponentInChildren<Canvas>())
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[side].spawn_sort + 1 + model.sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map_id].spawn_sort + 1 + model.sort;
 				}
 			}
             else 
@@ -169,7 +217,7 @@ namespace MyFantasy
 				model = prefab.GetComponent<ObjectModel>();
 			}
 
-			prefab.transform.SetParent(worldObject.transform.Find(side).transform, false);
+			prefab.transform.SetParent(worldObject.transform.Find(this.sides[map_id]).transform, false);
 
 			try
 			{
@@ -177,67 +225,10 @@ namespace MyFantasy
 			}
 			catch (Exception ex)
 			{
-				Debug.LogException(ex);
-				Error("Не удалось загрузить " + key);
+				Error("Не удалось загрузить " + key, ex);
 			}
 
 			return prefab;
-		}
-
-		/// <summary>
-		/// Обработка пакета - с какой стороны какая ID карты на сцене
-		/// </summary>
-		private void UpdateSides(Dictionary<string, int> sides)
-		{
-			Debug.Log("Обрабатываем стороны карт");
-
-			if (!sides.ContainsKey("center")) Error("Запись о центральной карте не пришла");
-			
-			this.sides = sides;
-			mapObject.SetActive(false);
-
-			// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
-			if (this.maps.Count > 0)
-			{
-				bool find;
-				Dictionary<string, MapDecode> new_maps = new Dictionary<string, MapDecode>();
-
-				// сначала 
-				foreach (KeyValuePair<string, int> side in this.sides)
-				{
-					find = false;
-					foreach (KeyValuePair<string, MapDecode> map in maps)
-					{
-						if (map.Value.map_id == side.Value)
-						{
-							if (map.Key != side.Key)
-							{
-								Debug.Log("подмена карты с " + map.Key + " на " + side.Key);
-								mapObject.transform.Find(map.Key).gameObject.name = side.Key;
-								new_maps.Add(side.Key, map.Value);
-							}
-							find = true;
-						}
-					}
-
-					if (!find && mapObject.transform.Find(side.Key))
-						DestroyImmediate(mapObject.transform.Find(side.Key).gameObject);
-				}
-
-				if (new_maps.Count > 0)
-				{
-					maps = new_maps;
-					SortMap();
-				}
-			}
-			mapObject.SetActive(true);
-
-			// загрузим отвутвующую графику центральной и смежных карт 
-			// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
-			foreach (KeyValuePair<string, int> side in this.sides)
-			{
-				if (!maps.ContainsKey(side.Key)) StartCoroutine(base.GetMap(side.Key));
-			}
-		}
+		}	
 	}
 }

@@ -47,7 +47,8 @@ namespace MyFantasy
         /// </summary>
         protected bool persist_target;
 
-        public static PlayerController Instance { get; private set; }
+        public static new PlayerController Instance { get; private set; }
+
         protected override void Awake()
         {
             if (Instance != null && Instance != this)
@@ -117,25 +118,26 @@ namespace MyFantasy
      
             base.HandleData(recive);
 
-            if (recive.action == ACTION_LOAD)
+            if (playerFaceController.target == null && player != null)
             {
-                // установим иконку нашего персонажа в превью и свяжем его анимацию с ней
-                if(playerFaceController.target == null)
-                    playerFaceController.target = player;
+                Debug.Log("Инициализация фрейма игрока");
 
-                if (tmp_target != null && target == null)
+                // установим иконку нашего персонажа в превью и свяжем его анимацию с ней
+                playerFaceController.target = player;
+            }
+
+            if (recive.action == ACTION_LOAD && tmp_target != null && target == null)
+            {
+                Debug.LogError("Потерялась цель игрока при загрузке " + tmp_target);
+                GameObject gameObject = GameObject.Find(tmp_target);
+                if (gameObject == null)
                 {
-                    Debug.LogError("Потерялась цель игрока при загрузке " + tmp_target);
-                    GameObject gameObject = GameObject.Find(tmp_target);
-                    if (gameObject == null)
-                    {
-                        target = null;
-                    }
-                    else
-                    {
-                        Debug.LogError("Цель была найдена снова " + tmp_target);
-                        target = gameObject.GetComponent<NewObjectModel>();
-                    }
+                    target = null;
+                }
+                else
+                {
+                    Debug.LogError("Цель была найдена снова " + tmp_target);
+                    target = gameObject.GetComponent<NewObjectModel>();
                 }
             }
            
@@ -143,9 +145,9 @@ namespace MyFantasy
                 ping.text = "PING: " + Ping() * 1000 + " ms."; 
         }
 
-        protected override GameObject UpdateObject(string side, string key, ObjectRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
-            NewObjectModel model = base.UpdateObject(side, key, recive, type).GetComponent<NewObjectModel>();
+            NewObjectModel model = base.UpdateObject(map_id, key, recive, type).GetComponent<NewObjectModel>();
 
             if (player!=null)
             {

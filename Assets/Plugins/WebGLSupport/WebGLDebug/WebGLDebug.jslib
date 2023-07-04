@@ -30,7 +30,7 @@ var WebGLDebug =
 					if(container.querySelector('#map_id').value)
 					{
 						container.querySelector('#perfomance').innerHTML = '<span class="glyphicon-refresh-animate glyphicon glyphicon-refresh"></span>';
-						fetch('/server/api/log_perfomance/'+container.querySelector('#map_id').value).then((response) => response.text()).then((data) => container.querySelector('#perfomance').innerHTML = data);
+						fetch('/server/log/perfomance/'+container.querySelector('#map_id').value).then((response) => response.text()).then((data) => container.querySelector('#perfomance').innerHTML = data);
 					}
 				  }, 10000);
 				}

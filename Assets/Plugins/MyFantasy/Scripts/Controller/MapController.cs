@@ -30,12 +30,12 @@ namespace MyFantasy
 		/// <summary>
 		/// массив с перечнем с какой стороны какая смежная карта
 		/// </summary>
-		protected Dictionary<string, int> sides = new Dictionary<string, int>();
+		protected Dictionary<int, string> sides = new Dictionary<int, string>();
 
 		/// <summary>
 		/// массив декодированных с сервера карт
 		/// </summary>
-		protected Dictionary<string, MapDecode> maps = new Dictionary<string, MapDecode>();
+		protected Dictionary<int, MapDecode> maps = new Dictionary<int, MapDecode>();
 
 		protected virtual void Start()
 		{
@@ -46,12 +46,14 @@ namespace MyFantasy
 				Error("не присвоен GameObject для игровых обектов");
 		}
 
-		protected virtual IEnumerator GetMap(string side)
+		protected virtual IEnumerator GetMap(int map_id)
 		{
-			if (mapObject.transform.Find(side) != null)
-				Error("карта " + side + " уже выгружена в игровое пространство");
-			else if (maps.ContainsKey(side))
-				Error("попытка загрузки карты " + side + " повторно");
+			if (!sides.ContainsKey(map_id))
+				Error("карта " + map_id + " не является какой либо частью текущих локаций");			
+			else if (mapObject.transform.Find(sides[map_id]) != null)
+				Error("карта " + map_id + " уже выгружена в игровое пространство");
+			else if (maps.ContainsKey(map_id))
+				Error("попытка загрузки карты " + map_id + " повторно");
 			else
 			{
 				/* if (side != "center")
@@ -63,12 +65,13 @@ namespace MyFantasy
 					 }
 				 }*/
 
-				WWWForm formData = new WWWForm();
-				formData.AddField("token", player_token);
-				formData.AddField("side", side);
 
-				string url = "http://" + SERVER + "/server/signin/get_map";
-				Debug.Log("получаем карту " + side + " с " + url);
+				// todo может сделать какую то авторизацию для получения карт
+				WWWForm formData = new WWWForm();
+				formData.AddField("map_id", map_id);
+
+				string url = "http://" + SERVER + "/game/signin/get_map";
+				Debug.Log("получаем карту " + map_id + " с " + url);
 
 				UnityWebRequest request = UnityWebRequest.Post(url, formData);
 
@@ -87,26 +90,25 @@ namespace MyFantasy
 
 						if (recive.error.Length > 0)
 						{
-							Error("Ошибка запроса карты " + side + ": " + recive.error);
+							Error("Ошибка запроса карты " + map_id + ": " + recive.error);
 						}
 						else if (recive.map.Length > 0)
 						{
-							Debug.Log("Обновляем карту " + side);
+							Debug.Log("Обновляем карту " + map_id);
 
-							Transform grid = new GameObject(side).transform;
+							Transform grid = new GameObject(sides[map_id]).transform;
 							grid.gameObject.AddComponent<Grid>();
 							grid.SetParent(mapObject.transform, false);
 
 							// приведем координаты в сответсвие с сеткой Unity
 							try
 							{
-								maps.Add(side, MapDecodeModel.generate(recive.map, grid));
+								maps.Add(map_id, MapDecodeModel.generate(recive.map, grid));
 								SortMap();
 							}
 							catch (Exception ex)
 							{
-								Debug.LogException(ex);
-								Error("Ошибка разбора карты");
+								Error("Ошибка разбора карты", ex);
 							}
 						}
 						else
@@ -114,8 +116,7 @@ namespace MyFantasy
 					}
 					catch (Exception ex)
 					{
-						Debug.LogException(ex);
-						Error("Ошибка запроса карты");
+						Error("Ошибка запроса карты", ex);
 					}
 				}
 				else
@@ -127,8 +128,8 @@ namespace MyFantasy
 		{
 			foreach (Transform grid in mapObject.transform)
 			{
-				string side = grid.gameObject.name;
-				switch (side)
+				int center = sides.FirstOrDefault(x => x.Value == "center").Key;
+				switch (grid.gameObject.name)
 				{
 					case "center":
 
@@ -142,24 +143,25 @@ namespace MyFantasy
 
 					case "right":
 						// центральная карта может отсутвуовать например когда мы ушли с одной карты на другую и переиспользовали графику (SortMap  запустится но оттуда откуда пришли могло не быть графики карты куда пришли)
-						if (maps.ContainsKey("center"))
-							grid.localPosition = new Vector3(maps["center"].width, 0, 0);
+						if (maps.ContainsKey(center))
+							grid.localPosition = new Vector3(maps[center].width, 0, 0);
 						break;
 
 					case "left":
-						grid.localPosition = new Vector3(maps[side].width * -1, 0, 0);
+						if (maps.ContainsKey(center))
+							grid.localPosition = new Vector3(maps[sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key].width * -1, 0, 0);
 						break;
 				}
 
 				// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
-				if (worldObject.transform.Find(side) != null)
+				if (worldObject.transform.Find(grid.gameObject.name) != null)
 				{
-					foreach (Transform child in worldObject.transform.Find(side))
+					int side = sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key;
+					foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
 					{
 						var model = child.GetComponent<ObjectModel>();
 						if (model != null)
 						{
-
 							if (child.gameObject.GetComponent<SpriteRenderer>())
 								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = maps[side].spawn_sort + model.sort;
 

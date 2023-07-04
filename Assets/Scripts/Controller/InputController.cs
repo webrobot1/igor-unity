@@ -101,7 +101,7 @@ namespace MyFantasy
         }
 
   
-        protected override GameObject UpdateObject(string side, string key, ObjectRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
             // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
             if (player != null && key == player.key && recive.action!=null)
@@ -109,7 +109,7 @@ namespace MyFantasy
                 block_forward = DateTime.Now.AddSeconds(0.2f);
             }
 
-            return base.UpdateObject(side, key, recive, type);
+            return base.UpdateObject(map_id, key, recive, type);
         }
 
         protected override void Update()
@@ -208,8 +208,7 @@ namespace MyFantasy
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogException(ex);
-                    Error("Ошибка управелния игроком: "+ex.Message);
+                    Error("Ошибка управелния игроком: ", ex);
                 }
             }
         }
