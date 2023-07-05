@@ -271,6 +271,9 @@ namespace MyFantasy
 				};
 				connects.Last().Value.OnClose += (sender, ev)  =>
 				{
+					Debug.LogWarning(ev.Code);
+
+
 					if (reload == ReloadStatus.None && connects.Last().Key == id)
 						Error("Соединение с сервером закрыто сервером (" + id + "): " + ev.Reason);
 					else
@@ -312,7 +315,7 @@ namespace MyFantasy
 
 								// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
 								reload = ReloadStatus.Start;
-								Close((ushort)WebSocketSharp.CloseStatusCode.Normal);
+								Close();
 							}
 							else
 							{
@@ -451,14 +454,14 @@ namespace MyFantasy
 			Debug.LogError("Новое значение оставшегося времени: "+player.GetEventRemain(group));
 		}
 
-		private static void Close(ushort code = (ushort)WebSocketSharp.CloseStatusCode.Abnormal)
+		private static void Close()
 		{	
 			if (connects.Count() > 0)
 			{
 				if (connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closed && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closing)
 				{
-					connects.Last().Value.Close(code);
-					Debug.Log("закрытие соедения " + code);
+					connects.Last().Value.CloseAsync();
+					Debug.Log("закрытие соедения ");
 				}
 				else
 					Debug.LogWarning("содинение уже закрывается");

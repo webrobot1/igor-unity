@@ -148,9 +148,8 @@ namespace MyFantasy
 						break;
 
 					case "left":
-						if (maps.ContainsKey(center))
-							grid.localPosition = new Vector3(maps[sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key].width * -1, 0, 0);
-						break;
+						grid.localPosition = new Vector3(maps[sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key].width * -1, 0, 0);
+					break;
 				}
 
 				// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
