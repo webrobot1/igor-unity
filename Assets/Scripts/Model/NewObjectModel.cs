@@ -53,6 +53,8 @@ namespace MyFantasy
 		[NonSerialized]
 		public int mpMax;
 
+		private Dictionary<string, Coroutine> coroutines = new Dictionary<string, Coroutine>();
+
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
 		/// </summary>
@@ -129,6 +131,28 @@ namespace MyFantasy
 		/// </summary>
 		protected void SetData(NewObjectRecive recive)
 		{
+			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
+			if (recive.x != null || recive.y != null || recive.z != null)
+			{
+				Vector3 new_position = new Vector3(recive.x ?? position.x, recive.y ?? position.y, recive.z ?? position.z);
+
+				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Vector3.Distance(position, new_position) < ConnectController.step * 1.5)
+				{
+					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
+
+					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
+					coroutines["walk"] = StartCoroutine(Walk(new_position, (recive.action == ConnectController.ACTION_REMOVE ? timeout * 1.5 : timeout), (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
+				}
+                else
+				{
+					Debug.Log("Телепорт из "+ transform.position+" в "+new_position);
+					transform.position = new_position;
+
+					if (coroutines.ContainsKey("walk"))
+						StopCoroutine("Walk");
+				}
+			}
+
 			base.SetData(recive);
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
@@ -180,6 +204,62 @@ namespace MyFantasy
 			}
 			else
 				PlayerController.Error("неверный индекс анимации "+ layerIndex);
+		}
+
+		/// <summary>
+		/// при передижении игрока проигрывается анмиация передвижения по клетке (хотя для сервера мы уже на новой позиции). скорость равна времени паузы между командами на новое движение.
+		/// она вошла в плагин тк движение нужно в любой игре а координаты часть стандартного функционала, вы можете переопределить ее
+		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
+		/// </summary>
+		/// <param name="position">куда движемя</param>
+		protected virtual IEnumerator Walk(Vector3 finish, double timeout, Coroutine old_coroutine)
+		{
+			if (old_coroutine != null)
+				StopCoroutine(old_coroutine);
+
+			float distance;
+			float distancePerUpdate = (float)(Vector3.Distance(transform.position, finish) / (timeout / Time.fixedDeltaTime));
+
+			float extropolation = ((float)ConnectController.Ping() / 2 + Time.fixedDeltaTime) / (float)getEvent(WalkResponse.GROUP).timeout * ConnectController.step;
+			if (extropolation < distancePerUpdate) extropolation = distancePerUpdate;
+
+			bool extropolation_start = false;
+
+			while ((distance = Vector3.Distance(transform.position, finish)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION))
+			{
+				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
+				if (distance < distancePerUpdate)
+				{
+					// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться если есть уже команды на следующее движение
+					// не экстрополируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
+					if (action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius > 0 && ConnectController.EXTROPOLATION && Vector3.Distance(transform.position, finish) < extropolation)
+					{
+						extropolation_start = true;
+
+						// чуть снизим скорость
+						finish += Vector3.Scale(new Vector3(forward.x, forward.y, finish.z).normalized, new Vector3(extropolation, extropolation, 1));
+						Debug.LogError("Экстрополяция");
+					}
+					else
+					{
+						transform.position = finish;
+						break;
+					}
+				}
+				else if (extropolation_start) break;
+
+				// если остальсь пройти меньше чем  мы проходим за FixedUpdate (условно кадр) то движимся это отрезок
+				// в ином случае - дистанцию с учетом скорости проходим целиком
+				activeLast = DateTime.Now;
+				//Debug.LogError("Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
+
+				transform.position = Vector3.MoveTowards(transform.position, finish, distancePerUpdate);
+				yield return new WaitForFixedUpdate();
+			}
+
+			Debug.LogError(DateTime.Now.Millisecond + "  завершена корутина движения");
+
+			coroutines.Remove("walk");
 		}
 
 		/// <summary>

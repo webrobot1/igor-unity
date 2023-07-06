@@ -135,7 +135,7 @@ namespace MyFantasy
 
 						// если у нас webgl првоерим не а дминке ли мы с API отладкой
 						#if UNITY_WEBGL && !UNITY_EDITOR
-							WebGLSupport.WebGLDebug.DebugCheck(maps[side].map_id);
+							WebGLSupport.WebGLDebug.DebugCheck(center);
 						#endif
 
 						grid.localPosition = new Vector3(0f, 0f, 0f);

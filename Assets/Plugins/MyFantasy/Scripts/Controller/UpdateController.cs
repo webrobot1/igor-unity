@@ -36,7 +36,7 @@ namespace MyFantasy
 
 						// удаляет не сразу а на следующем кадре все карты
 						// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
-						foreach (var side in base.worldObject.transform.Cast<Transform>().ToList())
+						foreach (var side in worldObject.transform.Cast<Transform>().ToList())
 						{ 
 							foreach (var child in side.transform.Cast<Transform>().ToList())
 							{
@@ -63,11 +63,11 @@ namespace MyFantasy
 				foreach (var map in recive.world)
 				{
 					// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
-					Transform map_zone = base.worldObject.transform.Find(this.sides[map.Key]);
+					Transform map_zone = worldObject.transform.Find(this.sides[map.Key]);
 					if (map_zone == null)
 					{
 						map_zone = new GameObject(this.sides[map.Key]).transform;
-						map_zone.SetParent(base.worldObject.transform, false);
+						map_zone.SetParent(worldObject.transform, false);
 						Debug.LogWarning("Создаем область для объектов " + map.Key+ "("+ this.sides[map.Key] + ")");
 					}
 

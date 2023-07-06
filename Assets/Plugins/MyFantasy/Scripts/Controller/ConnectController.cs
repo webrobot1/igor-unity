@@ -67,8 +67,8 @@ namespace MyFantasy
 		/// <summary>
 		/// Ссылка на конектор
 		/// </summary>
-		private static Dictionary <Guid, WebSocket> connects = new Dictionary<Guid, WebSocket>();
-
+		private static WebSocket connect = null;
+		
 		/// <summary>
 		/// флаг что нужно переподключаться игнорируюя все запросы в очереди
 		/// </summary>
@@ -149,22 +149,7 @@ namespace MyFantasy
 		/// до какой длинные обрезается историй пингов после достижения максимального количества
 		/// </summary>
 		protected static int min_ping_history = 5;
-		public static ConnectController  Instance { get; private set; }
 
-
-		protected override void Awake()
-		{
-			if (Instance != null && Instance != this)
-			{
-				Destroy(this);
-			}
-			else
-			{
-				Instance = this;
-			}
-
-			base.Awake();
-		}
 
 		protected virtual void Update() {}
 
@@ -219,8 +204,8 @@ namespace MyFantasy
 						recives.RemoveRange(0, count);
 					}
 
-					if (connects.Count>0 && reload == ReloadStatus.None && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Open && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Connecting)
-						Error("Соединение не открыто для запросов (" + connects.Last().Value.ReadyState + ")");
+					if (connect!=null && reload == ReloadStatus.None && connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting)
+						Error("Соединение не открыто для запросов (" + connect.ReadyState + ")");
 				}
 				else
 				{
@@ -251,7 +236,7 @@ namespace MyFantasy
 			string address = "ws://" + data.host;
 			Debug.Log("Соединяемся с сервером " + address);
 
-			if (connects.Count>0 && (connects.Last().Value.ReadyState == WebSocketSharp.WebSocketState.Open || connects.Last().Value.ReadyState == WebSocketSharp.WebSocketState.Connecting))
+			if (connect!=null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.Connecting))
 			{
 				Error("WebSocket до сих пор открыт");
 			}
@@ -259,38 +244,35 @@ namespace MyFantasy
 			try
 			{
 				Guid id = Guid.NewGuid();
-				connects.Add(id, new WebSocket(address));
+				WebSocket ws = new WebSocket(address);
 
 				Debug.Log("новое соединение "+id.ToString());
 
 				// так в C# можно
-				connects.Last().Value.SetCredentials("" + player_key + "", player_token, true);
-				connects.Last().Value.OnOpen += (sender, ev) =>
+				ws.SetCredentials("" + player_key + "", player_token, true);
+				ws.OnOpen += (object sender, System.EventArgs e) =>
 				{
+					// обязательно отключим алгоритм Nagle который не отправляет маленькие пакеты
+					var tcpClient = typeof(WebSocket).GetField("_tcpClient", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ws) as System.Net.Sockets.TcpClient;
+					tcpClient.NoDelay = true;
+
 					Debug.Log("Соединение с севрером установлено");
 				};
-				connects.Last().Value.OnClose += (sender, ev)  =>
+				ws.OnClose += (sender, ev)  =>
 				{
-					Debug.LogWarning(ev.Code);
-
-
-					if (reload == ReloadStatus.None && connects.Last().Key == id)
-						Error("Соединение с сервером закрыто сервером (" + id + "): " + ev.Reason);
+					if (reload == ReloadStatus.None && connect == ws)
+						Error("Соединение с сервером закрыто сервером (" + id + "): " + ev.Code);
 					else
 						Debug.Log("закрылось старое соединение "+id.ToString());
-
-					connects.Remove(id);
 				};
-				connects.Last().Value.OnError += (sender, ev) =>
+				ws.OnError += (sender, ev) =>
 				{
-					if (reload == ReloadStatus.None && connects.Last().Key == id)
+					if (reload == ReloadStatus.None && connect == ws)
 						Error("Ошибка соединения " + ev.Message);
 					else
 						Debug.LogError("Ошибка соединения " + id.ToString()+": " + ev.Message);
-
-					connects.Remove(id);
 				};
-				connects.Last().Value.OnMessage += (sender, ev) =>
+				ws.OnMessage += (sender, ev) =>
 				{
 					try
 					{
@@ -352,8 +334,8 @@ namespace MyFantasy
 						Error("Ошибка обработки сообщения от сервера: ", ex);
 					}
 				};
-
-				connects.Last().Value.Connect();
+				connect = ws;
+				connect.Connect();
 				reload = ReloadStatus.None;
 			}
 			catch (Exception ex)
@@ -368,11 +350,11 @@ namespace MyFantasy
 		public static void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (player != null && loading == null  && reload == ReloadStatus.None && connects.Count()>0 && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closed && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closing)
+			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
 			{
 				try
 				{
-					double remain = player.GetEventRemain(data.group); // вычтем время необходимое что бы ответ ошел до сервера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
+					double remain = player.GetEventRemain(data.group); // вычтем время необходимое что бы ответ ошел до сервcера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 					
 					if (INTERPOLATION > 0)
 						remain -= Ping() * INTERPOLATION;
@@ -456,16 +438,18 @@ namespace MyFantasy
 
 		private static void Close()
 		{	
-			if (connects.Count() > 0)
+			if (connect!=null)
 			{
-				if (connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closed && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closing)
+				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
 				{
-					connects.Last().Value.CloseAsync();
+					connect.CloseAsync();
 					Debug.Log("закрытие соедения ");
 				}
 				else
 					Debug.LogWarning("содинение уже закрывается");
 			}
+
+			connect = null;
 		}
 
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
@@ -474,8 +458,8 @@ namespace MyFantasy
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 
 			// тк у нас в аралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
-			if(connects.Count()>0 && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closed && connects.Last().Value.ReadyState != WebSocketSharp.WebSocketState.Closing)
-				connects.Last().Value.Send(sendBytes);
+			if(connect!=null && connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+				connect.Send(sendBytes);
 		}
 
 		public new static void  Error (string text, Exception ex = null)

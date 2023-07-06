@@ -47,8 +47,7 @@ namespace MyFantasy
         /// </summary>
         protected bool persist_target;
 
-        public static new PlayerController Instance { get; private set; }
-
+        public static PlayerController Instance { get; private set; }
         protected override void Awake()
         {
             if (Instance != null && Instance != this)
@@ -62,6 +61,7 @@ namespace MyFantasy
 
             base.Awake();
         }
+
 
         protected override void Start()
         {
@@ -115,7 +115,7 @@ namespace MyFantasy
                     tmp_target = target.key;
                 }
             }
-     
+
             base.HandleData(recive);
 
             if (playerFaceController.target == null && player != null)
@@ -145,48 +145,70 @@ namespace MyFantasy
                 ping.text = "PING: " + Ping() * 1000 + " ms."; 
         }
 
+        // активировать меню загрузки
+        private void Loading()
+        {
+            mapObject.SetActive(false);
+            worldObject.SetActive(true);
+        }
+
         protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
-            NewObjectModel model = base.UpdateObject(map_id, key, recive, type).GetComponent<NewObjectModel>();
 
+            NewObjectModel model = base.UpdateObject(map_id, key, recive, type).GetComponent<NewObjectModel>();
             if (player!=null)
             {
                 if (key == player.key)
                 {
-                    if (recive.events!=null && recive.events.ContainsKey(AttackResponse.GROUP))
+                    // если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
+  /*                  if ((recive.x != null || recive.y != null || recive.z != null) && recive.action == ConnectController.ACTION_REMOVE)
                     {
-                        // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
-                        // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
-                        string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+                        Vector3 new_position = new Vector3(recive.x ?? player.position.x, recive.y ?? player.position.y, recive.z ?? player.position.z);
 
-                        if (attacker != null) 
+                        // телепорты
+                        if (new_position == player.position)
                         {
-                            GameObject gameObject = GameObject.Find(attacker);
-                            if (gameObject!=null)
-                            {
-                                NewObjectModel attackerModel = gameObject.GetComponent<NewEnemyModel>();
-                                if(attackerModel!=null && CanBeTarget(attackerModel)) 
-                                { 
-                                    target = attackerModel;
-                                    Debug.Log("Новая цель атаки с сервера: " + attacker);
-                                }
-                            }
-                            else
-                                Debug.LogError("Цель "+ attacker + " не найдена на сцене");
+                             Loading();
                         }
-                    }
-                }
-                else if(recive.events != null && recive.events.ContainsKey(AttackResponse.GROUP))
-                {
-                    // если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
-                    if (
-                        CanBeTarget(model)
-                            &&
-                        model.getEventData<AttackDataRecive>(AttackResponse.GROUP).target == player.key)
+                    }*/
+
+                    if (recive.events!=null)
                     {
-                        // то передадим инфомрацию игроку что бы мы стали его целью
-                        target = model;
-                        Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
+                        if(recive.events.ContainsKey(AttackResponse.GROUP))
+                        {
+                            // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
+                            // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
+                            string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+
+                            if (attacker != null) 
+                            {
+                                GameObject gameObject = GameObject.Find(attacker);
+                                if (gameObject!=null)
+                                {
+                                    NewObjectModel attackerModel = gameObject.GetComponent<NewEnemyModel>();
+                                    if(attackerModel!=null && CanBeTarget(attackerModel)) 
+                                    { 
+                                        target = attackerModel;
+                                        Debug.Log("Новая цель атаки с сервера: " + attacker);
+                                    }
+                                }
+                                else
+                                    Debug.LogError("Цель "+ attacker + " не найдена на сцене");
+                            }
+                        }
+                        else if(recive.events.ContainsKey(AttackResponse.GROUP))
+                        {
+                            // если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
+                            if (
+                                CanBeTarget(model)
+                                    &&
+                                model.getEventData<AttackDataRecive>(AttackResponse.GROUP).target == player.key)
+                            {
+                                // то передадим инфомрацию игроку что бы мы стали его целью
+                                target = model;
+                                Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
+                            }
+                        }
                     }
                 }
             }
