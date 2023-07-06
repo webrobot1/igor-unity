@@ -243,10 +243,9 @@ namespace MyFantasy
 
 			try
 			{
-				Guid id = Guid.NewGuid();
 				WebSocket ws = new WebSocket(address);
 
-				Debug.Log("новое соединение "+id.ToString());
+				Debug.Log("новое соединение ");
 
 				// так в C# можно
 				ws.SetCredentials("" + player_key + "", player_token, true);
@@ -261,16 +260,16 @@ namespace MyFantasy
 				ws.OnClose += (sender, ev)  =>
 				{
 					if (reload == ReloadStatus.None && connect == ws)
-						Error("Соединение с сервером закрыто сервером (" + id + "): " + ev.Code);
+						Error("Соединение с сервером закрыто сервером: " + ev.Code);
 					else
-						Debug.Log("закрылось старое соединение "+id.ToString());
+						Debug.Log("закрылось старое соединение ");
 				};
 				ws.OnError += (sender, ev) =>
 				{
 					if (reload == ReloadStatus.None && connect == ws)
 						Error("Ошибка соединения " + ev.Message);
 					else
-						Debug.LogError("Ошибка соединения " + id.ToString()+": " + ev.Message);
+						Debug.LogError("Ошибка соединения: " + ev.Message);
 				};
 				ws.OnMessage += (sender, ev) =>
 				{
@@ -293,11 +292,11 @@ namespace MyFantasy
 							// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
 							else if (recive.action == ACTION_RECONNECT)
 							{
+								connect = null;
 								Debug.LogWarning("Перезаход в игру");
 
 								// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
 								reload = ReloadStatus.Start;
-								Close();
 							}
 							else
 							{
@@ -448,8 +447,6 @@ namespace MyFantasy
 				else
 					Debug.LogWarning("содинение уже закрывается");
 			}
-
-			connect = null;
 		}
 
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
