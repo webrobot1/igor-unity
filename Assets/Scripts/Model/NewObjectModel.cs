@@ -138,6 +138,9 @@ namespace MyFantasy
 
 				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Vector3.Distance(position, new_position) < ConnectController.step * 1.5)
 				{
+					if(recive.action == ConnectController.ACTION_REMOVE) 
+						Debug.LogError("Переход между локациями");
+
 					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
 
 					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
@@ -145,8 +148,10 @@ namespace MyFantasy
 				}
                 else
 				{
-					Debug.Log("Телепорт из "+ transform.position+" в "+new_position);
-					transform.position = new_position;
+					if(transform.localPosition!=Vector3.zero)
+						Debug.Log("Телепорт из "+ transform.localPosition + " в "+new_position);
+
+					transform.localPosition = new_position;
 
 					if (coroutines.ContainsKey("walk"))
 						StopCoroutine("Walk");
@@ -218,21 +223,21 @@ namespace MyFantasy
 				StopCoroutine(old_coroutine);
 
 			float distance;
-			float distancePerUpdate = (float)(Vector3.Distance(transform.position, finish) / (timeout / Time.fixedDeltaTime));
+			float distancePerUpdate = (float)(Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
 
 			float extropolation = ((float)ConnectController.Ping() / 2 + Time.fixedDeltaTime) / (float)getEvent(WalkResponse.GROUP).timeout * ConnectController.step;
 			if (extropolation < distancePerUpdate) extropolation = distancePerUpdate;
 
 			bool extropolation_start = false;
 
-			while ((distance = Vector3.Distance(transform.position, finish)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION))
+			while ((distance = Vector3.Distance(transform.localPosition, finish)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION))
 			{
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
 					// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться если есть уже команды на следующее движение
 					// не экстрополируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
-					if (action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius > 0 && ConnectController.EXTROPOLATION && Vector3.Distance(transform.position, finish) < extropolation)
+					if (action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius > 0 && ConnectController.EXTROPOLATION && Vector3.Distance(transform.localPosition, finish) < extropolation)
 					{
 						extropolation_start = true;
 
@@ -242,7 +247,7 @@ namespace MyFantasy
 					}
 					else
 					{
-						transform.position = finish;
+						transform.localPosition = finish;
 						break;
 					}
 				}
@@ -253,7 +258,7 @@ namespace MyFantasy
 				activeLast = DateTime.Now;
 				//Debug.LogError("Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
 
-				transform.position = Vector3.MoveTowards(transform.position, finish, distancePerUpdate);
+				transform.localPosition = Vector3.MoveTowards(transform.localPosition, finish, distancePerUpdate);
 				yield return new WaitForFixedUpdate();
 			}
 

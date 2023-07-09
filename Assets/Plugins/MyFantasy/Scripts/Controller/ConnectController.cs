@@ -245,7 +245,7 @@ namespace MyFantasy
 			{
 				WebSocket ws = new WebSocket(address);
 
-				Debug.Log("новое соединение ");
+				Debug.Log("новое соединение с сервером");
 
 				// так в C# можно
 				ws.SetCredentials("" + player_key + "", player_token, true);
@@ -255,27 +255,37 @@ namespace MyFantasy
 					var tcpClient = typeof(WebSocket).GetField("_tcpClient", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ws) as System.Net.Sockets.TcpClient;
 					tcpClient.NoDelay = true;
 
-					Debug.Log("Соединение с севрером установлено");
+					Debug.Log("Соединение с сервером " + connect.Url + " установлено");
 				};
 				ws.OnClose += (sender, ev)  =>
 				{
-					if (reload == ReloadStatus.None && connect == ws)
-						Error("Соединение с сервером закрыто сервером: " + ev.Code);
+					if (reload == ReloadStatus.None && connect != null && connect == ws)
+						Error("Соединение "+connect.Url+ " закрыто сервером: " + ev.Code);
 					else
-						Debug.Log("закрылось старое соединение ");
+						Debug.Log("закрылось старое соединение с сервером " + connect.Url);
 				};
 				ws.OnError += (sender, ev) =>
 				{
 					if (reload == ReloadStatus.None && connect == ws)
-						Error("Ошибка соединения " + ev.Message);
+						Error("Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
 					else
-						Debug.LogError("Ошибка соединения: " + ev.Message);
+						Debug.LogError("Ошибка соединени яс сервером " + connect.Url + ": " + ev.Message);
 				};
 				ws.OnMessage += (sender, ev) =>
 				{
 					try
 					{
 						string text = Encoding.UTF8.GetString(ev.RawData);
+						
+						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения и нет времени на десереализацию
+						if (text == "{\"action\":\""+ACTION_RECONNECT+"\"}")
+						{
+							ConnectController.connect = null;
+							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
+							reload = ReloadStatus.Start;
+
+							Debug.LogWarning(DateTime.Now.Millisecond + ": Перезаход в игру");
+						}
 
 					#if UNITY_EDITOR
 						Debug.Log(DateTime.Now.Millisecond + ": " + text);
@@ -288,15 +298,6 @@ namespace MyFantasy
 							if (recive.error != null)
 							{
 								Error(recive.error);
-							}
-							// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения
-							else if (recive.action == ACTION_RECONNECT)
-							{
-								connect = null;
-								Debug.LogWarning("Перезаход в игру");
-
-								// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-								reload = ReloadStatus.Start;
 							}
 							else
 							{
@@ -447,6 +448,8 @@ namespace MyFantasy
 				else
 					Debug.LogWarning("содинение уже закрывается");
 			}
+
+			connect = null;
 		}
 
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
@@ -464,7 +467,7 @@ namespace MyFantasy
 			errors.Add(text);
 			Close();
 
-			Debug.LogError(text);
+			Debug.LogError(DateTime.Now.Millisecond + ": "+text);
 
 			if(ex!=null)
 				Debug.LogException(ex);

@@ -75,7 +75,7 @@ namespace MyFantasy
 		{
 			// пришла команды удаления с карты объекта
 			if (recive.action == ConnectController.ACTION_REMOVE)
-				StartCoroutine(Remove(map_id, (recive.map_id!=null)));
+				StartCoroutine(Remove(recive.map_id));
 				
 			if (recive.action != null)
             {
@@ -216,15 +216,15 @@ namespace MyFantasy
 		/// <summary>
 		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
 		/// </summary>
-		protected virtual IEnumerator Remove(int map_id, bool change_map = false)
+		protected virtual IEnumerator Remove(int? new_map_id = null)
 		{
 			DateTime start = DateTime.Now;
-			if (change_map)
+			if (new_map_id!=null)
 			{
 				while (DateTime.Compare(start.AddSeconds(5), DateTime.Now) >= 1)
 				{
 					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
-					if (this.map_id != map_id)
+					if (this.map_id == new_map_id)
 						yield break;
 
 					yield return new WaitForFixedUpdate();

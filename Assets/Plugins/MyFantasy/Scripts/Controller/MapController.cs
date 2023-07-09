@@ -145,6 +145,7 @@ namespace MyFantasy
 						// центральная карта может отсутвуовать например когда мы ушли с одной карты на другую и переиспользовали графику (SortMap  запустится но оттуда откуда пришли могло не быть графики карты куда пришли)
 						if (maps.ContainsKey(center))
 							grid.localPosition = new Vector3(maps[center].width, 0, 0);
+							
 						break;
 
 					case "left":
@@ -155,17 +156,19 @@ namespace MyFantasy
 				// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
 				if (worldObject.transform.Find(grid.gameObject.name) != null)
 				{
-					int side = sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key;
+					worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
+
+					int map_id = sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key;
 					foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
 					{
 						var model = child.GetComponent<ObjectModel>();
 						if (model != null)
 						{
 							if (child.gameObject.GetComponent<SpriteRenderer>())
-								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = maps[side].spawn_sort + model.sort;
+								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = maps[map_id].spawn_sort + model.sort;
 
 							if (child.gameObject.GetComponentInChildren<Canvas>())
-								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = maps[side].spawn_sort + 1 + model.sort;
+								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = maps[map_id].spawn_sort + 1 + model.sort;
 						}
 					}
 				}

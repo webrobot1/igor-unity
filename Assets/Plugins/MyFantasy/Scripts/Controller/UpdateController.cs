@@ -68,6 +68,10 @@ namespace MyFantasy
 					{
 						map_zone = new GameObject(this.sides[map.Key]).transform;
 						map_zone.SetParent(worldObject.transform, false);
+
+						if (mapObject.transform.Find(this.sides[map.Key])!=null)
+							map_zone.localPosition = mapObject.transform.Find(this.sides[map.Key]).localPosition;
+
 						Debug.LogWarning("Создаем область для объектов " + map.Key+ "("+ this.sides[map.Key] + ")");
 					}
 
@@ -77,12 +81,12 @@ namespace MyFantasy
 						Debug.LogWarning("локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
 
 						// если саму зону оставить надо
-						/*foreach (var child in map_zone.Cast<Transform>().ToList())
+						foreach (var child in map_zone.Cast<Transform>().ToList())
 						{
 							DestroyImmediate(child.gameObject);
-						}*/
+						}
 
-						DestroyImmediate(map_zone.gameObject);
+						//DestroyImmediate(map_zone.gameObject);
 					}
 					else
 					{
@@ -148,6 +152,8 @@ namespace MyFantasy
 					{
 						Debug.Log("уничтожаем неиспользуемую карту " + old_side);
 						DestroyImmediate(mapObject.transform.Find(this.sides[old_side]).gameObject);
+						DestroyImmediate(worldObject.transform.Find(this.sides[old_side]).gameObject);
+
 						maps.Remove(old_side);
 					}				
 				}
