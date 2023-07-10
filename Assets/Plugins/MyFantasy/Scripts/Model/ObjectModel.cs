@@ -74,9 +74,11 @@ namespace MyFantasy
 		public virtual void SetData(ObjectRecive recive)
 		{
 			// пришла команды удаления с карты объекта
-			if (recive.action == ConnectController.ACTION_REMOVE)
-				StartCoroutine(Remove(recive.map_id));
-				
+			if (recive.action == ConnectController.ACTION_REMOVE) 
+			{ 
+				StartCoroutine(this.Remove(recive.map_id));
+			}
+
 			if (recive.action != null)
             {
 				this.action = recive.action;
@@ -221,6 +223,7 @@ namespace MyFantasy
 			DateTime start = DateTime.Now;
 			if (new_map_id!=null)
 			{
+				Debug.Log("Отложенное удаление при смене карты");
 				while (DateTime.Compare(start.AddSeconds(5), DateTime.Now) >= 1)
 				{
 					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)

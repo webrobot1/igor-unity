@@ -143,6 +143,8 @@ namespace MyFantasy
 
 					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
 
+					recive.action = "walk";
+
 					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
 					coroutines["walk"] = StartCoroutine(Walk(new_position, (recive.action == ConnectController.ACTION_REMOVE ? timeout * 1.5 : timeout), (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
 				}
@@ -159,6 +161,7 @@ namespace MyFantasy
 			}
 
 			base.SetData(recive);
+
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null)
@@ -230,7 +233,7 @@ namespace MyFantasy
 
 			bool extropolation_start = false;
 
-			while ((distance = Vector3.Distance(transform.localPosition, finish)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION))
+			while (((distance = Vector3.Distance(transform.localPosition, finish)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION)) && action=="walk")
 			{
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
@@ -272,8 +275,12 @@ namespace MyFantasy
 		/// </summary>
 		protected override IEnumerator Destroy()
 		{
-			Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));
-			yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.01f);
+			if (animator != null)
+			{
+				Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));
+				yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.01f);
+			}
+
 			Destroy(gameObject);
 		}
 	}
