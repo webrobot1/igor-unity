@@ -27,7 +27,7 @@ namespace WebGLWebsocket
         public static extern int WebSocketSend(int instanceId, byte[] dataPtr, int dataLength);
 
         [DllImport("__Internal")]
-        public static extern int WebSocketGetState(int instanceId);       
+        public static extern int WebSocketGetState(int instanceId);           
         
         [DllImport("__Internal")]
         public static extern void WebsocketSetCredentials(int instanceId, string login, string password, bool preAuth);
@@ -63,6 +63,8 @@ namespace WebGLWebsocket
         [DllImport("__Internal")]
         public static extern void WebSocketFree(int instanceId);
 
+        private string _url;
+
         public WebSocketSharp.WebSocketState ReadyState 
         { 
             get {
@@ -73,14 +75,23 @@ namespace WebGLWebsocket
 
                 return ret;
             }
-        }
-
+        }       
+     
         /// <summary>
         /// Constructor - receive JSLIB instance id of allocated socket
         /// </summary>
         public WebSocket(string url)
         {
-            this.instanceId = WebSocketAllocate(url);
+            this._url = url;
+            this.instanceId = WebSocketAllocate(this._url);
+        }
+
+        public string Url
+        {
+            get
+            {
+                return this._url;
+            }
         }
 
         public void SetCredentials(string login, string password, bool preAuth = false)

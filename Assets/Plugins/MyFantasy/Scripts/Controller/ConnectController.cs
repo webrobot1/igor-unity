@@ -245,7 +245,7 @@ namespace MyFantasy
 			{
 				WebSocket ws = new WebSocket(address);
 
-				Debug.Log("новое соединение с сервером");
+				Debug.Log("новое соединение с сервером "+connect.Url);
 
 				// так в C# можно
 				ws.SetCredentials("" + player_key + "", player_token, true);
