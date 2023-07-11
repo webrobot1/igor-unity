@@ -5,7 +5,7 @@ namespace MyFantasy
     /// </summary>
     public class LoadResponse : Response
     {
-        public const string GROUP = "system/load";
+        public const string GROUP = "load";
         public override string group
         {
             get { return GROUP; }
