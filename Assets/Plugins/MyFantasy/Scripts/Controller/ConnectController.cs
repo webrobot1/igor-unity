@@ -204,7 +204,7 @@ namespace MyFantasy
 						recives.RemoveRange(0, count);
 					}
 
-					if (connect!=null && reload == ReloadStatus.None && (connect.ReadyState == WebSocketSharp.WebSocketState.Closed || connect.ReadyState == WebSocketSharp.WebSocketState.Closing))
+					if (connect!=null && reload == ReloadStatus.None && (connect.ReadyState == WebSocketState.Closed || connect.ReadyState == WebSocketState.Closing))
 						Error("Соединение закрыто для запросов (" + connect.ReadyState + ")");
 				}
 				else
@@ -236,7 +236,7 @@ namespace MyFantasy
 			string address = "ws://" + data.host;
 			Debug.Log("Соединяемся с сервером " + address);
 
-			if (connect!=null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.New || connect.ReadyState == WebSocketSharp.WebSocketState.Connecting))
+			if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.New || connect.ReadyState == WebSocketState.Connecting))
 			{
 				Error("WebSocket до сих пор открыт");
 			}
@@ -250,9 +250,12 @@ namespace MyFantasy
 				ws.SetCredentials("" + player_key + "", player_token, true);
 				ws.OnOpen += (object sender, System.EventArgs e) =>
 				{
-					// обязательно отключим алгоритм Nagle который не отправляет маленькие пакеты
-					var tcpClient = typeof(WebSocket).GetField("_tcpClient", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ws) as System.Net.Sockets.TcpClient;
-					tcpClient.NoDelay = true;
+
+					#if !UNITY_WEBGL || UNITY_EDITOR
+						// обязательно отключим алгоритм Nagle который не отправляет маленькие пакеты.  в браузерных websocket он отключен
+						var tcpClient = typeof(WebSocket).GetField("_tcpClient", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ws) as System.Net.Sockets.TcpClient;
+						tcpClient.NoDelay = true;
+					#endif
 
 					Debug.Log("Соединение с сервером " + ws.Url + " установлено");
 					connect = ws;
@@ -351,7 +354,7 @@ namespace MyFantasy
 		public static void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState == WebSocketSharp.WebSocketState.Open)
+			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState == WebSocketState.Open)
 			{
 				try
 				{
@@ -441,7 +444,7 @@ namespace MyFantasy
 		{	
 			if (connect!=null)
 			{
-				if (connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+				if (connect.ReadyState != WebSocketState.Closed && connect.ReadyState != WebSocketState.Closing)
 				{
 					connect.CloseAsync();
 					Debug.Log("закрытие соедения ");
@@ -459,7 +462,7 @@ namespace MyFantasy
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 
 			// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
-			if(connect!=null && connect.ReadyState == WebSocketSharp.WebSocketState.Open)
+			if(connect!=null && connect.ReadyState == WebSocketState.Open)
 				connect.Send(sendBytes);
 		}
 

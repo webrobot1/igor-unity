@@ -65,10 +65,11 @@ namespace WebGLWebsocket
 
         private string _url;
 
-        public WebSocketSharp.WebSocketState ReadyState 
+        public WebSocketState ReadyState 
         { 
-            get {
-                WebSocketSharp.WebSocketState ret = (WebSocketSharp.WebSocketState)WebSocketGetState(instanceId);
+            get 
+            {
+                WebSocketState ret = (WebSocketState)WebSocketGetState(instanceId);
 
                 if (ret < 0)
                     GetErrorMessageFromCode((int)ret);
