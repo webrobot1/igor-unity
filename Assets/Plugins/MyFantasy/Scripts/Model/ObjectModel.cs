@@ -220,11 +220,12 @@ namespace MyFantasy
 		/// </summary>
 		protected virtual IEnumerator Remove(int? new_map_id = null)
 		{
-			DateTime start = DateTime.Now;
 			if (new_map_id!=null)
 			{
 				Debug.Log("Отложенное удаление при смене карты");
-				while (DateTime.Compare(start.AddSeconds(5), DateTime.Now) >= 1)
+				DateTime start = DateTime.Now.AddSeconds(5);
+
+				while (DateTime.Compare(start, DateTime.Now) >= 1)
 				{
 					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
 					if (this.map_id == new_map_id)
