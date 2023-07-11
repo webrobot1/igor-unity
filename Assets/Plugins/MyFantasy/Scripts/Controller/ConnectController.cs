@@ -204,8 +204,8 @@ namespace MyFantasy
 						recives.RemoveRange(0, count);
 					}
 
-					if (connect!=null && reload == ReloadStatus.None && connect.ReadyState != WebSocketSharp.WebSocketState.Open && connect.ReadyState != WebSocketSharp.WebSocketState.Connecting)
-						Error("Соединение не открыто для запросов (" + connect.ReadyState + ")");
+					if (connect!=null && reload == ReloadStatus.None && (connect.ReadyState == WebSocketSharp.WebSocketState.Closed || connect.ReadyState == WebSocketSharp.WebSocketState.Closing))
+						Error("Соединение закрыто для запросов (" + connect.ReadyState + ")");
 				}
 				else
 				{
@@ -236,7 +236,7 @@ namespace MyFantasy
 			string address = "ws://" + data.host;
 			Debug.Log("Соединяемся с сервером " + address);
 
-			if (connect!=null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.Connecting))
+			if (connect!=null && (connect.ReadyState == WebSocketSharp.WebSocketState.Open || connect.ReadyState == WebSocketSharp.WebSocketState.New || connect.ReadyState == WebSocketSharp.WebSocketState.Connecting))
 			{
 				Error("WebSocket до сих пор открыт");
 			}
@@ -244,8 +244,7 @@ namespace MyFantasy
 			try
 			{
 				WebSocket ws = new WebSocket(address);
-
-				Debug.Log("новое соединение с сервером "+connect.Url);
+				Debug.Log("новое соединение с сервером "+ ws.Url);
 
 				// так в C# можно
 				ws.SetCredentials("" + player_key + "", player_token, true);
@@ -255,21 +254,22 @@ namespace MyFantasy
 					var tcpClient = typeof(WebSocket).GetField("_tcpClient", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ws) as System.Net.Sockets.TcpClient;
 					tcpClient.NoDelay = true;
 
-					Debug.Log("Соединение с сервером " + connect.Url + " установлено");
+					Debug.Log("Соединение с сервером " + ws.Url + " установлено");
+					connect = ws;
 				};
 				ws.OnClose += (sender, ev)  =>
 				{
 					if (reload == ReloadStatus.None && connect != null && connect == ws)
 						Error("Соединение "+connect.Url+ " закрыто сервером: " + ev.Code);
 					else
-						Debug.Log("закрылось старое соединение с сервером " + connect.Url);
+						Debug.Log("закрылось старое соединение с сервером " + ws.Url);
 				};
 				ws.OnError += (sender, ev) =>
 				{
-					if (reload == ReloadStatus.None && connect == ws)
+					if (reload == ReloadStatus.None && connect!=null && connect == ws)
 						Error("Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
 					else
-						Debug.LogError("Ошибка соединени яс сервером " + connect.Url + ": " + ev.Message);
+						Debug.LogError("Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
 				};
 				ws.OnMessage += (sender, ev) =>
 				{
@@ -334,6 +334,7 @@ namespace MyFantasy
 						Error("Ошибка обработки сообщения от сервера: ", ex);
 					}
 				};
+
 				connect = ws;
 				connect.Connect();
 				reload = ReloadStatus.None;
@@ -350,7 +351,7 @@ namespace MyFantasy
 		public static void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState == WebSocketSharp.WebSocketState.Open)
 			{
 				try
 				{
@@ -457,8 +458,8 @@ namespace MyFantasy
 		{
 			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
 
-			// тк у нас в аралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
-			if(connect!=null && connect.ReadyState != WebSocketSharp.WebSocketState.Closed && connect.ReadyState != WebSocketSharp.WebSocketState.Closing)
+			// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
+			if(connect!=null && connect.ReadyState == WebSocketSharp.WebSocketState.Open)
 				connect.Send(sendBytes);
 		}
 
