@@ -79,15 +79,20 @@ namespace MyFantasy
 				StartCoroutine(this.Remove(recive.map_id));
 			}
 			// при судалении существа с карты не меняем карту, а ожидаем что она придет снова - с другого сервера
-			else if (recive.map_id != null)
-				this.map_id = (int)recive.map_id;
+			else
+			{ 
+				if (recive.map_id != null)
+					this.map_id = (int)recive.map_id;
 
-			if (recive.action != null)
-            {
-				this.action = recive.action;
-				activeLast = DateTime.Now;
-			}				
-			
+				// не всегда нужно ставить анимацию удаления СРАЗУ. поэтому кому нужно могут поставить в порутине Remove которую можно переопределить 
+				if (recive.action != null)
+				{
+					this.action = recive.action;
+					activeLast = DateTime.Now;
+				}
+			}
+
+
 			if (recive.forward_x != null || recive.forward_y != null)
             {
 				forward = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y, this.transform.forward.z);
@@ -219,7 +224,7 @@ namespace MyFantasy
 		/// <summary>
 		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
 		/// </summary>
-		private  IEnumerator Remove(int? new_map_id = null)
+		protected virtual  IEnumerator Remove(int? new_map_id = null)
 		{
 			if (new_map_id!=null)
 			{
