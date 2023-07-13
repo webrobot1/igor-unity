@@ -238,14 +238,14 @@ namespace MyFantasy
 
 			bool extropolation_start = false;
 
-			while (((distance = Vector3.Distance(transform.localPosition, finish)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION)) && action=="walk")
+			while (((distance = Vector3.Distance(transform.localPosition, finish)) > 0 || (getEvent(WalkResponse.GROUP).action.Length > 0 && ConnectController.EXTROPOLATION)))
 			{
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
 					// Здесь экстрополяция - на сервере игрок уже может и дошел но мы продолжаем двигаться если есть уже команды на следующее движение
 					// не экстрополируем существ у которых нет lifeRadius а то они будут вечно куда то идти а сервер для них не отдаст новых данных
-					if (action != ConnectController.ACTION_REMOVE && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius > 0 && ConnectController.EXTROPOLATION && Vector3.Distance(transform.localPosition, finish) < extropolation)
+					if (action == "walk" && getEvent(WalkResponse.GROUP).action.Length > 0 && lifeRadius > 0 && ConnectController.EXTROPOLATION && Vector3.Distance(transform.localPosition, finish) < extropolation)
 					{
 						extropolation_start = true;
 
@@ -270,7 +270,7 @@ namespace MyFantasy
 				yield return new WaitForFixedUpdate();
 			}
 
-			Debug.LogError(DateTime.Now.Millisecond + "  завершена корутина движения");
+			Debug.LogError(DateTime.Now.Millisecond + "  завершена корутина движения"+(action != "walk"?" - анимация более не движение ("+ action + ")":""));
 
 			coroutines.Remove("walk");
 		}

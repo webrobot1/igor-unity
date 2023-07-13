@@ -86,12 +86,11 @@ namespace MyFantasy
 
 				// не всегда нужно ставить анимацию удаления СРАЗУ. поэтому кому нужно могут поставить в порутине Remove которую можно переопределить 
 				if (recive.action != null)
-				{
 					this.action = recive.action;
-					activeLast = DateTime.Now;
-				}
 			}
 
+			if (recive.action != null)
+				activeLast = DateTime.Now;
 
 			if (recive.forward_x != null || recive.forward_y != null)
             {
