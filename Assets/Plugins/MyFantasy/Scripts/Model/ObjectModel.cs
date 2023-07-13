@@ -78,6 +78,9 @@ namespace MyFantasy
 			{ 
 				StartCoroutine(this.Remove(recive.map_id));
 			}
+			// при судалении существа с карты не меняем карту, а ожидаем что она придет снова - с другого сервера
+			else if (recive.map_id != null)
+				this.map_id = (int)recive.map_id;
 
 			if (recive.action != null)
             {
@@ -135,8 +138,6 @@ namespace MyFantasy
 			if (recive.login != null)
 				this.login = recive.login;
 
-			if (recive.map_id !=null)
-				this.map_id = (int)recive.map_id;
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{
@@ -218,7 +219,7 @@ namespace MyFantasy
 		/// <summary>
 		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
 		/// </summary>
-		protected virtual IEnumerator Remove(int? new_map_id = null)
+		private  IEnumerator Remove(int? new_map_id = null)
 		{
 			if (new_map_id!=null)
 			{
@@ -229,11 +230,15 @@ namespace MyFantasy
 				{
 					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
 					if (this.map_id == new_map_id)
+                    {
+						Debug.Log("Существо перешло на карту");
 						yield break;
+					}	
 
 					yield return new WaitForFixedUpdate();
 				}
 			}
+			action = ConnectController.ACTION_REMOVE;
 			StartCoroutine(this.Destroy());
 		}
 
@@ -242,7 +247,9 @@ namespace MyFantasy
 		/// </summary>
 		protected virtual IEnumerator Destroy()
 		{
+			Debug.Log("Удаления с карты");
 			Destroy(gameObject);
+
 			yield return null;
 		}
 	}

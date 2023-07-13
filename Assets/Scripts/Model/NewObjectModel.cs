@@ -132,18 +132,20 @@ namespace MyFantasy
 		protected void SetData(NewObjectRecive recive)
 		{
 			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
+			string move_action = null;
 			if (recive.x != null || recive.y != null || recive.z != null)
 			{
 				Vector3 new_position = new Vector3(recive.x ?? position.x, recive.y ?? position.y, recive.z ?? position.z);
 
 				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Vector3.Distance(position, new_position) < ConnectController.step * 1.5)
 				{
-					if(recive.action == ConnectController.ACTION_REMOVE) 
+					if (recive.action == ConnectController.ACTION_REMOVE)
+					{
 						Debug.LogError("Переход между локациями");
+						move_action = "walk";
+					}
 
 					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
-
-					recive.action = "walk";
 
 					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
 					coroutines["walk"] = StartCoroutine(Walk(new_position, (recive.action == ConnectController.ACTION_REMOVE ? timeout * 1.5 : timeout), (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
@@ -162,6 +164,9 @@ namespace MyFantasy
 
 			base.SetData(recive);
 
+			// отложенное action. именно так - base.SetData  должен запустить отсчет что если карта не менется существо удаляется
+			if (move_action != null)
+				action = recive.action = move_action;
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null)
@@ -277,6 +282,8 @@ namespace MyFantasy
 		{
 			if (animator != null)
 			{
+				Debug.Log("Запуск анмаиции удаления с карты");
+
 				Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));
 				yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.01f);
 			}
