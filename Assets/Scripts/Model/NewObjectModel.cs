@@ -131,18 +131,21 @@ namespace MyFantasy
 		/// </summary>
 		protected void SetData(NewObjectRecive recive)
 		{
-			// если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
-			string move_action = null;
+			
+			Vector3 old_position = position;
+			base.SetData(recive);
+
+
 			if (recive.x != null || recive.y != null || recive.z != null)
 			{
-				Vector3 new_position = new Vector3(recive.x ?? position.x, recive.y ?? position.y, recive.z ?? position.z);
+				Vector3 new_position = new Vector3(recive.x ?? old_position.x, recive.y ?? old_position.y, recive.z ?? old_position.z);
 
-				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Vector3.Distance(position, new_position) < ConnectController.step * 1.5)
+				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Vector3.Distance(old_position, new_position) < ConnectController.step * 1.5)
 				{
 					if (recive.action == ConnectController.ACTION_REMOVE)
 					{
 						Debug.LogError("Переход между локациями");
-						move_action = "walk";
+						recive.action = action = "walk";
 					}
 
 					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
@@ -161,12 +164,6 @@ namespace MyFantasy
 						StopCoroutine("Walk");
 				}
 			}
-
-			base.SetData(recive);
-
-			// отложенное action. именно так - base.SetData  должен запустить отсчет что если карта не менется существо удаляется
-			if (move_action != null)
-				action = recive.action = move_action;
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			if (recive.action != null)
