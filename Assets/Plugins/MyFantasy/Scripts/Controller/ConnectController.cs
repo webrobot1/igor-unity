@@ -50,7 +50,19 @@ namespace MyFantasy
 		/// <summary>
 		/// установленная на сервере длинна шага. может пригодится для экстрополяции
 		/// </summary>
-		public static float step;
+		public static double step;		
+		
+		/// <summary>
+		/// сколько чисел в дробной части шага ()высчитывается автоматом
+		/// </summary>
+		public static int perception
+        {
+			get
+			{
+				string[] split = (step.ToString()).Split(".");
+				return split.Length>1?(split[1].Length):0;							// сколько цифр после запятой нужно округлять лкаоции в unity для сравнения с шагом
+			}
+        }
 
 		/// <summary>
 		/// Префаб нашего игрока
@@ -228,7 +240,7 @@ namespace MyFantasy
 
 			player_key = data.key;
 			player_token = data.token;
-			step = data.step;
+			step = data.step;									// максимальный размер шага. умножается тк по диагонали идет больще
 
 			coroutine = null;
 			loading = DateTime.Now.AddSeconds(max_pause_sec);
@@ -262,10 +274,13 @@ namespace MyFantasy
 				};
 				ws.OnClose += (sender, ev)  =>
 				{
-					if (reload == ReloadStatus.None && connect != null && connect == ws)
-						Error("Соединение "+connect.Url+ " закрыто сервером: " + ev.Code);
-					else
-						Debug.Log("закрылось старое соединение с сервером " + ws.Url);
+					if(connect != null) 
+					{ 
+						if (reload == ReloadStatus.None && connect == ws)
+							Error("Соединение "+connect.Url+ " закрыто сервером: " + ev.Code);
+						else
+							Debug.Log("закрылось старое соединение с сервером " + ws.Url);
+					}
 				};
 				ws.OnError += (sender, ev) =>
 				{
@@ -364,7 +379,14 @@ namespace MyFantasy
 						remain -= Ping() * INTERPOLATION;
 
 					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
-					if (remain<=0 || (player.getEvent(data.group).action.Length==0 && remain <= player.getEvent(data.group).timeout) || player.getEvent(data.group).from_client != true)
+					if 
+						(
+							remain<=0 
+								|| 
+							(player.getEvent(data.group).action.Length==0 && remain <= player.getEvent(data.group).timeout) 
+								|| 
+							player.getEvent(data.group).from_client != true
+						)
 					{
 						// поставим на паузу отправку и получение любых кроме данной команды данных
 						if (data.group == LoadResponse.GROUP)
@@ -409,14 +431,16 @@ namespace MyFantasy
 				}
 				catch (Exception ex)
 				{
-					Debug.LogException(ex);
-					errors.Add("Ошибка отправки данных: "+ex.Message);
+					Error("Ошибка отправки данных", ex);
 				}		
 			}
 			else
 				Debug.LogWarning("Загрузка мира, команда " + data.action +"/"+ data.group + " отклонена");
 		}
 
+		/// <summary>
+		/// вернет время потраченное на отправку пакета и доставку его обратно в секундах (за вычетом времени задержки пакета НА сервере)
+		/// </summary>
 		public static double Ping()
 		{
 			return ping;
@@ -447,7 +471,7 @@ namespace MyFantasy
 				if (connect.ReadyState != WebSocketState.Closed && connect.ReadyState != WebSocketState.Closing)
 				{
 					connect.CloseAsync();
-					Debug.Log("закрытие соедения ");
+					Debug.LogError("закрытие соедения ");
 				}
 				else
 					Debug.LogWarning("содинение уже закрывается");
@@ -468,14 +492,14 @@ namespace MyFantasy
 
 		public new static void  Error (string text, Exception ex = null)
 		{
-			errors.Add(text);
-			Close();
-
-			Debug.LogError(DateTime.Now.Millisecond + ": "+text);
-
-			if(ex!=null)
+			if (ex!=null)
 				Debug.LogException(ex);
-		}	
+
+			Debug.LogError(DateTime.Now.Millisecond + ": " + text);
+
+			Close();
+			errors.Add(text);
+		}
 
 
 		/// <summary>

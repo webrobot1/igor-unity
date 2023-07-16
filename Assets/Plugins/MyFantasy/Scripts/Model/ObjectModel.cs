@@ -47,8 +47,8 @@ namespace MyFantasy
 		protected DateTime created;
 		protected string prefab;
 
-		private Vector3 _forward = Vector3.zero;
-		public virtual Vector3 forward
+		private Vector2 _forward = Vector2.zero;
+		public virtual Vector2 forward
 		{
 			get { return _forward; }
 			set
@@ -94,9 +94,9 @@ namespace MyFantasy
 
 			if (recive.forward_x != null || recive.forward_y != null)
             {
-				forward = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y, this.transform.forward.z);
+				forward = new Vector2(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
 
-				this.transform.forward.Set(forward.x, forward.y, forward.z);
+				this.transform.forward.Set(forward.x, forward.y, this.transform.forward.z);
 
 				// следующий код применим только к объектам - предметам, он повернет их
 				if (type == "objects") 
@@ -147,38 +147,37 @@ namespace MyFantasy
 			{
 				foreach (KeyValuePair<string, EventRecive> kvp in recive.events)
 				{
-					if (!events.ContainsKey(kvp.Key))
-						events.Add(kvp.Key, kvp.Value);
+					EventRecive ev = getEvent(kvp.Key);			
 
 					// если мы сбрасяваем таймаут (например из каких то механик) - придет это поле (оно придет кстати и при таймауте события и может еще более точно скорректировать время таймаута)
 					if (kvp.Value.remain != null) 
 					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
-						events[kvp.Key].finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - ConnectController.Ping() / 2);
+						ev.finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - ConnectController.Ping() / 2);
 					}				
 					
 					if (kvp.Value.timeout != null) 
-					{ 
-						events[kvp.Key].timeout = kvp.Value.timeout;
+					{
+						ev.timeout = kvp.Value.timeout;
 					}				
 					
 					if (kvp.Value.data != null) 
-					{ 
-						events[kvp.Key].data = kvp.Value.data;
+					{
+						ev.data = kvp.Value.data;
 					}
 
 					// если false то сервер создал это событие. true по умолчанию 
 					if (kvp.Value.from_client != null)
-						events[kvp.Key].from_client = kvp.Value.from_client;
+						ev.from_client = kvp.Value.from_client;
 
 					if (kvp.Value.action != null) 
-					{ 
-						events[kvp.Key].action = kvp.Value.action;
+					{
+						ev.action = kvp.Value.action;
 
 						// если обнулилось событие то и обнуляются данные события (просто не высылаем что бы не тратить время)
 						if(kvp.Value.action == "")
                         {
-							events[kvp.Key].data = null;
+							ev.data = null;
 						}
 					}
 				}

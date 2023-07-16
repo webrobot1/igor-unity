@@ -169,10 +169,9 @@ namespace MyFantasy
                     if ((recive.x != null || recive.y != null || recive.z != null) && recive.action == ConnectController.ACTION_REMOVE)
                     {
                         Vector3 new_position = new Vector3(recive.x ?? old_position.x, recive.y ?? old_position.y, recive.z ?? old_position.z);
-                        Debug.Log("!!!"+Vector3.Distance(old_position, new_position));
 
                         // телепорты
-                        if (Vector3.Distance(old_position, new_position) > ConnectController.step * 1.5)
+                        if (Math.Round(Vector3.Distance(old_position, new_position), ConnectController.perception) > ConnectController.step)
                         {
                              Debug.Log("Перезагрузка позиций");
                              Loading();

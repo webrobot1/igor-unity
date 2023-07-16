@@ -10,7 +10,7 @@ namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		#if UNITY_EDITOR || (DEVELOPMENT_BUILD && UNITY_WEBGL)
+		#if UNITY_EDITOR || DEVELOPMENT_BUILD
 				// это адрес-мост через наш ПК в wsl сервер Ubuntu (Аналог XAMP и Openserver), подробнее в папке /.docs проекта сервер.
 				protected const string SERVER = "127.0.0.1:8080";   //localhost не подходит тк http переадресуются, а websocket пойдут уже на наш ПК
 		#else
