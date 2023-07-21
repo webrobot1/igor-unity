@@ -114,7 +114,7 @@ namespace MyFantasy
 				string layer_name = animator.GetLayerName(layerIndex);
                 if (layer_name != "idle")
                 {
-					Debug.Log("Анимация " + key + " с " + action + " на idle (таймаут)");
+					Log("Анимация " + key + " с " + action + " на idle (таймаут)");
 					Animate(animator, animator.GetLayerIndex("idle"));
 				}
 			}
@@ -140,49 +140,54 @@ namespace MyFantasy
 			if ((recive.x != null || recive.y != null || recive.z != null) && old_position!=position)
 			{
 				Vector3 new_position = new Vector3(recive.x ?? old_position.x, recive.y ?? old_position.y, recive.z ?? old_position.z);
-				Debug.Log("Движение - новые данные с сервера");
+				float distance = Vector3.Distance(transform.localPosition, new_position);
 
-				if (coroutines.ContainsKey("walk"))
-                {
-					// есть корутина движения и там включена эксьраполяция
-					if (current_extropolation > 0)
+				if (distance>ConnectController.step/2) 
+				{
+					Log("Движение - новые данные с сервера");
+
+					if (coroutines.ContainsKey("walk"))
 					{
-						// сколько мы уже дополнительно прошли
-						float additional = Vector3.Distance(old_position, new_position) - Vector3.Distance(transform.localPosition, new_position);
-						Debug.Log("Движение - новые данные с сервера существо прошло экстропляцией +" + Math.Round(1/(Vector3.Distance(old_position, new_position) / additional) * 100) + "/" + Math.Round(current_extropolation * 100) + " % доп. шага");
+						// есть корутина движения и там включена эксьраполяция
+						if (current_extropolation > 0)
+						{
+							// сколько мы уже дополнительно прошли
+							float additional = Vector3.Distance(old_position, new_position) - distance;
+							Log("Движение - новые данные с сервера существо прошло экстропляцией +" + Math.Round(1/(Vector3.Distance(old_position, new_position) / additional) * 100) + "/" + Math.Round(current_extropolation * 100) + " % доп. шага");
+						}
+						else
+							LogWarning("Движение - новые данные с сервера существо еще не звершило движение и не дошло до экстраполяции");
 					}
-					else
-						Debug.LogWarning("Движение - новые данные с сервера существо еще не звершило движение и не дошло до экстраполяции");
-				}
 				
 
-				if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Math.Round(Vector3.Distance(old_position, new_position), ConnectController.perception) <= ConnectController.step)
-				{
-					if (recive.action == ConnectController.ACTION_REMOVE)
+					if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Math.Round(Vector3.Distance(old_position, new_position), ConnectController.perception) <= ConnectController.step)
 					{
-						Debug.Log("Движение - Переход между локациями");
-						recive.action = action = "walk";
+						if (recive.action == ConnectController.ACTION_REMOVE)
+						{
+							Log("Движение - Переход между локациями");
+							recive.action = "walk";
+						}
+
+						// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
+						coroutines["walk"] = StartCoroutine(Walk(new_position, (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
 					}
-
-					double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
-
-					// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
-					coroutines["walk"] = StartCoroutine(Walk(new_position, (recive.action == ConnectController.ACTION_REMOVE ? timeout * 1.5 : timeout), (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
-				}
-                else
-				{
-					if(transform.localPosition!=Vector3.zero)
-						Debug.Log("Движение -телепорт из " + transform.localPosition + " в "+new_position);
-
-					if (coroutines.ContainsKey("walk")) 
+					else
 					{
-						Debug.Log("Движение - остановка корутины");
-						StopCoroutine(coroutines["walk"]);
-						coroutines.Remove("walk");
-					}
+						if(transform.localPosition!=Vector3.zero)
+							Log("Движение -телепорт из " + transform.localPosition + "("+transform.position+") в "+new_position);
 
-					transform.localPosition = new_position;
+						if (coroutines.ContainsKey("walk")) 
+						{
+							Log("Движение - остановка корутины");
+							StopCoroutine(coroutines["walk"]);
+							coroutines.Remove("walk");
+						}
+
+						transform.localPosition = new_position;
+					}
 				}
+				else
+					Log("Движение - слишклм малая разница в позициях "+ distance+" при шаге "+ ConnectController.step);
 			}
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
@@ -194,11 +199,11 @@ namespace MyFantasy
 					int layerIndex = animator.GetLayerIndex(recive.action);
 					if (layerIndex == -1)
 					{
-						Debug.LogWarning("Положение без группы-слоя анимации ");
+						LogWarning("Положение без группы-слоя анимации ");
 					}
 					else
 					{
-					//	Debug.LogWarning(DateTime.Now.Millisecond + " " + key + ": " + recive.action + " с " + action);
+					//	LogWarning(DateTime.Now.Millisecond + " " + key + ": " + recive.action + " с " + action);
 						Animate(animator, layerIndex);
 					}
 				}
@@ -229,7 +234,7 @@ namespace MyFantasy
 				string name = animator.GetLayerName(layerIndex);
 				if (trigers.ContainsKey(name))
 				{
-					Debug.Log("запускаем тригер " + name);
+					Log("запускаем тригер " + name);
 					animator.SetTrigger(name);
 				}
 			}
@@ -243,32 +248,38 @@ namespace MyFantasy
 		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
 		/// </summary>
 		/// <param name="position">куда движемя</param>
-		protected virtual IEnumerator Walk(Vector3 finish, double timeout, Coroutine old_coroutine)
+		protected virtual IEnumerator Walk(Vector3 finish, Coroutine old_coroutine)
 		{
 			if (old_coroutine != null)
 			{
-				Debug.Log("Движение - Остановка старой корутины");
+				Log("Движение - Остановка старой корутины");
 				StopCoroutine(old_coroutine);
 			}
 
 			if (finish == transform.localPosition)
             {
-				Debug.LogError("Движение - позиция к которой движемся равна той на которой стоим");
+				LogError("Движение - позиция к которой движемся равна той на которой стоим");
 				yield break;
 			}
 
 			float distance;
 
 			// отрезок пути которой существо движется за кадр
+			double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
+			
+			// соединися с сервисом авторизации и с игровым сервисом и получить ответ  - 2 полных пинга в обе стороны
+			if (action == ConnectController.ACTION_REMOVE)
+				timeout += (float)ConnectController.Ping()*2;
+
 			float distancePerUpdate = (float)(Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
 			bool extropolation_start = false;
 			current_extropolation = 0;
 
 			while (true)
 			{
-				if (action != "walk")
+				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
-					Debug.LogWarning("Движение - Сменен action во время движения на " + action);
+					LogWarning("Движение - Сменен action во время движения на " + action);
 					transform.localPosition = finish;
 					break;
 				}
@@ -278,21 +289,21 @@ namespace MyFantasy
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
-					if (getEvent(WalkResponse.GROUP).action.Length == 0)
+					/*if (getEvent(WalkResponse.GROUP).action.Length == 0)
 					{
-						Debug.LogWarning("Движение - с сервера пршел пакет что мы дальше не идем");
+						LogWarning("Движение - с сервера пршел пакет что мы дальше не идем");
 						transform.localPosition = finish;
 						break;
-					}
+					}*/
 
 					if (!ConnectController.EXTROPOLATION)
 					{
-						Debug.LogWarning("Движение - экстрополяция выключена");
+						LogWarning("Движение - экстрополяция выключена");
 						transform.localPosition = finish;
 						break;
 					}
 
-					if (!extropolation_start)
+					if (!extropolation_start && action != ConnectController.ACTION_REMOVE)
 					{
 						extropolation_start = true;
 
@@ -304,16 +315,16 @@ namespace MyFantasy
 						Vector3 additional = Vector3.Scale(new Vector3(forward.x, forward.y, finish.z).normalized, new Vector3(current_extropolation, current_extropolation, finish.z));
 						finish += additional;
 
-						Debug.Log("Движение - экстрополяция добавим "+ additional.ToString()+" к кончной точке");
+						Log("Движение - экстрополяция добавим "+ additional.ToString()+" к конечной точке");
 					}
                     else
                     {
-						Debug.LogWarning("Движение - экстрополяция - Ушли слишком далеко");
+						LogWarning("Движение - экстрополяция - Ушли слишком далеко");
 						break;
 					}
 				}
 
-				//Debug.LogError("Движение - Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
+				//LogError("Движение - Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
 
 				activeLast = DateTime.Now;
 				transform.localPosition = Vector3.MoveTowards(transform.localPosition, finish, distancePerUpdate);
@@ -321,7 +332,7 @@ namespace MyFantasy
 				yield return new WaitForFixedUpdate();
 			}
 
-			Debug.Log("Движение - завершена корутина движения");
+			Log("Движение - завершена корутина движения");
 
 			coroutines.Remove("walk");
 			yield break;
@@ -334,12 +345,12 @@ namespace MyFantasy
 		{
 			if (animator != null)
 			{
-				Debug.Log("Запуск анимации удаления с карты");
+				Log("Запуск анимации удаления с карты");
 
 				Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));
 				yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.01f);
 			}
-
+			Log("немедленое удаление с карты");
 			Destroy(gameObject);
 		}
 	}

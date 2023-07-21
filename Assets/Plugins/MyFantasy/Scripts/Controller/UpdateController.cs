@@ -179,16 +179,12 @@ namespace MyFantasy
 		/// </summary>
 		protected virtual GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
 		{
-			Debug.Log("Обрабатываем "+type+" "+key+" на карте "+ map_id);
-
 			GameObject prefab = GameObject.Find(key);
 			ObjectModel model;
 
 			// если игрока нет на сцене
 			if (prefab == null)
 			{
-				Debug.Log("Создаем " + recive.prefab + " " + key);
-
 				UnityEngine.Object ob = Resources.Load("Prefabs/" + type + "/" + recive.prefab, typeof(GameObject));
 
 				if (ob == null)
@@ -201,6 +197,8 @@ namespace MyFantasy
 
 				model = prefab.GetComponent<ObjectModel>();
 				if (model == null) Error("Отсутвует скрипт модели на объекте " + key);
+
+				model.Log("создан с префабом " + recive.prefab);
 
 				model.type = type.ToLower();
 
@@ -222,6 +220,8 @@ namespace MyFantasy
 			{
 				model = prefab.GetComponent<ObjectModel>();
 			}
+
+			model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
 
 			prefab.transform.SetParent(worldObject.transform.Find(this.sides[map_id]).transform, false);
 

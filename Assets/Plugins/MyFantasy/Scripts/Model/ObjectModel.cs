@@ -73,24 +73,20 @@ namespace MyFantasy
 		/// </summary>
 		public virtual void SetData(ObjectRecive recive)
 		{
-			// пришла команды удаления с карты объекта
-			if (recive.action == ConnectController.ACTION_REMOVE) 
-			{ 
-				StartCoroutine(this.Remove(recive.map_id));
-			}
-			// при судалении существа с карты не меняем карту, а ожидаем что она придет снова - с другого сервера
-			else
-			{ 
-				if (recive.map_id != null)
-					this.map_id = (int)recive.map_id;
-
-				// не всегда нужно ставить анимацию удаления СРАЗУ. поэтому кому нужно могут поставить в порутине Remove которую можно переопределить 
-				if (recive.action != null)
-					this.action = recive.action;
-			}
-
 			if (recive.action != null)
+			{
+				this.action = recive.action;
 				activeLast = DateTime.Now;
+
+				// пришла команды удаления с карты объекта
+				if (recive.action == ConnectController.ACTION_REMOVE) 
+				{ 
+					StartCoroutine(this.Remove());
+				}
+			}
+
+			if (recive.map_id != null)
+				this.map_id = (int)recive.map_id;		
 
 			if (recive.forward_x != null || recive.forward_y != null)
             {
@@ -134,7 +130,7 @@ namespace MyFantasy
 				this.lifeRadius = (int)recive.lifeRadius;
 
 			if (recive.created != null)
-				this.created = recive.created;
+				this.created = (DateTime)recive.created;
 
 			if (recive.prefab != null)
 				this.prefab = recive.prefab;
@@ -195,6 +191,7 @@ namespace MyFantasy
 				events[group].action = "";
 				events[group].timeout = 0.5;
 				events[group].from_client = true;
+				events[group].finish = DateTime.Now;
 			}
 
 			return events[group];
@@ -216,33 +213,44 @@ namespace MyFantasy
 		public virtual double GetEventRemain(string group)
 		{
 			// тут пинг не выитаем тк для анимации еще используется (она ведь должна продолжаться пока пакет идет).а если отправка команд идет в ConnectController - сверяясь вычитая пол пинга 
-			return getEvent(group).finish.Subtract(DateTime.Now).TotalSeconds;
+			return ((DateTime)getEvent(group).finish).Subtract(DateTime.Now).TotalSeconds;
 		}
 
 		/// <summary>
 		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
 		/// </summary>
-		protected virtual  IEnumerator Remove(int? new_map_id = null)
+		protected virtual  IEnumerator Remove()
 		{
-			if (new_map_id!=null)
+			Log("Отложенное удаление при смене карты");
+			DateTime start = DateTime.Now.AddSeconds(5);
+
+			while (DateTime.Compare(start, DateTime.Now) >= 1)
 			{
-				Debug.Log("Отложенное удаление при смене карты");
-				DateTime start = DateTime.Now.AddSeconds(5);
+				// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
+				if (action!=ConnectController.ACTION_REMOVE)
+                {
+					Log("Существо сменило статус с удаляемого на "+action+", удаление отменено");
+					yield break;
+				}	
 
-				while (DateTime.Compare(start, DateTime.Now) >= 1)
-				{
-					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
-					if (this.map_id == new_map_id)
-                    {
-						Debug.Log("Существо перешло на карту");
-						yield break;
-					}	
-
-					yield return new WaitForFixedUpdate();
-				}
+				yield return new WaitForFixedUpdate();
 			}
-			action = ConnectController.ACTION_REMOVE;
+			Log("Существо так и не перешло на новую карту");
 			StartCoroutine(this.Destroy());
+		}
+
+		public void Log(string message)
+        {
+			Debug.Log(name + ": "+ message);
+		}
+
+		public void LogWarning(string message)
+        {
+			Debug.LogWarning(name + ": "+ message);
+		}
+		public void LogError(string message)
+        {
+			Debug.LogError(name + ": "+ message);
 		}
 
 		/// <summary>
@@ -250,7 +258,7 @@ namespace MyFantasy
 		/// </summary>
 		protected virtual IEnumerator Destroy()
 		{
-			Debug.Log("Удаления с карты");
+			Log("немедленное удаления с карты");
 			Destroy(gameObject);
 
 			yield return null;

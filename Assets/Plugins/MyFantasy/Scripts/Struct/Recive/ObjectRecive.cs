@@ -26,7 +26,7 @@ namespace MyFantasy
 		public int? lifeRadius = null;
 		
 
-		public DateTime created = DateTime.Now;
+		public DateTime? created = null;
 		
 		public Dictionary<string, EventRecive> events;
 

@@ -301,7 +301,7 @@ namespace MyFantasy
 							ConnectController.connect = null;
 							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
 							reload = ReloadStatus.Start;
-
+							//Close();
 							Debug.LogWarning(DateTime.Now.Millisecond + ": Перезаход в игру");
 						}
 
