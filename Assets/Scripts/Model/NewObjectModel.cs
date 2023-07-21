@@ -174,7 +174,7 @@ namespace MyFantasy
 					else
 					{
 						if(transform.localPosition!=Vector3.zero)
-							Log("Движение -телепорт из " + transform.localPosition + "("+transform.position+") в "+new_position);
+							Log("Движение -телепорт из " + transform.localPosition + " в "+new_position);
 
 						if (coroutines.ContainsKey("walk")) 
 						{
@@ -187,7 +187,7 @@ namespace MyFantasy
 					}
 				}
 				else
-					Log("Движение - слишклм малая разница в позициях "+ distance+" при шаге "+ ConnectController.step);
+					LogWarning("Движение - слишклм малая разница в позициях "+ distance+" при шаге "+ ConnectController.step);
 			}
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
