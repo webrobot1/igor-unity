@@ -133,6 +133,13 @@ namespace MyFantasy
 		/// </summary>
 		protected void SetData(NewObjectRecive recive)
 		{
+			// пришла команды удаления с карты объекта
+			if (recive.action == ConnectController.ACTION_REMOVE && action != recive.action)
+			{
+				action = recive.action;
+				StartCoroutine(this.Remove(recive.map_id != null));
+			}
+
 			Vector3 old_position = position;
 			base.SetData(recive);
 
@@ -336,6 +343,33 @@ namespace MyFantasy
 
 			coroutines.Remove("walk");
 			yield break;
+		}
+
+		/// <summary>
+		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
+		/// </summary>
+		private IEnumerator Remove(bool change_map)
+		{
+			if (change_map)
+			{
+				Log("Отложенное удаление при смене карты");
+				DateTime start = DateTime.Now.AddSeconds(5);
+
+				while (DateTime.Compare(start, DateTime.Now) >= 1)
+				{
+					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
+					if (action != ConnectController.ACTION_REMOVE)
+					{
+						Log("Существо сменило статус с удаляемого на " + action + ", удаление отменено");
+						yield break;
+					}
+
+					yield return new WaitForFixedUpdate();
+				}
+				Log("Существо так и не перешло на новую карту");
+			}
+
+			StartCoroutine(this.Destroy());
 		}
 
 		/// <summary>

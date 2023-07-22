@@ -79,9 +79,9 @@ namespace MyFantasy
 				activeLast = DateTime.Now;
 
 				// пришла команды удаления с карты объекта
-				if (recive.action == ConnectController.ACTION_REMOVE) 
+				if (recive.action == ConnectController.ACTION_REMOVE && action != recive.action) 
 				{ 
-					StartCoroutine(this.Remove());
+					StartCoroutine(this.Destroy());
 				}
 			}
 
@@ -214,29 +214,6 @@ namespace MyFantasy
 		{
 			// тут пинг не выитаем тк для анимации еще используется (она ведь должна продолжаться пока пакет идет).а если отправка команд идет в ConnectController - сверяясь вычитая пол пинга 
 			return ((DateTime)getEvent(group).finish).Subtract(DateTime.Now).TotalSeconds;
-		}
-
-		/// <summary>
-		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
-		/// </summary>
-		protected virtual  IEnumerator Remove()
-		{
-			Log("Отложенное удаление при смене карты");
-			DateTime start = DateTime.Now.AddSeconds(5);
-
-			while (DateTime.Compare(start, DateTime.Now) >= 1)
-			{
-				// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
-				if (action!=ConnectController.ACTION_REMOVE)
-                {
-					Log("Существо сменило статус с удаляемого на "+action+", удаление отменено");
-					yield break;
-				}	
-
-				yield return new WaitForFixedUpdate();
-			}
-			Log("Существо так и не перешло на новую карту");
-			StartCoroutine(this.Destroy());
 		}
 
 		public void Log(string message)
