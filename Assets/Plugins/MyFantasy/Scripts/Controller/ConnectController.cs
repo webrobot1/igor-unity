@@ -48,21 +48,14 @@ namespace MyFantasy
 		public static string player_key;
 
 		/// <summary>
-		/// установленная на сервере длинна шага. может пригодится для экстрополяции
+		/// установленная на сервере длинна шага. нужно для проверки шагаем ли мы или телепортируемся (тк даже механика быстрого полета или скачек - это тоже хотьба)
 		/// </summary>
-		public static double step;		
-		
+		public static float step;
+
 		/// <summary>
 		/// сколько чисел в дробной части шага ()высчитывается автоматом
 		/// </summary>
-		public static int perception
-        {
-			get
-			{
-				string[] split = (step.ToString()).Split(".");
-				return split.Length>1?(split[1].Length):0;							// сколько цифр после запятой нужно округлять лкаоции в unity для сравнения с шагом
-			}
-        }
+		public static int position_precision;
 
 		/// <summary>
 		/// Префаб нашего игрока
@@ -240,7 +233,9 @@ namespace MyFantasy
 
 			player_key = data.key;
 			player_token = data.token;
-			step = data.step;									// максимальный размер шага. умножается тк по диагонали идет больще
+			
+			step = data.step;                                   // максимальный размер шага. умножается тк по диагонали идет больще
+			position_precision = data.position_precision;		// длина шага
 
 			coroutine = null;
 			loading = DateTime.Now.AddSeconds(max_pause_sec);
@@ -259,7 +254,7 @@ namespace MyFantasy
 				Debug.Log("новое соединение с сервером "+ ws.Url);
 
 				// так в C# можно
-				ws.SetCredentials("" + player_key + "", player_token, true);
+				ws.SetCredentials(player_key, player_token, true);
 				ws.OnOpen += (object sender, System.EventArgs e) =>
 				{
 
@@ -306,7 +301,7 @@ namespace MyFantasy
 						}
 
 					#if UNITY_EDITOR
-						Debug.Log(DateTime.Now.Millisecond + ": " + text);
+						Debug.Log("Пришел пакет "+DateTime.Now.Millisecond + ": " + text);
 					#endif
 
 						if (coroutine == null && reload == ReloadStatus.None)

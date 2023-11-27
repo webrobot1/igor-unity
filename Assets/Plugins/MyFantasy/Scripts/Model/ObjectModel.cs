@@ -47,13 +47,17 @@ namespace MyFantasy
 		protected DateTime created;
 		protected string prefab;
 
-		private Vector2 _forward = Vector2.zero;
-		public virtual Vector2 forward
+		private Vector2 _forward = Vector3.zero;
+
+		/// <summary>
+		/// при запросе поля выдает серверные значения. при смене - меняет transform position только в клиенте (на сервере меняется лишь попутно с другими событиями требующих направления)
+		/// </summary>
+		public virtual Vector3 forward
 		{
 			get { return _forward; }
 			set
 			{
-				_forward = value;
+				this.transform.forward.Set(value.x , value.y, value.z);
 			}
 		}
 
@@ -90,9 +94,11 @@ namespace MyFantasy
 
 			if (recive.forward_x != null || recive.forward_y != null)
             {
-				forward = new Vector2(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
+				Vector3 vector = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
+				
+				forward = vector;		// эта строка лишь развернет 
+				_forward = vector;		// а это будет отдавать при запросе forward данные с сервера а не реального разворота в клиенте
 
-				this.transform.forward.Set(forward.x, forward.y, this.transform.forward.z);
 
 				// следующий код применим только к объектам - предметам, он повернет их
 				if (type == "objects") 

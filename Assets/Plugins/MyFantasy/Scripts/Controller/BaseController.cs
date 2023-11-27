@@ -20,6 +20,7 @@ namespace MyFantasy
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
 		protected static string password;
+		protected static string game_id;
 
 		public static void Error(string error, Exception ex = null)
 		{
@@ -54,9 +55,16 @@ namespace MyFantasy
 				yield break;
 			}
 
+			if (game_id.Length == 0)
+			{
+				Error("разработчик не указал ИД игры сервиса http://my-fantasy.ru/");
+				yield break;
+			}
+
 			WWWForm formData = new WWWForm();
 			formData.AddField("login", login);
 			formData.AddField("password", password);
+			formData.AddField("game_id", game_id);
 
 			string url = "http://" + SERVER + "/game/signin/" + action;
 			Debug.Log("соединяемся с " + url);

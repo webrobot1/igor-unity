@@ -60,7 +60,7 @@ namespace MyFantasy
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
 		/// </summary>
-		public override Vector2 forward
+		public override Vector3 forward
 		{
 			get { return base.forward; }
 			set 
@@ -164,10 +164,9 @@ namespace MyFantasy
 						}
 						else
 							LogWarning("Движение - новые данные с сервера существо еще не звершило движение и не дошло до экстраполяции");
-					}
-				
+					}				
 
-					if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && Math.Round(Vector3.Distance(old_position, new_position), ConnectController.perception) <= ConnectController.step)
+					if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString())
 					{
 						if (recive.action == ConnectController.ACTION_REMOVE)
 						{
@@ -180,7 +179,9 @@ namespace MyFantasy
 					}
 					else
 					{
-						if(transform.localPosition!=Vector3.zero)
+
+						// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
+						if (transform.localPosition!=Vector3.zero)
 							Log("Движение -телепорт из " + transform.localPosition + " в "+new_position);
 
 						if (coroutines.ContainsKey("walk")) 
@@ -309,25 +310,27 @@ namespace MyFantasy
 						transform.localPosition = finish;
 						break;
 					}
-
-					if (!extropolation_start && action != ConnectController.ACTION_REMOVE)
+					else
 					{
-						extropolation_start = true;
+						if (!extropolation_start && action != ConnectController.ACTION_REMOVE)
+						{
+							extropolation_start = true;
 
-						// какое количество % полного шага (который равен timeout) можно прости за время пинга
-						current_extropolation = ((float)ConnectController.Ping() / 2 ) / (float)getEvent(WalkResponse.GROUP).timeout;
-						if (current_extropolation < distancePerUpdate) current_extropolation = distancePerUpdate;
+							// какое количество % полного шага (который равен timeout) можно прости за время пинга
+							current_extropolation = ((float)ConnectController.Ping() / 2) / (float)getEvent(WalkResponse.GROUP).timeout;
+							if (current_extropolation < distancePerUpdate) current_extropolation = distancePerUpdate;
 
-						// продем чуть дальше положенного сколько могли бы пройти за время ping
-						Vector3 additional = Vector3.Scale(new Vector3(forward.x, forward.y, finish.z).normalized, new Vector3(current_extropolation, current_extropolation, finish.z));
-						finish += additional;
+							// пройдем чуть дальше положенного сколько могли бы пройти за время ping
+							Vector3 additional = Vector3.Scale(new Vector3(forward.x * ConnectController.step, forward.y * ConnectController.step, finish.z), new Vector3(current_extropolation, current_extropolation, finish.z));
+							finish += additional;
 
-						Log("Движение - экстрополяция добавим "+ additional.ToString()+" к конечной точке");
-					}
-                    else
-                    {
-						LogWarning("Движение - экстрополяция - Ушли слишком далеко");
-						break;
+							Log("Движение - экстрополяция добавим " + additional.ToString() + " к конечной точке");
+						}
+						else
+						{
+							LogWarning("Движение - экстрополяция - Ушли слишком далеко");
+							break;
+						}
 					}
 				}
 

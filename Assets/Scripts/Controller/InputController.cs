@@ -94,8 +94,9 @@ namespace MyFantasy
             }
             else
             {
-                response.x = Math.Round(player.forward.x, 1);
-                response.y = Math.Round(player.forward.y, 1);
+                // именно то в каком положении наш персонаж
+                response.x = Math.Round(player.transform.forward.x, position_precision);
+                response.y = Math.Round(player.transform.forward.y, position_precision);
             }
             Send(response);
         }
@@ -178,16 +179,20 @@ namespace MyFantasy
                     {
                         if (vertical != 0 || horizontal != 0)
                         {
-                            if(DateTime.Compare(block_forward, DateTime.Now) < 1)
-                                player.forward = new Vector3(horizontal, vertical, 0);
-
                             // я подогнал магнитуду под размер круга джойстика (выйдя за него мы уже будем идти а не менять направления)
-                            if ((new Vector2(horizontal, vertical)).magnitude > 0.5)
+                            if (Math.Abs(horizontal) > 0.5 || Math.Abs(vertical) > 0.5)
                             {
+                                // не путать импульс нажатия кнопки в определенном направлении с forward (направлением движения, т.е нормальизованным вектором)
+                                Vector3 vector = new Vector3(horizontal, vertical, 0).normalized;
+
+                                // значение forward не сменится (тк его меняет только сервер) но запустится анимация при которой графика персонажа повернется
+                                if (DateTime.Compare(block_forward, DateTime.Now) < 1)
+                                    player.forward = vector;
+
                                 WalkResponse response = new WalkResponse();
 
-                                response.x = Math.Round(horizontal, 1);
-                                response.y = Math.Round(vertical, 1);
+                                response.x = Math.Round(vector.x, position_precision);
+                                response.y = Math.Round(vector.y, position_precision);
 
                                 Send(response);
                             }  
@@ -197,8 +202,8 @@ namespace MyFantasy
                             WalkResponse response = new WalkResponse();
                             
                             response.action = "to";
-                            response.x = Math.Round(move_to.x, 1);
-                            response.y = Math.Round(move_to.y, 1);
+                            response.x = Math.Round(move_to.x, position_precision);
+                            response.y = Math.Round(move_to.y, position_precision);
                             response.z = player.transform.position.z;
 
                             move_to = Vector3.zero;

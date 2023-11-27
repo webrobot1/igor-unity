@@ -69,8 +69,9 @@ namespace MyFantasy
 				// todo может сделать какую то авторизацию для получения карт
 				WWWForm formData = new WWWForm();
 				formData.AddField("map_id", map_id);
+				formData.AddField("token", player_token);
 
-				string url = "http://" + SERVER + "/game/signin/get_map";
+				string url = "http://" + SERVER + "/game/signin/get_map/?map_id="+ map_id + "&token="+ player_token;
 				Debug.Log("получаем карту " + map_id + " с " + url);
 
 				UnityWebRequest request = UnityWebRequest.Post(url, formData);

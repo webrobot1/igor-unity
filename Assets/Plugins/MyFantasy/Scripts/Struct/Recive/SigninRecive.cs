@@ -10,7 +10,9 @@ namespace MyFantasy
 
 		public string key;
 		public string token;
+
 		public float step;
+		public int position_precision;
 
 		/// <summary>
 		/// возможные ошибки (если не пусто - произойдет разъединение, но где быстрее - в клиенте или на сервере сказать сложно)
