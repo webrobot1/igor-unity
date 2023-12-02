@@ -85,20 +85,23 @@ namespace MyFantasy
 
         private void Attack(string magic)
         {
-            AttackResponse response = new AttackResponse();
-            response.magic = magic;
+            if(player.action != ACTION_REMOVE)
+            {
+                AttackResponse response = new AttackResponse();
+                response.magic = magic;
 
-            if (target!=null)
-            {
-                response.target = target.key;
+                if (target!=null)
+                {
+                    response.target = target.key;
+                }
+                else
+                {
+                    // именно то в каком положении наш персонаж
+                    response.x = Math.Round(player.transform.forward.x, position_precision);
+                    response.y = Math.Round(player.transform.forward.y, position_precision);
+                }
+                Send(response);
             }
-            else
-            {
-                // именно то в каком положении наш персонаж
-                response.x = Math.Round(player.transform.forward.x, position_precision);
-                response.y = Math.Round(player.transform.forward.y, position_precision);
-            }
-            Send(response);
         }
 
   
@@ -158,7 +161,7 @@ namespace MyFantasy
         protected override void FixedUpdate() 
         {
             base.FixedUpdate();
-            if (player != null)
+            if (player != null && player.action != ACTION_REMOVE)
             {
                 try
                 {

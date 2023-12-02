@@ -33,6 +33,7 @@ namespace MyFantasy
 
 		protected virtual void Awake()
 		{
+
 			// продолжать принимать данные и обновляться в фоновом режиме
 			Application.runInBackground = true;
 
@@ -130,6 +131,11 @@ namespace MyFantasy
 
 				// asyncLoad.allowSceneActivation = true;
 			}
+		}
+
+		public static void Log(object obj)
+		{
+			UnityEngine.Debug.Log(System.DateTime.Now.ToLongTimeString() + " : " + obj);
 		}
 	}
 }

@@ -141,18 +141,23 @@ namespace MyFantasy
 			}
 
 			Vector3 old_position = position;
+			int old_map_id = map_id;
+
 			base.SetData(recive);
 
 			// при первой загрузке не запускаем
-			if ((recive.x != null || recive.y != null || recive.z != null) && old_position!=position)
+			if ((recive.x != null || recive.y != null || recive.z != null) && old_position != position)
 			{
 				Vector3 new_position = new Vector3(recive.x ?? old_position.x, recive.y ?? old_position.y, recive.z ?? old_position.z);
-				float distance = Vector3.Distance(transform.localPosition, new_position);
 
-				if (distance>ConnectController.step/2) 
-				{
-					Log("Движение - новые данные с сервера");
+				// если первый вход в игру
+				if (old_position == Vector3.zero) 
+					transform.localPosition = new_position;
+				else
+				{            
+					float distance = Vector3.Distance(transform.localPosition, new_position);
 
+					Log("Движение - новые данные с сервера о переходе с "+ old_position + " на "+ new_position+" существа в локальной позиции "+transform.localPosition);
 					if (coroutines.ContainsKey("walk"))
 					{
 						// есть корутина движения и там включена эксьраполяция
@@ -164,14 +169,16 @@ namespace MyFantasy
 						}
 						else
 							LogWarning("Движение - новые данные с сервера существо еще не звершило движение и не дошло до экстраполяции");
-					}				
+					}
 
-					if ((recive.action == "walk" || recive.action == ConnectController.ACTION_REMOVE) && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString())
+					if ((recive.action == "walk" && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map_id!=null && recive.map_id != old_map_id))
 					{
-						if (recive.action == ConnectController.ACTION_REMOVE)
+						// до получения новых пакетов продолжим движение
+						if (recive.map_id != null)
 						{
 							Log("Движение - Переход между локациями");
 							recive.action = "walk";
+							position = new_position = old_position + (forward * ConnectController.step);
 						}
 
 						// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
@@ -179,23 +186,18 @@ namespace MyFantasy
 					}
 					else
 					{
-
 						// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
-						if (transform.localPosition!=Vector3.zero)
-							Log("Движение -телепорт из " + transform.localPosition + " в "+new_position);
+						Log("Движение -телепорт из " + transform.localPosition + " в " + new_position);
 
-						if (coroutines.ContainsKey("walk")) 
+						if (coroutines.ContainsKey("walk"))
 						{
 							Log("Движение - остановка корутины");
 							StopCoroutine(coroutines["walk"]);
 							coroutines.Remove("walk");
 						}
-
 						transform.localPosition = new_position;
 					}
 				}
-				else
-					LogWarning("Движение - слишклм малая разница в позициях "+ distance+" при шаге "+ ConnectController.step);
 			}
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
@@ -285,6 +287,8 @@ namespace MyFantasy
 
 			while (true)
 			{
+				Log("идем "+transform.localPosition);
+
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
 					LogWarning("Движение - Сменен action во время движения на " + action);

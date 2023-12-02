@@ -194,7 +194,7 @@ namespace MyFantasy
 			if (!events.ContainsKey(group))
 			{
 				events.Add(group, new EventRecive());
-				events[group].action = "";
+				events[group].action = null;
 				events[group].timeout = 0.5;
 				events[group].from_client = true;
 				events[group].finish = DateTime.Now;

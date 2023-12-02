@@ -44,8 +44,11 @@ namespace MyFantasy
 								{
 									DestroyImmediate(child.gameObject);
 								}
-								else
+                                else
+                                {
 									Debug.Log("Не очищаем игрока при перезагрузке");
+                                }
+									
 							}
 						}	
 					break;

@@ -297,11 +297,11 @@ namespace MyFantasy
 							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
 							reload = ReloadStatus.Start;
 							//Close();
-							Debug.LogWarning(DateTime.Now.Millisecond + ": Перезаход в игру");
+							Debug.LogWarning("Перезаход в игру");
 						}
 
 					#if UNITY_EDITOR
-						Debug.Log("Пришел пакет "+DateTime.Now.Millisecond + ": " + text);
+						Debug.Log("Пришел пакет" + text);
 					#endif
 
 						if (coroutine == null && reload == ReloadStatus.None)
@@ -364,25 +364,30 @@ namespace MyFantasy
 		public static void Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
-			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState == WebSocketState.Open)
+			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState == WebSocketState.Open && player.action!=ACTION_REMOVE)
 			{
 				try
 				{
 					double remain = player.GetEventRemain(data.group); // вычтем время необходимое что бы ответ ошел до сервcера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 					
-					if (INTERPOLATION > 0)
+					if (remain >0 && INTERPOLATION > 0 && Ping()>0)
+					{
+						Debug.LogWarning("Уменьшаем время таймаута пакета которому осталось "+ remain + " за счет интерполции на "+ Ping() * INTERPOLATION);
 						remain -= Ping() * INTERPOLATION;
+					}
 
 					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
 					if 
 						(
 							remain<=0 
-								|| 
-							(player.getEvent(data.group).action.Length==0 && remain <= player.getEvent(data.group).timeout) 
+								||
+							// может быть и null когда событие только создано или отправили пакет когда был action == "" (что означает что на сервере нет текущего события в обработке и модно слать)
+							(player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout) 
 								|| 
 							player.getEvent(data.group).from_client != true
 						)
 					{
+
 						// поставим на паузу отправку и получение любых кроме данной команды данных
 						if (data.group == LoadResponse.GROUP)
 						{
@@ -418,7 +423,11 @@ namespace MyFantasy
 						// сразу пометим что текущее событие нами было выслано 
 						player.getEvent(data.group).from_client = true;
 
-						Debug.Log(DateTime.Now.Millisecond + " Отправили серверу " + json);
+						// если отправили пакет и небыло action  установим null что бы в следующем кадре не слать уже
+						if (player.getEvent(data.group).action == "")
+							player.getEvent(data.group).action = null;
+
+						Debug.Log(" Отправили серверу " + json);
 						Put2Send(json);	
 					}
 					//else
@@ -490,7 +499,7 @@ namespace MyFantasy
 			if (ex!=null)
 				Debug.LogException(ex);
 
-			Debug.LogError(DateTime.Now.Millisecond + ": " + text);
+			Debug.LogError(text);
 
 			Close();
 			errors.Add(text);
