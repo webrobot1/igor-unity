@@ -287,7 +287,6 @@ namespace MyFantasy
 
 			while (true)
 			{
-				Log("идем "+transform.localPosition);
 
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
@@ -308,7 +307,7 @@ namespace MyFantasy
 						break;
 					}*/
 
-					if (!ConnectController.EXTROPOLATION)
+					if (ConnectController.EXTROPOLATION<=0)
 					{
 						LogWarning("Движение - экстрополяция выключена");
 						transform.localPosition = finish;
@@ -320,9 +319,11 @@ namespace MyFantasy
 						{
 							extropolation_start = true;
 
-							// какое количество % полного шага (который равен timeout) можно прости за время пинга
-							current_extropolation = ((float)ConnectController.Ping() / 2) / (float)getEvent(WalkResponse.GROUP).timeout;
-							if (current_extropolation < distancePerUpdate) current_extropolation = distancePerUpdate;
+							// какое количество % полного шага (который равен timeout) можно пройти за время пинга
+							current_extropolation = ((float)ConnectController.Ping() * ConnectController.EXTROPOLATION) / (float)getEvent(WalkResponse.GROUP).timeout;
+							
+							if (current_extropolation < distancePerUpdate) 
+								current_extropolation = distancePerUpdate;
 
 							// пройдем чуть дальше положенного сколько могли бы пройти за время ping
 							Vector3 additional = Vector3.Scale(new Vector3(forward.x * ConnectController.step, forward.y * ConnectController.step, finish.z), new Vector3(current_extropolation, current_extropolation, finish.z));

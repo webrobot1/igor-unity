@@ -40,7 +40,7 @@ namespace MyFantasy
 		/// позволить продолжить движение стандартной механики движения при наличии уже посланных интерполяцией запросов на новое событие движения. 
 		/// число - с какой скоростью продолжать движение пока ждем пакет от сервера (если установить 1 то мы можем очень далеко уйти прежде чем пакеты придутб рекомендуется ставить меньше половины)
 		/// </summary>
-		public const bool EXTROPOLATION = true;
+		public const float EXTROPOLATION = 0.7f;
 
 		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
@@ -372,8 +372,8 @@ namespace MyFantasy
 					
 					if (remain >0 && INTERPOLATION > 0 && Ping()>0)
 					{
-						Debug.LogWarning("Уменьшаем время таймаута пакета которому осталось "+ remain + " за счет интерполции на "+ Ping() * INTERPOLATION);
-						remain -= Ping() * INTERPOLATION;
+						double time = Ping() * INTERPOLATION;
+						remain -= time;
 					}
 
 					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
@@ -465,7 +465,7 @@ namespace MyFantasy
 
 			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout);
 
-			Debug.LogError("Новое значение оставшегося времени: "+player.GetEventRemain(group));
+			Debug.Log("Новое значение оставшегося времени группы событий "+ group + ": "+player.GetEventRemain(group));
 		}
 
 		private static void Close()
