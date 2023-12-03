@@ -12,6 +12,13 @@ namespace MyFantasy
 		public string token;
 
 		public float step;
+		public int fps;
+
+		/// <summary>
+		///  Экстраполяция - время в секундах для непрерывных событий которым стоит продлевать анимацию их движения. Спустя remain время события пакет дойдет только с сервера
+		/// </summary>
+		public double extrapol;
+
 		public int position_precision;
 
 		/// <summary>

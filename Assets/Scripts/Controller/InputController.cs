@@ -51,8 +51,6 @@ namespace MyFantasy
         {
             base.Awake();
 
-            Application.targetFrameRate = 300;
-
             #if UNITY_WEBGL && !UNITY_EDITOR
                  WebGLRotation.Rotation(1);
             #else

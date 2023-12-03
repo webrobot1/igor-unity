@@ -238,7 +238,10 @@ namespace MyFantasy
 
 			player_key = data.key;
 			player_token = data.token;
-			
+			extrapol = data.extrapol;
+
+			Application.targetFrameRate = data.fps;
+
 			step = data.step;                                   // максимальный размер шага. умножается тк по диагонали идет больще
 			position_precision = data.position_precision;		// длина шага
 
@@ -342,11 +345,6 @@ namespace MyFantasy
 											pings.RemoveRange(0, pings.Count - min_ping_history);
 									}
 								}
-
-								if (recive.extrapol > 0)
-                                {
-									extrapol = recive.extrapol;
-								}		
 
 								recives.Add(text);
 							}
