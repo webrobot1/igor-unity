@@ -43,6 +43,11 @@ namespace MyFantasy
 		public const float EXTROPOLATION = 0.5f;
 
 		/// <summary>
+		/// время экстраполяции которое нам расчитал сервер (на это время надо закладывать время отработки на сервере пришедших пакетов до возврата их клиуенту БЕЗ учета пинга)
+		/// </summary>
+		public static double extrapol = 0;
+
+		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
 		/// </summary>
 		public static string player_key;
@@ -337,6 +342,11 @@ namespace MyFantasy
 											pings.RemoveRange(0, pings.Count - min_ping_history);
 									}
 								}
+
+								if (recive.extrapol > 0)
+                                {
+									extrapol = recive.extrapol;
+								}		
 
 								recives.Add(text);
 							}

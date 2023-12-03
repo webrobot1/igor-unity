@@ -54,8 +54,6 @@ namespace MyFantasy
 		public int mpMax;
 
 		private Dictionary<string, Coroutine> coroutines = new Dictionary<string, Coroutine>();
-		private float current_extropolation;
-
 
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
@@ -155,20 +153,10 @@ namespace MyFantasy
 					transform.localPosition = new_position;
 				else
 				{            
-					float distance = Vector3.Distance(transform.localPosition, new_position);
-
 					Log("Движение - новые данные с сервера о переходе с "+ old_position + " на "+ new_position+" существа в локальной позиции "+transform.localPosition);
 					if (coroutines.ContainsKey("walk"))
 					{
-						// есть корутина движения и там включена эксьраполяция
-						if (current_extropolation > 0)
-						{
-							// сколько мы уже дополнительно прошли
-							float additional = Vector3.Distance(old_position, new_position) - distance;
-							Log("Движение - новые данные с сервера существо прошло экстропляцией +" + Math.Round(1/(Vector3.Distance(old_position, new_position) / additional) * 100) + "/" + Math.Round(current_extropolation * 100) + " % доп. шага");
-						}
-						else
-							LogWarning("Движение - новые данные с сервера существо еще не звершило движение и не дошло до экстраполяции");
+						LogWarning("Движение - существо еще не звершило движение. Эстраполяция: " + Math.Round((Vector3.Distance(transform.localPosition, old_position) / Vector3.Distance(old_position, new_position)) * 100) + " % не дойдя с прошлого движения");
 					}
 
 					if ((recive.action == "walk" && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map_id!=null && recive.map_id != old_map_id))
@@ -262,9 +250,11 @@ namespace MyFantasy
 		{
 			if (old_coroutine != null)
 			{
-				Log("Движение - Остановка старой корутины");
+				Log("Движение - Остановка старой корутины с запуском новой");
 				StopCoroutine(old_coroutine);
 			}
+			else
+				Log("Движение - новая корутина корутины");
 
 			if (finish == transform.localPosition)
             {
@@ -276,18 +266,22 @@ namespace MyFantasy
 
 			// отрезок пути которой существо движется за кадр
 			double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
-			
+			//timeout += Time.fixedDeltaTime;
+
+			if (ConnectController.EXTROPOLATION > 0)
+            {
+				timeout += ConnectController.Ping() * ConnectController.EXTROPOLATION + ConnectController.extrapol;
+			}
+
 			// соединися с сервисом авторизации и с игровым сервисом и получить ответ  - 2 полных пинга в обе стороны
 			if (action == ConnectController.ACTION_REMOVE)
-				timeout += (float)ConnectController.Ping()*2;
+				timeout += ConnectController.Ping() * 2;
 
+			// на сколько от шага каждый кадр сервера сдвигать существо
 			float distancePerUpdate = (float)(Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
-			bool extropolation_start = false;
-			current_extropolation = 0;
 
 			while (true)
 			{
-
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
 					LogWarning("Движение - Сменен action во время движения на " + action);
@@ -306,37 +300,9 @@ namespace MyFantasy
 						transform.localPosition = finish;
 						break;
 					}*/
-
-					if (ConnectController.EXTROPOLATION<=0)
-					{
-						LogWarning("Движение - экстрополяция выключена");
-						transform.localPosition = finish;
-						break;
-					}
-					else
-					{
-						if (!extropolation_start && action != ConnectController.ACTION_REMOVE)
-						{
-							extropolation_start = true;
-
-							// какое количество % полного шага (который равен timeout) можно пройти за время пинга
-							current_extropolation = ((float)ConnectController.Ping() * ConnectController.EXTROPOLATION) / (float)getEvent(WalkResponse.GROUP).timeout;
-							
-							if (current_extropolation < distancePerUpdate) 
-								current_extropolation = distancePerUpdate;
-
-							// пройдем чуть дальше положенного сколько могли бы пройти за время ping
-							Vector3 additional = Vector3.Scale(new Vector3(forward.x * ConnectController.step, forward.y * ConnectController.step, finish.z), new Vector3(current_extropolation, current_extropolation, finish.z));
-							finish += additional;
-
-							Log("Движение - экстрополяция добавим " + additional.ToString() + " к конечной точке");
-						}
-						else
-						{
-							LogWarning("Движение - экстрополяция - Ушли слишком далеко");
-							break;
-						}
-					}
+					
+					transform.localPosition = finish;
+					break;
 				}
 
 				//LogError("Движение - Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
