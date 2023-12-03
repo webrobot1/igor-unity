@@ -47,8 +47,7 @@ namespace MyFantasy
                                 else
                                 {
 									Debug.Log("Не очищаем игрока при перезагрузке");
-                                }
-									
+                                }	
 							}
 						}	
 					break;

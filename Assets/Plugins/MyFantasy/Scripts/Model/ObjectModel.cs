@@ -95,6 +95,8 @@ namespace MyFantasy
             {
 				if (this.map_id != 0 && this.map_id != (int)recive.map_id)
 					this.new_map_id = (int)recive.map_id;
+				else
+					this.new_map_id = null;
 
 				this.map_id = (int)recive.map_id;
             }
