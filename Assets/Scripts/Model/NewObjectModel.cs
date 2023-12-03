@@ -148,7 +148,6 @@ namespace MyFantasy
 			// при первой загрузке не запускаем
 			if ((recive.x != null || recive.y != null || recive.z != null) && old_position != position)
 			{
-
 				Vector3 new_position = new Vector3(recive.x ?? old_position.x, recive.y ?? old_position.y, recive.z ?? old_position.z);
 
 				// если первый вход в игру
@@ -172,7 +171,7 @@ namespace MyFantasy
 							LogWarning("Движение - новые данные с сервера существо еще не звершило движение и не дошло до экстраполяции");
 					}
 
-					if ((recive.action == "walk" && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString()) ||  new_map_id!=null)
+					if ((recive.action == "walk" && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map_id!=null && recive.map_id != old_map_id))
 					{
 						// до получения новых пакетов продолжим движение
 						if (recive.map_id != null)

@@ -34,8 +34,6 @@ namespace MyFantasy
 		/// </summary>
 		protected int map_id;
 
-		protected int? new_map_id = null;
-
 		[NonSerialized]
 		public string login;
 
@@ -93,11 +91,6 @@ namespace MyFantasy
 
 			if (recive.map_id != null)
             {
-				if (this.map_id != 0 && this.map_id != (int)recive.map_id)
-					this.new_map_id = (int)recive.map_id;
-				else
-					this.new_map_id = null;
-
 				this.map_id = (int)recive.map_id;
             }
 						
