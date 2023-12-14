@@ -95,6 +95,10 @@ namespace MyFantasy
 			}
 			else
 				Error("Пустой ответ авторизации с сервером " + SERVER + ": " + request.error);
+
+			request.Dispose();
+
+			yield break;
 		}
 
 		// PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой

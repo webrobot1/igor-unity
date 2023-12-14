@@ -122,7 +122,9 @@ namespace MyFantasy
 				}
 				else
 					Error("Пустой ответ сервера карт  " + request.error);
-			}
+
+				request.Dispose();
+			}			
 
 			yield break;
 		}
