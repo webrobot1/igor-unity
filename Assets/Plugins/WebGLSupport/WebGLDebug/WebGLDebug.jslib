@@ -23,18 +23,6 @@ var WebGLDebug =
 			if(DebugState.init == false)
 			{
 				DebugState.init = true;
-				if(container.querySelector('#map_id'))
-				{
-				  setInterval(() => 
-				  {
-					if(container.querySelector('#map_id').value)
-					{
-						container.querySelector('#perfomance').innerHTML = '<span class="glyphicon-refresh-animate glyphicon glyphicon-refresh"></span>';
-						fetch('/server/log/perfomance/'+container.querySelector('#map_id').value).then((response) => response.text()).then((data) => container.querySelector('#perfomance').innerHTML = data);
-					}
-				  }, 10000);
-				}
-			  
 				container.querySelector('#unity-api-command').addEventListener('submit', function(e) 
 				{
 					e.preventDefault();

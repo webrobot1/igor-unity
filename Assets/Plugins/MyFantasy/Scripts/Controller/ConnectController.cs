@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -93,7 +94,8 @@ namespace MyFantasy
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
 		/// </summary>
-		private static List<string> recives = new List<string>();
+
+		private static ConcurrentQueue<string> recives = new ConcurrentQueue<string>();
 
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
@@ -194,24 +196,18 @@ namespace MyFantasy
 				}
 				if (errors.Count == 0)
 				{
-					// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
-					int count = recives.Count;
-					if (count > 0)
+					try
 					{
-						for (int i = 0; i < count; i++)
+						// тк в процессе разбора могут появиться новые данные то обработаем только те что здесь и сейчас были
+						while(recives.Count > 0) 
 						{
-							try
-							{
-								Handle(recives[i]);
-							}
-							catch (Exception ex)
-							{
-								Error("Ошибка разбора разбора данных", ex);
-							}
+							if(recives.TryDequeue(out var recive))
+								Handle(recive);
 						}
-
-						// и удалим только те что обработали (хотя могли прийти и новые пока обрабатвали, но это уже в следующем кадре)
-						recives.RemoveRange(0, count);
+					}
+					catch (Exception ex)
+					{
+						Error("Ошибка разбора разбора данных", ex);
 					}
 
 					if (connect!=null && reload == ReloadStatus.None && (connect.ReadyState == WebSocketState.Closed || connect.ReadyState == WebSocketState.Closing))
@@ -239,7 +235,8 @@ namespace MyFantasy
 			player_key = data.key;
 			player_token = data.token;
 			extrapol = data.extrapol;
-
+			
+			//QualitySettings.vSyncCount = 0;
 			Application.targetFrameRate = data.fps;
 
 			step = data.step;                                   // максимальный размер шага. умножается тк по диагонали идет больще
@@ -346,7 +343,7 @@ namespace MyFantasy
 									}
 								}
 
-								recives.Add(text);
+								recives.Enqueue(text);
 							}
 						}
 					}
