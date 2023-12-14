@@ -123,6 +123,8 @@ namespace MyFantasy
 				else
 					Error("Пустой ответ сервера карт  " + request.error);
 			}
+
+			yield break;
 		}
 
 		protected void SortMap()
