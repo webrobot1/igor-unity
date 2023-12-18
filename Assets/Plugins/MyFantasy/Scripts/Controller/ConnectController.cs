@@ -41,12 +41,12 @@ namespace MyFantasy
 		/// позволить продолжить движение стандартной механики движения при наличии уже посланных интерполяцией запросов на новое событие движения. 
 		/// число - с какой скоростью продолжать движение пока ждем пакет от сервера (если установить 1 то мы можем очень далеко уйти прежде чем пакеты придутб рекомендуется ставить меньше половины)
 		/// </summary>
-		public const float EXTROPOLATION = 0.5f;
+		public const float EXTROPOLATION_PING = 0.5f;
 
 		/// <summary>
 		/// время экстраполяции которое нам расчитал сервер (на это время надо закладывать время отработки на сервере пришедших пакетов до возврата их клиуенту БЕЗ учета пинга)
 		/// </summary>
-		public static double extrapol = 0;
+		public static double extrapolation_time = 0;
 
 		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
@@ -115,53 +115,53 @@ namespace MyFantasy
 		/// <summary>
 		/// максимальное количество секунд паузы между загрузками
 		/// </summary>
-		protected static int max_pause_sec = 10;
+		protected const int MAX_PAUSE_SEC = 10;
+		
+		/// <summary>
+		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
+		/// </summary>
+		private const int MAX_PING_HISTORY = 5;
 
 		/// <summary>
-		/// время последнего отправленного на сервер Unixtime для расчета пинга 
+		/// до какой длинные обрезается историй пингов после достижения максимального количества
 		/// </summary>
-		private static DateTime last_ping_request = DateTime.Now;		
-					
-		/// <summary>
-		/// время последнего отправленного расчитанного пинга на сервер
-		/// </summary>
-		private static DateTime last_ping_send = DateTime.Now;
+		private const int MIN_PING_HISTORY = 2;
 
 		/// <summary>
 		/// через сколько секунд передавать на сервер результаты расчета пинга (не чаще чем сохраняется игрок в бд)
 		/// </summary>
-		private static double ping_send_sec = 60;
-
-		/// <summary>
-		/// последний отправленный пинг на сервер (если не будут отличаться новые пинг не отправится)
-		/// </summary>
-		private static double last_ping_send_value = 0;
+		protected const double PING_SEND_SEC = 60;
 
 		/// <summary>
 		/// через сколько секунд мы отправляем на серер запрос с Unixtime для анализа пинга
 		/// </summary>
-		protected static float ping_request_sec = 0.5f;
+		protected const float PING_REQUEST_SEC = 0.5f;
+
+		/// <summary>
+		/// последний отправленный уже расчитаного пинга на сервер (если не будут отличаться новые пинг не отправится)
+		/// </summary>
+		private static double last_ping_send_value = 0;
+		
+		/// <summary>
+		/// последнее время отправки уже расчитаного пинга на сервер
+		/// </summary>
+		private static DateTime last_ping_send = DateTime.Now;
+
+		/// <summary>
+		/// когда последний раз отправили с основным пакетом текущую метку времени для расчета пинг
+		/// </summary>
+		private static DateTime last_ping_request = DateTime.Now;
 
 		/// <summary>
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
 		/// </summary>
 		private static double ping = 0;
+		private static double max_ping = 0;
 
 		/// <summary>
 		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
 		/// </summary>
 		private static List<double> pings = new List<double>();
-
-		/// <summary>
-		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
-		/// </summary>
-		protected static int max_ping_history = 15;
-
-		/// <summary>
-		/// до какой длинные обрезается историй пингов после достижения максимального количества
-		/// </summary>
-		protected static int min_ping_history = 5;
-
 
 		protected virtual void Update() {}
 
@@ -190,7 +190,7 @@ namespace MyFantasy
 					reload = ReloadStatus.Process;
 
 					// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
-					loading = DateTime.Now.AddSeconds(max_pause_sec);
+					loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 
 					StartCoroutine(HttpRequest("auth"));
 				}
@@ -234,16 +234,21 @@ namespace MyFantasy
 
 			player_key = data.key;
 			player_token = data.token;
-			extrapol = data.extrapol;
+			extrapolation_time = data.extrapol;
 			
+			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
+			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
+			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
+			Time.fixedDeltaTime = 0.01f;
+			Application.targetFrameRate = 100;
+
 			//QualitySettings.vSyncCount = 0;
-			Application.targetFrameRate = data.fps;
 
 			step = data.step;                                   // максимальный размер шага. умножается тк по диагонали идет больще
 			position_precision = data.position_precision;		// длина шага
 
 			coroutine = null;
-			loading = DateTime.Now.AddSeconds(max_pause_sec);
+			loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 
 			string address = "ws://" + data.host;
 			Debug.Log("Соединяемся с сервером " + address);
@@ -332,14 +337,16 @@ namespace MyFantasy
 								// это тоже обновим тут что бы ping и pings не делать protected 
 								if (recive.unixtime > 0)
 								{
-									pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
+									double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
+									pings.Add(tmp_ping);
 
-									if ((max_ping_history > 0 && pings.Count > max_ping_history) || pings.Count == 1)
+									// если пришедший пинг больше текущего или пришла пора обновить пинги
+									if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
 									{
 										ping = Math.Round((pings.Sum() / pings.Count), 3);
-
-										if (max_ping_history > 0 && pings.Count > max_ping_history)
-											pings.RemoveRange(0, pings.Count - min_ping_history);
+										max_ping = Math.Round(pings.Max(), 3);
+										if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
+											pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
 									}
 								}
 
@@ -373,6 +380,8 @@ namespace MyFantasy
 			{
 				try
 				{
+					// todo возможно не отправлять пакет если getEvent(WalkResponse.GROUP).isFinish = false
+
 					double remain = player.GetEventRemain(data.group); // вычтем время необходимое что бы ответ ошел до сервcера (половину таймаута.тем самым слать мы можем раньше запрос чем закончится анимация)
 					
 					if (remain >0 && INTERPOLATION > 0 && Ping()>0)
@@ -396,20 +405,20 @@ namespace MyFantasy
 						// поставим на паузу отправку и получение любых кроме данной команды данных
 						if (data.group == LoadResponse.GROUP)
 						{
-							loading = DateTime.Now.AddSeconds(max_pause_sec);
+							loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 						}
 
 						if (Ping() > 0 && Ping() != last_ping_send_value && DateTime.Compare(last_ping_send, DateTime.Now) < 1)
 						{
 							data.ping = last_ping_send_value = Ping();
-							last_ping_send = DateTime.Now.AddSeconds(ping_send_sec);
+							last_ping_send = DateTime.Now.AddSeconds(PING_SEND_SEC);
 						}
 
                         // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
                         if (DateTime.Compare(last_ping_request, DateTime.Now) < 1)
                         {
 							data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-							last_ping_request = DateTime.Now.AddSeconds(ping_request_sec);
+							last_ping_request = DateTime.Now.AddSeconds(PING_REQUEST_SEC);
 						}
 
 						// по умолчанию ACTION не оптравляем дабы не увеличивать пакет (на сервере по умолчанию подставит)
@@ -427,6 +436,9 @@ namespace MyFantasy
 
 						// сразу пометим что текущее событие нами было выслано 
 						player.getEvent(data.group).from_client = true;
+
+						// пометим что отправили и ждем ответа от сервера (нужно для экстраполяции)
+						player.getEvent(data.group).isFinish = false;
 
 						// если отправили пакет и небыло action  установим null что бы в следующем кадре не слать уже
 						if (player.getEvent(data.group).action == "")
@@ -453,6 +465,11 @@ namespace MyFantasy
 		public static double Ping()
 		{
 			return ping;
+		}		
+		
+		public static double MaxPing()
+		{
+			return max_ping;
 		}
 
 		/// <summary>

@@ -257,7 +257,7 @@ namespace MyFantasy
 				Log("Движение - новая корутина корутины");
 
 			if (finish == transform.localPosition)
-            {
+			{
 				LogError("Движение - позиция к которой движемся равна той на которой стоим");
 				yield break;
 			}
@@ -266,22 +266,36 @@ namespace MyFantasy
 
 			// отрезок пути которой существо движется за кадр
 			double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
-			//timeout += Time.fixedDeltaTime;
 
-			if (ConnectController.EXTROPOLATION > 0)
-            {
-				timeout += ConnectController.Ping() * ConnectController.EXTROPOLATION + ConnectController.extrapol;
+			// добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
+			timeout += Time.fixedDeltaTime;
+
+			// фиксированная величина расчитывается и приходит от сервера
+			if (ConnectController.extrapolation_time > 0)
+			{
+				timeout += ConnectController.extrapolation_time;
 			}
 
-			// соединися с сервисом авторизации и с игровым сервисом и получить ответ  - 2 полных пинга в обе стороны
+			double last_ping_extropolation;
+			if (ConnectController.EXTROPOLATION_PING > 0)
+			{
+				last_ping_extropolation = ConnectController.Ping();
+				timeout += last_ping_extropolation * ConnectController.EXTROPOLATION_PING;
+			}		
+
+			// если мы уходим с карты надо замедлиться на время 2х полных пинга (1 - http запрос на авторизацию и его возврат, 2 - в websocket, получить от него пакет)
+			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
 			if (action == ConnectController.ACTION_REMOVE)
 				timeout += ConnectController.Ping() * 2;
 
 			// на сколько от шага каждый кадр сервера сдвигать существо
-			float distancePerUpdate = (float)(Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
-
+			double distancePerUpdate = (Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
+			bool extrapolation = false;
+	
+			bool isRemove = action == ConnectController.ACTION_REMOVE;
 			while (true)
 			{
+
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
 					LogWarning("Движение - Сменен action во время движения на " + action);
@@ -294,21 +308,52 @@ namespace MyFantasy
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
-					/*if (getEvent(WalkResponse.GROUP).action.Length == 0)
+                    /*if (getEvent(WalkResponse.GROUP).action.Length == 0)
 					{
 						LogWarning("Движение - с сервера пршел пакет что мы дальше не идем");
 						transform.localPosition = finish;
 						break;
 					}*/
-					
-					transform.localPosition = finish;
-					break;
+
+					// если отправлен пакет на движение, но еще нет возврата можем пройти еще чуть чуть
+                    if((getEvent(WalkResponse.GROUP).isFinish == false && !extrapolation) || isRemove)
+					{
+						extrapolation = true;
+
+						// добавим что идти нужно еще на пол шаг дальше в том же направлении
+						Vector3 step = forward * ConnectController.step;
+						finish += step;
+
+						// замедлим время дополнительного нашага 
+						if (ConnectController.EXTROPOLATION_PING > 0 && ConnectController.MaxPing() > last_ping_extropolation)
+						{
+							double slow = (last_ping_extropolation / ConnectController.MaxPing());
+							distancePerUpdate = distancePerUpdate * slow;
+
+							LogError("Движение - экстраполируем растоянием еще на " + step + ", уменьшим скорость движения учитывая новый ping (с "+ last_ping_extropolation*1000 + " на "+ ConnectController.MaxPing() * 1000 + ") на "+Math.Round((1-slow)*100)+" %");
+						}
+						else
+							LogError("Движение - экстраполируем растоянием еще на " + step);
+					}
+                    else 
+					{ 
+						if(getEvent(WalkResponse.GROUP).isFinish == false)
+							LogError("Движение - дошли, но пакет так с координатами так и не пришел"+(extrapolation?" и была экстраполяция расстоянием":""));
+						else
+							LogWarning("Движение - дошли");
+
+						// если экстраполировали расстоянием то остаемся в тех координатах куда мы прошли чуть больше, что бы не отбрасывало назад (на координаты сервера)
+						if(!extrapolation)
+							transform.localPosition = finish;
+
+						break;
+					}
 				}
 
 				//LogError("Движение - Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
 
 				activeLast = DateTime.Now;
-				transform.localPosition = Vector3.MoveTowards(transform.localPosition, finish, distancePerUpdate);
+				transform.localPosition = Vector3.MoveTowards(transform.localPosition, finish, (float)distancePerUpdate);
 
 				yield return new WaitForFixedUpdate();
 			}

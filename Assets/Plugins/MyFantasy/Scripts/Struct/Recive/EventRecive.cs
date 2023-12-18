@@ -25,6 +25,11 @@ namespace MyFantasy
         /// </summary>
         public DateTime? finish = null;
 
+        /// <summary>
+        /// флаг говорящий что событие отправлено но результат не вернулся.
+        /// </summary>
+        public bool? isFinish = null;
+
         public bool? from_client = null;          // флаг что команду отправили мы. если false то над разрешить до таймаута отправлять подобные комнад (если они пуличные) если хотим сбросить
     }
 }

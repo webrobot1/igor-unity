@@ -102,7 +102,6 @@ namespace MyFantasy
 				forward = vector;		// эта строка лишь развернет 
 				_forward = vector;		// а это будет отдавать при запросе forward данные с сервера а не реального разворота в клиенте
 
-
 				// следующий код применим только к объектам - предметам, он повернет их
 				if (type == "objects") 
 				{ 
@@ -159,8 +158,12 @@ namespace MyFantasy
 					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
 						ev.finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - ConnectController.Ping() / 2);
-					}				
-					
+
+						// новое врем событие - это косвенный признак что оно выполнено (хотя его время могло сбросить другие событие)
+						// todo реализовать флаг на сервере
+						ev.isFinish = true;
+					}
+
 					if (kvp.Value.timeout != null) 
 					{
 						ev.timeout = kvp.Value.timeout;
@@ -201,6 +204,7 @@ namespace MyFantasy
 				events[group].timeout = 0.5;
 				events[group].from_client = true;
 				events[group].finish = DateTime.Now;
+				events[group].isFinish = true;
 			}
 
 			return events[group];

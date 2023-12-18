@@ -142,7 +142,7 @@ namespace MyFantasy
             }
            
             if (recive.unixtime > 0)
-                ping.text = "PING: " + Ping() * 1000 + " ms."; 
+                ping.text = "PING: " + Ping() * 1000 +"/" + MaxPing() * 1000 +" ms."; 
         }
 
         // активировать меню загрузки
