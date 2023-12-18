@@ -513,7 +513,7 @@ namespace MyFantasy
 
 			// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
 			if(connect!=null && connect.ReadyState == WebSocketState.Open)
-				connect.SendAsync(sendBytes, null);
+				connect.Send(sendBytes);
 		}
 
 		public new static void  Error (string text, Exception ex = null)

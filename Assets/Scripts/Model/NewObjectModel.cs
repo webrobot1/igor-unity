@@ -283,16 +283,20 @@ namespace MyFantasy
 				timeout += last_ping_extropolation * ConnectController.EXTROPOLATION_PING;
 			}		
 
-			// если мы уходим с карты надо замедлиться на время 2х полных пинга (1 - http запрос на авторизацию и его возврат, 2 - в websocket, получить от него пакет)
+			// если мы уходим с карты надо замедлиться на время полных пинга 
 			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
 			if (action == ConnectController.ACTION_REMOVE)
-				timeout += ConnectController.Ping() * 2;
-
+            {
+				if (type == "players")
+					timeout += ConnectController.Ping() * 2;        // (1 пинг - http запрос на авторизацию и его возврат, 2 - в websocket, получить от него пакет)
+				else
+					timeout += ConnectController.Ping();			// все кроме игроков не имеют http авторизацию и старый websocket сервер передаст новому пакет сам
+			}
+				
 			// на сколько от шага каждый кадр сервера сдвигать существо
 			double distancePerUpdate = (Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
 			bool extrapolation = false;
 	
-			bool isRemove = action == ConnectController.ACTION_REMOVE;
 			while (true)
 			{
 
@@ -316,7 +320,7 @@ namespace MyFantasy
 					}*/
 
 					// если отправлен пакет на движение, но еще нет возврата можем пройти еще чуть чуть
-                    if((getEvent(WalkResponse.GROUP).isFinish == false && !extrapolation) || isRemove)
+                    if((getEvent(WalkResponse.GROUP).isFinish == false || action == ConnectController.ACTION_REMOVE) && !extrapolation)
 					{
 						extrapolation = true;
 
