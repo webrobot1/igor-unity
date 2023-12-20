@@ -32,7 +32,8 @@ namespace MyFantasy
 		/// <summary>
 		/// может изменится в процессе игры (переход на другую локацию)
 		/// </summary>
-		protected int map_id;
+		[NonSerialized]
+		public int map_id;
 
 		[NonSerialized]
 		public string login;

@@ -26,7 +26,6 @@ namespace MyFantasy
 	/// </summary>
 	public abstract class ConnectController : BaseController
 	{
-		private const string ACTION_RECONNECT = "reconnect";
 		public const string ACTION_REMOVE = "remove";
 		public const string ACTION_LOAD = "load";
 
@@ -299,16 +298,6 @@ namespace MyFantasy
 					try
 					{
 						string text = Encoding.UTF8.GetString(ev.RawData);
-						
-						// эти данные нужно обработать немедленно (остальное обработается в следующем кадре) тк они связаны с открытием - закрытием соединения и нет времени на десереализацию
-						if (text == "{\"action\":\""+ACTION_RECONNECT+"\"}")
-						{
-							ConnectController.connect = null;
-							// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-							reload = ReloadStatus.Start;
-							//Close();
-							Debug.LogWarning("Перезаход в игру");
-						}
 
 					#if UNITY_EDITOR
 						Debug.Log("Пришел пакет" + text);
@@ -324,6 +313,32 @@ namespace MyFantasy
 							}
 							else
 							{
+
+								if(
+									player!=null 
+										&&
+									recive.world!=null
+										&&
+									recive.world.ContainsKey(player.map_id)
+										&&
+									recive.world[player.map_id].players!=null									
+										&&
+									recive.world[player.map_id].players.ContainsKey(player.key)
+										&&
+									recive.world[player.map_id].players[player.key].action!=null
+										&&
+									recive.world[player.map_id].players[player.key].map_id!=null
+										&&
+									recive.world[player.map_id].players[player.key].action == ACTION_REMOVE && recive.world[player.map_id].players[player.key].map_id != player.map_id
+								)
+                                {
+									ConnectController.connect = null;
+									// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
+									reload = ReloadStatus.Start;
+									//Close();
+									Debug.LogWarning("Перезаход в игру");
+								}
+
 								if (recive.action == ACTION_LOAD)
 								{
 									// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
