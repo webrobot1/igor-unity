@@ -273,29 +273,33 @@ namespace MyFantasy
 			// а это мне нужно для локального тестирования тк там пинг 1мс всегда добавив еще сверху время кадра сглаживает мне НЕ попадания в 1мс погрешности (ну а для НЕ лольного не мешает)
 			timeout += Time.fixedDeltaTime;
 
-			// фиксированная величина расчитывается и приходит от сервера
-			if (ConnectController.extrapolation_time > 0)
-			{
-				timeout += ConnectController.extrapolation_time;
-			}
-
 			double last_ping_extropolation;
+
+			// как событие закончится серверу понадобиться время что бы вернуть нам рещультат обратно в клиент, на это время продолжаем движение
 			if (ConnectController.EXTROPOLATION_PING > 0)
 			{
 				last_ping_extropolation = ConnectController.Ping();
 				timeout += last_ping_extropolation * ConnectController.EXTROPOLATION_PING;
-			}		
+			}
 
 			// если мы уходим с карты надо замедлиться на время полных пинга 
 			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
 			if (action == ConnectController.ACTION_REMOVE)
             {
+				// если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
+				timeout += (1 / ConnectController.server_fps);
+
 				if (type == "players")
-					timeout += ConnectController.Ping() * 2;        // (1 пинг - http запрос на авторизацию и его возврат, 2 - в websocket, получить от него пакет)
+					timeout += ConnectController.connect_ping;        // (1 пинг - http запрос на авторизацию и его возврат, 2 - ожидание пакета от websocket с данными игрока)
 				else
-					timeout += ConnectController.Ping();			// все кроме игроков не имеют http авторизацию и старый websocket сервер передаст новому пакет сам
+					timeout += ConnectController.Ping()/2;			  // все кроме игроков не имеют http авторизацию и старый websocket сервер передаст новому пакет сам
 			}
-				
+			// времени нужна для возврата с сервера нам результата назад (после того как в Сервере расчета механик выполнится наше событие)
+			else if (ConnectController.extrapolation_time > 0)
+			{
+				timeout += ConnectController.extrapolation_time;
+			}
+
 			// на сколько от шага каждый кадр сервера сдвигать существо
 			double distancePerUpdate = (Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
 			bool extrapolation = false;

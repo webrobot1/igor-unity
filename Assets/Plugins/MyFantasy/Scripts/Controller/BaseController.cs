@@ -10,12 +10,7 @@ namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		#if UNITY_EDITOR || DEVELOPMENT_BUILD
-				// это адрес-мост через наш ПК в wsl сервер Ubuntu (Аналог XAMP и Openserver), подробнее в папке /.docs проекта сервер.
-				protected const string SERVER = "127.0.0.1:8080";   //localhost не подходит тк http переадресуются, а websocket пойдут уже на наш ПК
-		#else
-				protected const string SERVER = "185.117.153.89";   // это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
-		#endif
+		protected const string SERVER = "185.117.153.89";   // это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
@@ -70,6 +65,8 @@ namespace MyFantasy
 			string url = "http://" + SERVER + "/game/signin/" + action;
 			Debug.Log("соединяемся с " + url);
 
+			long time = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+			
 			UnityWebRequest request = UnityWebRequest.Post(url, formData);
 
 			yield return request.SendWebRequest();
@@ -86,7 +83,7 @@ namespace MyFantasy
 					if (recive.error.Length > 0)
 						Error("Ошибка авторизации с сервером "+ SERVER + ": " + recive.error);
 					else
-						StartCoroutine(LoadMain(recive));
+						StartCoroutine(LoadMain(recive, time));
 				}
 				catch (Exception ex)
 				{
@@ -102,7 +99,7 @@ namespace MyFantasy
 		}
 
 		// PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой
-		protected virtual IEnumerator LoadMain(SigninRecive data)
+		protected virtual IEnumerator LoadMain(SigninRecive data, long time)
 		{
 			Debug.Log("Загрузка главной сцены");
 
@@ -131,7 +128,7 @@ namespace MyFantasy
 				}
 
 				// он вывзовет того наследника от ConnectController который повешан на камеру (в игре-песочнице Игорь это PlayerController)
-				ConnectController.Connect(data);
+				ConnectController.Connect(data, time);
 
 				// asyncLoad.allowSceneActivation = true;
 			}

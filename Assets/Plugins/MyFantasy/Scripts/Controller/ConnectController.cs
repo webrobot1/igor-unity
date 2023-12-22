@@ -55,7 +55,12 @@ namespace MyFantasy
 		/// <summary>
 		/// установленная на сервере длинна шага. нужно для проверки шагаем ли мы или телепортируемся (тк даже механика быстрого полета или скачек - это тоже хотьба)
 		/// </summary>
-		public static float step;
+		public static float step;		
+		
+		/// <summary>
+		/// серверный FPS. не следует ставить в клиенте такой же fps (он может быть довольно большой или наоборот малый). в клиенте жеательно 100 не больше
+		/// </summary>
+		public static int server_fps;
 
 		/// <summary>
 		/// сколько чисел в дробной части шага ()высчитывается автоматом
@@ -157,6 +162,8 @@ namespace MyFantasy
 		private static double ping = 0;
 		private static double max_ping = 0;
 
+		public static double connect_ping;
+
 		/// <summary>
 		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
 		/// </summary>
@@ -226,12 +233,13 @@ namespace MyFantasy
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-		public static void Connect(SigninRecive data)
+		public static void Connect(SigninRecive data, long time)
 		{
 			errors.Clear();
 			recives.Clear();
 
 			player_key = data.key;
+			server_fps = data.fps;
 			player_token = data.token;
 			extrapolation_time = data.extrapol;
 			
@@ -273,7 +281,9 @@ namespace MyFantasy
 						tcpClient.NoDelay = true;
 					#endif
 
-					Debug.Log("Соединение с сервером " + ws.Url + " установлено");
+					connect_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - time) / 1000;
+					Debug.Log("Соединение с сервером " + ws.Url + " установлено за "+ connect_ping + " секунд");
+
 					connect = ws;
 				};
 				ws.OnClose += (sender, ev)  =>
@@ -404,7 +414,13 @@ namespace MyFantasy
 						double time = Ping() * INTERPOLATION;
 						remain -= time;
 					}
-
+					
+					// на это время шлем пакет раньше . в нем заложена пересылка нашего пакета от websocket сервера в гейм сервер после в песочницу, отработака команды и возврат по цепочке обратно в webscoekt сервер 
+					if (extrapolation_time > 0)
+					{
+						remain -= extrapolation_time;
+					}
+						
 					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
 					if 
 						(
