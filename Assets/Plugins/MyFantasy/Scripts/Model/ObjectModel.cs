@@ -65,7 +65,7 @@ namespace MyFantasy
 		// когда последний раз обновляли данные (для присвоения action - idle по таймауту)
 		protected DateTime activeLast = DateTime.Now;
 
-		private Dictionary<string, EventRecive> events = new Dictionary<string, EventRecive>();
+		private Dictionary<string, Event> events = new Dictionary<string, Event>();
 
 		/// <summary>
 		/// координаты в которых  уже находится наш объект на сервере (может не совпадать с позицией префаба тк анимация сглаживает скачки перехода и позиция изменяется постепенно в игре)
@@ -152,17 +152,13 @@ namespace MyFantasy
 			{
 				foreach (KeyValuePair<string, EventRecive> kvp in recive.events)
 				{
-					EventRecive ev = getEvent(kvp.Key);			
+					Event ev = getEvent(kvp.Key);			
 
 					// если мы сбрасяваем таймаут (например из каких то механик) - придет это поле (оно придет кстати и при таймауте события и может еще более точно скорректировать время таймаута)
 					if (kvp.Value.remain != null) 
 					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
 						ev.finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - ConnectController.Ping() / 2);
-
-						// новое врем событие - это косвенный признак что оно выполнено (хотя его время могло сбросить другие событие)
-						// todo реализовать флаг на сервере
-						ev.isFinish = true;
 					}
 
 					if (kvp.Value.timeout != null) 
@@ -196,16 +192,15 @@ namespace MyFantasy
 		/// <summary>
 		/// получение данных события (без поля data)
 		/// </summary>
-		public virtual EventRecive getEvent(string group)
+		public virtual Event getEvent(string group)
 		{
 			if (!events.ContainsKey(group))
 			{
-				events.Add(group, new EventRecive());
+				events.Add(group, new Event());
 				events[group].action = null;
 				events[group].timeout = 0.5;
 				events[group].from_client = true;
 				events[group].finish = DateTime.Now;
-				events[group].isFinish = true;
 			}
 
 			return events[group];

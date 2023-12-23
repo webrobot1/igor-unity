@@ -386,7 +386,13 @@ namespace MyFantasy
 				};
 
 				connect = ws;
-				connect.Connect();
+
+				#if !UNITY_WEBGL || UNITY_EDITOR
+					connect.ConnectAsync();
+				#else
+					connect.Connect();
+				#endif
+
 				reload = ReloadStatus.None;
 			}
 			catch (Exception ex)
@@ -468,9 +474,6 @@ namespace MyFantasy
 						// сразу пометим что текущее событие нами было выслано 
 						player.getEvent(data.group).from_client = true;
 
-						// пометим что отправили и ждем ответа от сервера (нужно для экстраполяции)
-						player.getEvent(data.group).isFinish = false;
-
 						// если отправили пакет и небыло action  установим null что бы в следующем кадре не слать уже
 						if (player.getEvent(data.group).action == "")
 							player.getEvent(data.group).action = null;
@@ -544,7 +547,13 @@ namespace MyFantasy
 
 			// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
 			if(connect!=null && connect.ReadyState == WebSocketState.Open)
-				connect.Send(sendBytes);
+            {
+				#if !UNITY_WEBGL || UNITY_EDITOR
+					connect.SendAsync(sendBytes, null);
+				#else
+					connect.Send(sendBytes);
+				#endif
+			}
 		}
 
 		public new static void  Error (string text, Exception ex = null)

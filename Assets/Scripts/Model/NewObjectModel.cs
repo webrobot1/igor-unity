@@ -138,6 +138,7 @@ namespace MyFantasy
 				StartCoroutine(this.Remove(recive.map_id != null));
 			}
 
+			string old_action = action;
 			Vector3 old_position = position;
 			int old_map_id = map_id;
 
@@ -161,12 +162,12 @@ namespace MyFantasy
 
 					if ((recive.action == "walk" && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map_id!=null && recive.map_id != old_map_id))
 					{
-						// до получения новых пакетов продолжим движение
+						// до получения новых пакетов продолжим движение в старой системе координат на 1 шаг (тк пришли уже новые для новой карты)
 						if (recive.map_id != null)
 						{
-							Log("Движение - Переход между локациями");
 							recive.action = "walk";
 							position = new_position = old_position + (forward * ConnectController.step);
+							Log("Движение - Переход между локациями, идем в "+ new_position);
 						}
 
 						// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
@@ -174,16 +175,39 @@ namespace MyFantasy
 					}
 					else
 					{
-						// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
-						Log("Движение -телепорт из " + transform.localPosition + " в " + new_position);
-
 						if (coroutines.ContainsKey("walk"))
 						{
 							Log("Движение - остановка корутины");
 							StopCoroutine(coroutines["walk"]);
 							coroutines.Remove("walk");
 						}
-						transform.localPosition = new_position;
+
+						if (old_action == ConnectController.ACTION_REMOVE)
+                        {
+							Vector3 old2_position = Vector3.Scale((transform.localPosition - old_position), forward);
+							float length = old2_position.x + old2_position.y;
+
+                            if (length < 0)
+                            {
+								LogError("Движение - после перехода на карту недошел" + length + " шага с " + old_position + " до " + transform.localPosition);
+							}
+                            else
+                            {
+								Log("Движение - после перехода на карту прошел больше " + length + " шага");
+							}
+
+							old2_position = Vector3.Scale(old2_position.normalized, forward);
+							Log("Движение - изменим начальные координаты с " + new_position + " на "+(new_position + old2_position));
+
+							transform.localPosition = new_position+old2_position;
+							coroutines["walk"] = StartCoroutine(Walk(new_position, null));
+						}
+                        else
+                        {
+							// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
+							Log("Движение -телепорт из " + transform.localPosition + " в " + new_position);
+							transform.localPosition = new_position;
+						}	
 					}
 				}
 			}
@@ -254,7 +278,7 @@ namespace MyFantasy
 				StopCoroutine(old_coroutine);
 			}
 			else
-				Log("Движение - новая корутина корутины");
+				Log("Движение - новая корутина");
 
 			if (finish == transform.localPosition)
 			{
@@ -265,39 +289,55 @@ namespace MyFantasy
 			float distance;
 
 			// отрезок пути которой существо движется за кадр
-			double timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
-
-			// добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
-			timeout += Time.fixedDeltaTime;
-
-			// а это мне нужно для локального тестирования тк там пинг 1мс всегда добавив еще сверху время кадра сглаживает мне НЕ попадания в 1мс погрешности (ну а для НЕ лольного не мешает)
-			timeout += Time.fixedDeltaTime;
-
-			double last_ping_extropolation;
-
-			// как событие закончится серверу понадобиться время что бы вернуть нам рещультат обратно в клиент, на это время продолжаем движение
-			if (ConnectController.EXTROPOLATION_PING > 0)
-			{
-				last_ping_extropolation = ConnectController.Ping();
-				timeout += last_ping_extropolation * ConnectController.EXTROPOLATION_PING;
-			}
+			double timeout = 0;
+			double last_ping_extropolation = ConnectController.Ping();
 
 			// если мы уходим с карты надо замедлиться на время полных пинга 
 			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
 			if (action == ConnectController.ACTION_REMOVE)
             {
 				// если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
-				timeout += (1 / ConnectController.server_fps);
+				timeout = (1 / ConnectController.server_fps);
 
 				if (type == "players")
-					timeout += ConnectController.connect_ping;        // (1 пинг - http запрос на авторизацию и его возврат, 2 - ожидание пакета от websocket с данными игрока)
-				else
-					timeout += ConnectController.Ping()/2;			  // все кроме игроков не имеют http авторизацию и старый websocket сервер передаст новому пакет сам
+                {
+					timeout += ConnectController.Ping()/2;                               // при соединении с webocket новой локации он передаст нам пакет игрока сразу (поэтому extrapolation_time не нужен, но на это понадобиться 1/2 пинга)
+					timeout += (ConnectController.connect_ping - timeout);               // если соединение с сервером дольше чем будет анимироваться движение - дополним этим временем
+				}
+                else
+                {
+					
+					timeout += ConnectController.Ping();                                 // время с который одна локация передаст другой локации пакет с существом и поледняя разошлет всем 
+					timeout += (ConnectController.extrapolation_time * 2 - timeout);     // время с который новая локация ее websocket передаст в Сервер механик и назад пакет
+				}
+
+				// если расчетное время получения пакета меньше чем обычно анимация шага у персонажа - делаем время анимации шага персонада
+				if (timeout < getEvent(WalkResponse.GROUP).timeout)
+					timeout = (double)getEvent(WalkResponse.GROUP).timeout;
 			}
-			// времени нужна для возврата с сервера нам результата назад (после того как в Сервере расчета механик выполнится наше событие)
-			else if (ConnectController.extrapolation_time > 0)
+			//мы не знаем будет ли существо идти дальше (новый пакет с запазданием придет после завершения текущего движения даже если пришлел ровно к нему)
+			//это времени для возврата с сервера нам результата назад уже следующего события движения 
+			//и раз мы не знаем наверняка будет ли существо идти дальше всегда поедполагаем что ДА (там не сильно далеко уйдем даже если НЕТ)
+			else
 			{
-				timeout += ConnectController.extrapolation_time;
+				// отрезок пути которой существо движется за кадр
+				timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
+
+				// добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
+				timeout += Time.fixedDeltaTime;
+
+				// а это мне нужно для локального тестирования тк там пинг 1мс всегда добавив еще сверху время кадра сглаживает мне НЕ попадания в 1мс погрешности (ну а для НЕ лольного не мешает)
+				timeout += Time.fixedDeltaTime;
+
+				// как событие закончится серверу понадобиться время что бы вернуть нам рещультат обратно в клиент, на это время продолжаем движение
+				if (ConnectController.EXTROPOLATION_PING > 0)
+				{		
+					timeout += last_ping_extropolation * ConnectController.EXTROPOLATION_PING;
+				}
+
+				// время на доставку пакета от Сервера игровых мехагик до Websocket который его разошлет
+				if (ConnectController.extrapolation_time > 0)
+					timeout += ConnectController.extrapolation_time;
 			}
 
 			// на сколько от шага каждый кадр сервера сдвигать существо
@@ -306,7 +346,7 @@ namespace MyFantasy
 	
 			while (true)
 			{
-
+				//Log("Движение - идем");
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
 					LogWarning("Движение - Сменен action во время движения на " + action);
@@ -319,15 +359,8 @@ namespace MyFantasy
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
-                    /*if (getEvent(WalkResponse.GROUP).action.Length == 0)
-					{
-						LogWarning("Движение - с сервера пршел пакет что мы дальше не идем");
-						transform.localPosition = finish;
-						break;
-					}*/
-
-					// если отправлен пакет на движение, но еще нет возврата можем пройти еще чуть чуть
-                    if((getEvent(WalkResponse.GROUP).isFinish == false || action == ConnectController.ACTION_REMOVE) && !extrapolation)
+					// если ожидается пакет на движение или мы удаляемся - двинемся еще на  шаг максимум
+					if ((getEvent(WalkResponse.GROUP).action.Length>0 || action == ConnectController.ACTION_REMOVE) && !extrapolation)
 					{
 						extrapolation = true;
 
@@ -348,10 +381,7 @@ namespace MyFantasy
 					}
                     else 
 					{ 
-						if(getEvent(WalkResponse.GROUP).isFinish == false)
-							LogError("Движение - дошли, но пакет так с координатами так и не пришел"+(extrapolation?" и была экстраполяция расстоянием":""));
-						else
-							LogWarning("Движение - дошли");
+						LogWarning("Движение - дошли" + (extrapolation ? " и была экстраполяция расстоянием" : ""));
 
 						// если экстраполировали расстоянием то остаемся в тех координатах куда мы прошли чуть больше, что бы не отбрасывало назад (на координаты сервера)
 						if(!extrapolation)
@@ -383,6 +413,8 @@ namespace MyFantasy
 			if (change_map)
 			{
 				Log("Отложенное удаление при смене карты");
+
+				int old_map_id = map_id; 
 				DateTime start = DateTime.Now.AddSeconds(5);
 
 				while (DateTime.Compare(start, DateTime.Now) >= 1)
@@ -392,6 +424,11 @@ namespace MyFantasy
 					{
 						Log("Существо сменило статус с удаляемого на " + action + ", удаление отменено");
 						yield break;
+					}
+					else if (map_id != old_map_id)
+                    {
+						LogError("Существо сменило карту, но было удалено на новой в том же кадре что и добавлено");
+						break;
 					}
 
 					yield return new WaitForFixedUpdate();
