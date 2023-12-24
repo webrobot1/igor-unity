@@ -78,24 +78,33 @@ namespace MyFantasy
 		/// </summary>
 		public virtual void SetData(ObjectRecive recive)
 		{
+			if (recive.map_id != null)
+			{
+				this.map_id = (int)recive.map_id;
+			}
+
 			if (recive.action != null)
 			{
-				this.action = recive.action;
 				activeLast = DateTime.Now;
 
 				// пришла команды удаления с карты объекта
-				if (recive.action == ConnectController.ACTION_REMOVE && action != recive.action) 
+				if (recive.action == ConnectController.ACTION_REMOVE) 
 				{ 
-					StartCoroutine(this.Destroy());
+					if (action != recive.action)
+                    {
+						action = recive.action;
+						StartCoroutine(this.Remove(recive.map_id != null));
+					}
+                    else
+                    {
+						LogError("Существо сменило карту, но было удалено на новой в том же кадре что и добавлено");
+						StartCoroutine(this.Destroy());
+					}	
 				}
+				else
+					action = recive.action;
 			}
-
-			if (recive.map_id != null)
-            {
-				this.map_id = (int)recive.map_id;
-            }
-						
-
+			
 			if (recive.forward_x != null || recive.forward_y != null)
             {
 				Vector3 vector = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
@@ -146,7 +155,6 @@ namespace MyFantasy
 
 			if (recive.login != null)
 				this.login = recive.login;
-
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{
@@ -239,15 +247,37 @@ namespace MyFantasy
 			Debug.LogError(name + ": "+ message);
 		}
 
+	
 		/// <summary>
 		///  базовая корутина уничтожение с карты объекта при уничтожении с сервера. ее можно и скорее нужно переопределять насыщая анмиацией это действи
 		/// </summary>
+		protected virtual IEnumerator Remove(bool isChangeMap = false)
+		{
+			if (isChangeMap)
+			{
+				Log("Удаление - Отложенное удаление при смене карты");
+				DateTime start = DateTime.Now.AddSeconds(5);
+				while (DateTime.Compare(start, DateTime.Now) >= 1)
+				{
+					if (action != ConnectController.ACTION_REMOVE)
+					{
+						Log("Удаление - Существо сменило статус с удаляемого на " + action + ", удаление отменено");
+						yield break;
+					}
+					yield return new WaitForFixedUpdate();
+				}
+				Log("Удаление - Существо так и не перешло на новую карту");
+			}
+			StartCoroutine("Destroy");
+			yield break;
+		}	
+		
 		protected virtual IEnumerator Destroy()
 		{
-			Log("немедленное удаления с карты");
+			Log("Удаление - немедленное удаления с карты");
 			Destroy(gameObject);
 
-			yield return null;
+			yield break;
 		}
 	}
 }

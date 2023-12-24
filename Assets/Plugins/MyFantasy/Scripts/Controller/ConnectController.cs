@@ -46,17 +46,27 @@ namespace MyFantasy
 		/// время экстраполяции которое нам расчитал сервер (на это время надо закладывать время отработки на сервере пришедших пакетов до возврата их клиуенту БЕЗ учета пинга)
 		/// </summary>
 		public static double extrapolation_time = 0;
+		
+		/// <summary>
+		/// установленная на сервере длинна шага. нужно для проверки шагаем ли мы или телепортируемся (тк даже механика быстрого полета или скачек - это тоже хотьба)
+		/// </summary>
+		public static float step;
 
 		/// <summary>
 		/// индентификатор игрока в бд, для индентификации нашего игрока среди всех на карте (что бы player наполнить и что бы индентифицироваться в StatModel что обрабатываем нашего игрока)
 		/// </summary>
-		public static string player_key;
+		protected static string player_key;
 
 		/// <summary>
-		/// установленная на сервере длинна шага. нужно для проверки шагаем ли мы или телепортируемся (тк даже механика быстрого полета или скачек - это тоже хотьба)
+		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
 		/// </summary>
-		public static float step;		
-		
+		protected static string player_token;
+
+		/// <summary>
+		/// текущий используемый хост
+		/// </summary>
+		private static string host;
+
 		/// <summary>
 		/// серверный FPS. не следует ставить в клиенте такой же fps (он может быть довольно большой или наоборот малый). в клиенте жеательно 100 не больше
 		/// </summary>
@@ -73,12 +83,7 @@ namespace MyFantasy
 		/// </summary>
 		[NonSerialized]
 		public static ObjectModel player;
-
-		/// <summary>
-		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
-		/// </summary>
-		protected static string player_token;
-				
+	
 		/// <summary>
 		/// Ссылка на конектор
 		/// </summary>
@@ -162,8 +167,6 @@ namespace MyFantasy
 		private static double ping = 0;
 		private static double max_ping = 0;
 
-		public static double connect_ping;
-
 		/// <summary>
 		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
 		/// </summary>
@@ -190,16 +193,6 @@ namespace MyFantasy
 						Debug.Log("Пауза");
 				}
 				
-				if (reload == ReloadStatus.Start)
-				{
-					// этот флаг снимем что бы повторно не загружать карту
-					reload = ReloadStatus.Process;
-
-					// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
-					loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
-
-					StartCoroutine(HttpRequest("auth"));
-				}
 				if (errors.Count == 0)
 				{
 					try
@@ -218,6 +211,17 @@ namespace MyFantasy
 
 					if (connect!=null && reload == ReloadStatus.None && (connect.ReadyState == WebSocketState.Closed || connect.ReadyState == WebSocketState.Closing))
 						Error("Соединение закрыто для запросов (" + connect.ReadyState + ")");
+
+					if (reload == ReloadStatus.Start)
+					{
+						// этот флаг снимем что бы повторно не загружать карту
+						reload = ReloadStatus.Process;
+
+						// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
+						loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
+
+						Connect(host, player_key, player_token, step, position_precision, server_fps, extrapolation_time);
+					}
 				}
 				else
 				{
@@ -233,16 +237,19 @@ namespace MyFantasy
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-		public static void Connect(SigninRecive data, long time)
+		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps, double extrapolation_time)
 		{
 			errors.Clear();
 			recives.Clear();
 
-			player_key = data.key;
-			server_fps = data.fps;
-			player_token = data.token;
-			extrapolation_time = data.extrapol;
-			
+			ConnectController.host = host;
+			ConnectController.player_key = player_key;
+			ConnectController.player_token = player_token;
+			ConnectController.server_fps = server_fps;
+			ConnectController.extrapolation_time = extrapolation_time;
+			ConnectController.step = step;                                    // максимальный размер шага. умножается тк по диагонали идет больще
+			ConnectController.position_precision = position_precision;        // длина шага
+
 			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
 			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
 			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
@@ -251,24 +258,21 @@ namespace MyFantasy
 
 			//QualitySettings.vSyncCount = 0;
 
-			step = data.step;                                   // максимальный размер шага. умножается тк по диагонали идет больще
-			position_precision = data.position_precision;		// длина шага
-
 			coroutine = null;
 			loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 
-			string address = "ws://" + data.host;
-			Debug.Log("Соединяемся с сервером " + address);
+			string address = "ws://" + host;
+			Debug.Log("WebSocket - соединяемся сервером " + address);
 
 			if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.New || connect.ReadyState == WebSocketState.Connecting))
 			{
-				Error("WebSocket до сих пор открыт");
+				Error("WebSocket - соединение сих пор открыто");
 			}
 
 			try
 			{
 				WebSocket ws = new WebSocket(address);
-				Debug.Log("новое соединение с сервером "+ ws.Url);
+				Debug.Log("WebSocket - новое соединение с сервером " + ws.Url);
 
 				// так в C# можно
 				ws.SetCredentials(player_key, player_token, true);
@@ -281,8 +285,7 @@ namespace MyFantasy
 						tcpClient.NoDelay = true;
 					#endif
 
-					connect_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - time) / 1000;
-					Debug.Log("Соединение с сервером " + ws.Url + " установлено за "+ connect_ping + " секунд");
+					Debug.Log("WebSocket - соединение с сервером " + ws.Url + " установлено");
 
 					connect = ws;
 				};
@@ -291,17 +294,17 @@ namespace MyFantasy
 					if(connect != null) 
 					{ 
 						if (reload == ReloadStatus.None && connect == ws)
-							Error("Соединение "+connect.Url+ " закрыто сервером: " + ev.Code);
+							Error("WebSocket - текущее соединение " + connect.Url+ " закрыто сервером: " + ev.Code);
 						else
-							Debug.Log("закрылось старое соединение с сервером " + ws.Url);
+							Debug.Log("WebSocket - закрылось старое соединение с сервером " + ws.Url);
 					}
 				};
 				ws.OnError += (sender, ev) =>
 				{
 					if (reload == ReloadStatus.None && connect!=null && connect == ws)
-						Error("Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
+						Error("WebSocket - Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
 					else
-						Debug.LogError("Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
+						Debug.LogError("WebSocket - Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
 				};
 				ws.OnMessage += (sender, ev) =>
 				{
@@ -310,7 +313,7 @@ namespace MyFantasy
 						string text = Encoding.UTF8.GetString(ev.RawData);
 
 					#if UNITY_EDITOR
-						Debug.Log("Пришел пакет" + text);
+						Debug.Log("WebSocket - Пришел пакет" + text);
 					#endif
 
 						if (coroutine == null && reload == ReloadStatus.None)
@@ -323,30 +326,17 @@ namespace MyFantasy
 							}
 							else
 							{
-
-								if(
-									player!=null 
-										&&
-									recive.world!=null
-										&&
-									recive.world.ContainsKey(player.map_id)
-										&&
-									recive.world[player.map_id].players!=null									
-										&&
-									recive.world[player.map_id].players.ContainsKey(player.key)
-										&&
-									recive.world[player.map_id].players[player.key].action!=null
-										&&
-									recive.world[player.map_id].players[player.key].map_id!=null
-										&&
-									recive.world[player.map_id].players[player.key].action == ACTION_REMOVE && recive.world[player.map_id].players[player.key].map_id != player.map_id
-								)
+								if(recive.host != null)
                                 {
 									ConnectController.connect = null;
+									ConnectController.host = recive.host;
+
 									// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
 									reload = ReloadStatus.Start;
-									//Close();
-									Debug.LogWarning("Перезаход в игру");
+									
+									// закроем соединение что бы не пришел пакет о закрытие соединения
+									Close();
+									Debug.Log("WebSocket - Перезаход в игру");
 								}
 
 								if (recive.action == ACTION_LOAD)
@@ -381,7 +371,7 @@ namespace MyFantasy
 					}
 					catch(Exception ex)
                     {
-						Error("Ошибка обработки сообщения от сервера: ", ex);
+						Error("WebSocket - Ошибка обработки сообщения от сервера: ", ex);
 					}
 				};
 
@@ -397,7 +387,7 @@ namespace MyFantasy
 			}
 			catch (Exception ex)
 			{
-				Error("Ошибка октрытия соединения ", ex);
+				Error("WebSocket - Ошибка октрытия соединения ", ex);
 			}
 		}
 
@@ -478,7 +468,7 @@ namespace MyFantasy
 						if (player.getEvent(data.group).action == "")
 							player.getEvent(data.group).action = null;
 
-						Debug.Log(" Отправили серверу " + json);
+						Debug.Log("WebSocket - Отправили серверу " + json);
 						Put2Send(json);	
 					}
 					//else
@@ -486,11 +476,11 @@ namespace MyFantasy
 				}
 				catch (Exception ex)
 				{
-					Error("Ошибка отправки данных", ex);
+					Error("WebSocket - Ошибка отправки данных", ex);
 				}		
 			}
 			else
-				Debug.LogWarning("Загрузка мира, команда " + data.action +"/"+ data.group + " отклонена");
+				Debug.LogWarning("WebSocket - Загрузка мира, команда " + data.action +"/"+ data.group + " отклонена");
 		}
 
 		/// <summary>
@@ -531,10 +521,10 @@ namespace MyFantasy
 				if (connect.ReadyState != WebSocketState.Closed && connect.ReadyState != WebSocketState.Closing)
 				{
 					connect.CloseAsync();
-					Debug.LogError("закрытие соедения ");
+					Debug.LogError("WebSocket - закрытие соедения ");
 				}
 				else
-					Debug.LogWarning("содинение уже закрывается");
+					Debug.LogWarning("WebSocket - содинение уже закрывается");
 			}
 
 			connect = null;

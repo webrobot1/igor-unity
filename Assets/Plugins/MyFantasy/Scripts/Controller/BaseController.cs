@@ -1,16 +1,12 @@
-using Newtonsoft.Json;
 using System;
-using System.Collections;
 using UnityEngine;
-using UnityEngine.Networking;
-using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		protected const string SERVER = "185.117.153.89";   // это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
+		protected const string SERVER = "127.0.0.1:8080";   //localhost не подходит тк http переадресуются, а websocket пойдут уже на наш ПК
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
@@ -41,97 +37,6 @@ namespace MyFantasy
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				WebGLSupport.WebGLFocus.FocusInit();
 			#endif
-		}
-
-		protected virtual IEnumerator HttpRequest(string action)
-		{
-			if (login.Length == 0 || password.Length == 0)
-			{
-				Error("оттсувует логин или пароль");
-				yield break;
-			}
-
-			if (game_id.Length == 0)
-			{
-				Error("разработчик не указал ИД игры сервиса http://my-fantasy.ru/");
-				yield break;
-			}
-
-			WWWForm formData = new WWWForm();
-			formData.AddField("login", login);
-			formData.AddField("password", password);
-			formData.AddField("game_id", game_id);
-
-			string url = "http://" + SERVER + "/game/signin/" + action;
-			Debug.Log("соединяемся с " + url);
-
-			long time = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
-			
-			UnityWebRequest request = UnityWebRequest.Post(url, formData);
-
-			yield return request.SendWebRequest();
-
-			// проверим что пришло в ответ
-			string text = request.downloadHandler.text;
-			if (text.Length > 0)
-			{
-				try
-				{
-					Debug.Log("Ответ авторизации: " + text);
-					SigninRecive recive = JsonConvert.DeserializeObject<SigninRecive>(text);
-
-					if (recive.error.Length > 0)
-						Error("Ошибка авторизации с сервером "+ SERVER + ": " + recive.error);
-					else
-						StartCoroutine(LoadMain(recive, time));
-				}
-				catch (Exception ex)
-				{
-					Error("Ошибка разбора авторизации: (" + text + ")", ex);
-				}
-			}
-			else
-				Error("Пустой ответ авторизации с сервером " + SERVER + ": " + request.error);
-
-			request.Dispose();
-
-			yield break;
-		}
-
-		// PS для webgl необходимо отключить profiling в Built Settings иначе забьется память браузера после прихода по websocket пакета с картой
-		protected virtual IEnumerator LoadMain(SigninRecive data, long time)
-		{
-			Debug.Log("Загрузка главной сцены");
-
-			if (data.key.Length == 0)
-				Error("не указан key игрока");
-
-			else if (data.host == null)
-				Error("не указан хост сервера");
-
-			else if (data.token == null)
-				Error("не указан token");
-
-			else
-			{
-				if (!SceneManager.GetSceneByName("MainScene").IsValid())
-				{
-					AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
-					// asyncLoad.allowSceneActivation = false;
-
-					// Wait until the asynchronous scene fully loads
-					while (!asyncLoad.isDone)
-					{
-						yield return null;
-					}
-					SceneManager.UnloadScene("RegisterScene");
-				}
-
-				// он вывзовет того наследника от ConnectController который повешан на камеру (в игре-песочнице Игорь это PlayerController)
-				ConnectController.Connect(data, time);
-
-				// asyncLoad.allowSceneActivation = true;
-			}
 		}
 
 		public static void Log(object obj)

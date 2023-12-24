@@ -131,13 +131,6 @@ namespace MyFantasy
 		/// </summary>
 		protected void SetData(NewObjectRecive recive)
 		{
-			// пришла команды удаления с карты объекта
-			if (recive.action == ConnectController.ACTION_REMOVE && action != recive.action)
-			{
-				action = recive.action;
-				StartCoroutine(this.Remove(recive.map_id != null));
-			}
-
 			string old_action = action;
 			Vector3 old_position = position;
 			int old_map_id = map_id;
@@ -175,13 +168,6 @@ namespace MyFantasy
 					}
 					else
 					{
-						if (coroutines.ContainsKey("walk"))
-						{
-							Log("Движение - остановка корутины");
-							StopCoroutine(coroutines["walk"]);
-							coroutines.Remove("walk");
-						}
-
 						if (old_action == ConnectController.ACTION_REMOVE)
                         {
 							Vector3 old2_position = Vector3.Scale((transform.localPosition - old_position), forward);
@@ -200,10 +186,17 @@ namespace MyFantasy
 							Log("Движение - изменим начальные координаты с " + new_position + " на "+(new_position + old2_position));
 
 							transform.localPosition = new_position+old2_position;
-							coroutines["walk"] = StartCoroutine(Walk(new_position, null));
+							coroutines["walk"] = StartCoroutine(Walk(new_position, (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
 						}
                         else
                         {
+							if (coroutines.ContainsKey("walk"))
+							{
+								Log("Движение - остановка корутины");
+								StopCoroutine(coroutines["walk"]);
+								coroutines.Remove("walk");
+							}
+
 							// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
 							Log("Движение -телепорт из " + transform.localPosition + " в " + new_position);
 							transform.localPosition = new_position;
@@ -298,16 +291,14 @@ namespace MyFantasy
             {
 				// если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
 				timeout = (1 / ConnectController.server_fps);
+				timeout += ConnectController.Ping();									 // время с который одна локация передаст другой локации пакет с существом или игроком
 
 				if (type == "players")
                 {
 					timeout += ConnectController.Ping()/2;                               // при соединении с webocket новой локации он передаст нам пакет игрока сразу (поэтому extrapolation_time не нужен, но на это понадобиться 1/2 пинга)
-					timeout += (ConnectController.connect_ping - timeout);               // если соединение с сервером дольше чем будет анимироваться движение - дополним этим временем
 				}
                 else
-                {
-					
-					timeout += ConnectController.Ping();                                 // время с который одна локация передаст другой локации пакет с существом и поледняя разошлет всем 
+                {					
 					timeout += (ConnectController.extrapolation_time * 2 - timeout);     // время с который новая локация ее websocket передаст в Сервер механик и назад пакет
 				}
 
@@ -349,7 +340,7 @@ namespace MyFantasy
 				//Log("Движение - идем");
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
-					LogWarning("Движение - Сменен action во время движения на " + action);
+					LogWarning("Движение - Сменен action во время движения на " + action+", удаляем корутину");
 					transform.localPosition = finish;
 					break;
 				}
@@ -400,43 +391,9 @@ namespace MyFantasy
 			}
 
 			Log("Движение - завершена корутина движения");
-
 			coroutines.Remove("walk");
+
 			yield break;
-		}
-
-		/// <summary>
-		/// корутина которая удаляет тз игры объект (если такая команда пришла с сервера). можно переопределить что бы изменить время удаления (0.5 секунда по умолчанию)
-		/// </summary>
-		private IEnumerator Remove(bool change_map)
-		{
-			if (change_map)
-			{
-				Log("Отложенное удаление при смене карты");
-
-				int old_map_id = map_id; 
-				DateTime start = DateTime.Now.AddSeconds(5);
-
-				while (DateTime.Compare(start, DateTime.Now) >= 1)
-				{
-					// если спустя паузу мы все еще на той же карте - удалим объект (это сделано для плавного реконекта при переходе на карту ДРУГИМИ игроками)
-					if (action != ConnectController.ACTION_REMOVE)
-					{
-						Log("Существо сменило статус с удаляемого на " + action + ", удаление отменено");
-						yield break;
-					}
-					else if (map_id != old_map_id)
-                    {
-						LogError("Существо сменило карту, но было удалено на новой в том же кадре что и добавлено");
-						break;
-					}
-
-					yield return new WaitForFixedUpdate();
-				}
-				Log("Существо так и не перешло на новую карту");
-			}
-
-			StartCoroutine(this.Destroy());
 		}
 
 		/// <summary>
@@ -446,13 +403,16 @@ namespace MyFantasy
 		{
 			if (animator != null)
 			{
-				Log("Запуск анимации удаления с карты");
+				Log("Удаление - Запуск анимации удаления с карты");
 
 				Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));
 				yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.01f);
 			}
-			Log("немедленое удаление с карты");
+
+			Log("Удаление - немедленное удаления с карты");
 			Destroy(gameObject);
+
+			yield break;
 		}
 	}
 }
