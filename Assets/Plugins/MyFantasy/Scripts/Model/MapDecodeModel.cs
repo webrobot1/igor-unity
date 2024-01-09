@@ -235,7 +235,7 @@ namespace MyFantasy
 						if (obj.tile_id > 0)
 						{
 							obj.x = obj.x / map.tilewidth;
-							obj.y = obj.y / map.tileheight - 1;
+							obj.y = obj.y / map.tileheight;
 						}
 					}
 				}
