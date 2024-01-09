@@ -16,9 +16,6 @@ namespace MyFantasy
         [SerializeField]
         protected InputField passwordField;        
         
-        [SerializeField]
-        protected Text gameIdField;      // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://my-fantasy.ru/  раздела Игры
-
         protected virtual void Start()
         {
            if (loginField == null)
@@ -27,7 +24,7 @@ namespace MyFantasy
             if (passwordField == null)
                 Error("не присвоен passwordField дляв вода пароля");     
             
-            if (gameIdField == null)
+            if (GAME_ID == 0)
                 Error("не присвоен gameIdField для индентификации в какую ИД игры сервеиса http://my-fantasy.ru/ у разработкчика нужно играть");
         }
 
@@ -35,7 +32,6 @@ namespace MyFantasy
         {
             login = this.loginField.text;
             password = this.passwordField.text;
-            game_id = this.gameIdField.text;
         
             StartCoroutine(HttpRequest("register"));
         }
@@ -44,7 +40,6 @@ namespace MyFantasy
         {
             login = this.loginField.text;
             password = this.passwordField.text;
-            game_id = this.gameIdField.text;
 
             StartCoroutine(HttpRequest("auth"));     
         }
@@ -57,7 +52,7 @@ namespace MyFantasy
 				yield break;
 			}
 
-			if (game_id.Length == 0)
+			if (GAME_ID == 0)
 			{
 				Error("разработчик не указал ИД игры сервиса http://my-fantasy.ru/");
 				yield break;
@@ -66,9 +61,8 @@ namespace MyFantasy
 			WWWForm formData = new WWWForm();
 			formData.AddField("login", login);
 			formData.AddField("password", password);
-			formData.AddField("game_id", game_id);
 
-			string url = "http://" + SERVER + "/game/signin/" + action;
+			string url = "http://" + SERVER + "/game/signin/" + action+"/?game_id="+GAME_ID;
 			Debug.Log("соединяемся с " + url);
 
 			UnityWebRequest request = UnityWebRequest.Post(url, formData);
@@ -132,7 +126,7 @@ namespace MyFantasy
 				}
 
 				// он вывзовет того наследника от ConnectController который повешан на камеру (в игре-песочнице Игорь это PlayerController)
-				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps, data.extrapol);
+				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
 
 				// asyncLoad.allowSceneActivation = true;
 			}

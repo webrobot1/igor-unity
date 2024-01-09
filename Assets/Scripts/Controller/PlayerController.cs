@@ -149,34 +149,16 @@ namespace MyFantasy
         private void Loading()
         {
             mapObject.SetActive(false);
-            worldObject.SetActive(false);
         }
 
         protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
-            Vector3 old_position = Vector3.zero;
-
-            if (player != null)
-                old_position = player.position;
-
             NewObjectModel model = base.UpdateObject(map_id, key, recive, type).GetComponent<NewObjectModel>();
 
             if (player!=null)
             {
                 if (key == player.key)
                 {
-                    // если мы двигаемся и пришли новые координаты - то сразу переместимся на локацию к которой идем
-                    if ((recive.x != null || recive.y != null || recive.z != null) && recive.action == ConnectController.ACTION_REMOVE)
-                    {
-                        Vector3 new_position = new Vector3(recive.x ?? old_position.x, recive.y ?? old_position.y, recive.z ?? old_position.z);
-                        // телепорты
-                        if ((old_position + (player.forward * ConnectController.step)).ToString() == new_position.ToString())
-                        {
-                             Debug.Log("Перезагрузка позиций");
-                             Loading();
-                        }
-                    }
-
                     if (recive.events!=null)
                     {
                         if(recive.events.ContainsKey(AttackResponse.GROUP))

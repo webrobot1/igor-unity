@@ -148,6 +148,7 @@ namespace MyFantasy
                         target = null;
                         base.persist_target = false;
 
+                        Debug.Log("Кликнули на "+GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
                         move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
                         if (Vector3.Distance(player.position, move_to) < 1.15f)
                             move_to = Vector3.zero;
@@ -187,8 +188,8 @@ namespace MyFantasy
                                 Vector3 vector = new Vector3(horizontal, vertical, 0).normalized;
 
                                 // значение forward не сменится (тк его меняет только сервер) но запустится анимация при которой графика персонажа повернется
-                                if (DateTime.Compare(block_forward, DateTime.Now) < 1)
-                                    player.forward = vector;
+                                //if (DateTime.Compare(block_forward, DateTime.Now) < 1)
+                                 //   player.forward = vector;
 
                                 WalkResponse response = new WalkResponse();
 

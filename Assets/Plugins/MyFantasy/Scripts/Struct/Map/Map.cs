@@ -15,6 +15,7 @@ namespace MyFantasy
 		public int height;
 		public int tilewidth;
 		public int tileheight;
+		public int columns;
 
 		public int? spawn_sort = null;
 

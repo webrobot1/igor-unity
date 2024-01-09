@@ -61,18 +61,20 @@ namespace MyFantasy
 		public override Vector3 forward
 		{
 			get { return base.forward; }
-			set 
+			set
 			{
-				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
-				base.forward = value;
 
-				//это Blend tree аниматора (в игре Игорья решил так вопрос с анимацией движения в разных направлениях. рекомендую и Вам)
-				if (animator)
+				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
+				if (value.x != base.forward.x || value.y != base.forward.y)
 				{
-					if (animator.GetFloat("x") != value.x)
-						animator.SetFloat("x", value.x);
-					if (animator.GetFloat("y") != value.y)
-						animator.SetFloat("y", value.y);
+					//это Blend tree аниматора (в игре Игорья решил так вопрос с анимацией движения в разных направлениях. рекомендую и Вам)
+					if (animator)
+					{
+						if (animator.GetFloat("x") != value.x)
+							animator.SetFloat("x", value.x);
+						if (animator.GetFloat("y") != value.y)
+							animator.SetFloat("y", value.y);
+					}
 				}
 			}
 		}
@@ -229,7 +231,7 @@ namespace MyFantasy
 		/// включить анимацию - те отключить все слои анимаций других и оставить только нужную. если есть анмиационный тригер одноименный со слоем - и его выключить (для анимаций которых не зацикленные и надо запустить один раз)
 		/// </summary>
 		public void Animate(Animator animator, int layerIndex)
-		{
+		{		
 			if (layerIndex >=0)
 			{
 				if (layerIndex == 0 || animator.GetLayerWeight(layerIndex) != 1) 
@@ -282,26 +284,16 @@ namespace MyFantasy
 			float distance;
 
 			// отрезок пути которой существо движется за кадр
-			double timeout = 0;
 			double last_ping_extropolation = ConnectController.Ping();
+			
+			double timeout = (1 / ConnectController.server_fps * 2);                 // если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
+			timeout += ConnectController.Ping();                                     // время с который одна локация передаст другой локации пакет с существом или игроком																
+			timeout += Time.fixedDeltaTime;                                          // добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
 
 			// если мы уходим с карты надо замедлиться на время полных пинга 
 			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
 			if (action == ConnectController.ACTION_REMOVE)
-            {
-				// если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
-				timeout = (1 / ConnectController.server_fps);
-				timeout += ConnectController.Ping();									 // время с который одна локация передаст другой локации пакет с существом или игроком
-
-				if (type == "players")
-                {
-					timeout += ConnectController.Ping()/2;                               // при соединении с webocket новой локации он передаст нам пакет игрока сразу (поэтому extrapolation_time не нужен, но на это понадобиться 1/2 пинга)
-				}
-                else
-                {					
-					timeout += (ConnectController.extrapolation_time * 2 - timeout);     // время с который новая локация ее websocket передаст в Сервер механик и назад пакет
-				}
-
+            {	
 				// если расчетное время получения пакета меньше чем обычно анимация шага у персонажа - делаем время анимации шага персонада
 				if (timeout < getEvent(WalkResponse.GROUP).timeout)
 					timeout = (double)getEvent(WalkResponse.GROUP).timeout;
@@ -312,23 +304,7 @@ namespace MyFantasy
 			else
 			{
 				// отрезок пути которой существо движется за кадр
-				timeout = getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
-
-				// добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
-				timeout += Time.fixedDeltaTime;
-
-				// а это мне нужно для локального тестирования тк там пинг 1мс всегда добавив еще сверху время кадра сглаживает мне НЕ попадания в 1мс погрешности (ну а для НЕ лольного не мешает)
-				timeout += Time.fixedDeltaTime;
-
-				// как событие закончится серверу понадобиться время что бы вернуть нам рещультат обратно в клиент, на это время продолжаем движение
-				if (ConnectController.EXTROPOLATION_PING > 0)
-				{		
-					timeout += last_ping_extropolation * ConnectController.EXTROPOLATION_PING;
-				}
-
-				// время на доставку пакета от Сервера игровых мехагик до Websocket который его разошлет
-				if (ConnectController.extrapolation_time > 0)
-					timeout += ConnectController.extrapolation_time;
+				timeout += getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
 			}
 
 			// на сколько от шага каждый кадр сервера сдвигать существо
@@ -351,16 +327,16 @@ namespace MyFantasy
 				if (distance < distancePerUpdate)
 				{
 					// если ожидается пакет на движение или мы удаляемся - двинемся еще на  шаг максимум
-					if ((getEvent(WalkResponse.GROUP).action.Length>0 || action == ConnectController.ACTION_REMOVE) && !extrapolation)
+					if ((getEvent(WalkResponse.GROUP).action!=null && getEvent(WalkResponse.GROUP).action.Length>0 || action == ConnectController.ACTION_REMOVE) && !extrapolation)
 					{
 						extrapolation = true;
 
 						// добавим что идти нужно еще на пол шаг дальше в том же направлении
-						Vector3 step = forward * ConnectController.step;
+						Vector3 step = forward * ConnectController.step * 0.5f;
 						finish += step;
 
 						// замедлим время дополнительного нашага 
-						if (ConnectController.EXTROPOLATION_PING > 0 && ConnectController.MaxPing() > last_ping_extropolation)
+						if (ConnectController.MaxPing() > last_ping_extropolation)
 						{
 							double slow = (last_ping_extropolation / ConnectController.MaxPing());
 							distancePerUpdate = distancePerUpdate * slow;

@@ -214,7 +214,6 @@ namespace MyFantasy
 			}
 
 			// заполним слой с тайловыми координатами на сетке
-			int columns = (int)Decimal.Round(map.width * map.tilewidth / map.tilewidth);
 			foreach (Layer layer in map.layer)
 			{
 				if (layer.tiles != null)
@@ -223,11 +222,8 @@ namespace MyFantasy
 					foreach (LayerTile tile in layer.tiles)
 					{
 						// если указанный тайл (клетка) не пустая
-						if (tile.tile_id > 0)
-						{
-							tile.x = (int)tile.num % columns;
-							tile.y = (int)(tile.num / columns) * -1 - 1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
-						}
+						tile.x = (int)tile.num % map.columns;
+						tile.y = (int)(tile.num / map.columns) * -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
 					}
 				}
 
@@ -239,7 +235,7 @@ namespace MyFantasy
 						if (obj.tile_id > 0)
 						{
 							obj.x = obj.x / map.tileheight;
-							obj.y = obj.y / map.tilewidth * -1;
+							obj.y = obj.y / map.tilewidth;
 						}
 					}
 				}

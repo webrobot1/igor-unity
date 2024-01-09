@@ -48,7 +48,7 @@ namespace MyFantasy
 		protected DateTime created;
 		protected string prefab;
 
-		private Vector2 _forward = Vector3.zero;
+		private Vector3 _forward = Vector3.zero;
 
 		/// <summary>
 		/// при запросе поля выдает серверные значения. при смене - меняет transform position только в клиенте (на сервере меняется лишь попутно с другими событиями требующих направления)
@@ -58,7 +58,7 @@ namespace MyFantasy
 			get { return _forward; }
 			set
 			{
-				this.transform.forward.Set(value.x , value.y, value.z);
+				this.transform.forward.Set(value.x , value.y, 0);
 			}
 		}
 
@@ -107,16 +107,19 @@ namespace MyFantasy
 			
 			if (recive.forward_x != null || recive.forward_y != null)
             {
-				Vector3 vector = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y);
-				
-				forward = vector;		// эта строка лишь развернет 
-				_forward = vector;		// а это будет отдавать при запросе forward данные с сервера а не реального разворота в клиенте
+				Vector3 vector = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y, 0);
 
-				// следующий код применим только к объектам - предметам, он повернет их
-				if (type == "objects") 
-				{ 
-					float angle = Mathf.Atan2(forward.x, forward.y) * Mathf.Rad2Deg * -1;
-					transform.rotation = Quaternion.Euler(0, 0, angle);
+				if (vector.x != _forward.x || vector.y != _forward.y)
+				{
+					forward = vector;       // эта строка лишь развернет 
+					_forward = vector;      // а это будет отдавать при запросе forward данные с сервера а не реального разворота в клиенте
+
+					// следующий код применим только к объектам - предметам, он повернет их
+					if (type == "objects")
+					{
+						float angle = Mathf.Atan2(forward.x, forward.y) * Mathf.Rad2Deg * -1;
+						transform.rotation = Quaternion.Euler(0, 0, angle);
+					}
 				}
 			}
 
@@ -134,11 +137,6 @@ namespace MyFantasy
 			if (recive.z != null)
 			{
 				position.z = (float)recive.z;
-			}
-
-			if (this.key == null)
-			{
-				this.key = this.gameObject.name;
 			}
 
 			if (recive.sort != null)
@@ -256,6 +254,7 @@ namespace MyFantasy
 			if (isChangeMap)
 			{
 				Log("Удаление - Отложенное удаление при смене карты");
+
 				DateTime start = DateTime.Now.AddSeconds(5);
 				while (DateTime.Compare(start, DateTime.Now) >= 1)
 				{

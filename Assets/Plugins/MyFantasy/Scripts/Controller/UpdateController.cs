@@ -54,10 +54,6 @@ namespace MyFantasy
 				}
 			}
 
-			if (recive.sides != null)
-			{
-				UpdateSides(recive.sides);
-			}
 
 			if (recive.world != null)
 			{
@@ -65,16 +61,16 @@ namespace MyFantasy
 				foreach (var map in recive.world)
 				{
 					// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее
-					Transform map_zone = worldObject.transform.Find(this.sides[map.Key]);
+					Transform map_zone = worldObject.transform.Find(map.Key.ToString());
 					if (map_zone == null)
 					{
-						map_zone = new GameObject(this.sides[map.Key]).transform;
+						map_zone = new GameObject(map.Key.ToString()).transform;
 						map_zone.SetParent(worldObject.transform, false);
 
-						if (mapObject.transform.Find(this.sides[map.Key])!=null)
-							map_zone.localPosition = mapObject.transform.Find(this.sides[map.Key]).localPosition;
+						if (mapObject.transform.Find(map.Key.ToString()) !=null)
+							map_zone.localPosition = mapObject.transform.Find(map.Key.ToString()).localPosition;
 
-						Debug.LogWarning("Создаем область для объектов " + map.Key+ "("+ this.sides[map.Key] + ")");
+						Debug.LogWarning("Создаем область для объектов " + map.Key);
 					}
 
 					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
@@ -123,40 +119,37 @@ namespace MyFantasy
 					}
 				}
 			}
+
+			if (recive.sides != null)
+			{
+				UpdateSides(recive.sides);
+			}
 		}
 
 
 		/// <summary>
 		/// Обработка пакета - с какой стороны какая ID карты на сцене
 		/// </summary>
-		private void UpdateSides(Dictionary<int, string> sides)
+		private void UpdateSides(Dictionary<int, Point> sides)
 		{
 			Debug.Log("Обрабатываем стороны карт");
 
-			if (!sides.ContainsValue("center")) Error("Запись о центральной карте не пришла");
-
-			mapObject.SetActive(false);
-			worldObject.SetActive(false);
+			if (player == null) Error("Нельзя обновить карты ДО того как обновили данные игрока");
+			if (!sides.ContainsKey(player.map_id)) Error("Запись о карте игрока не пришла");
 
 			// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
 			if (this.maps.Count > 0)
 			{
 				foreach (Transform grid in mapObject.transform)
 				{
-					int old_side = this.sides.FirstOrDefault(x => x.Value == grid.name).Key;
-
-                    if (sides.ContainsKey(old_side))
+					int map_id = Int32.Parse(grid.name);
+                    if (!sides.ContainsKey(map_id))
                     {
-						Debug.Log("подмена карты с " + this.sides[old_side] + " на " + sides[old_side]);
-						grid.name = sides[old_side];
-                    }
-					else
-					{
-						Debug.Log("уничтожаем неиспользуемую карту " + old_side);
-						DestroyImmediate(mapObject.transform.Find(this.sides[old_side]).gameObject);
-						DestroyImmediate(worldObject.transform.Find(this.sides[old_side]).gameObject);
+						Debug.Log("уничтожаем неиспользуемую карту " + map_id);
+						DestroyImmediate(mapObject.transform.Find(map_id.ToString()).gameObject);
+						DestroyImmediate(worldObject.transform.Find(map_id.ToString()).gameObject);
 
-						maps.Remove(old_side);
+						maps.Remove(map_id);
 					}				
 				}
 			}
@@ -164,13 +157,9 @@ namespace MyFantasy
 			this.sides = sides;
 			SortMap();
 			
-			mapObject.SetActive(true);
-			worldObject.SetActive(true);
-
-
 			// загрузим отвутвующую графику центральной и смежных карт 
 			// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
-			foreach (KeyValuePair<int, string> side in sides)
+			foreach (KeyValuePair<int, Point> side in sides)
 			{
 				if (!maps.ContainsKey(side.Key)) StartCoroutine(GetMap(side.Key));
 			}
@@ -199,7 +188,8 @@ namespace MyFantasy
 
 				model = prefab.GetComponent<ObjectModel>();
 				if (model == null) Error("Отсутвует скрипт модели на объекте " + key);
-
+				
+				model.key = key;
 				model.Log("создан с префабом " + recive.prefab);
 
 				model.type = type.ToLower();
@@ -225,7 +215,7 @@ namespace MyFantasy
 
 			model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
 
-			prefab.transform.SetParent(worldObject.transform.Find(this.sides[map_id]).transform, false);
+			prefab.transform.SetParent(worldObject.transform.Find(map_id.ToString()).transform, false);
 
 			try
 			{

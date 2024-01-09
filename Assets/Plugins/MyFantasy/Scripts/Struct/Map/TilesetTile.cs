@@ -8,11 +8,11 @@ namespace MyFantasy
 	[System.Serializable]
 	public class TilesetTile
 	{
-		public int tile_id;
 		public string resource;
 		public Sprite sprite;
+		public Point[] polygon;
+				
 		public TilesetTileAnimation[] frame;
-
 		public TilesetTile(Sprite sprite)
 		{
 			this.sprite = sprite;

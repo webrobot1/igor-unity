@@ -37,17 +37,6 @@ namespace MyFantasy
 		private const float INTERPOLATION = 0.5f;
 
 		/// <summary>
-		/// позволить продолжить движение стандартной механики движения при наличии уже посланных интерполяцией запросов на новое событие движения. 
-		/// число - с какой скоростью продолжать движение пока ждем пакет от сервера (если установить 1 то мы можем очень далеко уйти прежде чем пакеты придутб рекомендуется ставить меньше половины)
-		/// </summary>
-		public const float EXTROPOLATION_PING = 0.5f;
-
-		/// <summary>
-		/// время экстраполяции которое нам расчитал сервер (на это время надо закладывать время отработки на сервере пришедших пакетов до возврата их клиуенту БЕЗ учета пинга)
-		/// </summary>
-		public static double extrapolation_time = 0;
-		
-		/// <summary>
 		/// установленная на сервере длинна шага. нужно для проверки шагаем ли мы или телепортируемся (тк даже механика быстрого полета или скачек - это тоже хотьба)
 		/// </summary>
 		public static float step;
@@ -220,7 +209,7 @@ namespace MyFantasy
 						// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
 						loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 
-						Connect(host, player_key, player_token, step, position_precision, server_fps, extrapolation_time);
+						Connect(host, player_key, player_token, step, position_precision, server_fps);
 					}
 				}
 				else
@@ -237,7 +226,7 @@ namespace MyFantasy
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps, double extrapolation_time)
+		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps)
 		{
 			errors.Clear();
 			recives.Clear();
@@ -246,7 +235,6 @@ namespace MyFantasy
 			ConnectController.player_key = player_key;
 			ConnectController.player_token = player_token;
 			ConnectController.server_fps = server_fps;
-			ConnectController.extrapolation_time = extrapolation_time;
 			ConnectController.step = step;                                    // максимальный размер шага. умножается тк по диагонали идет больще
 			ConnectController.position_precision = position_precision;        // длина шага
 
@@ -326,6 +314,7 @@ namespace MyFantasy
 							}
 							else
 							{
+								// сразу не подключаемя тк нужно дождаться fixed update который обработает существующие пакеты в тч и тот что пришел сейчас
 								if(recive.host != null)
                                 {
 									ConnectController.connect = null;
@@ -335,7 +324,7 @@ namespace MyFantasy
 									reload = ReloadStatus.Start;
 									
 									// закроем соединение что бы не пришел пакет о закрытие соединения
-									Close();
+									//Close();
 									Debug.Log("WebSocket - Перезаход в игру");
 								}
 
@@ -410,20 +399,17 @@ namespace MyFantasy
 						double time = Ping() * INTERPOLATION;
 						remain -= time;
 					}
-					
+
 					// на это время шлем пакет раньше . в нем заложена пересылка нашего пакета от websocket сервера в гейм сервер после в песочницу, отработака команды и возврат по цепочке обратно в webscoekt сервер 
-					if (extrapolation_time > 0)
-					{
-						remain -= extrapolation_time;
-					}
-						
+					remain -= 1 / server_fps;
+
 					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
 					if 
 						(
 							remain<=0 
 								||
 							// может быть и null когда событие только создано или отправили пакет когда был action == "" (что означает что на сервере нет текущего события в обработке и модно слать)
-							(player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout) 
+							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout) 
 								|| 
 							player.getEvent(data.group).from_client != true
 						)

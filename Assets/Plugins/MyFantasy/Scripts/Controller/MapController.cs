@@ -30,7 +30,7 @@ namespace MyFantasy
 		/// <summary>
 		/// массив с перечнем с какой стороны какая смежная карта
 		/// </summary>
-		protected Dictionary<int, string> sides = new Dictionary<int, string>();
+		protected Dictionary<int, Point> sides = new Dictionary<int, Point>();
 
 		/// <summary>
 		/// массив декодированных с сервера карт
@@ -50,31 +50,16 @@ namespace MyFantasy
 		{
 			if (!sides.ContainsKey(map_id))
 				Error("карта " + map_id + " не является какой либо частью текущих локаций");			
-			else if (mapObject.transform.Find(sides[map_id]) != null)
+			else if (mapObject.transform.Find(map_id.ToString()) != null)
 				Error("карта " + map_id + " уже выгружена в игровое пространство");
 			else if (maps.ContainsKey(map_id))
 				Error("попытка загрузки карты " + map_id + " повторно");
 			else
 			{
-				/* if (side != "center")
-				 {				
-					 if (mapObject.transform.Find("center") == null)
-					 {
-						 Error("не загружена центральная карта для загрузки");
-						 yield break;
-					 }
-				 }*/
-
-
-				// todo может сделать какую то авторизацию для получения карт
-				WWWForm formData = new WWWForm();
-				formData.AddField("map_id", map_id);
-				formData.AddField("token", player_token);
-
-				string url = "http://" + SERVER + "/game/signin/get_map/?map_id="+ map_id + "&token="+ player_token;
+				string url = "http://" + SERVER + "/game/signin/get_map/?game_id="+ GAME_ID + "&map_id="+ map_id + "&token="+ player_token;
 				Debug.Log("получаем карту " + map_id + " с " + url);
 
-				UnityWebRequest request = UnityWebRequest.Post(url, formData);
+				UnityWebRequest request = UnityWebRequest.Get(url);
 
 				yield return request.SendWebRequest();
 
@@ -97,7 +82,7 @@ namespace MyFantasy
 						{
 							Debug.Log("Обновляем карту " + map_id);
 
-							Transform grid = new GameObject(sides[map_id]).transform;
+							Transform grid = new GameObject(map_id.ToString()).transform;
 							grid.gameObject.AddComponent<Grid>();
 							grid.SetParent(mapObject.transform, false);
 
@@ -133,37 +118,13 @@ namespace MyFantasy
 		{
 			foreach (Transform grid in mapObject.transform)
 			{
-				int center = sides.FirstOrDefault(x => x.Value == "center").Key;
-				switch (grid.gameObject.name)
-				{
-					case "center":
-
-						// если у нас webgl првоерим не а дминке ли мы с API отладкой
-						#if UNITY_WEBGL && !UNITY_EDITOR
-							WebGLSupport.WebGLDebug.DebugCheck(center);
-						#endif
-
-						grid.localPosition = new Vector3(0f, 0f, 0f);
-						break;
-
-					case "right":
-						// центральная карта может отсутвуовать например когда мы ушли с одной карты на другую и переиспользовали графику (SortMap  запустится но оттуда откуда пришли могло не быть графики карты куда пришли)
-						if (maps.ContainsKey(center))
-							grid.localPosition = new Vector3(maps[center].width, 0, 0);
-							
-						break;
-
-					case "left":
-						grid.localPosition = new Vector3(maps[sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key].width * -1, 0, 0);
-					break;
-				}
+				int map_id = Int32.Parse(grid.name);
+				grid.localPosition = new Vector2(sides[map_id].x, sides[map_id].y);
 
 				// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
 				if (worldObject.transform.Find(grid.gameObject.name) != null)
 				{
 					worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
-
-					int map_id = sides.FirstOrDefault(x => x.Value == grid.gameObject.name).Key;
 					foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
 					{
 						var model = child.GetComponent<ObjectModel>();

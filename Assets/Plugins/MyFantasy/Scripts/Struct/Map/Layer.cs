@@ -15,8 +15,8 @@ namespace MyFantasy
 	{
 		public int layer_id;
 		public string name;
-		public int visible = 1;
-		public float opacity = 1;
+		public int visible;
+		public float opacity;
 		public int isGround = 0;
 		public int isSpawn = 0;
 

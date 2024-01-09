@@ -25,8 +25,10 @@ namespace MyFantasy
 		public int visible = 1;
 
 		public int ellipse;
-		public string polygon;
-		public string polyline;
+		
+		public Point[] polygon;
+		public Point[] polyline;
+		
 		public string text;
 	}
 }

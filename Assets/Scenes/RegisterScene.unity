@@ -220,9 +220,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 283f7f160950d5844a759097ffd7737e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  gameIdField: 2
   loginField: {fileID: 214595407}
   passwordField: {fileID: 1545425095}
-  gameIdField: {fileID: 419970803}
 --- !u!1 &99335924
 GameObject:
   m_ObjectHideFlags: 0

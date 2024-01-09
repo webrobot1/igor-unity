@@ -40,11 +40,11 @@ namespace MyFantasy
             get { 
                 return _target; 
             }
-            set 
+            set
             {
                 // ниже не даигать тк тут может быть null и мы повторно его присваиваем что бы скрыть заплатки тестовые
                 // +  при переходе с севрера на сервер и объекты уничтожаясь НЕ вызвают тут set, но null будет стоять
-                if(value == null) 
+                if (value == null) 
                     targetFrame.alpha = 0;
 
                 if (_target != value)
