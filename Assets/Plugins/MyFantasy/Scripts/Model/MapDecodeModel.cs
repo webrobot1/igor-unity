@@ -58,7 +58,7 @@ namespace MyFantasy
 							var m = newTile.transform;
 
 							// повернем как нам нужно приэтом сместим назад тайл что бы съемулировать Vector3 будто он на месте остался хоть и повернут (как в программе Tiled)
-							m.SetTRS(new Vector3(tile.horizontal - 0.5f, tile.vertical - 1f), Quaternion.Euler(tile.vertical * 180, tile.horizontal * 180, 0f), Vector3.one);
+							m.SetTRS(new Vector3(tile.horizontal-0.5f, tile.vertical - 0.5f), Quaternion.Euler(tile.vertical * 180, tile.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 
 							if (map.tileset[tile.tileset_id].tile[tile.tile_id].frame != null)
@@ -84,7 +84,7 @@ namespace MyFantasy
 
 							// чисто что бы если повернуть и что бы тайлы были в квадратиках Unity (а то из за того что в Tiled слева с угла идет тайл в Unity он будто всегда выше выбранного в редакторе кадрата)
 							var m = newTile.transform;
-							m.SetTRS(new Vector3(obj.horizontal - 0.5f, obj.vertical - 1f), Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
+							m.SetTRS(new Vector3(obj.horizontal - 0.5f, obj.vertical - 0.5f), Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 
 							if (map.tileset[obj.tileset_id].tile[obj.tile_id].frame != null)
@@ -223,7 +223,7 @@ namespace MyFantasy
 					{
 						// если указанный тайл (клетка) не пустая
 						tile.x = (int)tile.num % map.columns;
-						tile.y = (int)(tile.num / map.columns) * -1 -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+						tile.y = (int)(tile.num / map.columns) * -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
 					}
 				}
 
@@ -234,8 +234,8 @@ namespace MyFantasy
 						// если указанный тайл (клетка) не пустая
 						if (obj.tile_id > 0)
 						{
-							obj.x = obj.x / map.tileheight;
-							obj.y = obj.y / map.tilewidth;
+							obj.x = obj.x / map.tilewidth;
+							obj.y = obj.y / map.tileheight - 1;
 						}
 					}
 				}
