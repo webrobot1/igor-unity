@@ -172,22 +172,7 @@ namespace MyFantasy
 					{
 						if (old_action == ConnectController.ACTION_REMOVE)
                         {
-							Vector3 old2_position = Vector3.Scale((transform.localPosition - old_position), forward);
-							float length = old2_position.x + old2_position.y;
-
-                            if (length < 0)
-                            {
-								LogError("Движение - после перехода на карту недошел" + length + " шага с " + old_position + " до " + transform.localPosition);
-							}
-                            else
-                            {
-								Log("Движение - после перехода на карту прошел больше " + length + " шага");
-							}
-
-							old2_position = Vector3.Scale(old2_position.normalized, forward);
-							Log("Движение - изменим начальные координаты с " + new_position + " на "+(new_position + old2_position));
-
-							transform.localPosition = new_position+old2_position;
+							transform.localPosition = new_position;
 							coroutines["walk"] = StartCoroutine(Walk(new_position, (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
 						}
                         else
@@ -286,9 +271,9 @@ namespace MyFantasy
 			// отрезок пути которой существо движется за кадр
 			double last_ping_extropolation = ConnectController.Ping();
 			
-			double timeout = (1 / ConnectController.server_fps * 2);                 // если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
-			timeout += ConnectController.Ping();                                     // время с который одна локация передаст другой локации пакет с существом или игроком																
-			timeout += Time.fixedDeltaTime;                                          // добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
+			double timeout = (1 / ConnectController.server_fps);					   // если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
+			timeout += ConnectController.Ping();                                       // время с который одна локация передаст другой локации пакет с существом или игроком																
+			timeout += Time.fixedDeltaTime;											   // добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
 
 			// если мы уходим с карты надо замедлиться на время полных пинга 
 			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
