@@ -102,7 +102,7 @@ namespace MyFantasy
             }
         }
 
-  
+
         protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
             // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)

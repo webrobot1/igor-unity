@@ -59,15 +59,15 @@ namespace MyFantasy
 					}
 					hp = (int)recive.components.hp;
 				}
-				if (recive.components.hpMax != null)
-					hpMax = (int)recive.components.hpMax;
+				if (recive.components.hpmax != null)
+					hpMax = (int)recive.components.hpmax;
 
 				if (recive.components.mp != null)
 					mp = (int)recive.components.mp;
 
 				// ниже сравниваем c null тк может быть значение 0 которое надо обработать
-				if (recive.components.mpMax != null)
-					mpMax = (int)recive.components.mpMax;
+				if (recive.components.mpmax != null)
+					mpMax = (int)recive.components.mpmax;
 			}
 
 			base.SetData(recive);		

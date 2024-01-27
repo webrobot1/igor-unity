@@ -153,37 +153,41 @@ namespace MyFantasy
 
         protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
-            NewObjectModel model = base.UpdateObject(map_id, key, recive, type).GetComponent<NewObjectModel>();
-
-            if (player!=null)
+            GameObject prefab = base.UpdateObject(map_id, key, recive, type);
+            if(key == player_key) 
             {
-                if (key == player.key)
+                if (prefab == null)
                 {
-                    if (recive.events!=null)
+                    Error("Не удалось содать из пришедншего пакета данных текущего игрока " + key);
+                }
+                else if (player != null)
+                {
+                    NewObjectModel model = prefab.GetComponent<NewObjectModel>();
+                    if (recive.events != null)
                     {
-                        if(recive.events.ContainsKey(AttackResponse.GROUP))
+                        if (recive.events.ContainsKey(AttackResponse.GROUP))
                         {
                             // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
                             // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
                             string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
 
-                            if (attacker != null) 
+                            if (attacker != null)
                             {
                                 GameObject gameObject = GameObject.Find(attacker);
-                                if (gameObject!=null)
+                                if (gameObject != null)
                                 {
                                     NewObjectModel attackerModel = gameObject.GetComponent<NewEnemyModel>();
-                                    if(attackerModel!=null && CanBeTarget(attackerModel)) 
-                                    { 
+                                    if (attackerModel != null && CanBeTarget(attackerModel))
+                                    {
                                         target = attackerModel;
                                         Debug.Log("Новая цель атаки с сервера: " + attacker);
                                     }
                                 }
                                 else
-                                    Debug.LogError("Цель "+ attacker + " не найдена на сцене");
+                                    Debug.LogError("Цель " + attacker + " не найдена на сцене");
                             }
                         }
-                        else if(recive.events.ContainsKey(AttackResponse.GROUP))
+                        else if (recive.events.ContainsKey(AttackResponse.GROUP))
                         {
                             // если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
                             if (
@@ -199,8 +203,7 @@ namespace MyFantasy
                     }
                 }
             }
-
-            return model.gameObject;
+            return prefab;
         }
 
         private bool CanBeTarget(NewObjectModel gameObject)

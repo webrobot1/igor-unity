@@ -10,10 +10,10 @@ namespace MyFantasy
 		/// если не приравнять к null - будет  0 при наличии другого лбого элемента класса
 		/// </summary>
 		public int? hp;
-		public int? hpMax;	
+		public int? hpmax;	
 	
 		public int? mp;
-		public int? mpMax;
+		public int? mpmax;
 
 		public int? speed;
 	}

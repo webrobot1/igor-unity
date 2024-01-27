@@ -178,6 +178,10 @@ namespace MyFantasy
 			// если игрока нет на сцене
 			if (prefab == null)
 			{
+				// те что удалились как только мы пришли тех не создаем тк нет пакета с чего их создавать 
+				if (recive.action == "remove") 
+					return null;
+
 				UnityEngine.Object ob = Resources.Load("Prefabs/" + type + "/" + recive.prefab, typeof(GameObject));
 
 				if (ob == null)

@@ -133,7 +133,6 @@ namespace MyFantasy
 		/// </summary>
 		protected void SetData(NewObjectRecive recive)
 		{
-			string old_action = action;
 			Vector3 old_position = position;
 			int old_map_id = map_id;
 
@@ -170,24 +169,17 @@ namespace MyFantasy
 					}
 					else
 					{
-						if (old_action == ConnectController.ACTION_REMOVE)
-                        {
-							transform.localPosition = new_position;
-							coroutines["walk"] = StartCoroutine(Walk(new_position, (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
-						}
-                        else
-                        {
-							if (coroutines.ContainsKey("walk"))
-							{
-								Log("Движение - остановка корутины");
-								StopCoroutine(coroutines["walk"]);
-								coroutines.Remove("walk");
-							}
+						if (coroutines.ContainsKey("walk"))
+						{
+							Log("Движение - остановка корутины");
+							StopCoroutine(coroutines["walk"]);
 
-							// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
-							Log("Движение -телепорт из " + transform.localPosition + " в " + new_position);
-							transform.localPosition = new_position;
-						}	
+							coroutines.Remove("walk");
+						}
+
+						// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
+						Log("Движение -телепорт из " + transform.localPosition + " в " + new_position);
+						transform.localPosition = new_position;
 					}
 				}
 			}
@@ -263,6 +255,7 @@ namespace MyFantasy
 			if (finish == transform.localPosition)
 			{
 				LogError("Движение - позиция к которой движемся равна той на которой стоим");
+				coroutines.Remove("walk");
 				yield break;
 			}
 
@@ -350,10 +343,9 @@ namespace MyFantasy
 
 				yield return new WaitForFixedUpdate();
 			}
-
-			Log("Движение - завершена корутина движения");
 			coroutines.Remove("walk");
 
+			Log("Движение - завершена корутина движения");
 			yield break;
 		}
 
