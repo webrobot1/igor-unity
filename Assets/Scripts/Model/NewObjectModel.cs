@@ -172,7 +172,10 @@ namespace MyFantasy
 						if (coroutines.ContainsKey("walk"))
 						{
 							Log("Движение - остановка корутины");
-							StopCoroutine(coroutines["walk"]);
+
+							// по каким то причинам бывает запись есть и выдает ошибку NullReferenceException: routine is null
+							if(coroutines["walk"]!=null)
+								StopCoroutine(coroutines["walk"]);
 
 							coroutines.Remove("walk");
 						}

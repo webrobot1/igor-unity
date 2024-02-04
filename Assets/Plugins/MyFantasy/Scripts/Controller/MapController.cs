@@ -45,8 +45,18 @@ namespace MyFantasy
 			if (worldObject == null)
 				Error("не присвоен GameObject для игровых обектов");
 		}
+		
+		public Dictionary<int, MapDecode> getMaps()
+        {
+			return maps;
+		}		
+		
+		public Dictionary<int, Point> getSides()
+        {
+			return sides;
+		}
 
-		protected virtual IEnumerator GetMap(int map_id)
+		protected virtual IEnumerator DownloadMap(int map_id)
 		{
 			if (!sides.ContainsKey(map_id))
 				Error("карта " + map_id + " не является какой либо частью текущих локаций");			

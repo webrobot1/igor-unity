@@ -163,7 +163,7 @@ namespace MyFantasy
 			// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
 			foreach (KeyValuePair<int, Point> side in sides)
 			{
-				if (!maps.ContainsKey(side.Key)) StartCoroutine(GetMap(side.Key));
+				if (!maps.ContainsKey(side.Key)) StartCoroutine(DownloadMap(side.Key));
 			}
 		}
 
