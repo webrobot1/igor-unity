@@ -1,6 +1,6 @@
-Данная игра-песочница "Игорь" служит для демонстрации реализации мультиплеера проекта [http://my-fantasy.ru/)
+Клиентская часть 2D MMORPG онлайн игры "Игорь" для демонстрации проекта [http://my-fantasy.ru/](http://my-fantasy.ru/)  на Unity
 
-Видео описание работы плагина [https://youtu.be/NyRiODUeChE](https://youtu.be/NyRiODUeChE)
+Видео описание работы плагина сетевого взаимодействия [https://youtu.be/NyRiODUeChE](https://youtu.be/NyRiODUeChE)
 
 Общее описание папок:
 
@@ -37,10 +37,10 @@
 Для разработки непосредственно вашей игры вам понадобиться обновлять из данного репозитория Assest/Plugins (тк я доблавяю все новые функции) и работать в папке Assets/Scripts:
 
 + изменить дизайн Assets\Scenes\RegisterScene (опционально)
-+ изменить Assets\Scripts\Controller\PlayerController (что бы обрабатывать action команды которые глобально что то делают из [событий](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) в админ панели) - он висит на Camera MainScene, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Controller/PlayerController.cs) 
-+ изменить CameraController из примера  (опционально возможно захочется добавить pixelPerfect или cinemachine camera механики и тд) - он так же висит на на Camera в MainScene, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Controller/CameraController.cs)
-+ изменить Assets\Scripts\Struct\Recive\ComponentsRecive добавив туда пользовательские поля - [компонтенты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9) созданные Вами в админ панели, [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Struct/Recive/) 
-+ изменить Assets\Scripts\Model\NewPlayerModel, NewEnemyModel, NewObjectModel что бы указвать что делать в игре при изменении полей и компонентов (какую анимацию включать. компонетнты меняются на сервере благодаря [игровым событиям](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) - [пример](https://bitbucket.org/_catalogs/unity/src/master/Assets/Scripts/Model/)	
++ изменить Assets\Scripts\Controller\PlayerController (что бы обрабатывать action команды которые глобально что то делают из [событий](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) в админ панели) - он висит на Camera MainScene, [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Controller/PlayerController.cs) 
++ изменить CameraController из примера  (опционально возможно захочется добавить pixelPerfect или cinemachine camera механики и тд) - он так же висит на на Camera в MainScene, [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Controller/CameraController.cs)
++ изменить Assets\Scripts\Struct\Recive\ComponentsRecive добавив туда пользовательские поля - [компонтенты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9) созданные Вами в админ панели, [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Struct/Recive/) 
++ изменить Assets\Scripts\Model\NewPlayerModel, NewEnemyModel, NewObjectModel что бы указвать что делать в игре при изменении полей и компонентов (какую анимацию включать. компонетнты меняются на сервере благодаря [игровым событиям](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) - [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Model/)	
 + скомпилировать билд webgl для [отладки](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjB9), после чего [загрузить его](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjF9) в админ панель и добавлять [карты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTd9), игровые механики, [пользователские поля](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9). 
 + После откладки можно так же создать игру для мобильных устройств и ПК с загрузкой ее на маркет плейсы (Google Play Market, Steam) тк данная демо игра поддерживает портирование своих библиотек на различные устройства
 	
