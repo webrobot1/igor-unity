@@ -1,6 +1,6 @@
-Клиентская часть 2D MMORPG онлайн игры "Игорь" для демонстрации проекта [http://my-fantasy.ru/](http://my-fantasy.ru/)  на Unity
-
-Видео описание работы плагина сетевого взаимодействия [https://youtu.be/NyRiODUeChE](https://youtu.be/NyRiODUeChE)
+Клиентская часть 2D MMORPG онлайн игры "Игорь" для демонстрации проекта [http://my-fantasy.ru/](http://my-fantasy.ru/) на Unity
+Видео описание работы входящего в игру плагина сетевого взаимодействия [https://youtu.be/NyRiODUeChE](https://youtu.be/NyRiODUeChE)
+Серверная часть игры доступна в реппозитории [Игорь - серверная часть](https://github.com/webrobot1/igor-game)
 
 Общее описание папок:
 
