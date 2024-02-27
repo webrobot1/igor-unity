@@ -19,19 +19,8 @@ var LibraryWebSocket = {
 		 */
 		instances: {},
 		
-		// объект с контейнером отладки
-		debug: null,
-		
-		// функция логирования для отладки
-		Log: function(json){
-			if (webSocketState.debug)
-			{
-				if(webSocketState.debug.value.length > 2000)
-					webSocketState.debug.value = json;
-				else
-					webSocketState.debug.value = json + "\n" + webSocketState.debug.value;
-			}
-		}, 
+		// осуществляется ли на странице куда встроена игра отладка (наличие функции debug_unity в java script сайта)
+		debug: false, 
 
 		/* очередь сообщений */
 		queue: [],
@@ -164,11 +153,11 @@ var LibraryWebSocket = {
 
 		instance.ws.onopen = function() 
 		{
-			webSocketState.debug = window.document.querySelector("#unity-api-container #debug");
-			if (!webSocketState.debug) webSocketState.debug = window.parent.document.querySelector("#unity-api-container #debug");
-			
+			// если на странце куда встроена игра реализована функция debug
+			webSocketState.debug = (typeof debug_unity === "function");
+
 			if (webSocketState.debug)
-				webSocketState.Log("Connected");
+				debug_unity("Connected");
 			
 			
 			/* если от момента инициализации до конекта есть неотправленные сообщения */
@@ -190,8 +179,7 @@ var LibraryWebSocket = {
 
 			if (webSocketState.debug)
 			{
-				let event = new Date();
-				webSocketState.Log(event.toLocaleTimeString('ru-RU')+":"+event.getMilliseconds()+"\t<- "+ev.data);
+				debug_unity(ev.data);
 			}
 
 			if (webSocketState.onMessage === null)
@@ -226,7 +214,7 @@ var LibraryWebSocket = {
 		instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
-				webSocketState.Log("Error occured");
+				debug_unity("Error occured");
 
 			if (webSocketState.onError) {
 				
@@ -255,7 +243,7 @@ var LibraryWebSocket = {
 				if(perfomance)
 					perfomance.value = '';
 				
-				webSocketState.Log("Closed");
+				debug_unity("Closed");
 			}
 
 			if (webSocketState.onClose)
@@ -318,11 +306,9 @@ var LibraryWebSocket = {
 			return -3;
 
 		let message = HEAPU8.buffer.slice(bufferPtr, bufferPtr + length);
+		
 		if (webSocketState.debug)
-		{	
-			let event = new Date();
-			webSocketState.Log(event.toLocaleTimeString('ru-RU')+":"+event.getMilliseconds()+"\t-> " + new TextDecoder("utf-8").decode(message));
-		}
+			debug_unity(new TextDecoder("utf-8").decode(message), false);
 		
 		if (instance.ws.readyState !== 1)
 		{
