@@ -154,10 +154,13 @@ var LibraryWebSocket = {
 		instance.ws.onopen = function() 
 		{
 			// если на странце куда встроена игра реализована функция debug
-			webSocketState.debug = (typeof debug_unity === "function");
-
+			webSocketState.debug = (typeof debug_unity === "function"?debug_unity:null);
+			
+			// иногда во фреймв страивают игру на сранцие
+            if (!webSocketState.debug) webSocketState.debug = (typeof window.parent.debug_unity === "function"?window.parent.debug_unity:null); 
+			
 			if (webSocketState.debug)
-				debug_unity("Connected");
+				webSocketState.debug("Connected");
 			
 			
 			/* если от момента инициализации до конекта есть неотправленные сообщения */
@@ -178,9 +181,7 @@ var LibraryWebSocket = {
 		instance.ws.onmessage = function(ev) {
 
 			if (webSocketState.debug)
-			{
-				debug_unity(ev.data);
-			}
+				webSocketState.debug(ev.data);
 
 			if (webSocketState.onMessage === null)
 				return;
@@ -214,7 +215,7 @@ var LibraryWebSocket = {
 		instance.ws.onerror = function(ev) {
 			
 			if (webSocketState.debug)
-				debug_unity("Error occured");
+				webSocketState.debug("Error occured");
 
 			if (webSocketState.onError) {
 				
@@ -236,15 +237,7 @@ var LibraryWebSocket = {
 		instance.ws.onclose = function(ev) {
 
 			if (webSocketState.debug)
-			{
-				webSocketState.debug.setAttribute("disabled", "disabled");
-				
-				let perfomance = webSocketState.debug.closest("#unity-api-container").querySelector("#map_id");
-				if(perfomance)
-					perfomance.value = '';
-				
-				debug_unity("Closed");
-			}
+				webSocketState.debug("Closed");
 
 			if (webSocketState.onClose)
 				Module['dynCall_vii'](webSocketState.onClose, instanceId, ev.code);
@@ -308,7 +301,7 @@ var LibraryWebSocket = {
 		let message = HEAPU8.buffer.slice(bufferPtr, bufferPtr + length);
 		
 		if (webSocketState.debug)
-			debug_unity(new TextDecoder("utf-8").decode(message), false);
+			webSocketState.debug(new TextDecoder("utf-8").decode(message), false);
 		
 		if (instance.ws.readyState !== 1)
 		{
