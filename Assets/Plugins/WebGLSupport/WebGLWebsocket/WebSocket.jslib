@@ -20,7 +20,7 @@ var LibraryWebSocket = {
 		instances: {},
 		
 		// осуществляется ли на странице куда встроена игра отладка (наличие функции debug_unity в java script сайта)
-		debug: false, 
+		debug: null, 
 
 		/* очередь сообщений */
 		queue: [],

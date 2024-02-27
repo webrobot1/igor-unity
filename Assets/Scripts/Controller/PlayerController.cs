@@ -10,9 +10,14 @@ namespace MyFantasy
     abstract public class PlayerController : UpdateController
     {
         [SerializeField]
-        private Text ping;      
+        private Text ping; 
+        
         [SerializeField]
         private Text fps;
+
+        [SerializeField]
+        private Text map;
+
         private float deltaTime;
 
 
@@ -162,6 +167,9 @@ namespace MyFantasy
                 }
                 else if (player != null)
                 {
+                    if(recive.map_id!=null)
+                        map.text = "Карта: " + recive.map_id;
+
                     NewObjectModel model = prefab.GetComponent<NewObjectModel>();
                     if (recive.events != null)
                     {
