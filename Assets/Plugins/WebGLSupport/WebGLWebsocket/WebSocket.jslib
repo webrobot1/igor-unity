@@ -192,11 +192,7 @@ var LibraryWebSocket = {
 			}
 	        else if (typeof ev.data === 'string') 
 			{
-				var arrayBuffer = new ArrayBuffer(ev.data.length);
-				var dataBuffer = new Uint8Array(arrayBuffer);
-				
-				// read string message into data buffer
-				dataBuffer.forEach(function(_, i) {dataBuffer[i] = ev.data.charCodeAt(i);});
+				var dataBuffer = new TextEncoder("utf-8").encode(ev.data);
 	        }
 					
 			if (dataBuffer != null) 
