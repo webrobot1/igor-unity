@@ -52,12 +52,6 @@ namespace MyFantasy
 				yield break;
 			}
 
-			if (GAME_ID == 0)
-			{
-				Error("разработчик не указал ИД игры сервиса http://my-fantasy.ru/");
-				yield break;
-			}
-
 			WWWForm formData = new WWWForm();
 			formData.AddField("login", login);
 			formData.AddField("password", password);
