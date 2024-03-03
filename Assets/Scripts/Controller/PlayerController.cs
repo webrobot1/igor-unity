@@ -38,12 +38,12 @@ namespace MyFantasy
         ///  переопределим свйоство игрока да так что бы и вродительском оставался доступен
         ///  Todo кроме cameraContoller и FaceController не используется и то оттуда можно убрать перенеся функционал сюда и сделав protected это свойство
         /// </summary>
-        public static new NewPlayerModel Player
+        public static NewPlayerModel Player
         {
             get 
             { 
                 if (player != null) 
-                    return (NewPlayerModel)ConnectController.Player;
+                    return (NewPlayerModel)player;
                 else 
                     return null; 
             }
