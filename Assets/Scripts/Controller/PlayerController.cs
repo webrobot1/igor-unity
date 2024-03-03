@@ -20,69 +20,61 @@ namespace MyFantasy
 
         private float deltaTime;
 
-
         [SerializeField]
-        private TargetController playerFaceController;       
+        private TargetController _playerFaceController;  
+        
         [SerializeField]
-        private TargetController targetFaceController;
+        private TargetController _targetFaceController;
 
-        /// <summary>
-        ///  переопределим свйоство игрока да так что бы и вродительском оставался доступен
-        ///  Todo кроме cameraContoller и FaceController не используется и то оттуда можно убрать перенеся функционал сюда и сделав protected это свойство
-        /// </summary>
-        public new NewPlayerModel player
-        {
-            get { return (NewPlayerModel)ConnectController.player; }
-        }
-
-        protected NewObjectModel target 
-        {
-            get { return targetFaceController.target; } 
-            set 
-            {
-                if (player != null && value != null && value.key != player.key)
-                   targetFaceController.target = value; 
-                else
-                   targetFaceController.target = null;
-            } 
-        }
+        // сделаем ссылку на объкт постоянной статической
+        private static TargetController _target;
 
         /// <summary>
         ///  это цель которую мы выбрали сами , не автоматическая
         /// </summary>
         protected bool persist_target;
 
-        public static PlayerController Instance { get; private set; }
-        protected override void Awake()
+        /// <summary>
+        ///  переопределим свйоство игрока да так что бы и вродительском оставался доступен
+        ///  Todo кроме cameraContoller и FaceController не используется и то оттуда можно убрать перенеся функционал сюда и сделав protected это свойство
+        /// </summary>
+        public static new NewPlayerModel Player
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(this);
+            get 
+            { 
+                if (player != null) 
+                    return (NewPlayerModel)ConnectController.Player;
+                else 
+                    return null; 
             }
-            else
-            {
-                Instance = this;
-            }
-
-            base.Awake();
         }
 
-
-        protected override void Start()
+        public static NewObjectModel Target 
         {
-            target = null;
+            get { return _target.Target; } 
+            set 
+            {
+                if (player != null && value != null && value.key != player.key)
+                    _target.Target = value; 
+                else
+                    _target.Target = null;
+            } 
+        }
 
+        protected override void Awake()
+        {
             if (ping == null)
                 Error("не присвоен фрейм для статистики пинга");          
             
-            if (playerFaceController == null)
+            if (_playerFaceController == null)
                 Error("не присвоен фрейм жизней игрока");          
             
-            if (targetFaceController == null)
+            if (_targetFaceController == null)
                 Error("не присвоен фрейм жизней цели");
 
-            // скроем наши заплатки (там тестовые иконки выделенного персонажа и врага)
-            playerFaceController.target = targetFaceController.target = null;
+            _target = _targetFaceController;
+
+            base.Awake();
         }
 
         protected override void Update()
@@ -115,45 +107,39 @@ namespace MyFantasy
             string tmp_target = null;
             if (recive.action == ACTION_LOAD)
             {
-                if (target != null)
+                if (Target != null)
                 {
-                    tmp_target = target.key;
+                    tmp_target = Target.key;
                 }
             }
 
             base.HandleData(recive);
 
-            if (playerFaceController.target == null && player != null)
+            if (_playerFaceController.Target == null && Player != null)
             {
                 Debug.Log("Инициализация фрейма игрока");
 
                 // установим иконку нашего персонажа в превью и свяжем его анимацию с ней
-                playerFaceController.target = player;
+               _playerFaceController.Target = Player;
             }
 
-            if (recive.action == ACTION_LOAD && tmp_target != null && target == null)
+            if (recive.action == ACTION_LOAD && tmp_target != null && Target == null)
             {
                 Debug.LogError("Потерялась цель игрока при загрузке " + tmp_target);
                 GameObject gameObject = GameObject.Find(tmp_target);
                 if (gameObject == null)
                 {
-                    target = null;
+                    Target = null;
                 }
                 else
                 {
                     Debug.LogError("Цель была найдена снова " + tmp_target);
-                    target = gameObject.GetComponent<NewObjectModel>();
+                    Target = gameObject.GetComponent<NewObjectModel>();
                 }
             }
            
             if (recive.unixtime > 0)
                 ping.text = "PING: " + Ping() * 1000 +"/" + MaxPing() * 1000 +" ms."; 
-        }
-
-        // активировать меню загрузки
-        private void Loading()
-        {
-            mapObject.SetActive(false);
         }
 
         protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
@@ -165,7 +151,7 @@ namespace MyFantasy
                 {
                     Error("Не удалось содать из пришедншего пакета данных текущего игрока " + key);
                 }
-                else if (player != null)
+                else if (Player != null)
                 {
                     if(recive.map_id!=null)
                         map.text = "Карта: " + recive.map_id;
@@ -177,7 +163,7 @@ namespace MyFantasy
                         {
                             // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
                             // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
-                            string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+                            string attacker = Player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
 
                             if (attacker != null)
                             {
@@ -187,7 +173,7 @@ namespace MyFantasy
                                     NewObjectModel attackerModel = gameObject.GetComponent<NewEnemyModel>();
                                     if (attackerModel != null && CanBeTarget(attackerModel))
                                     {
-                                        target = attackerModel;
+                                        Target = attackerModel;
                                         Debug.Log("Новая цель атаки с сервера: " + attacker);
                                     }
                                 }
@@ -204,7 +190,7 @@ namespace MyFantasy
                                 model.getEventData<AttackDataRecive>(AttackResponse.GROUP).target == player.key)
                             {
                                 // то передадим инфомрацию игроку что бы мы стали его целью
-                                target = model;
+                                Target = model;
                                 Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
                             }
                         }
@@ -218,20 +204,20 @@ namespace MyFantasy
         {
             return
             (
-                Vector3.Distance(player.transform.position, gameObject.transform.position) < player.lifeRadius
+                Vector3.Distance(Player.transform.position, gameObject.transform.position) < Player.lifeRadius
                     &&
                 (
-                    target == null
+                    Target == null
                          ||
                      (
-                         target.key != gameObject.key
+                         Target.key != gameObject.key
                              &&
                          (
-                             (!persist_target && Vector3.Distance(target.position, player.position) > Vector3.Distance(gameObject.transform.position, player.position))
+                             (!persist_target && Vector3.Distance(Target.position, Player.position) > Vector3.Distance(gameObject.transform.position, Player.position))
                                  ||
-                             target.hp == null
+                             Target.hp == null
                                  ||
-                             target.hp == 0
+                             Target.hp == 0
                          )
                      )
                  )

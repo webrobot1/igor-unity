@@ -33,11 +33,36 @@ namespace MyFantasy
         ///  скорость изменения полоски жизней и маны
         /// </summary>
         private static float lineSpeed = 3;
+        private NewObjectModel _target = null;
 
-        private NewObjectModel _target;
-        public NewObjectModel target
+        private void Awake()
         {
-            get { 
+            targetFrame = GetComponentInParent<CanvasGroup>();
+            animator = GetComponent<Animator>();
+            face_camera = transform.parent.GetComponent<Camera>();
+            spriteRender = transform.GetComponent<SpriteRenderer>();
+
+            if (targetFrame == null)
+                PlayerController.Error("не наден фрейм жизней");
+
+            if (animator == null)
+                PlayerController.Error("не наден аниматор фрейма жизней");
+
+            if (hpLine == null)
+                PlayerController.Error("не надено изображения жизней фрейма");
+            hpText = hpLine.GetComponentInChildren<Text>();
+
+            if (mpLine == null)
+                PlayerController.Error("не надено изображения жизней фрейма");
+            mpText = mpLine.GetComponentInChildren<Text>();
+
+            Target = null;
+        }
+
+        public NewObjectModel Target
+        {
+            get 
+            { 
                 return _target; 
             }
             set
@@ -83,7 +108,7 @@ namespace MyFantasy
 
                             FillUpdate(hpLine, (float)value.hp, value.hpMax, hpText, true);
 
-                            if (value.lifeBar != null && (PlayerController.Instance.player == null || value.key != PlayerController.Instance.player.key))
+                            if (value.lifeBar != null && (PlayerController.Player == null || value.key != PlayerController.Player.key))
                             {
                                 if (value.hp > 0)
                                     EnableLine(value.lifeBar);
@@ -96,7 +121,7 @@ namespace MyFantasy
                         if (value.mp != null)
                         {
                             // ДА! Тоже завязан показ на жизни
-                            if (value.mpMax>0 && ((value.hp != null && value.hp > 0) || (PlayerController.Instance.player != null && target.key == PlayerController.Instance.player.key)))
+                            if (value.mpMax>0 && ((value.hp != null && value.hp > 0) || (PlayerController.Player != null && _target.key == PlayerController.Player.key)))
                                 EnableLine(mpLine);
                             else
                                 DisableLine(mpLine);
@@ -123,31 +148,6 @@ namespace MyFantasy
             line.transform.parent.gameObject.SetActive(false);
         }
 
-        private void Awake()
-        {
-            targetFrame = GetComponentInParent<CanvasGroup>();
-            animator = GetComponent<Animator>();
-            face_camera = transform.parent.GetComponent<Camera>();
-            spriteRender = transform.GetComponent<SpriteRenderer>();
-        }
-
-        private void Start()
-        {        
-            if (targetFrame == null)
-                PlayerController.Error("не наден фрейм жизней");
-
-            if (animator == null)
-                PlayerController.Error("не наден аниматор фрейма жизней");
-
-            if (hpLine == null)
-                PlayerController.Error("не надено изображения жизней фрейма");
-            hpText = hpLine.GetComponentInChildren<Text>();
-
-            if (mpLine == null)
-                PlayerController.Error("не надено изображения жизней фрейма");
-            mpText = mpLine.GetComponentInChildren<Text>();
-        }
-
         // если изображения анимации с сильно отличабщимеся pivot to возможно надо будет каждый FixedUpdate делать этот метод для пересчета положения камеры и объекта что бы он не выходил за рамки
         void CameraUpdate()
         {
@@ -165,49 +165,49 @@ namespace MyFantasy
 
         private void FixedUpdate()
         {
-            if (target!=null)
+            if (_target != null)
             {
                 CameraUpdate();
-                if (PlayerController.Instance.player == null || (target.key != PlayerController.Instance.player.key && Vector3.Distance(PlayerController.Instance.player.transform.position, target.transform.position) >= PlayerController.Instance.player.lifeRadius))
+                if (PlayerController.Player == null || (_target.key != PlayerController.Player.key && Vector3.Distance(PlayerController.Player.transform.position, _target.transform.position) >= PlayerController.Player.lifeRadius))
                 {
-                    target = null;
+                    _target = null;
                     return;
                 }
                     
-                if (target.animator != null && target.layerIndex != layerIndex)
+                if (_target.animator != null && _target.layerIndex != layerIndex)
                 {
                     Animate();
                 }
 
-                if (target.hp != null)
+                if (_target.hp != null)
                 {
-                    if (target.hp > 0 || (PlayerController.Instance.player != null && target.key == PlayerController.Instance.player.key))
+                    if (_target.hp > 0 || (PlayerController.Player != null && _target.key == PlayerController.Player.key))
                         EnableLine(hpLine);
                     else
                         DisableLine(hpLine);
 
-                    FillUpdate(hpLine, (float)target.hp, target.hpMax, hpText);
+                    FillUpdate(hpLine, (float)_target.hp, _target.hpMax, hpText);
 
-                    if (target.lifeBar != null && (PlayerController.Instance.player == null || target.key != PlayerController.Instance.player.key))
+                    if (_target.lifeBar != null && (PlayerController.Player == null || _target.key != PlayerController.Player.key))
                     {
-                        if (target.hp>0)
-                            EnableLine(target.lifeBar); 
+                        if (_target.hp>0)
+                            EnableLine(_target.lifeBar); 
                         else
-                            DisableLine(target.lifeBar);
+                            DisableLine(_target.lifeBar);
 
-                        FillUpdate(target.lifeBar, (float)target.hp, target.hpMax);
+                        FillUpdate(_target.lifeBar, (float)_target.hp, _target.hpMax);
                     }     
                 }
                     
-                if (target.mp!=null)
+                if (_target.mp!=null)
                 {
                     // ДА! Тоже завязан показ на жизни
-                    if (target.mpMax>0 && ((target.hp!=null && target.hp>0) || (PlayerController.Instance.player != null && target.key == PlayerController.Instance.player.key)))
+                    if (_target.mpMax>0 && ((_target.hp!=null && _target.hp>0) || (PlayerController.Player != null && _target.key == PlayerController.Player.key)))
                         EnableLine(mpLine);
                     else
                         DisableLine(mpLine);
 
-                    FillUpdate(mpLine, (float)target.mp, target.mpMax, mpText);
+                    FillUpdate(mpLine, (float)_target.mp, _target.mpMax, mpText);
                 }
             }     
         }
@@ -229,8 +229,8 @@ namespace MyFantasy
 
         private void Animate()
         {
-            target.Animate(animator, target.layerIndex);
-            layerIndex = target.layerIndex;
+            _target.Animate(animator, _target.layerIndex);
+            layerIndex = _target.layerIndex;
         }
     }
 }

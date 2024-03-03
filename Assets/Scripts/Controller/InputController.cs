@@ -20,14 +20,11 @@ namespace MyFantasy
         [SerializeField]
         private VariableJoystick joystick;
 
+        /// <summary>
+        /// книга заклинаний
+        /// </summary>
         [SerializeField]
-        private Button button_skill1;              
-        
-        [SerializeField]
-        private Button button_skill2;       
-        
-        [SerializeField]
-        private Button button_skill3;      
+        private CanvasGroup spellBook;
 
         /// <summary>
         /// нажата кнопка двигаться по горизонтали
@@ -46,11 +43,11 @@ namespace MyFantasy
         /// </summary>
         private DateTime block_forward = DateTime.Now;
 
-
         protected override void Awake()
         {
-            base.Awake();
-
+            if (joystick == null)
+                Error("не указан джойстик");
+            
             #if UNITY_WEBGL && !UNITY_EDITOR
                  WebGLRotation.Rotation(1);
             #else
@@ -58,55 +55,14 @@ namespace MyFantasy
                 Screen.autorotateToPortrait = false;
                 Screen.orientation = ScreenOrientation.AutoRotation;
             #endif
+
+            base.Awake();
         }
-
-        protected override void Start()
-        {
-            if (joystick == null)
-                Error("не указан джойстик");
-
-            if (button_skill1 == null)
-                Error("не указана кнопка атаки 1");          
-            
-            if (button_skill2 == null)
-                Error("не указана кнопка атаки 2");
-
-            if (button_skill3 == null)
-                Error("не указана кнопка атаки 2");
-
-            button_skill1.onClick.AddListener(delegate { Attack("firebolt"); });
-            button_skill2.onClick.AddListener(delegate { Attack("icebolt"); });
-            button_skill3.onClick.AddListener(delegate { Attack("lightbolt"); });
-           
-            base.Start();
-        }
-
-        private void Attack(string magic)
-        {
-            if(player.action != ACTION_REMOVE)
-            {
-                AttackResponse response = new AttackResponse();
-                response.magic = magic;
-
-                if (target!=null)
-                {
-                    response.target = target.key;
-                }
-                else
-                {
-                    // именно то в каком положении наш персонаж
-                    response.x = Math.Round(player.transform.forward.x, position_precision);
-                    response.y = Math.Round(player.transform.forward.y, position_precision);
-                }
-                Send(response);
-            }
-        }
-
 
         protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
             // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
-            if (player != null && key == player.key && recive.action!=null)
+            if (Player != null && key == Player.key && recive.action!=null)
             {
                 block_forward = DateTime.Now.AddSeconds(0.2f);
             }
@@ -117,6 +73,11 @@ namespace MyFantasy
         protected override void Update()
         {
             base.Update();
+
+            if (Input.GetKeyDown(KeyCode.P))
+            {
+                OpenClose(spellBook);
+            }
 
             // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
             if (Input.GetMouseButtonDown(0))
@@ -138,24 +99,31 @@ namespace MyFantasy
                         NewObjectModel new_target = hit.collider.GetComponent<NewObjectModel>();
                         if (new_target != null)
                         {
-                            target = new_target;
-                            base.persist_target = true;
+                            Target = new_target;
+                            persist_target = true;
                             Debug.Log("Кликнули на " + new_target.key);
                         }
                     }
                     else
                     {
-                        target = null;
-                        base.persist_target = false;
+                        Target = null;
+                        persist_target = false;
 
                         Debug.Log("Кликнули на "+GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
                         move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
-                        if (Vector3.Distance(player.position, move_to) < 1.15f)
+                        if (Vector3.Distance(Player.position, move_to) < 1.15f)
                             move_to = Vector3.zero;
                     }
                 }
             }
         }
+
+        public void OpenClose(CanvasGroup canvasGroup)
+        {
+            canvasGroup.alpha = canvasGroup.alpha>0?0:1;
+            canvasGroup.blocksRaycasts = canvasGroup.blocksRaycasts ?false:true;
+        }
+
 
         protected override void FixedUpdate() 
         {

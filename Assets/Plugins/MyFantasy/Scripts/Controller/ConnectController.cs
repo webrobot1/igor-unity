@@ -30,13 +30,6 @@ namespace MyFantasy
 		public const string ACTION_LOAD = "load";
 
 		/// <summary>
-		/// позволить слать запрос к серверу чуть раньше (на время доставки пакета - расчитвается как пол пинга) что бы к моменту таймаута события сервера запрос на новое уже был
-		/// число - на сколько делим PING что бы обозначит время на доставку пакета в одну сторону (0.5 = считается половиной ping которая приближена ко времени на доставку пакета в одну сторону)
-		/// меньше можно ольше не нужно тк будет ошибка на сервере что слишком быстро пришел пакет и запрос по сути будет зря
-		/// </summary>
-		private const float INTERPOLATION = 0.5f;
-
-		/// <summary>
 		/// установленная на сервере длинна шага. нужно для проверки шагаем ли мы или телепортируемся (тк даже механика быстрого полета или скачек - это тоже хотьба)
 		/// </summary>
 		public static float step;
@@ -68,11 +61,10 @@ namespace MyFantasy
 
 		/// <summary>
 		/// Префаб нашего игрока
-		/// TODO переделать в нестатический
+		/// TODO переделать в статический get - set свойство возвращающее ваш (переопределенный) объект ObjectModel
 		/// </summary>
-		[NonSerialized]
-		public static ObjectModel player;
-	
+		protected static ObjectModel player = null;
+
 		/// <summary>
 		/// Ссылка на конектор
 		/// </summary>
@@ -111,9 +103,16 @@ namespace MyFantasy
 		private static Coroutine coroutine;
 
 		/// <summary>
+		/// позволить слать запрос к серверу чуть раньше (на время доставки пакета - расчитвается как пол пинга) что бы к моменту таймаута события сервера запрос на новое уже был
+		/// число - на сколько делим PING что бы обозначит время на доставку пакета в одну сторону (0.5 = считается половиной ping которая приближена ко времени на доставку пакета в одну сторону)
+		/// меньше можно ольше не нужно тк будет ошибка на сервере что слишком быстро пришел пакет и запрос по сути будет зря
+		/// </summary>
+		private const float INTERPOLATION = 0.5f;
+
+		/// <summary>
 		/// максимальное количество секунд паузы между загрузками
 		/// </summary>
-		protected const int MAX_PAUSE_SEC = 10;
+		private const int MAX_PAUSE_SEC = 10;
 		
 		/// <summary>
 		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
@@ -128,12 +127,12 @@ namespace MyFantasy
 		/// <summary>
 		/// через сколько секунд передавать на сервер результаты расчета пинга (не чаще чем сохраняется игрок в бд)
 		/// </summary>
-		protected const double PING_SEND_SEC = 60;
+		private const double PING_SEND_SEC = 60;
 
 		/// <summary>
 		/// через сколько секунд мы отправляем на серер запрос с Unixtime для анализа пинга
 		/// </summary>
-		protected const float PING_REQUEST_SEC = 0.5f;
+		private const float PING_REQUEST_SEC = 0.5f;
 
 		/// <summary>
 		/// последний отправленный уже расчитаного пинга на сервер (если не будут отличаться новые пинг не отправится)
@@ -209,6 +208,8 @@ namespace MyFantasy
 						// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
 						loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 
+						connect.CloseAsync();
+						connect = null;
 						Connect(host, player_key, player_token, step, position_precision, server_fps);
 					}
 				}
@@ -222,15 +223,24 @@ namespace MyFantasy
 
 		abstract protected void Handle(string json);
 
+
+		protected override void Awake()
+        {
+			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
+			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
+			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
+			Time.fixedDeltaTime = 0.01f;
+			Application.targetFrameRate = 100;
+
+			base.Awake();
+		}
+
 		/// <summary>
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
 		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps)
 		{
-			errors.Clear();
-			recives.Clear();
-
 			ConnectController.host = host;
 			ConnectController.player_key = player_key;
 			ConnectController.player_token = player_token;
@@ -238,13 +248,7 @@ namespace MyFantasy
 			ConnectController.step = step;                                    // максимальный размер шага. умножается тк по диагонали идет больще
 			ConnectController.position_precision = position_precision;        // длина шага
 
-			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
-			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
-			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
-			Time.fixedDeltaTime = 0.01f;
-			Application.targetFrameRate = 100;
-
-			//QualitySettings.vSyncCount = 0;
+			recives.Clear();		
 
 			coroutine = null;
 			loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
@@ -252,132 +256,146 @@ namespace MyFantasy
 			string address = "ws://" + host;
 			Debug.Log("WebSocket - соединяемся сервером " + address);
 
-			if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.New || connect.ReadyState == WebSocketState.Connecting))
-			{
-				Error("WebSocket - соединение сих пор открыто");
-			}
-
-			try
-			{
-				WebSocket ws = new WebSocket(address);
-				Debug.Log("WebSocket - новое соединение с сервером " + ws.Url);
-
-				// так в C# можно
-				ws.SetCredentials(player_key, player_token, true);
-				ws.OnOpen += (object sender, System.EventArgs e) =>
+			if (coroutine == null && errors.Count == 0)
+            {		
+				if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.New || connect.ReadyState == WebSocketState.Connecting))
 				{
-
-					#if !UNITY_WEBGL || UNITY_EDITOR
-						// обязательно отключим алгоритм Nagle который не отправляет маленькие пакеты.  в браузерных websocket он отключен
-						var tcpClient = typeof(WebSocket).GetField("_tcpClient", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ws) as System.Net.Sockets.TcpClient;
-						tcpClient.NoDelay = true;
-					#endif
-
-					Debug.Log("WebSocket - соединение с сервером " + ws.Url + " установлено");
-
-					connect = ws;
-				};
-				ws.OnClose += (sender, ev)  =>
-				{
-					if(connect != null) 
-					{ 
-						if (reload == ReloadStatus.None && connect == ws)
-							Error("WebSocket - текущее соединение " + connect.Url+ " закрыто сервером: " + ev.Code);
-						else
-							Debug.Log("WebSocket - закрылось старое соединение с сервером " + ws.Url);
-					}
-				};
-				ws.OnError += (sender, ev) =>
-				{
-					if (reload == ReloadStatus.None && connect!=null && connect == ws)
-						Error("WebSocket - Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
-					else
-						Debug.LogError("WebSocket - Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
-				};
-				ws.OnMessage += (sender, ev) =>
+					Error("WebSocket - соединение сих пор открыто");
+				}
+				else
 				{
 					try
 					{
-						string text = Encoding.UTF8.GetString(ev.RawData);
+						WebSocket ws = new WebSocket(address);
+						Debug.Log("WebSocket - новое соединение с сервером " + ws.Url);
 
-					#if UNITY_EDITOR
-						Debug.Log("WebSocket - Пришел пакет" + text);
-					#endif
-
-						if (coroutine == null && reload == ReloadStatus.None)
+						// так в C# можно
+						ws.SetCredentials(player_key, player_token, true);
+						ws.OnOpen += (object sender, System.EventArgs e) =>
 						{
-							Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
 
-							if (recive.error != null)
-							{
-								Error(recive.error);
-							}
+							#if !UNITY_WEBGL || UNITY_EDITOR
+								// обязательно отключим алгоритм Nagle который не отправляет маленькие пакеты.  в браузерных websocket он отключен
+								var tcpClient = typeof(WebSocket).GetField("_tcpClient", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ws) as System.Net.Sockets.TcpClient;
+								tcpClient.NoDelay = true;
+							#endif
+
+							Debug.Log("WebSocket - соединение с сервером " + ws.Url + " установлено");
+					
+							// если к моменту соединения есть ошибки или загружена сцена регистрации
+							if (coroutine != null || errors.Count > 0)
+                            {
+								ws.CloseAsync();
+								throw new Exception("В процессе инициализации класса произошли ошибки");
+							}							
 							else
+								connect = ws;
+						};
+						ws.OnClose += (sender, ev)  =>
+						{
+							if(connect != null) 
+							{ 
+								if (reload == ReloadStatus.None && connect == ws)
+									Error("WebSocket - текущее соединение " + connect.Url+ " закрыто сервером: " + ev.Code);
+								else
+									Debug.Log("WebSocket - закрылось старое соединение с сервером " + ws.Url);
+							}
+						};
+						ws.OnError += (sender, ev) =>
+						{
+							if (reload == ReloadStatus.None && connect!=null && connect == ws)
+								Error("WebSocket - Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
+							else
+								Debug.LogError("WebSocket - Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
+						};
+						ws.OnMessage += (sender, ev) =>
+						{
+							try
 							{
-								// сразу не подключаемя тк нужно дождаться fixed update который обработает существующие пакеты в тч и тот что пришел сейчас
-								if(recive.host != null)
-                                {
-									ConnectController.connect = null;
-									ConnectController.host = recive.host;
+								string text = Encoding.UTF8.GetString(ev.RawData);
 
-									// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-									reload = ReloadStatus.Start;
-									
-									// закроем соединение что бы не пришел пакет о закрытие соединения
-									//Close();
-									Debug.Log("WebSocket - Перезаход в игру");
-								}
+							#if UNITY_EDITOR
+								Debug.Log("WebSocket - Пришел пакет" + text);
+							#endif
 
-								if (recive.action == ACTION_LOAD)
+								if (coroutine == null && reload == ReloadStatus.None)
 								{
-									// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
-									// очищать можно только тут loading  не давал Update
-									recives.Clear();
+									Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
 
-									// снимем флаг загрузки и разрешим отправлять пакеты к серверу
-									loading = null;
-								}
-
-								// это тоже обновим тут что бы ping и pings не делать protected 
-								if (recive.unixtime > 0)
-								{
-									double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
-									pings.Add(tmp_ping);
-
-									// если пришедший пинг больше текущего или пришла пора обновить пинги
-									if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
+									if (recive.error != null)
 									{
-										ping = Math.Round((pings.Sum() / pings.Count), 3);
-										max_ping = Math.Round(pings.Max(), 3);
-										if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
-											pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
+										Error(recive.error);
+									}
+									else
+									{
+										// сразу не подключаемя тк нужно дождаться fixed update который обработает существующие пакеты в тч и тот что пришел сейчас
+										if(recive.host != null)
+										{
+											ConnectController.connect = null;
+											ConnectController.host = recive.host;
+
+											// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
+											reload = ReloadStatus.Start;
+									
+											// закроем соединение что бы не пришел пакет о закрытие соединения
+											//Close();
+											Debug.Log("WebSocket - Перезаход в игру");
+										}
+
+										if (recive.action == ACTION_LOAD)
+										{
+											// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
+											// очищать можно только тут loading  не давал Update
+											recives.Clear();
+
+											// снимем флаг загрузки и разрешим отправлять пакеты к серверу
+											loading = null;
+										}
+
+										// это тоже обновим тут что бы ping и pings не делать protected 
+										if (recive.unixtime > 0)
+										{
+											double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
+											pings.Add(tmp_ping);
+
+											// если пришедший пинг больше текущего или пришла пора обновить пинги
+											if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
+											{
+												ping = Math.Round((pings.Sum() / pings.Count), 3);
+												max_ping = Math.Round(pings.Max(), 3);
+												if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
+													pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
+											}
+										}
+
+										recives.Enqueue(text);
 									}
 								}
-
-								recives.Enqueue(text);
 							}
-						}
+							catch(Exception ex)
+							{
+								Error("WebSocket - Ошибка обработки сообщения от сервера: ", ex);
+							}
+						};
+
+						connect = ws;
+
+						#if !UNITY_WEBGL || UNITY_EDITOR
+							connect.ConnectAsync();
+						#else
+							connect.Connect();
+						#endif
+
+						reload = ReloadStatus.None;
 					}
-					catch(Exception ex)
-                    {
-						Error("WebSocket - Ошибка обработки сообщения от сервера: ", ex);
+					catch (Exception ex)
+					{
+						Error("WebSocket - Ошибка октрытия соединения ", ex);
 					}
-				};
-
-				connect = ws;
-
-				#if !UNITY_WEBGL || UNITY_EDITOR
-					connect.ConnectAsync();
-				#else
-					connect.Connect();
-				#endif
-
-				reload = ReloadStatus.None;
+				}
 			}
-			catch (Exception ex)
-			{
-				Error("WebSocket - Ошибка октрытия соединения ", ex);
-			}
+			else
+				throw new Exception("В процессе инициализации класса произошли ошибки");
 		}
 
 		/// <summary>
@@ -409,7 +427,7 @@ namespace MyFantasy
 								||
 							// может быть и null когда событие только создано или отправили пакет когда был action == "" (что означает что на сервере нет текущего события в обработке и модно слать)
 							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout) 
-								|| 
+								||
 							player.getEvent(data.group).from_client != true
 						)
 					{
@@ -453,7 +471,7 @@ namespace MyFantasy
 						if (player.getEvent(data.group).action == "")
 							player.getEvent(data.group).action = null;
 
-						Debug.Log("WebSocket - Отправили серверу " + json);
+						Debug.Log(player.key+": отправили в websocket " + json);
 						Put2Send(json);	
 					}
 					//else
@@ -496,7 +514,7 @@ namespace MyFantasy
 
 			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout);
 
-			Debug.Log("Новое значение оставшегося времени группы событий "+ group + ": "+player.GetEventRemain(group));
+			Debug.Log("Новое значение оставшегося времени группы событий "+ group + ": "+ player.GetEventRemain(group));
 		}
 
 		private static void Close()
@@ -531,7 +549,7 @@ namespace MyFantasy
 			}
 		}
 
-		public new static void  Error (string text, Exception ex = null)
+		public new static void Error (string text, Exception ex = null)
 		{
 			if (ex!=null)
 				Debug.LogException(ex);

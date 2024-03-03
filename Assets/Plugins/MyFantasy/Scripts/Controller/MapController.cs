@@ -30,28 +30,34 @@ namespace MyFantasy
 		/// <summary>
 		/// массив с перечнем с какой стороны какая смежная карта
 		/// </summary>
-		protected Dictionary<int, Point> sides = new Dictionary<int, Point>();
+		protected static Dictionary<int, Point> sides;
 
 		/// <summary>
 		/// массив декодированных с сервера карт
 		/// </summary>
-		protected Dictionary<int, MapDecode> maps = new Dictionary<int, MapDecode>();
+		protected static Dictionary<int, MapDecode> maps;
 
-		protected virtual void Start()
+		protected override void Awake()
 		{
 			if (mapObject == null)
 				Error("не присвоен GameObject для карт");
 
 			if (worldObject == null)
 				Error("не присвоен GameObject для игровых обектов");
+
+			// определяем здесь что бы сбросить статичные свойства если мы перезаходили в игру
+			sides = new Dictionary<int, Point>();
+			maps = new Dictionary<int, MapDecode>();
+
+			base.Awake();
 		}
 		
-		public Dictionary<int, MapDecode> getMaps()
+		public static Dictionary<int, MapDecode> getMaps()
         {
 			return maps;
 		}		
 		
-		public Dictionary<int, Point> getSides()
+		public static Dictionary<int, Point> getSides()
         {
 			return sides;
 		}

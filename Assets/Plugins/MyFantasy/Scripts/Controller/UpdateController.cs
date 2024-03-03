@@ -139,7 +139,7 @@ namespace MyFantasy
 			
 
 			// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
-			if (this.maps.Count > 0)
+			if (maps.Count > 0)
 			{
 				foreach (Transform grid in mapObject.transform)
 				{
@@ -155,7 +155,7 @@ namespace MyFantasy
 				}
 			}
 
-			this.sides = sides;
+			MapController.sides = sides;
 			SortMap();
 
 
