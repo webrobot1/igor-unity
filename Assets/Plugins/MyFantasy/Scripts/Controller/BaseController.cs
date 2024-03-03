@@ -6,15 +6,8 @@ namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		[SerializeField]
-		protected const int GAME_ID = 2;      // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://my-fantasy.ru/  раздела Игры
-
-		#if UNITY_EDITOR || DEVELOPMENT_BUILD
-			// это адрес-мост через наш ПК в wsl сервер Ubuntu (Аналог XAMP и Openserver), подробнее в папке /.docs проекта сервер.
-			protected const string SERVER = "127.0.0.1:8080";   //localhost не подходит тк http переадресуются, а websocket пойдут уже на наш ПК
-#else
-			protected const string SERVER = "my-fantasy.ru";   // это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
-#endif
+		public const int GAME_ID = 2;					  // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://my-fantasy.ru/  раздела Игры
+		public const string SERVER = "my-fantasy.ru";     // это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
@@ -31,7 +24,6 @@ namespace MyFantasy
 
 		protected virtual void Awake()
 		{
-
 			// продолжать принимать данные и обновляться в фоновом режиме
 			Application.runInBackground = true;
 
