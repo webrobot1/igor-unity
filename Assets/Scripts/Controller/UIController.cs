@@ -12,7 +12,7 @@ namespace MyFantasy
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class InputController : PlayerController
+    public class UIController : PlayerController
     {
         /// <summary>
         /// наш джойстик
@@ -20,6 +20,12 @@ namespace MyFantasy
         [SerializeField]
         private VariableJoystick joystick;
 
+        /// <summary>
+        /// книга заклинаний
+        /// </summary>
+        [SerializeField]
+        private CanvasGroup settingGroup;        
+        
         /// <summary>
         /// книга заклинаний
         /// </summary>
@@ -62,7 +68,7 @@ namespace MyFantasy
         protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
         {
             // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
-            if (Player != null && key == Player.key && recive.action!=null)
+            if (player != null && key == player.key && recive.action!=null)
             {
                 block_forward = DateTime.Now.AddSeconds(0.2f);
             }
@@ -77,11 +83,17 @@ namespace MyFantasy
             if (Input.GetKeyDown(KeyCode.P))
             {
                 OpenClose(spellBook);
+            }            
+            
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                OpenClose(settingGroup);
             }
 
             // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
             if (Input.GetMouseButtonDown(0))
             {
+                // кликнули на ГШ эллемент
                 if
                 (
                     (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
@@ -94,6 +106,8 @@ namespace MyFantasy
                 else
                 {
                     RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
+                   
+                    // кликнули на какой то объект
                     if (hit.collider != null)
                     {
                         NewObjectModel new_target = hit.collider.GetComponent<NewObjectModel>();
@@ -108,18 +122,23 @@ namespace MyFantasy
                     {
                         Target = null;
                         persist_target = false;
+                        Debug.Log("Кликнули на "+Camera.main.ScreenToWorldPoint(Input.mousePosition));
 
-                        Debug.Log("Кликнули на "+GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition));
-                        move_to = GetComponent<Camera>().ScreenToWorldPoint(Input.mousePosition);
-                        if (Vector3.Distance(Player.position, move_to) < 1.15f)
+                        // движение к указанной клетке
+                        if (player != null) 
+                        { 
+                            move_to = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                            if (Vector3.Distance(player.position, move_to) < 1.15f)
                             move_to = Vector3.zero;
+                        }
                     }
                 }
             }
         }
 
-        public void OpenClose(CanvasGroup canvasGroup)
+        private void OpenClose(CanvasGroup canvasGroup)
         {
+            // не только скрыть но и позволить кликать по той области что бы ходить персонажем
             canvasGroup.alpha = canvasGroup.alpha>0?0:1;
             canvasGroup.blocksRaycasts = canvasGroup.blocksRaycasts ?false:true;
         }

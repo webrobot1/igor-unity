@@ -115,11 +115,12 @@ namespace MyFantasy
 
             base.HandleData(recive);
 
-            if (_playerFaceController.Target == null && Player != null)
+            if (_playerFaceController.Target == null && player != null)
             {
                 Debug.Log("Инициализация фрейма игрока");
 
                 // установим иконку нашего персонажа в превью и свяжем его анимацию с ней
+                // именно Player - новый объект нашего игрока унаследованного от объекта плагина сервера 
                _playerFaceController.Target = Player;
             }
 
@@ -151,7 +152,7 @@ namespace MyFantasy
                 {
                     Error("Не удалось содать из пришедншего пакета данных текущего игрока " + key);
                 }
-                else if (Player != null)
+                else if (player != null)
                 {
                     if(recive.map_id!=null)
                         map.text = "Карта: " + recive.map_id;
@@ -163,7 +164,7 @@ namespace MyFantasy
                         {
                             // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
                             // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
-                            string attacker = Player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+                            string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
 
                             if (attacker != null)
                             {
@@ -204,7 +205,7 @@ namespace MyFantasy
         {
             return
             (
-                Vector3.Distance(Player.transform.position, gameObject.transform.position) < Player.lifeRadius
+                Vector3.Distance(player.transform.position, gameObject.transform.position) < player.lifeRadius
                     &&
                 (
                     Target == null
@@ -213,7 +214,7 @@ namespace MyFantasy
                          Target.key != gameObject.key
                              &&
                          (
-                             (!persist_target && Vector3.Distance(Target.position, Player.position) > Vector3.Distance(gameObject.transform.position, Player.position))
+                             (!persist_target && Vector3.Distance(Target.position, player.position) > Vector3.Distance(gameObject.transform.position, player.position))
                                  ||
                              Target.hp == null
                                  ||

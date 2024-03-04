@@ -69,8 +69,13 @@ namespace MyFantasy
             {
                 // ниже не даигать тк тут может быть null и мы повторно его присваиваем что бы скрыть заплатки тестовые
                 // +  при переходе с севрера на сервер и объекты уничтожаясь НЕ вызвают тут set, но null будет стоять
-                if (value == null) 
+                if (value == null)
+                {
+                    // не только скрыть но и позволить кликать по той области что бы ходить персонажем
                     targetFrame.alpha = 0;
+                    targetFrame.blocksRaycasts = false;
+                }
+                    
 
                 if (_target != value)
                 {
@@ -133,6 +138,7 @@ namespace MyFantasy
 
                         // покажем целиком верхнюю группу с анимациями      
                         targetFrame.alpha = 1;
+                        targetFrame.blocksRaycasts = true;
                     }
                 }  
             }
