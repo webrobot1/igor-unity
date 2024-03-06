@@ -37,7 +37,12 @@ namespace MyFantasy
         /// <summary>
         /// настрйоки ключ - значение
         /// </summary>
-        private Dictionary<string, string> _settings = new Dictionary<string, string>();
+        private Dictionary<string, string> _settings = new Dictionary<string, string>();       
+        
+        /// <summary>
+        /// список выпадающих списокв
+        /// </summary>
+        private Dictionary<string, string[]> _lists = new Dictionary<string, string[]>();
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
@@ -46,67 +51,94 @@ namespace MyFantasy
                 Dictionary<string, Setting> settings = ((PlayerRecive)recive).components.settings;
                 if (settings != null)
                 {
-                    _settings.Clear();
-                    foreach (Transform child in SettingArea.transform)
-                    {
-                        Destroy(child.gameObject);
+                    // удалим демоснтрационные данные
+                    if(_settings.Count == 0) 
+                    { 
+                        foreach (Transform child in SettingArea.transform)
+                        {
+                            Destroy(child.gameObject);
+                        }
                     }
 
-                    GameObject prefab;
                     foreach (var setting in settings)
                     {
+                        GameObject prefab = null;
                         switch (setting.Value.type)
                         {
                             case "checkbox":
-                                prefab = Instantiate(SettingPrefabCheckbox) as GameObject;
-                                Toggle toggle = prefab.GetComponentInChildren<Toggle>();
+                                Toggle toggle;
+                                if (_settings.ContainsKey(setting.Key))
+                                {
+                                    toggle = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Toggle>();
+                                }
+                                else
+                                {
+                                    prefab = Instantiate(SettingPrefabCheckbox, SettingArea.transform) as GameObject;
+                                    toggle = prefab.GetComponentInChildren<Toggle>();
+                                    toggle.onValueChanged.AddListener(delegate { CheckboxOnChange(setting.Key, toggle); });
+                                }
 
                                 toggle.isOn = (float.Parse(setting.Value.value) != 0 ? true : false);
-                                toggle.onValueChanged.AddListener(delegate { CheckboxOnChange(setting.Key, toggle); });
                             break;                            
                             case "slider":
-                                prefab = Instantiate(SettingPrefabScroll) as GameObject;
+                                Slider slider;
+                                if (_settings.ContainsKey(setting.Key))
+                                {
+                                    slider = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Slider>();
+                                }
+                                else
+                                {
+                                    prefab = Instantiate(SettingPrefabScroll, SettingArea.transform) as GameObject;
+                                    slider = prefab.GetComponentInChildren<Slider>();
+                                   
+                                    Text text = prefab.transform.Find("Value").GetComponent<Text>();
+                                    if (text != null)
+                                        text.text = setting.Value.value;
 
-                                Slider slider = prefab.GetComponentInChildren<Slider>();
-                                Text text = prefab.transform.Find("Value").GetComponent<Text>();
+                                    if (setting.Value.min != null)
+                                        slider.minValue = (float)setting.Value.min;
+                                    if (setting.Value.max != null)
+                                        slider.maxValue = (float)setting.Value.max;
 
-                                if (setting.Value.min != null)
-                                    slider.minValue = (float)setting.Value.min;
-                                if (setting.Value.max != null)
-                                    slider.maxValue = (float)setting.Value.max;
+                                    slider.onValueChanged.AddListener(delegate { ScrollOnChange(setting.Key, slider, text); });
+                                }           
 
                                 slider.value = float.Parse(setting.Value.value);
-
-                                if(text!=null)
-                                    text.text = setting.Value.value;
-
-                                slider.onValueChanged.AddListener(delegate { ScrollOnChange(setting.Key, slider, text); });
                             break;                           
                             case "dropdown":
-                                prefab = Instantiate(SettingPrefabDropdown) as GameObject;
-                                Dropdown dropdown = prefab.GetComponentInChildren<Dropdown>();
+                                Dropdown dropdown;
 
-                                List<string> list1 = new List<string>(setting.Value.values.Values);
-                                string[] list2 = new List<string>(setting.Value.values.Keys).ToArray();
-                               
-                                dropdown.ClearOptions();
-                                dropdown.AddOptions(list1);
-                                dropdown.value = Array.IndexOf(list2, setting.Value.value);
-                                dropdown.onValueChanged.AddListener(delegate { DropdownOnChange(setting.Key, dropdown, list2); });
+                                if (_settings.ContainsKey(setting.Key))
+                                {
+                                    dropdown = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Dropdown>();
+                                }
+                                else
+                                {
+                                    prefab = Instantiate(SettingPrefabDropdown, SettingArea.transform) as GameObject;
+                                    dropdown = prefab.GetComponentInChildren<Dropdown>();
+
+                                    List<string> list = new List<string>(setting.Value.values.Values);
+                                    _lists[setting.Key] = new List<string>(setting.Value.values.Keys).ToArray();
+
+                                    dropdown.ClearOptions();
+                                    dropdown.AddOptions(list);
+                                    dropdown.onValueChanged.AddListener(delegate { DropdownOnChange(setting.Key, dropdown); });
+                                }
+
+                                dropdown.value = Array.IndexOf(_lists[setting.Key], setting.Value.value);
                             break;
                             default:
                                 Error("С сервера пришла настройка с остутвующим в клиенте типом " + setting.Value.type);
                             return null;
                         }
 
-                        prefab.name = setting.Key;
-                        if (prefab.transform.Find("Title") != null && prefab.transform.Find("Title").GetComponent<Text>() != null)
-                            prefab.transform.Find("Title").GetComponent<Text>().text = setting.Value.title;
-
-                        prefab.transform.SetParent(SettingArea.transform);
-
-                        // todo - не понимаю почему оно вообще меняется
-                        prefab.transform.localScale = new Vector3(1, 1, 1);
+                        if (prefab != null)
+                        {
+                            prefab.name = setting.Key;
+                            if (prefab.transform.Find("Title") != null && prefab.transform.Find("Title").GetComponent<Text>() != null)
+                                prefab.transform.Find("Title").GetComponent<Text>().text = setting.Value.title;
+                        }
+                            
                         _settings[setting.Key] = setting.Value.value;
                     }
                 }
@@ -128,9 +160,9 @@ namespace MyFantasy
             _settings[key] = (obj.isOn?"1":"0");
         }        
         
-        private void DropdownOnChange(string key, Dropdown obj, string[] list)
+        private void DropdownOnChange(string key, Dropdown obj)
         {
-            _settings[key] = list[obj.value];
+            _settings[key] = _lists[key][obj.value];
         }
 
         public void Save()
