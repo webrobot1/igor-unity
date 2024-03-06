@@ -51,8 +51,11 @@ namespace MyFantasy
                 Dictionary<string, Setting> settings = ((PlayerRecive)recive).components.settings;
                 if (settings != null)
                 {
+                    if(settings.ContainsKey("fps"))
+                        Application.targetFrameRate = int.Parse(settings["fps"].value);
+
                     // удалим демоснтрационные данные
-                    if(_settings.Count == 0) 
+                    if (_settings.Count == 0) 
                     { 
                         foreach (Transform child in SettingArea.transform)
                         {
@@ -78,7 +81,7 @@ namespace MyFantasy
                                     toggle.onValueChanged.AddListener(delegate { CheckboxOnChange(setting.Key, toggle); });
                                 }
 
-                                toggle.isOn = (float.Parse(setting.Value.value) != 0 ? true : false);
+                                toggle.isOn = (int.Parse(setting.Value.value) != 0 ? true : false);
                             break;                            
                             case "slider":
                                 Slider slider;
