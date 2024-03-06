@@ -39,40 +39,43 @@ namespace MyFantasy
 
         protected void SetData(EnemyRecive recive)
         {
-			if (recive.components != null)
-			{
-				if (recive.components.speed != null)
-				{
-					speed = (int)recive.components.speed;
-					//anim.speed = speed;
-				}
-
-				if (recive.components.hp != null)
-				{
-					if (hp == 0 && recive.components.hp > 0)
-					{
-						Resurrect();
-					}
-					else if (recive.components.hp == 0)
-					{
-						Dead();
-					}
-					hp = (int)recive.components.hp;
-				}
-				if (recive.components.hpmax != null)
-					hpMax = (int)recive.components.hpmax;
-
-				if (recive.components.mp != null)
-					mp = (int)recive.components.mp;
-
-				// ниже сравниваем c null тк может быть значение 0 которое надо обработать
-				if (recive.components.mpmax != null)
-					mpMax = (int)recive.components.mpmax;
-			}
-
+			PrepareComponents(recive.components);
 			base.SetData(recive);		
 		}
 
+		protected void PrepareComponents(EnemyComponentsRecive components)
+        {
+			if (components != null)
+			{
+				if (components.speed != null)
+				{
+					speed = (int)components.speed;
+					//anim.speed = speed;
+				}
+
+				if (components.hp != null)
+				{
+					if (hp == 0 && components.hp > 0)
+					{
+						Resurrect();
+					}
+					else if (components.hp == 0)
+					{
+						Dead();
+					}
+					hp = (int)components.hp;
+				}
+				if (components.hpmax != null)
+					hpMax = (int)components.hpmax;
+
+				if (components.mp != null)
+					mp = (int)components.mp;
+
+				// ниже сравниваем c null тк может быть значение 0 которое надо обработать
+				if (components.mpmax != null)
+					mpMax = (int)components.mpmax;
+			}
+		}
 
 		protected virtual void Dead()
         {

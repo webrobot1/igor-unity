@@ -3,7 +3,6 @@ namespace MyFantasy
 {
 	public class PlayerModel : EnemyModel
 	{
-
 		// для превращения в призрака игроков
 		protected SpriteRenderer sprite = null;
 
@@ -15,6 +14,7 @@ namespace MyFantasy
 
         public override void SetData(EntityRecive recive)
 		{
+			PrepareComponents(((PlayerRecive)recive).components);
 			this.SetData((PlayerRecive)recive);
 		}
 
