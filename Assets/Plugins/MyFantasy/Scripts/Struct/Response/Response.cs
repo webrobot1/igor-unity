@@ -9,11 +9,9 @@ namespace MyFantasy
     abstract public class Response
     {
         /// <summary>
-        /// значение action по умолчанию 
+        /// значение action события (index по умолчанию)
         /// </summary>
-        public const string DEFAULT_ACTION = "index";
-  
-        private string _action = DEFAULT_ACTION;
+        private string _action = null;
 
         /// <summary>
         /// группа события которое которое мы хотим что бы наш игрок сделал на сервер
@@ -42,5 +40,10 @@ namespace MyFantasy
         /// сам пинг (тк клиент подводит итоги пинга сервер не знает пока ему не передать напрямую. можно и подделать но мы на сервере не подвязываемся к пингу, а на клиенте отправляя раньше запросы)
         /// </summary>
         public double? ping = null;
+
+        public void Send()
+        {
+            ConnectController.Send(this);
+        }
     }
 }

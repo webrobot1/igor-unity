@@ -22,7 +22,7 @@ using WebGLSupport;
 namespace MyFantasy
 {
 	/// <summary>
-	/// Класс для обработки создания вебсокет соединения после перехода на MainScene
+	/// Класс для создания и поддержания соединения с сервером
 	/// </summary>
 	public abstract class ConnectController : BaseController
 	{
@@ -63,7 +63,7 @@ namespace MyFantasy
 		/// Префаб нашего игрока
 		/// TODO переделать в статический get - set свойство возвращающее ваш (переопределенный) объект ObjectModel
 		/// </summary>
-		protected static ObjectModel player = null;
+		protected static EntityModel player = null;
 
 		/// <summary>
 		/// Ссылка на конектор
@@ -320,7 +320,7 @@ namespace MyFantasy
 
 								if (coroutine == null && reload == ReloadStatus.None)
 								{
-									Recive<ObjectRecive, ObjectRecive, ObjectRecive> recive = JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(text);
+									Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
 
 									if (recive.error != null)
 									{
@@ -450,9 +450,6 @@ namespace MyFantasy
 							data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
 							last_ping_request = DateTime.Now.AddSeconds(PING_REQUEST_SEC);
 						}
-
-						// по умолчанию ACTION не оптравляем дабы не увеличивать пакет (на сервере по умолчанию подставит)
-						if (data.action == Response.DEFAULT_ACTION) data.action = null;
 
 						string json = JsonConvert.SerializeObject(
 							data

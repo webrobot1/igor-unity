@@ -10,7 +10,7 @@ using WebGLSupport;
 namespace MyFantasy
 {
     /// <summary>
-    /// Класс для отправки данных (действий игрока)
+    /// Класс для управления всеми UI эллементами на экране и передачи в них инфомрацию с сервера
     /// </summary>
     public class UIController : PlayerController
     {
@@ -65,7 +65,7 @@ namespace MyFantasy
             base.Awake();
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
             // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
             if (player != null && key == player.key && recive.action!=null)
@@ -98,7 +98,7 @@ namespace MyFantasy
                 (
                     (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
                         &&
-                    EventSystem.current.GetComponentInParent<ObjectModel>() == null
+                    EventSystem.current.GetComponentInParent<EntityModel>() == null
                 )
                 {
                     Debug.Log("Clicked the UI");
@@ -110,7 +110,7 @@ namespace MyFantasy
                     // кликнули на какой то объект
                     if (hit.collider != null)
                     {
-                        NewObjectModel new_target = hit.collider.GetComponent<NewObjectModel>();
+                        ObjectModel new_target = hit.collider.GetComponent<ObjectModel>();
                         if (new_target != null)
                         {
                             Target = new_target;
@@ -142,7 +142,6 @@ namespace MyFantasy
             canvasGroup.alpha = canvasGroup.alpha>0?0:1;
             canvasGroup.blocksRaycasts = canvasGroup.blocksRaycasts ?false:true;
         }
-
 
         protected override void FixedUpdate() 
         {
@@ -182,8 +181,7 @@ namespace MyFantasy
 
                                 response.x = Math.Round(vector.x, position_precision);
                                 response.y = Math.Round(vector.y, position_precision);
-
-                                Send(response);
+                                response.Send();
                             }  
                         }
                         else
@@ -194,9 +192,9 @@ namespace MyFantasy
                             response.x = Math.Round(move_to.x, position_precision);
                             response.y = Math.Round(move_to.y, position_precision);
                             response.z = player.transform.position.z;
+                            response.Send();
 
                             move_to = Vector3.zero;
-                            Send(response);
                         } 
                     }
                 }

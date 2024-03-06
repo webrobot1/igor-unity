@@ -8,7 +8,7 @@ namespace MyFantasy
 	/// Структура полученных данных - объект
 	/// </summary>
 	[System.Serializable]
-	public class ObjectRecive
+	public class EntityRecive
 	{
 		public float? x;
 		public float? y;

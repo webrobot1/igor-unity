@@ -4,7 +4,7 @@ namespace MyFantasy
 	/// Структура полученных данных - произвольыне поля
 	/// </summary>
 	[System.Serializable]
-	public class NewComponentsRecive
+	public class EnemyComponentsRecive
 	{
 		/// <summary>
 		/// если не приравнять к null - будет  0 при наличии другого лбого элемента класса
@@ -16,5 +16,6 @@ namespace MyFantasy
 		public int? mpmax;
 
 		public int? speed;
+
 	}
 }

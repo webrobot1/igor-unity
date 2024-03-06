@@ -4,8 +4,8 @@ namespace MyFantasy
     /// Структура полученных данных - враг
     /// </summary>
     [System.Serializable]
-    public class NewEnemyRecive : NewObjectRecive
+    public class EnemyRecive : ObjectRecive
     {
-
+        public new EnemyComponentsRecive components;
     }
 }

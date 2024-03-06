@@ -7,7 +7,11 @@ using System.Collections.Generic;
 
 namespace MyFantasy
 {
-    // запуститься только в режиме Unity редактора в PlayMode
+    /// <summary>
+	/// Класс настройки зоны видимости вокруг игрока
+	/// </summary>
+
+    // этот скрипт будет работать даже без запуска игры в редакторе unity (онлайном показывать видимость игрока)
     [ExecuteInEditMode]
     public class CameraController : MonoBehaviour
     {
@@ -45,6 +49,7 @@ namespace MyFantasy
                     camera.orthographicSize = height;
                 }
 
+                // контроли видимости за край карты 
                 if (last_map_id != PlayerController.Player.map_id) 
                 { 
                     Dictionary<int, MapDecode> maps = PlayerController.getMaps();

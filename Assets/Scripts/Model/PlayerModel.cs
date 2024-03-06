@@ -1,7 +1,7 @@
 using UnityEngine;
 namespace MyFantasy
 {
-	public class NewPlayerModel : NewEnemyModel
+	public class PlayerModel : EnemyModel
 	{
 
 		// для превращения в призрака игроков
@@ -13,9 +13,9 @@ namespace MyFantasy
 			base.Awake();
 		}
 
-        public override void SetData(ObjectRecive recive)
+        public override void SetData(EntityRecive recive)
 		{
-			this.SetData((NewPlayerRecive)recive);
+			this.SetData((PlayerRecive)recive);
 		}
 
 		protected override void Dead()
@@ -30,9 +30,8 @@ namespace MyFantasy
 			base.Resurrect();
 		}
 
-		private void SetData(NewPlayerRecive recive)
+		private void SetData(PlayerRecive recive)
 		{
-
 			base.SetData(recive);
 		}	
 	}

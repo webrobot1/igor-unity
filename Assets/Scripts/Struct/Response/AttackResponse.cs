@@ -6,6 +6,7 @@ namespace MyFantasy
     public class AttackResponse : Response
     {
         public const string GROUP = "fight/attack";
+
         public override string group
         {
             get { return GROUP; }

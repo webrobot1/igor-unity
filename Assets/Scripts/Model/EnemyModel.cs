@@ -10,7 +10,7 @@ namespace MyFantasy
 	/// <summary>
 	/// объекты могут быть не анимированы. враги и игроки что анследуют этот класс - обязательно должны иметь анмицию + модель статистики (жизни и тп)
 	/// </summary>
-	public class NewEnemyModel : NewObjectModel
+	public class EnemyModel : ObjectModel
 	{
 		/// <summary>
 		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
@@ -32,12 +32,12 @@ namespace MyFantasy
 				PlayerController.Error("Не найдено в группе поле статистики сущности "+key);
 		}
 
-		public override void SetData(ObjectRecive recive)
+		public override void SetData(EntityRecive recive)
 		{
-			this.SetData((NewEnemyRecive)recive);
+			this.SetData((EnemyRecive)recive);
 		}
 
-        protected void SetData(NewEnemyRecive recive)
+        protected void SetData(EnemyRecive recive)
         {
 			if (recive.components != null)
 			{

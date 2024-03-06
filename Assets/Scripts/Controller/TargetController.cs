@@ -33,7 +33,7 @@ namespace MyFantasy
         ///  скорость изменения полоски жизней и маны
         /// </summary>
         private static float lineSpeed = 3;
-        private NewObjectModel _target = null;
+        private ObjectModel _target = null;
 
         private void Awake()
         {
@@ -59,7 +59,7 @@ namespace MyFantasy
             Target = null;
         }
 
-        public NewObjectModel Target
+        public ObjectModel Target
         {
             get 
             { 

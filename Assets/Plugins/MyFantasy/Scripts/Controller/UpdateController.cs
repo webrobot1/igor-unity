@@ -13,19 +13,19 @@ using WebGLSupport;
 namespace MyFantasy
 {
 	/// <summary>
-	/// Класс для обработки запросов, конект
+	/// Класс для обновления данных существ с сервера
 	/// </summary>
 	abstract public class UpdateController : MapController
 	{
 		protected override void Handle(string json)
 		{		
-			HandleData(JsonConvert.DeserializeObject<Recive<ObjectRecive, ObjectRecive, ObjectRecive>>(json));				
+			HandleData(JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(json));				
 		}
 
 		/// <summary>
 		/// Обработка пришедших от сервера значений
 		/// </summary>
-		protected virtual void HandleData<P,E,O>(Recive<P, E, O> recive) where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
+		protected virtual void HandleData<P,E,O>(Recive<P, E, O> recive) where P : EntityRecive where E : EntityRecive where O : EntityRecive
 		{
 			if (recive.action != null)
 			{
@@ -42,7 +42,7 @@ namespace MyFantasy
 							{
 								if (player == null || child.gameObject.name != player.gameObject.name)
 								{
-									DestroyImmediate(child.gameObject);
+									Destroy(child.gameObject);
 								}
                                 else
                                 {
@@ -79,9 +79,9 @@ namespace MyFantasy
 						Debug.LogWarning("локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
 
 						// если саму зону оставить надо
-						foreach (var child in map_zone.Cast<Transform>().ToList())
+						foreach (Transform child in map_zone.transform)
 						{
-							DestroyImmediate(child.gameObject);
+							Destroy(child.gameObject);
 						}
 
 						//DestroyImmediate(map_zone.gameObject);
@@ -147,8 +147,8 @@ namespace MyFantasy
                     if (!sides.ContainsKey(map_id))
                     {
 						Debug.Log("уничтожаем неиспользуемую карту " + map_id);
-						DestroyImmediate(mapObject.transform.Find(map_id.ToString()).gameObject);
-						DestroyImmediate(worldObject.transform.Find(map_id.ToString()).gameObject);
+						Destroy(mapObject.transform.Find(map_id.ToString()).gameObject);
+						Destroy(worldObject.transform.Find(map_id.ToString()).gameObject);
 
 						maps.Remove(map_id);
 					}				
@@ -170,10 +170,10 @@ namespace MyFantasy
 		/// <summary>
 		/// обработка кокнретной сущности (создание и обновлелние)
 		/// </summary>
-		protected virtual GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
+		protected virtual GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
 		{
 			GameObject prefab = GameObject.Find(key);
-			ObjectModel model;
+			EntityModel model;
 
 			// если игрока нет на сцене
 			if (prefab == null)
@@ -187,13 +187,21 @@ namespace MyFantasy
 				if (ob == null)
 					ob = Resources.Load("Prefabs/" + type + "/Empty", typeof(GameObject));
 
-				if (ob == null) Error("Отсутвует префаб Empty (по умолчанию) для объекта "+ key + " типа " + type);
+				if (ob == null)
+				{
+					Error("Отсутвует префаб Empty (по умолчанию) для объекта " + key + " типа " + type);
+					return null;
+				}
 
 				prefab = Instantiate(ob) as GameObject;
 				prefab.name = key;
 
-				model = prefab.GetComponent<ObjectModel>();
-				if (model == null) Error("Отсутвует скрипт модели на объекте " + key);
+				model = prefab.GetComponent<EntityModel>();
+				if (model == null)
+				{
+					Error("Отсутвует скрипт модели на объекте " + key);
+					return null;
+				}
 				
 				model.key = key;
 				model.Log("создан с префабом " + recive.prefab);
@@ -216,7 +224,7 @@ namespace MyFantasy
 			}
             else 
 			{
-				model = prefab.GetComponent<ObjectModel>();
+				model = prefab.GetComponent<EntityModel>();
 			}
 
 			model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
@@ -230,6 +238,7 @@ namespace MyFantasy
 			catch (Exception ex)
 			{
 				Error("Не удалось загрузить " + key, ex);
+				return null;
 			}
 
 			return prefab;

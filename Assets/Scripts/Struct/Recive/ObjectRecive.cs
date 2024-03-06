@@ -4,8 +4,8 @@ namespace MyFantasy
 	/// Структура полученных данных - объект
 	/// </summary>
 	[System.Serializable]
-	public class NewObjectRecive : ObjectRecive
+	public class ObjectRecive : EntityRecive
 	{
-		public new NewComponentsRecive components;
+		
 	}
 }

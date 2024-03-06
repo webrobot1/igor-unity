@@ -4,9 +4,9 @@ namespace MyFantasy
 	/// Структура полученных данных - игрок
 	/// </summary>
 	[System.Serializable]
-	public class NewPlayerRecive : NewEnemyRecive
+	public class PlayerRecive : EnemyRecive
 	{
-		
+		public new PlayerComponentsRecive components;
 	}
 }
 

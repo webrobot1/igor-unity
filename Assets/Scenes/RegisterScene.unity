@@ -133,7 +133,6 @@ GameObject:
   m_Component:
   - component: {fileID: 82338876}
   - component: {fileID: 82338875}
-  - component: {fileID: 82338877}
   - component: {fileID: 82338874}
   m_Layer: 0
   m_Name: Camera
@@ -204,25 +203,10 @@ Transform:
   m_LocalPosition: {x: 14.673035, y: 30.824158, z: 174.06595}
   m_LocalScale: {x: 0.9065935, y: 0.9065935, z: 0.9065935}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1756978886}
+  m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &82338877
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 82338873}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 283f7f160950d5844a759097ffd7737e, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  loginField: {fileID: 214595407}
-  passwordField: {fileID: 1545425095}
 --- !u!1 &99335924
 GameObject:
   m_ObjectHideFlags: 0
@@ -1111,7 +1095,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 82338877}
+      - m_Target: {fileID: 1756978887}
         m_TargetAssemblyTypeName: MyFantasy.SigninController, Assembly-CSharp-firstpass
         m_MethodName: Register
         m_Mode: 1
@@ -1246,7 +1230,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 82338877}
+      - m_Target: {fileID: 1756978887}
         m_TargetAssemblyTypeName: MyFantasy.SigninController, Assembly-CSharp-firstpass
         m_MethodName: Auth
         m_Mode: 1
@@ -1313,7 +1297,7 @@ MonoBehaviour:
     callback:
       m_PersistentCalls:
         m_Calls:
-        - m_Target: {fileID: 82338877}
+        - m_Target: {fileID: 1756978887}
           m_TargetAssemblyTypeName: MyFantasy.NewSigninController, Assembly-CSharp
           m_MethodName: EnterFullScreenMode
           m_Mode: 1
@@ -1619,7 +1603,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 1
+  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1756978882
 GameObject:
@@ -1633,8 +1617,9 @@ GameObject:
   - component: {fileID: 1756978885}
   - component: {fileID: 1756978884}
   - component: {fileID: 1756978883}
+  - component: {fileID: 1756978887}
   m_Layer: 5
-  m_Name: Canvas
+  m_Name: UI
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1718,14 +1703,28 @@ RectTransform:
   - {fileID: 1358842418}
   - {fileID: 1195222071}
   - {fileID: 751134595}
-  m_Father: {fileID: 82338876}
-  m_RootOrder: 0
+  m_Father: {fileID: 0}
+  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!114 &1756978887
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1756978882}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 283f7f160950d5844a759097ffd7737e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  loginField: {fileID: 214595407}
+  passwordField: {fileID: 1545425095}
 --- !u!1 &1847008432
 GameObject:
   m_ObjectHideFlags: 0

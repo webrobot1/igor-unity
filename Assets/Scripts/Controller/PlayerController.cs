@@ -7,19 +7,11 @@ using UnityEngine.UI;
 
 namespace MyFantasy
 {
-    abstract public class PlayerController : UpdateController
+    /// <summary>
+	/// Класс для обновления Frame UI игрока его цели атаки
+	/// </summary>
+    abstract public class PlayerController : StatController
     {
-        [SerializeField]
-        private Text ping; 
-        
-        [SerializeField]
-        private Text fps;
-
-        [SerializeField]
-        private Text map;
-
-        private float deltaTime;
-
         [SerializeField]
         private TargetController _playerFaceController;  
         
@@ -38,18 +30,18 @@ namespace MyFantasy
         ///  переопределим свйоство игрока да так что бы и вродительском оставался доступен
         ///  Todo кроме cameraContoller и FaceController не используется и то оттуда можно убрать перенеся функционал сюда и сделав protected это свойство
         /// </summary>
-        public static NewPlayerModel Player
+        public static PlayerModel Player
         {
             get 
             { 
                 if (player != null) 
-                    return (NewPlayerModel)player;
+                    return (PlayerModel)player;
                 else 
                     return null; 
             }
         }
 
-        public static NewObjectModel Target 
+        public static ObjectModel Target 
         {
             get { return _target.Target; } 
             set 
@@ -63,9 +55,6 @@ namespace MyFantasy
 
         protected override void Awake()
         {
-            if (ping == null)
-                Error("не присвоен фрейм для статистики пинга");          
-            
             if (_playerFaceController == null)
                 Error("не присвоен фрейм жизней игрока");          
             
@@ -77,20 +66,6 @@ namespace MyFantasy
             base.Awake();
         }
 
-        protected override void Update()
-        {
-            deltaTime += (Time.deltaTime - deltaTime) * 0.1f;
-            float fps = 1.0f / deltaTime;
-            this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString();
-
-            base.Update();
-        }
-
-        protected override void FixedUpdate()
-        {
-            base.FixedUpdate();
-        }
-
 
         /// <summary>
         /// в целом два следующих метода нужны тошько если вы переделваете стандыртный форат ответа тк из коробки у всех сущностей одни данные (кроме логина у пользователей, а компоненты и события из универсального object можно после в любые превратить оьъекты классов)
@@ -98,10 +73,10 @@ namespace MyFantasy
         /// </summary>
         protected override void Handle(string json)
         {
-            HandleData(JsonConvert.DeserializeObject<NewRecive<NewPlayerRecive, NewEnemyRecive, NewObjectRecive>>(json));
+            HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, EnemyRecive, ObjectRecive>>(json));
         }
 
-        protected void HandleData(NewRecive<NewPlayerRecive, NewEnemyRecive, NewObjectRecive> recive)
+        protected void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
         {
             // после ACTION_LOAD старые объекты будут заменены новыми объектами клонами и надо сохранить все ключи что нам нужно будет залинковать с игроком (напрмиер цель)
             string tmp_target = null;
@@ -135,29 +110,19 @@ namespace MyFantasy
                 else
                 {
                     Debug.LogError("Цель была найдена снова " + tmp_target);
-                    Target = gameObject.GetComponent<NewObjectModel>();
+                    Target = gameObject.GetComponent<ObjectModel>();
                 }
             }
-           
-            if (recive.unixtime > 0)
-                ping.text = "PING: " + Ping() * 1000 +"/" + MaxPing() * 1000 +" ms."; 
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, ObjectRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
             GameObject prefab = base.UpdateObject(map_id, key, recive, type);
             if(key == player_key) 
             {
-                if (prefab == null)
+                if (player != null && prefab!=null)
                 {
-                    Error("Не удалось содать из пришедншего пакета данных текущего игрока " + key);
-                }
-                else if (player != null)
-                {
-                    if(recive.map_id!=null)
-                        map.text = "Карта: " + recive.map_id;
-
-                    NewObjectModel model = prefab.GetComponent<NewObjectModel>();
+                    ObjectModel model = prefab.GetComponent<ObjectModel>();
                     if (recive.events != null)
                     {
                         if (recive.events.ContainsKey(AttackResponse.GROUP))
@@ -171,7 +136,7 @@ namespace MyFantasy
                                 GameObject gameObject = GameObject.Find(attacker);
                                 if (gameObject != null)
                                 {
-                                    NewObjectModel attackerModel = gameObject.GetComponent<NewEnemyModel>();
+                                    ObjectModel attackerModel = gameObject.GetComponent<EnemyModel>();
                                     if (attackerModel != null && CanBeTarget(attackerModel))
                                     {
                                         Target = attackerModel;
@@ -201,7 +166,7 @@ namespace MyFantasy
             return prefab;
         }
 
-        private bool CanBeTarget(NewObjectModel gameObject)
+        private bool CanBeTarget(ObjectModel gameObject)
         {
             return
             (

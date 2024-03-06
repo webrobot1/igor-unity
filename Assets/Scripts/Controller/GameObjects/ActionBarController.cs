@@ -46,7 +46,7 @@ namespace MyFantasy
                     response.x = Math.Round(PlayerController.Player.transform.forward.x, PlayerController.position_precision);
                     response.y = Math.Round(PlayerController.Player.transform.forward.y, PlayerController.position_precision);
                 }
-                PlayerController.Send(response);
+                response.Send();
             }
         }
     }

@@ -12,9 +12,8 @@ namespace MyFantasy
 	/// колайдер обязателен тк мы кликаем на gameObject что бы выделить его  в область колайдера. этот клас наследуется от плагина и реулизует работу с анимацией. вы можете реализовать по своему (поэтому работа с ней не часть плагина)
 	/// </summary>
 	[RequireComponent(typeof(Collider))]
-	public class NewObjectModel : ObjectModel
+	public class ObjectModel : EntityModel
 	{
-
 		[NonSerialized]
 		public Animator animator;
 
@@ -123,15 +122,15 @@ namespace MyFantasy
 		/// <summary>
 		/// этот метод для возможноости переопределения его же самого нужен но с другими типами аргументов
 		/// </summary>
-		public override void SetData(ObjectRecive recive)
+		public override void SetData(EntityRecive recive)
 		{
-			this.SetData((NewObjectRecive)recive);
+			this.SetData((ObjectRecive)recive);
 		}
 
 		/// <summary>
 		/// переопределим метод срабатываемый при присвоениеии пришедших с сервера данных и начнем включать анимацию
 		/// </summary>
-		protected void SetData(NewObjectRecive recive)
+		protected void SetData(ObjectRecive recive)
 		{
 			Vector3 old_position = position;
 			int old_map_id = map_id;

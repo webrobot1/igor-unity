@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace MyFantasy
 {
-	public class ObjectModel : MonoBehaviour
+	public class EntityModel : MonoBehaviour
 	{
 		/// <summary>
 		/// для того что бы менять сортировку при загрузке карты
@@ -76,7 +76,7 @@ namespace MyFantasy
 		/// <summary>
 		/// установка данных пришедших с сервера объекту 
 		/// </summary>
-		public virtual void SetData(ObjectRecive recive)
+		public virtual void SetData(EntityRecive recive)
 		{
 			if (recive.map_id != null)
 			{

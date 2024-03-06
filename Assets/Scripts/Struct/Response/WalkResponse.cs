@@ -6,6 +6,7 @@ namespace MyFantasy
     public class WalkResponse : Response
     {
         public const string GROUP = "move/walk";
+
         public override string group
         {
             get { return GROUP; }

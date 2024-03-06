@@ -7,7 +7,7 @@ namespace MyFantasy
     /// —cтруктура получаемых данных данных
     /// </summary>
     [System.Serializable]
-    public class Recive<P, E, O> where P : ObjectRecive where E : ObjectRecive where O : ObjectRecive
+    public class Recive<P, E, O> where P : EntityRecive where E : EntityRecive where O : EntityRecive
     {
         public Dictionary<int, MapRecive<P, E, O>> world;
 

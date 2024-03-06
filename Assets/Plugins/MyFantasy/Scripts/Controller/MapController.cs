@@ -143,7 +143,7 @@ namespace MyFantasy
 					worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
 					foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
 					{
-						var model = child.GetComponent<ObjectModel>();
+						var model = child.GetComponent<EntityModel>();
 						if (model != null)
 						{
 							if (child.gameObject.GetComponent<SpriteRenderer>())
