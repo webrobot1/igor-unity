@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using WebGLSupport;
 
 namespace MyFantasy
 {
@@ -10,6 +11,12 @@ namespace MyFantasy
 	/// </summary>
     abstract public class SettingsController : UpdateController
     {
+        /// <summary>
+        /// наш джойстик
+        /// </summary>
+        [SerializeField]
+        protected VariableJoystick joystick;
+
         /// <summary>
         /// поле для генерации объектов настроек
         /// </summary>
@@ -44,6 +51,22 @@ namespace MyFantasy
         /// </summary>
         private Dictionary<string, string[]> _lists = new Dictionary<string, string[]>();
 
+
+        protected override void Awake()
+        {
+            if (joystick == null)
+                Error("не указан джойстик");
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+                 WebGLRotation.Rotation(1);
+#else
+            Screen.orientation = ScreenOrientation.LandscapeRight;
+            Screen.autorotateToPortrait = false;
+            Screen.orientation = ScreenOrientation.AutoRotation;
+#endif
+
+            base.Awake();
+        }
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
@@ -51,8 +74,12 @@ namespace MyFantasy
                 Dictionary<string, Setting> settings = ((PlayerRecive)recive).components.settings;
                 if (settings != null)
                 {
+
                     if(settings.ContainsKey("fps"))
-                        Application.targetFrameRate = int.Parse(settings["fps"].value);
+                        Application.targetFrameRate = int.Parse(settings["fps"].value);                   
+                    
+                    if(settings.ContainsKey("joystick"))
+                        joystick.gameObject.SetActive(int.Parse(settings["joystick"].value)>0);
 
                     // удалим демоснтрационные данные
                     if (_settings.Count == 0) 

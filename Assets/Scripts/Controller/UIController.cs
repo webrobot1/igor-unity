@@ -15,12 +15,6 @@ namespace MyFantasy
     public class UIController : PlayerController
     {
         /// <summary>
-        /// наш джойстик
-        /// </summary>
-        [SerializeField]
-        private VariableJoystick joystick;
-
-        /// <summary>
         /// книга заклинаний
         /// </summary>
         [SerializeField]
@@ -49,21 +43,6 @@ namespace MyFantasy
         /// </summary>
         private DateTime block_forward = DateTime.Now;
 
-        protected override void Awake()
-        {
-            if (joystick == null)
-                Error("не указан джойстик");
-            
-            #if UNITY_WEBGL && !UNITY_EDITOR
-                 WebGLRotation.Rotation(1);
-            #else
-                Screen.orientation = ScreenOrientation.LandscapeRight;
-                Screen.autorotateToPortrait = false;
-                Screen.orientation = ScreenOrientation.AutoRotation;
-            #endif
-
-            base.Awake();
-        }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
