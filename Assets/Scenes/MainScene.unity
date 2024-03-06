@@ -2809,7 +2809,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 878297136}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1342826447}
+        m_TargetAssemblyTypeName: MyFantasy.SettingsController, Assembly-CSharp
+        m_MethodName: Save
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &878297136
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4387,9 +4399,9 @@ MonoBehaviour:
   mapObject: {fileID: 961570895}
   worldObject: {fileID: 217698843}
   SettingArea: {fileID: 3046298429839130036}
-  SettingCheckbox: {fileID: 1027376590141588, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
-  ScrollCheckbox: {fileID: 0}
-  ScrollDropdown: {fileID: 0}
+  SettingPrefabCheckbox: {fileID: 1027376590141588, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
+  SettingPrefabScroll: {fileID: 1225465062972368, guid: c8e9e0dc2eb174635861b990cee2b0bb, type: 3}
+  SettingPrefabDropdown: {fileID: 1682922888659924, guid: 7a4e32d027bc44b32bea2c73dacbd5ee, type: 3}
   ping: {fileID: 376761668}
   fps: {fileID: 689199227}
   map: {fileID: 1465688624}

@@ -33,6 +33,6 @@ namespace MyFantasy
 		/// <summary>
 		/// тк в каждой игре свои компоненты и разного типа (строки, цифры и даже массивы) то этот класс нуждается в переопределелни (отнаследоваться и указать свой класс этому полю)
 		/// </summary>
-		public JObject components;	
+		public JObject components = null;	
 	}
 }

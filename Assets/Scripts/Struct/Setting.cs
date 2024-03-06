@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 namespace MyFantasy
 {
@@ -10,7 +12,7 @@ namespace MyFantasy
 		public int? min;
 		public int? max;
 
-		public string value;	// текущее значение
-		public string[] values;	// для выпаюающего меню
-	}
+		public string value;								// текущее значение
+		public Dictionary<string, string> values = null;    // для выпаюающего меню
+    }
 }
