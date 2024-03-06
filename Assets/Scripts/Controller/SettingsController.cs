@@ -104,6 +104,9 @@ namespace MyFantasy
                             prefab.transform.Find("Title").GetComponent<Text>().text = setting.Value.title;
 
                         prefab.transform.SetParent(SettingArea.transform);
+
+                        // todo - не понимаю почему оно вообще меняется
+                        prefab.transform.localScale = new Vector3(1, 1, 1);
                         _settings[setting.Key] = setting.Value.value;
                     }
                 }
