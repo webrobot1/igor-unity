@@ -42,7 +42,7 @@ namespace MyFantasy
 							{
 								if (player == null || child.gameObject.name != player.gameObject.name)
 								{
-									Destroy(child.gameObject);
+									DestroyImmediate(child.gameObject);
 								}
                                 else
                                 {
@@ -81,7 +81,7 @@ namespace MyFantasy
 						// если саму зону оставить надо
 						foreach (Transform child in map_zone.transform)
 						{
-							Destroy(child.gameObject);
+							DestroyImmediate(child.gameObject);
 						}
 
 						//DestroyImmediate(map_zone.gameObject);
@@ -147,8 +147,8 @@ namespace MyFantasy
                     if (!sides.ContainsKey(map_id))
                     {
 						Debug.Log("уничтожаем неиспользуемую карту " + map_id);
-						Destroy(mapObject.transform.Find(map_id.ToString()).gameObject);
-						Destroy(worldObject.transform.Find(map_id.ToString()).gameObject);
+						DestroyImmediate(mapObject.transform.Find(map_id.ToString()).gameObject);
+						DestroyImmediate(worldObject.transform.Find(map_id.ToString()).gameObject);
 
 						maps.Remove(map_id);
 					}				
@@ -189,7 +189,7 @@ namespace MyFantasy
 
 				if (ob == null)
 				{
-					Error("Отсутвует префаб Empty (по умолчанию) для объекта " + key + " типа " + type);
+					Error("Отсутвует и префаб Prefabs / " + type + " / " + recive.prefab+ " и Prefabs/" + type + "/Empty для объекта " + key + " типа " + type);
 					return null;
 				}
 

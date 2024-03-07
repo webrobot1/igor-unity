@@ -27,6 +27,12 @@ namespace MyFantasy
         private CanvasGroup spellBook;
 
         /// <summary>
+        /// группа всех меню
+        /// </summary>
+        [SerializeField]
+        private GameObject menuGroup;
+
+        /// <summary>
         /// нажата кнопка двигаться по горизонтали
         /// </summary>
         private float horizontal;
@@ -43,6 +49,11 @@ namespace MyFantasy
         /// </summary>
         private DateTime block_forward = DateTime.Now;
 
+        protected override void Awake()
+        {
+            CloseAllMenu();
+            base.Awake();
+        }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
@@ -115,11 +126,30 @@ namespace MyFantasy
             }
         }
 
-        private void OpenClose(CanvasGroup canvasGroup)
+        public void OpenClose(CanvasGroup canvasGroup)
         {
+            // закроем все меню
+            CloseAllMenu(canvasGroup);
+
             // не только скрыть но и позволить кликать по той области что бы ходить персонажем
             canvasGroup.alpha = canvasGroup.alpha>0?0:1;
             canvasGroup.blocksRaycasts = canvasGroup.blocksRaycasts ?false:true;
+        }
+
+        private void CloseAllMenu(CanvasGroup canvasGroup = null)
+        {
+            if (menuGroup == null)
+                Error("не присвоена группа объектов меню объекту UI");
+
+            // закроем все меню
+            foreach (Transform child in menuGroup.transform)
+            {
+                if (canvasGroup != null && canvasGroup == child.GetComponent<CanvasGroup>())
+                    continue;
+
+                child.GetComponent<CanvasGroup>().alpha = 0;
+                child.GetComponent<CanvasGroup>().blocksRaycasts = false;
+            }
         }
 
         protected override void FixedUpdate() 

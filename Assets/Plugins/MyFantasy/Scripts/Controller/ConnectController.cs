@@ -207,8 +207,6 @@ namespace MyFantasy
 
 						// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
 						loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
-
-						connect.CloseAsync();
 						connect = null;
 						Connect(host, player_key, player_token, step, position_precision, server_fps);
 					}
@@ -230,7 +228,7 @@ namespace MyFantasy
 			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
 			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
 			Time.fixedDeltaTime = 0.01f;
-			Application.targetFrameRate = 60;
+			Application.targetFrameRate = 100;
 
 			base.Awake();
 		}
@@ -557,6 +555,10 @@ namespace MyFantasy
 			errors.Add(text);
 		}
 
+		public void Logout()
+        {
+			Error("Выход из игры");
+		}
 
 		/// <summary>
 		/// Страница ошибок - загрузка страницы входа

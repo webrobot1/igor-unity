@@ -67,6 +67,7 @@ namespace MyFantasy
 
             base.Awake();
         }
+
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
@@ -74,9 +75,8 @@ namespace MyFantasy
                 Dictionary<string, Setting> settings = ((PlayerRecive)recive).components.settings;
                 if (settings != null)
                 {
-
-                    if(settings.ContainsKey("fps"))
-                        Application.targetFrameRate = int.Parse(settings["fps"].value);                   
+                    if (settings.ContainsKey("fps"))
+                        Application.targetFrameRate = int.Parse(settings["fps"].value);                               
                     
                     if(settings.ContainsKey("joystick"))
                         joystick.gameObject.SetActive(int.Parse(settings["joystick"].value)>0);
@@ -86,7 +86,7 @@ namespace MyFantasy
                     { 
                         foreach (Transform child in SettingArea.transform)
                         {
-                            Destroy(child.gameObject);
+                            DestroyImmediate(child.gameObject);
                         }
                     }
 
