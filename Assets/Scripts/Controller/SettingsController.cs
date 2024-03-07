@@ -86,7 +86,7 @@ namespace MyFantasy
                     { 
                         foreach (Transform child in SettingArea.transform)
                         {
-                            DestroyImmediate(child.gameObject);
+                            Destroy(child.gameObject);
                         }
                     }
 
