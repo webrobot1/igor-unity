@@ -8,6 +8,6 @@ namespace MyFantasy
 	[System.Serializable]
 	public class PlayerComponentsRecive: EnemyComponentsRecive
 	{
-		public Dictionary<string, Setting> settings = null;
+		public Dictionary<string, string> settings = null;
 	}
 }

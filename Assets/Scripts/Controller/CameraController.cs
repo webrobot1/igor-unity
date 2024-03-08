@@ -50,7 +50,7 @@ namespace MyFantasy
                 }
 
                 // если все карты скачены и мы не удаляемся с карты
-                if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getSides().Count == PlayerController.getMaps().Count && PlayerController.getSides().Keys.SequenceEqual(PlayerController.getMaps().Keys))
+                if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getMaps().Count > 0 && PlayerController.getSides().Count == PlayerController.getMaps().Count && PlayerController.getSides().Keys.SequenceEqual(PlayerController.getMaps().Keys))
                 {
                     // контроли видимости за край карты 
                     if (last_sides != PlayerController.getSides() || last_lifeRadius != PlayerController.Player.lifeRadius)

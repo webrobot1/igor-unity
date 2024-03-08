@@ -41,7 +41,7 @@ namespace MyFantasy
             base.Update();
         }
 
-        protected void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
         {
             base.HandleData(recive);
             if (recive.unixtime > 0)

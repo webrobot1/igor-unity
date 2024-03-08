@@ -47,6 +47,18 @@ namespace MyFantasy
 			if (worldObject == null)
 				Error("не присвоен GameObject для игровых обектов");
 
+
+			// на случай если мы как разработчик какие то тестовые данные оставили
+			foreach (Transform transform in mapObject.transform)
+			{
+				DestroyImmediate(transform.gameObject);
+			}
+
+			foreach (Transform transform in worldObject.transform)
+			{
+				DestroyImmediate(transform.gameObject);
+			}
+
 			// определяем здесь что бы сбросить статичные свойства если мы перезаходили в игру
 			// сбрасываем тк при разработке некие опции у нас стоят что не очищают при отладке эти данные https://youtu.be/sRx14YMbLuw
 			_sides.Clear();
@@ -61,10 +73,6 @@ namespace MyFantasy
 			if (recive.sides != null)
 			{
 				Debug.Log("Обрабатываем стороны карт");
-
-				if (player == null) Error("Нельзя обновить карты ДО того как обновили данные игрока");
-				if (!recive.sides.ContainsKey(player.map_id)) Error("Запись о карте игрока не пришла вместе с доступными сторонами");
-
 
 				// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
 				if (_maps.Count > 0)
