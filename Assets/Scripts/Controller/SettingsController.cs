@@ -70,13 +70,18 @@ namespace MyFantasy
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
+            GameObject obj = base.UpdateObject(map_id, key, recive, type);
+
             if (key == player_key && ((PlayerRecive)recive).components != null)
             {
                 Dictionary<string, Setting> settings = ((PlayerRecive)recive).components.settings;
                 if (settings != null)
                 {
                     if (settings.ContainsKey("fps"))
-                        Application.targetFrameRate = int.Parse(settings["fps"].value);                               
+                        Application.targetFrameRate = int.Parse(settings["fps"].value);                      
+                    
+                    if (settings.ContainsKey("view"))
+                        CameraController.UpdateView();                               
                     
                     if(settings.ContainsKey("joystick"))
                         joystick.gameObject.SetActive(int.Parse(settings["joystick"].value)>0);
@@ -174,7 +179,7 @@ namespace MyFantasy
                 }
             }
 
-            return base.UpdateObject(map_id, key, recive, type);
+            return obj;
         }
 
         private void ScrollOnChange(string key, Slider slider, Text text)

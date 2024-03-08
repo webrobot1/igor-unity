@@ -13,10 +13,13 @@ namespace MyFantasy
 		protected static string login;
 		protected static string password;
 
-		public static void Error(string error, Exception ex = null)
+		public static void Error(string error = null, Exception ex = null)
 		{
-			GameObject.Find("error").GetComponent<Text>().text = error;
-			Debug.LogError(error);
+            if (error != null) 
+			{ 
+				GameObject.Find("error").GetComponent<Text>().text = error;
+				Debug.LogError(error);
+			}
 
 			if (ex != null)
 				Debug.LogException(ex);

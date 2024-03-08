@@ -160,8 +160,19 @@ namespace MyFantasy
 		/// </summary>
 		private static List<double> pings = new List<double>();
 
-		protected virtual void Update() {}
+        protected override void Awake()
+		{
+			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
+			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
+			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
+			Time.fixedDeltaTime = 0.01f;
+			Application.targetFrameRate = 100;
+		
+			base.Awake();
+		}
 
+
+		protected virtual void Update() { }
 
 		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
@@ -213,6 +224,8 @@ namespace MyFantasy
 				}
 				else
 				{
+					// местами главное не менять!
+					Close();
 					coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
 					errors.Clear();
 				}	
@@ -220,18 +233,6 @@ namespace MyFantasy
 		}
 
 		abstract protected void Handle(string json);
-
-
-		protected override void Awake()
-        {
-			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
-			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
-			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
-			Time.fixedDeltaTime = 0.01f;
-			Application.targetFrameRate = 100;
-
-			base.Awake();
-		}
 
 		/// <summary>
 		/// Звпускается после авторизации - заполяет id и token 
@@ -525,7 +526,12 @@ namespace MyFantasy
 					Debug.LogWarning("WebSocket - содинение уже закрывается");
 			}
 
+			// это кажется не обязательным , но для разработки нужно что бы отключит автопресборку (Project settings->Editor->Enter Play Mode Option-> diale Domain and Scene flag)
+			// errors здесь очищать не надо!
+			coroutine = null;
 			connect = null;
+			loading = null;
+			recives.Clear();
 		}
 
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
@@ -564,7 +570,7 @@ namespace MyFantasy
 		/// Страница ошибок - загрузка страницы входа
 		/// </summary>
 		/// <param name="error">сама ошибка</param>
-		protected virtual IEnumerator LoadRegister(string error)
+		protected virtual IEnumerator LoadRegister(string error = null)
 		{
 			Debug.LogWarning("загружаем сцену регистрации");
 
@@ -588,6 +594,7 @@ namespace MyFantasy
 		{
 			Debug.Log("Закрытие приложения");
 			Close();
+			errors.Clear();
 		}
 	}
 }

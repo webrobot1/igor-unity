@@ -6,28 +6,27 @@ using System.Linq;
 
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using UnityEditor.SceneManagement;
 
 [InitializeOnLoad]
 public class Startup : ScriptableObject
 {
     static Startup()
     {
-		
         // проверим необходимые пакеты
-        var pack = Client.List();
-        while (!pack.IsCompleted);
+        /*        var pack = Client.List();
+                while (!pack.IsCompleted);
 
-		// todo передалить в list
-		var pckName = "com.unity.cinemachine";
-        
-        if (pack.Result.FirstOrDefault(q => q.name == pckName) == null)
-        {
-           var add =  Client.Add(pckName);
-           while (!pack.IsCompleted);
+                // todo передалить в list
+                var pckName = "com.unity.cinemachine";
 
-           Debug.Log(pckName + " успешно установлен");
-        }
+                if (pack.Result.FirstOrDefault(q => q.name == pckName) == null)
+                {
+                   var add =  Client.Add(pckName);
+                   while (!pack.IsCompleted);
 
+                   Debug.Log(pckName + " успешно установлен");
+                }*/
 
         // если первая загрузка c Git и нет сцен
         if (EditorBuildSettings.scenes.Length != 2)
