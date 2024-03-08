@@ -27,7 +27,7 @@
 	Assets\Scripts\Model  		- классы моделей префабов (унаследованных от PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за данные пришли (в частности компоненты)
 	Assets\Scripts\Struct  		- описание структур запросов и ответов от сервера
 	  Recive\  			- стуктуры что нужно переопределить в плагине (в частности это стукруты игроков, монстров и объектов и их пользовательские поля (http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9))
-	  Response\  		- структуры игровых механик (команд что отправляются с клиента) с данными что ожидает сервер (настраиваются в личном кабинете сервера http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9)
+	  Response\  			- структуры игровых механик (команд что отправляются с клиента) с данными что ожидает сервер (настраиваются в личном кабинете сервера http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9)
 	Assets\Scripts\Controller       - игровые классы 
 	  CameraController.cs		- изменение размер отдаления камеры для разного масштаба
 	  PlayerController.cs   	- класc обрабатывает что нажал игрок и что надо отправлять на сервер, наследуется от ConnectController
