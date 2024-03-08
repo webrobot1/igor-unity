@@ -54,6 +54,8 @@ namespace MyFantasy
 
         protected override void Awake()
         {
+            base.Awake();
+
             if (joystick == null)
                 Error("не указан джойстик");
 
@@ -63,9 +65,7 @@ namespace MyFantasy
             Screen.orientation = ScreenOrientation.LandscapeRight;
             Screen.autorotateToPortrait = false;
             Screen.orientation = ScreenOrientation.AutoRotation;
-#endif
-
-            base.Awake();
+#endif           
         }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
@@ -79,9 +79,6 @@ namespace MyFantasy
                 {
                     if (settings.ContainsKey("fps"))
                         Application.targetFrameRate = int.Parse(settings["fps"].value);                      
-                    
-                    if (settings.ContainsKey("view"))
-                        CameraController.UpdateView();                               
                     
                     if(settings.ContainsKey("joystick"))
                         joystick.gameObject.SetActive(int.Parse(settings["joystick"].value)>0);

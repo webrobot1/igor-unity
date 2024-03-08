@@ -51,8 +51,8 @@ namespace MyFantasy
 
         protected override void Awake()
         {
-            CloseAllMenu();
             base.Awake();
+            CloseAllMenu();   
         }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)

@@ -25,7 +25,7 @@ namespace MyFantasy
 		/// <summary>
 		/// Обработка пришедших от сервера значений
 		/// </summary>
-		protected virtual void HandleData<P,E,O>(Recive<P, E, O> recive) where P : EntityRecive where E : EntityRecive where O : EntityRecive
+		protected override void HandleData<P,E,O>(Recive<P, E, O> recive)
 		{
 			if (recive.action != null)
 			{
@@ -53,7 +53,6 @@ namespace MyFantasy
 					break;
 				}
 			}
-
 
 			if (recive.world != null)
 			{
@@ -120,51 +119,7 @@ namespace MyFantasy
 				}
 			}
 
-			if (recive.sides != null)
-			{
-				UpdateSides(recive.sides);
-			}
-		}
-
-
-		/// <summary>
-		/// Обработка пакета - с какой стороны какая ID карты на сцене
-		/// </summary>
-		private void UpdateSides(Dictionary<int, Point> sides)
-		{
-			Debug.Log("Обрабатываем стороны карт");
-
-			if (player == null) Error("Нельзя обновить карты ДО того как обновили данные игрока");
-			if (!sides.ContainsKey(player.map_id)) Error("Запись о карте игрока не пришла");
-			
-
-			// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
-			if (maps.Count > 0)
-			{
-				foreach (Transform grid in mapObject.transform)
-				{
-					int map_id = Int32.Parse(grid.name);
-                    if (!sides.ContainsKey(map_id))
-                    {
-						Debug.Log("уничтожаем неиспользуемую карту " + map_id);
-						DestroyImmediate(mapObject.transform.Find(map_id.ToString()).gameObject);
-						DestroyImmediate(worldObject.transform.Find(map_id.ToString()).gameObject);
-
-						maps.Remove(map_id);
-					}				
-				}
-			}
-
-			MapController.sides = sides;
-			SortMap();
-
-
-			// загрузим отвутвующую графику центральной и смежных карт 
-			// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
-			foreach (KeyValuePair<int, Point> side in sides)
-			{
-				if (!maps.ContainsKey(side.Key)) StartCoroutine(DownloadMap(side.Key));
-			}
+			base.HandleData(recive);
 		}
 
 		/// <summary>
@@ -214,12 +169,12 @@ namespace MyFantasy
 				}
 
 				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
-				if (maps.ContainsKey(map_id))
+				if (getMaps().ContainsKey(map_id))
 				{
 					if (prefab.GetComponent<SpriteRenderer>())
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)maps[map_id].spawn_sort + model.sort;
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)getMaps()[map_id].spawn_sort + model.sort;
 					if (prefab.GetComponentInChildren<Canvas>())
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)maps[map_id].spawn_sort + 1 + model.sort;
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)getMaps()[map_id].spawn_sort + 1 + model.sort;
 				}
 			}
             else 

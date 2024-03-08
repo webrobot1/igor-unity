@@ -26,10 +26,10 @@ namespace MyFantasy
 
         protected override void Awake()
         {
-            if (ping == null)
-                Error("не присвоен фрейм для статистики пинга");
-
             base.Awake();
+
+            if (ping == null)
+                Error("не присвоен фрейм для статистики пинга"); 
         }
 
         protected override void Update()

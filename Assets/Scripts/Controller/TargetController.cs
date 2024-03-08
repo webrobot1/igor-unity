@@ -8,6 +8,11 @@ namespace MyFantasy
 {
     public class TargetController: MonoBehaviour
     {
+        /// <summary>
+        ///  скорость изменения полоски жизней и маны
+        /// </summary>
+        [SerializeField]
+        private float lineSpeed = 3;
         [SerializeField]
         private float aspect = 30;
         [SerializeField]
@@ -29,10 +34,6 @@ namespace MyFantasy
         [NonSerialized]
         public int layerIndex;
 
-        /// <summary>
-        ///  скорость изменения полоски жизней и маны
-        /// </summary>
-        private static float lineSpeed = 3;
         private ObjectModel _target = null;
 
         private void Awake()

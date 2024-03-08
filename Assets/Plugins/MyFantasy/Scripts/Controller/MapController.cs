@@ -30,15 +30,17 @@ namespace MyFantasy
 		/// <summary>
 		/// массив с перечнем с какой стороны какая смежная карта
 		/// </summary>
-		protected static Dictionary<int, Point> sides;
+		private static Dictionary<int, Point> _sides = new Dictionary<int, Point>();
 
 		/// <summary>
 		/// массив декодированных с сервера карт
 		/// </summary>
-		protected static Dictionary<int, MapDecode> maps;
+		private static Dictionary<int, MapDecode> _maps = new Dictionary<int, MapDecode>();
 
 		protected override void Awake()
 		{
+			base.Awake();
+
 			if (mapObject == null)
 				Error("не присвоен GameObject для карт");
 
@@ -46,29 +48,97 @@ namespace MyFantasy
 				Error("не присвоен GameObject для игровых обектов");
 
 			// определяем здесь что бы сбросить статичные свойства если мы перезаходили в игру
-			sides = new Dictionary<int, Point>();
-			maps = new Dictionary<int, MapDecode>();
-
-			base.Awake();
+			// сбрасываем тк при разработке некие опции у нас стоят что не очищают при отладке эти данные https://youtu.be/sRx14YMbLuw
+			_sides.Clear();
+			_maps.Clear();	
 		}
-		
+
+		/// <summary>
+		/// Обработка пакета - с какой стороны какая ID карты на сцене
+		/// </summary>
+		protected virtual void HandleData<P, E, O>(Recive<P, E, O> recive) where P : EntityRecive where E : EntityRecive where O : EntityRecive
+		{
+			if (recive.sides != null)
+			{
+				Debug.Log("Обрабатываем стороны карт");
+
+				if (player == null) Error("Нельзя обновить карты ДО того как обновили данные игрока");
+				if (!recive.sides.ContainsKey(player.map_id)) Error("Запись о карте игрока не пришла вместе с доступными сторонами");
+
+
+				// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
+				if (_maps.Count > 0)
+				{
+					foreach (Transform grid in mapObject.transform)
+					{
+						int map_id = Int32.Parse(grid.name);
+						if (!recive.sides.ContainsKey(map_id))
+						{
+							Debug.Log("уничтожаем неиспользуемую карту " + map_id);
+							DestroyImmediate(mapObject.transform.Find(map_id.ToString()).gameObject);
+							DestroyImmediate(worldObject.transform.Find(map_id.ToString()).gameObject);
+
+							_maps.Remove(map_id);
+						}
+					}
+				}
+
+				MapController._sides = recive.sides;
+				SortMap();
+
+				// загрузим отвутвующую графику центральной и смежных карт 
+				// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
+				foreach (KeyValuePair<int, Point> side in recive.sides)
+				{
+					if (!_maps.ContainsKey(side.Key)) StartCoroutine(DownloadMap(side.Key));
+				}
+			}
+		}
+
 		public static Dictionary<int, MapDecode> getMaps()
         {
-			return maps;
+			return _maps;
 		}		
 		
 		public static Dictionary<int, Point> getSides()
         {
-			return sides;
+			return _sides;
+		}
+		
+		private void SortMap()
+		{
+			foreach (Transform grid in mapObject.transform)
+			{
+				int map_id = Int32.Parse(grid.name);
+				grid.localPosition = new Vector2(_sides[map_id].x, _sides[map_id].y);
+
+				// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
+				if (worldObject.transform.Find(grid.gameObject.name) != null)
+				{
+					worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
+					foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
+					{
+						var model = child.GetComponent<EntityModel>();
+						if (model != null)
+						{
+							if (child.gameObject.GetComponent<SpriteRenderer>())
+								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = _maps[map_id].spawn_sort + model.sort;
+
+							if (child.gameObject.GetComponentInChildren<Canvas>())
+								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = _maps[map_id].spawn_sort + 1 + model.sort;
+						}
+					}
+				}
+			}
 		}
 
 		protected virtual IEnumerator DownloadMap(int map_id)
 		{
-			if (!sides.ContainsKey(map_id))
+			if (!_sides.ContainsKey(map_id))
 				Error("карта " + map_id + " не является какой либо частью текущих локаций");			
 			else if (mapObject.transform.Find(map_id.ToString()) != null)
 				Error("карта " + map_id + " уже выгружена в игровое пространство");
-			else if (maps.ContainsKey(map_id))
+			else if (_maps.ContainsKey(map_id))
 				Error("попытка загрузки карты " + map_id + " повторно");
 			else
 			{
@@ -105,7 +175,7 @@ namespace MyFantasy
 							// приведем координаты в сответсвие с сеткой Unity
 							try
 							{
-								maps.Add(map_id, MapDecodeModel.generate(recive.map, grid));
+								_maps.Add(map_id, MapDecodeModel.generate(recive.map, grid));
 								SortMap();
 							}
 							catch (Exception ex)
@@ -128,33 +198,6 @@ namespace MyFantasy
 			}			
 
 			yield break;
-		}
-
-		protected void SortMap()
-		{
-			foreach (Transform grid in mapObject.transform)
-			{
-				int map_id = Int32.Parse(grid.name);
-				grid.localPosition = new Vector2(sides[map_id].x, sides[map_id].y);
-
-				// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
-				if (worldObject.transform.Find(grid.gameObject.name) != null)
-				{
-					worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
-					foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
-					{
-						var model = child.GetComponent<EntityModel>();
-						if (model != null)
-						{
-							if (child.gameObject.GetComponent<SpriteRenderer>())
-								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = maps[map_id].spawn_sort + model.sort;
-
-							if (child.gameObject.GetComponentInChildren<Canvas>())
-								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = maps[map_id].spawn_sort + 1 + model.sort;
-						}
-					}
-				}
-			}
 		}
 	}
 }

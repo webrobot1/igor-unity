@@ -28,7 +28,39 @@ namespace MyFantasy
 	{
 		public const string ACTION_REMOVE = "remove";
 		public const string ACTION_LOAD = "load";
+	
+		/// <summary>
+		/// позволить слать запрос к серверу чуть раньше (на время доставки пакета - расчитвается как пол пинга) что бы к моменту таймаута события сервера запрос на новое уже был
+		/// число - на сколько делим PING что бы обозначит время на доставку пакета в одну сторону (0.5 = считается половиной ping которая приближена ко времени на доставку пакета в одну сторону)
+		/// меньше можно ольше не нужно тк будет ошибка на сервере что слишком быстро пришел пакет и запрос по сути будет зря
+		/// </summary>
+		private const float INTERPOLATION = 0.5f;
 
+		/// <summary>
+		/// максимальное количество секунд паузы между загрузками
+		/// </summary>
+		private const int MAX_PAUSE_SEC = 10;
+
+		/// <summary>
+		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
+		/// </summary>
+		private const int MAX_PING_HISTORY = 5;
+
+		/// <summary>
+		/// до какой длинные обрезается историй пингов после достижения максимального количества
+		/// </summary>
+		private const int MIN_PING_HISTORY = 2;
+
+		/// <summary>
+		/// через сколько секунд передавать на сервер результаты расчета пинга (не чаще чем сохраняется игрок в бд)
+		/// </summary>
+		private const double PING_SEND_SEC = 60;
+
+		/// <summary>
+		/// через сколько секунд мы отправляем на серер запрос с Unixtime для анализа пинга
+		/// </summary>
+		private const float PING_REQUEST_SEC = 0.5f;
+			
 		/// <summary>
 		/// установленная на сервере длинна шага. нужно для проверки шагаем ли мы или телепортируемся (тк даже механика быстрого полета или скачек - это тоже хотьба)
 		/// </summary>
@@ -63,34 +95,23 @@ namespace MyFantasy
 		/// Префаб нашего игрока
 		/// TODO переделать в статический get - set свойство возвращающее ваш (переопределенный) объект ObjectModel
 		/// </summary>
-		protected static EntityModel player = null;
+		protected static EntityModel player;
 
 		/// <summary>
 		/// Ссылка на конектор
 		/// </summary>
-		private static WebSocket connect = null;
+		private static WebSocket connect;
 		
 		/// <summary>
 		/// флаг что нужно переподключаться игнорируюя все запросы в очереди
 		/// </summary>
-		private static ReloadStatus reload = ReloadStatus.None;
+		private static ReloadStatus reload;
 		private enum ReloadStatus
 		{
 			Start,
 			Process,
 			None
 		};
-
-		/// <summary>
-		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
-		/// </summary>
-
-		private static ConcurrentQueue<string> recives = new ConcurrentQueue<string>();
-
-		/// <summary>
-		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
-		/// </summary>
-		private static List<string> errors = new List<string>();
 
 		/// <summary>
 		/// блокирует отправку любых запросов на сервер (тк уже идет соединение). только событие load (получения с сервера игрового мира) снимает его
@@ -103,71 +124,70 @@ namespace MyFantasy
 		private static Coroutine coroutine;
 
 		/// <summary>
-		/// позволить слать запрос к серверу чуть раньше (на время доставки пакета - расчитвается как пол пинга) что бы к моменту таймаута события сервера запрос на новое уже был
-		/// число - на сколько делим PING что бы обозначит время на доставку пакета в одну сторону (0.5 = считается половиной ping которая приближена ко времени на доставку пакета в одну сторону)
-		/// меньше можно ольше не нужно тк будет ошибка на сервере что слишком быстро пришел пакет и запрос по сути будет зря
-		/// </summary>
-		private const float INTERPOLATION = 0.5f;
-
-		/// <summary>
-		/// максимальное количество секунд паузы между загрузками
-		/// </summary>
-		private const int MAX_PAUSE_SEC = 10;
-		
-		/// <summary>
-		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
-		/// </summary>
-		private const int MAX_PING_HISTORY = 5;
-
-		/// <summary>
-		/// до какой длинные обрезается историй пингов после достижения максимального количества
-		/// </summary>
-		private const int MIN_PING_HISTORY = 2;
-
-		/// <summary>
-		/// через сколько секунд передавать на сервер результаты расчета пинга (не чаще чем сохраняется игрок в бд)
-		/// </summary>
-		private const double PING_SEND_SEC = 60;
-
-		/// <summary>
-		/// через сколько секунд мы отправляем на серер запрос с Unixtime для анализа пинга
-		/// </summary>
-		private const float PING_REQUEST_SEC = 0.5f;
-
-		/// <summary>
 		/// последний отправленный уже расчитаного пинга на сервер (если не будут отличаться новые пинг не отправится)
 		/// </summary>
-		private static double last_ping_send_value = 0;
+		private static double last_ping_send_value;
 		
 		/// <summary>
 		/// последнее время отправки уже расчитаного пинга на сервер
 		/// </summary>
-		private static DateTime last_ping_send = DateTime.Now;
+		private static DateTime last_ping_send;
 
 		/// <summary>
 		/// когда последний раз отправили с основным пакетом текущую метку времени для расчета пинг
 		/// </summary>
-		private static DateTime last_ping_request = DateTime.Now;
+		private static DateTime last_ping_request;
 
 		/// <summary>
 		/// среднее значение пинга (времени нужное для доставки пакета на сервере и возврата назад. вычитая половину, время на доставку, мы можем слать запросы чуть раньше их времени таймаута)
 		/// </summary>
-		private static double ping = 0;
-		private static double max_ping = 0;
+		private static double ping;
+		private static double max_ping;
 
 		/// <summary>
 		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
 		/// </summary>
 		private static List<double> pings = new List<double>();
+		
+		/// <summary>
+		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
+		/// </summary>
 
-        protected override void Awake()
+		private static ConcurrentQueue<string> recives = new ConcurrentQueue<string>();
+
+		/// <summary>
+		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
+		/// </summary>
+		private static List<string> errors = new List<string>();
+
+
+		protected override void Awake()
 		{
 			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
 			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
 			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
 			Time.fixedDeltaTime = 0.01f;
 			Application.targetFrameRate = 100;
-		
+
+			// это кажется не обязательным , но для разработки нужно что бы отключит автопресборку (Project settings->Editor->Enter Play Mode Option-> diale Domain and Scene flag)
+			// Подробнее https://youtu.be/sRx14YMbLuw
+			connect = null;
+			coroutine = null;
+			loading = null;
+			player = null;
+
+			ping = 0;
+			max_ping = 0;
+			last_ping_send_value = 0;
+
+			reload = ReloadStatus.None;
+			last_ping_request = DateTime.Now;
+			last_ping_send = DateTime.Now;
+			
+			recives.Clear();
+			errors.Clear();
+			pings.Clear();
+
 			base.Awake();
 		}
 
@@ -224,7 +244,6 @@ namespace MyFantasy
 				}
 				else
 				{
-					// местами главное не менять!
 					Close();
 					coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
 					errors.Clear();
@@ -519,19 +538,14 @@ namespace MyFantasy
 			{
 				if (connect.ReadyState != WebSocketState.Closed && connect.ReadyState != WebSocketState.Closing)
 				{
-					connect.CloseAsync();
-					Debug.LogError("WebSocket - закрытие соедения ");
+					connect.Close();
+					Debug.LogError("WebSocket - закрытие соедения");
 				}
 				else
 					Debug.LogWarning("WebSocket - содинение уже закрывается");
-			}
 
-			// это кажется не обязательным , но для разработки нужно что бы отключит автопресборку (Project settings->Editor->Enter Play Mode Option-> diale Domain and Scene flag)
-			// errors здесь очищать не надо!
-			coroutine = null;
-			connect = null;
-			loading = null;
-			recives.Clear();
+				connect = null;
+			}
 		}
 
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос

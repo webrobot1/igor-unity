@@ -55,15 +55,15 @@ namespace MyFantasy
 
         protected override void Awake()
         {
+            base.Awake();
+
             if (_playerFaceController == null)
                 Error("не присвоен фрейм жизней игрока");          
             
             if (_targetFaceController == null)
                 Error("не присвоен фрейм жизней цели");
 
-            _target = _targetFaceController;
-
-            base.Awake();
+            _target = _targetFaceController;    
         }
 
 

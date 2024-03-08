@@ -927,6 +927,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d909d0d95141414f8b3feb68528b2b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  lineSpeed: 3
   aspect: 30
   hpLine: {fileID: 201437677}
   mpLine: {fileID: 418402465}
@@ -4932,6 +4933,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df6782994527c0344aa2a1123d0a09f4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GAME_ID: 2
+  SERVER: my-fantasy.ru
   mapObject: {fileID: 961570895}
   worldObject: {fileID: 217698843}
   joystick: {fileID: 1183841432}
@@ -5698,7 +5701,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1494851755
 Transform:
   m_ObjectHideFlags: 0
@@ -6611,6 +6614,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d909d0d95141414f8b3feb68528b2b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  lineSpeed: 3
   aspect: 30
   hpLine: {fileID: 843498957}
   mpLine: {fileID: 1548051978}
