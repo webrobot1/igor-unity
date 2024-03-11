@@ -118,25 +118,30 @@ namespace MyFantasy
 			foreach (Transform grid in mapObject.transform)
 			{
 				int map_id = Int32.Parse(grid.name);
-				grid.localPosition = new Vector2(_sides[map_id].x, _sides[map_id].y);
-
-				// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
-				if (worldObject.transform.Find(grid.gameObject.name) != null)
+				if (_sides.ContainsKey(map_id))
 				{
-					worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
-					foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
-					{
-						var model = child.GetComponent<EntityModel>();
-						if (model != null)
-						{
-							if (child.gameObject.GetComponent<SpriteRenderer>())
-								child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = _maps[map_id].spawn_sort + model.sort;
+					grid.localPosition = new Vector2(_sides[map_id].x, _sides[map_id].y);
 
-							if (child.gameObject.GetComponentInChildren<Canvas>())
-								child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = _maps[map_id].spawn_sort + 1 + model.sort;
+					// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
+					if (worldObject.transform.Find(grid.gameObject.name) != null)
+					{
+						worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
+						foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
+						{
+							var model = child.GetComponent<EntityModel>();
+							if (model != null)
+							{
+								if (child.gameObject.GetComponent<SpriteRenderer>())
+									child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = _maps[map_id].spawn_sort + model.sort;
+
+								if (child.gameObject.GetComponentInChildren<Canvas>())
+									child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = _maps[map_id].spawn_sort + 1 + model.sort;
+							}
 						}
 					}
 				}
+				else
+					Error("На сцене присутвует карта "+ map_id + " которая не является текущей или смежной");
 			}
 		}
 
@@ -183,8 +188,13 @@ namespace MyFantasy
 							// приведем координаты в сответсвие с сеткой Unity
 							try
 							{
-								_maps.Add(map_id, MapDecodeModel.generate(recive.map, grid));
-								SortMap();
+								if (_sides.ContainsKey(map_id))
+								{
+									_maps.Add(map_id, MapDecodeModel.generate(recive.map, grid));
+									SortMap();
+								}
+								else 
+									Debug.LogError("Карта "+ map_id + " загружена в то время когда уже ее нет в массиве сторон (возможно игрок уже ушел с карты где она была нужна)");
 							}
 							catch (Exception ex)
 							{

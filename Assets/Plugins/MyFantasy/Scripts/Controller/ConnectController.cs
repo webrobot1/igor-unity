@@ -564,7 +564,7 @@ namespace MyFantasy
 			}
 		}
 
-		public new static void Error (string text, Exception ex = null)
+		public new static void Error(string text, Exception ex = null)
 		{
 			if (ex!=null)
 				Debug.LogException(ex);

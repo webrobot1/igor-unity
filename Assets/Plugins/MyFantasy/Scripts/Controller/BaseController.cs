@@ -6,8 +6,8 @@ namespace MyFantasy
 {		
 	abstract public class BaseController : MonoBehaviour
 	{
-		public int GAME_ID = 2;					    // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://my-fantasy.ru/  раздела Игры
-		public string SERVER = "my-fantasy.ru";     // это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
+		public int GAME_ID = 2;									 // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://my-fantasy.ru/  раздела Игры
+		public const string SERVER = "my-fantasy.ru";			// это физический адрес удаленного vps сервера где крутится prodiction (можно и просто домен указывать) 
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
