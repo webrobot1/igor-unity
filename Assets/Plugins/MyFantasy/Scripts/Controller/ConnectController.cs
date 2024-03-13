@@ -566,13 +566,13 @@ namespace MyFantasy
 
 		public new static void Error(string text, Exception ex = null)
 		{
+			errors.Add(text);
+
 			if (ex!=null)
 				Debug.LogException(ex);
 
 			Debug.LogError(text);
-
-			Close();
-			errors.Add(text);
+			Close();	
 		}
 
 		public void Logout()
