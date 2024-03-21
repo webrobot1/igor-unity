@@ -8,7 +8,6 @@ namespace MyFantasy
 	{
 		public int tile_id;
 		public int tileset_id;
-		public int num = 0;
 		public int horizontal = 0;
 		public int vertical = 0;
 		public int diagonal = 0;

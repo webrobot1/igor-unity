@@ -20,9 +20,9 @@ namespace MyFantasy
 		public int margin;
 		public string trans;
 
-		public string resource;
+		public string image;
 
-		// всегда словарь тк его ключ нужен для доступа через tileset из layer 
+		// здесь только нестанданртные tile с зависимыми данными (весь список возможных можно получить зная tilecount)
 		public Dictionary<int, TilesetTile> tile = new Dictionary<int, TilesetTile> { };
 	}
 }

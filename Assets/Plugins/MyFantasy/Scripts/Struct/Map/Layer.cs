@@ -17,17 +17,16 @@ namespace MyFantasy
 		public string name;
 		public int visible;
 		public float opacity;
-		public int isGround = 0;
 		public int isSpawn = 0;
 
 		public float offsetx;
 		public float offsety;
 		public float offsetz;
 
-		public string resource;
+		public string image;
 
 		// строго словарь так ключ это порядковый номер на карте и при отправке пакета мы пустые клчи удаляем так что они могу  не порядку идти хотя изначально по прдяку с пустыми клетками
-		public LayerTile[] tiles;
+		public Dictionary<int, LayerTile> tiles;
 		public LayerObject[] objects;
 	}
 }

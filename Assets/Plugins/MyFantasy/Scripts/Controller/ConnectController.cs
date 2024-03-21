@@ -3,14 +3,13 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using UnityEngine;
-using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
-using WebGLSupport;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
 	using WebGLWebsocket;
@@ -330,64 +329,86 @@ namespace MyFantasy
 						{
 							try
 							{
-								string text = Encoding.UTF8.GetString(ev.RawData);
-
-							#if UNITY_EDITOR
-								Debug.Log("WebSocket - Пришел пакет" + text);
-							#endif
-
 								if (coroutine == null && reload == ReloadStatus.None)
 								{
-									Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
-
-									if (recive.error != null)
+									string text;
+									using (MemoryStream source = new MemoryStream(ev.RawData))
 									{
-										Error(recive.error);
-									}
-									else
-									{
-										// сразу не подключаемя тк нужно дождаться fixed update который обработает существующие пакеты в тч и тот что пришел сейчас
-										if(recive.host != null)
+										using (MemoryStream target = new MemoryStream())
 										{
-											ConnectController.connect = null;
-											ConnectController.host = recive.host;
-
-											// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-											reload = ReloadStatus.Start;
-									
-											// закроем соединение что бы не пришел пакет о закрытие соединения
-											//Close();
-											Debug.Log("WebSocket - Перезаход в игру");
-										}
-
-										if (recive.action == ACTION_LOAD)
-										{
-											// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
-											// очищать можно только тут loading  не давал Update
-											recives.Clear();
-
-											// снимем флаг загрузки и разрешим отправлять пакеты к серверу
-											loading = null;
-										}
-
-										// это тоже обновим тут что бы ping и pings не делать protected 
-										if (recive.unixtime > 0)
-										{
-											double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
-											pings.Add(tmp_ping);
-
-											// если пришедший пинг больше текущего или пришла пора обновить пинги
-											if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
+#if UNITY_EDITOR
+											Debug.Log("Декодируем пакет");
+#endif
+											using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
 											{
-												ping = Math.Round((pings.Sum() / pings.Count), 3);
-												max_ping = Math.Round(pings.Max(), 3);
-												if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
-													pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
+												decompressStream.CopyTo(target);
+												text = Encoding.UTF8.GetString(target.ToArray());
 											}
 										}
-
-										recives.Enqueue(text);
 									}
+
+									if (text.Length == 0)
+										Error("Пришло пустое сообщение");
+									else
+									{
+#if UNITY_EDITOR
+										Debug.Log("WebSocket - Пришел пакет" + text);
+#endif
+										Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
+
+										if (recive.error != null)
+										{
+											Error(recive.error);
+										}
+										else
+										{
+											// сразу не подключаемя тк нужно дождаться fixed update который обработает существующие пакеты в тч и тот что пришел сейчас
+											if (recive.host != null)
+											{
+												// закроем соединение что бы не пришел пакет о закрытие соединения
+												Close();
+
+												ConnectController.host = recive.host;
+
+												// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
+												reload = ReloadStatus.Start;
+
+												Debug.Log("WebSocket - Перезаход в игру");
+											}
+
+											if (recive.action == ACTION_LOAD)
+											{
+												// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
+												// очищать можно только тут loading  не давал Update
+												recives.Clear();
+
+												// снимем флаг загрузки и разрешим отправлять пакеты к серверу
+												loading = null;
+											}
+
+											// это тоже обновим тут что бы ping и pings не делать protected 
+											if (recive.unixtime > 0)
+											{
+												double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
+												pings.Add(tmp_ping);
+
+												// если пришедший пинг больше текущего или пришла пора обновить пинги
+												if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
+												{
+													ping = Math.Round((pings.Sum() / pings.Count), 3);
+													max_ping = Math.Round(pings.Max(), 3);
+													if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
+														pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
+												}
+											}
+
+											recives.Enqueue(text);
+										}
+									}
+								}
+								else
+								{
+									Debug.LogError("Пакеты продолжают приходить" + (connect != null ? " при отсутвующем ссылке на соединение" : ", но ссылка на соединение до сих пор есть"));
 								}
 							}
 							catch(Exception ex)
@@ -538,11 +559,11 @@ namespace MyFantasy
 			{
 				if (connect.ReadyState != WebSocketState.Closed && connect.ReadyState != WebSocketState.Closing)
 				{
-					connect.Close();
-					Debug.LogError("WebSocket - закрытие соедения");
+					connect.CloseAsync();
+					Debug.LogError("WebSocket - закрытие соедения "+connect.Url);
 				}
 				else
-					Debug.LogWarning("WebSocket - содинение уже закрывается");
+					Debug.LogWarning("WebSocket - содинение уже закрывается " + connect.Url);
 
 				connect = null;
 			}
@@ -551,17 +572,37 @@ namespace MyFantasy
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
 		public static void Put2Send(string json)
 		{
-			byte[] sendBytes = Encoding.UTF8.GetBytes(json);
+			if (json.Length > 0)
+			{
+				byte[] bytes = Encoding.UTF8.GetBytes(json);
 
-			// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
-			if(connect!=null && connect.ReadyState == WebSocketState.Open)
-            {
-				#if !UNITY_WEBGL || UNITY_EDITOR
-					connect.SendAsync(sendBytes, null);
-				#else
-					connect.Send(sendBytes);
-				#endif
+				// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
+				if (connect != null && connect.ReadyState == WebSocketState.Open)
+				{
+					using (var memoryStream = new MemoryStream())
+					{
+						using (var gzipStream = new GZipStream(memoryStream, System.IO.Compression.CompressionLevel.Optimal))
+						{
+							gzipStream.Write(bytes, 0, bytes.Length);
+						}
+
+						byte[] toSend = memoryStream.ToArray();
+						if (toSend.Length == 0)
+							Error("Ошибка кодирование пакета на отправку");
+						else
+						{
+							Debug.Log("Отправляем пакет " + toSend.Length + " байт");
+#if !UNITY_WEBGL || UNITY_EDITOR
+							connect.SendAsync(toSend, null);
+#else
+							connect.Send(toSend);
+#endif
+						}
+					}
+				}
 			}
+			else
+				Error("нельзя отправлять к серверу пустые строки");
 		}
 
 		public new static void Error(string text, Exception ex = null)

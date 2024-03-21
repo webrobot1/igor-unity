@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.Tilemaps;
 using ICSharpCode.SharpZipLib.BZip2;
 using Newtonsoft.Json;
+using System.IO.Compression;
 
 namespace MyFantasy
 {
@@ -46,9 +47,9 @@ namespace MyFantasy
 				// если есть в слое набор тайлов
 				if (layer.tiles != null)
 				{
-					foreach (LayerTile tile in layer.tiles)
+					foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 					{
-						if (tile.tile_id > 0)
+						if (tile.Value.tile_id > 0)
 						{
 							TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 
@@ -58,17 +59,18 @@ namespace MyFantasy
 							var m = newTile.transform;
 
 							// повернем как нам нужно приэтом сместим назад тайл что бы съемулировать Vector3 будто он на месте остался хоть и повернут (как в программе Tiled)
-							m.SetTRS(new Vector3(tile.horizontal-0.5f, tile.vertical - 0.5f), Quaternion.Euler(tile.vertical * 180, tile.horizontal * 180, 0f), Vector3.one);
+							m.SetTRS(new Vector3(tile.Value.horizontal -0.5f, tile.Value.vertical - 0.5f), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 
-							if (map.tileset[tile.tileset_id].tile[tile.tile_id].frame != null)
+							if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].frame != null)
 							{
-								newTile.addSprites(map.tileset[tile.tileset_id].tile[tile.tile_id].frame);
+								Debug.Log("Карта: добавим на сцену анимированный тайл " + tile.Value.tile_id);
+								newTile.addSprites(map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].frame);
 							}
 							else
-								newTile.sprite = map.tileset[tile.tileset_id].tile[tile.tile_id].sprite;
+								newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
 
-							tilemap.SetTile(new Vector3Int(tile.x, tile.y, 0), newTile);
+							tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 						}
 					}
 					Debug.Log(newLayer.name + " раставлены tile");
@@ -115,18 +117,13 @@ namespace MyFantasy
 					}
 				}
 
-
-				// если еще не было слоев что НЕ выше чем сам игрок (те очевидно первый такой будет - земля, а следующий - тот на котром надо генеирить игроков и npc)
-				// создадим колайдер для нашей камеры (границы за которые она не смотрит) если слой земля - самый первый (врятли так можно нарисовать что он НЕ на всю карту и первый)
-				if (layer.isGround == 1)
-				{
-					Debug.Log(layer.name + "- слой Земля");
-				}
-
 				//  текущий слой на котором будем ставить игроков	
-				if (layer.isSpawn == 1)	
+				if (layer.isSpawn == 1)
+                {
+					Debug.Log(layer.name + "- слой Земля"); 
 					map.spawn_sort = sort;
-			
+				}	
+	
 				// землю нет нужды индивидуально просчитывать положения тайлов (тк мы за них не заходим и выше по слою)
 				if (map.spawn_sort == null)
 					newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
@@ -149,7 +146,10 @@ namespace MyFantasy
 				using (MemoryStream target = new MemoryStream())
 				{
 					Debug.Log("Декодируем карту");
-					BZip2.Decompress(source, target, true);
+					using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
+					{
+						decompressStream.CopyTo(target);
+					}
 
 					Debug.Log("Парсим карту");
 					map = JsonConvert.DeserializeObject<Map>(Encoding.UTF8.GetString(target.ToArray()));
@@ -162,51 +162,45 @@ namespace MyFantasy
 			// порежим изображение на плитку (тайлы)
 			foreach (KeyValuePair<int, Tileset> tileset in map.tileset)
 			{
-				// если у набора тайлов есть картинка
-				if (tileset.Value.resource != "")
+				// зайгрузим байты картинки в объект Texture
+				Texture2D texture = ImageToSpriteModel.LoadTexture(System.Convert.FromBase64String(tileset.Value.image), tileset.Value.trans);
+
+				for (int i = 0; i < tileset.Value.tilecount; i++)
 				{
-					// зайгрузим байты картинки в объект Texture
-					Texture2D texture = ImageToSpriteModel.LoadTexture(System.Convert.FromBase64String(tileset.Value.resource), tileset.Value.trans);
+					// посчитаем где находится необходимая область тайла
+					int x = (i % tileset.Value.columns * (tileset.Value.tilewidth + tileset.Value.spacing)) + tileset.Value.margin;
 
-					for (int i = 0; i < tileset.Value.tilecount; i++)
+					// что бы не снизу вверх брал отрезки (тайлы) а сверху вниз? при этом не менять рендеринг Vector2(0,0) в NewSprite (из за смены оторого появляются полоски)
+					int y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin;
+
+					// вырежем необходимую область
+					//  программе tiled точка опоры НЕ в центре а с угла (какого можно глянуть, забыл) но если менять на 0.0 часть тайлов в unity пропадают часть куда то смещаютя
+					// что бы это работала везде в этом классе где SetTRS есть (смещение) после поворота по горизонтали или вертикали смещаем таил назад (тк в Tiled он на месте остается если отражается)
+					Sprite NewSprite = Sprite.Create(texture, new Rect(x - tileset.Value.margin, y - tileset.Value.margin, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), Vector2.zero, map.tilewidth, 0, SpriteMeshType.FullRect);
+
+					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и доп свойств и он просто не передавался)
+					if (tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))
 					{
-						// посчитаем где находится необходимая область тайла
-						int x = (i % tileset.Value.columns * (tileset.Value.tilewidth + tileset.Value.spacing)) + tileset.Value.margin;
-
-						// что бы не снизу вверх брал отрезки (тайлы) а сверху вниз? при этом не менять рендеринг Vector2(0,0) в NewSprite (из за смены оторого появляются полоски)
-						int y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin;
-
-						// вырежем необходимую область
-						//  программе tiled точка опоры НЕ в центре а с угла (какого можно глянуть, забыл) но если менять на 0.0 часть тайлов в unity пропадают часть куда то смещаютя
-						// что бы это работала везде в этом классе где SetTRS есть (смещение) после поворота по горизонтали или вертикали смещаем таил назад (тк в Tiled он на месте остается если отражается)
-						Sprite NewSprite = Sprite.Create(texture, new Rect(x - tileset.Value.margin, y - tileset.Value.margin, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), Vector2.zero, map.tilewidth, 0, SpriteMeshType.FullRect);
-
-						if (!tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))
-							new Exception("Отсутвует ключ "+(i + tileset.Value.firstgid)+ " в tileset_id " + tileset.Key);
-
-						// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и он просто не передавался)
-						if (tileset.Value.tile[i + tileset.Value.firstgid]!=null)
-						{
-							tileset.Value.tile[i + tileset.Value.firstgid].sprite = NewSprite;
-							if (!animationCheck && tileset.Value.tile[i + tileset.Value.firstgid].frame != null)
-								animationCheck = true;
-						}
-						else
-							tileset.Value.tile[i + tileset.Value.firstgid] = new TilesetTile(NewSprite);
+						tileset.Value.tile[i + tileset.Value.firstgid].sprite = NewSprite;
+						if (!animationCheck && tileset.Value.tile[i + tileset.Value.firstgid].frame != null)
+							animationCheck = true;
 					}
+					else
+						tileset.Value.tile[i + tileset.Value.firstgid] = new TilesetTile(NewSprite);
+				}
 
 
-					// теперь когда мы заполнили спрайтами весь набор Tileset пройдем еще раз тк может быть в нем анимация
-					if (animationCheck)
+				// теперь когда мы заполнили спрайтами весь набор Tileset пройдем еще раз тк может быть в нем анимация
+				if (animationCheck)
+				{
+					foreach (KeyValuePair<int, TilesetTile> tile in tileset.Value.tile)
 					{
-						foreach (KeyValuePair<int, TilesetTile> tile in tileset.Value.tile)
+						if (tile.Value.frame != null)
 						{
-							if (tile.Value.frame != null)
+							foreach (TilesetTileAnimation frame in tile.Value.frame)
 							{
-								foreach (TilesetTileAnimation frame in tile.Value.frame)
-								{
-									frame.sprite = tileset.Value.tile[frame.tileid].sprite;
-								}
+								Debug.Log("Карта: создаем анмаиции для тайла " + tile.Key + " с тайлом "+ frame.tileid + " с паузами "+ frame.duration);
+								frame.sprite = tileset.Value.tile[frame.tileid].sprite;
 							}
 						}
 					}
@@ -219,11 +213,11 @@ namespace MyFantasy
 				if (layer.tiles != null)
 				{
 					// если есть в слое набор тайлов
-					foreach (LayerTile tile in layer.tiles)
+					foreach (KeyValuePair<int, LayerTile>tile in layer.tiles)
 					{
 						// если указанный тайл (клетка) не пустая
-						tile.x = (int)tile.num % map.columns;
-						tile.y = (int)(tile.num / map.columns) * -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+						tile.Value.x = tile.Key % map.columns;
+						tile.Value.y = (tile.Key / map.columns) * -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
 					}
 				}
 

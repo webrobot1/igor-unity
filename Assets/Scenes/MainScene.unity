@@ -4935,7 +4935,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   GAME_ID: 2
-  SERVER: my-fantasy.ru
   mapObject: {fileID: 961570895}
   worldObject: {fileID: 217698843}
   joystick: {fileID: 1183841432}

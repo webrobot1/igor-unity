@@ -8,7 +8,7 @@ namespace MyFantasy
 	[System.Serializable]
 	public class TilesetTile
 	{
-		public string resource;
+		public string image;
 		public Sprite sprite;
 		public Point[] polygon;
 				
