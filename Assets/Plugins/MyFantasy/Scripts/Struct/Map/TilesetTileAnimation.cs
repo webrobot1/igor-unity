@@ -8,7 +8,6 @@ namespace MyFantasy
 	[System.Serializable]
 	public class TilesetTileAnimation
 	{
-		public int tile_id;
 		public int tileid;
 		public int duration;
 		public Sprite sprite;

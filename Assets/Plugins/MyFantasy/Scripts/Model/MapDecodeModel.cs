@@ -49,19 +49,23 @@ namespace MyFantasy
 				{
 					foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 					{
-						if (tile.Value.tile_id > 0)
-						{
-							TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
+						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 
-							// если tile отражен по горизонтали или вертикали или у него z параметр (нужно где слои лежить друг за другом по Y)
-							//+ что бы тайлы были в квадратиках Unity (а то из за того что в Tiled слева с угла идет тайл в Unity он будто всегда выше выбранного в редакторе кадрата), но это не принципиально
+						// если tile отражен по горизонтали или вертикали или у него z параметр (нужно где слои лежить друг за другом по Y)
+						//+ что бы тайлы были в квадратиках Unity (а то из за того что в Tiled слева с угла идет тайл в Unity он будто всегда выше выбранного в редакторе кадрата), но это не принципиально
 
-							var m = newTile.transform;
+						var m = newTile.transform;
 
-							// повернем как нам нужно приэтом сместим назад тайл что бы съемулировать Vector3 будто он на месте остался хоть и повернут (как в программе Tiled)
-							m.SetTRS(new Vector3(tile.Value.horizontal -0.5f, tile.Value.vertical - 0.5f), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
-							newTile.transform = m;
+						// повернем как нам нужно приэтом сместим назад тайл что бы съемулировать Vector3 будто он на месте остался хоть и повернут (как в программе Tiled)
+						m.SetTRS(new Vector3(tile.Value.horizontal -0.5f, tile.Value.vertical - 0.5f), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
+						newTile.transform = m;
 
+                        if (!map.tileset[tile.Value.tileset_id].tile.ContainsKey(tile.Value.tile_id))
+                        {
+							throw new Exception("Не найден тайл "+ tile.Value.tile_id+" в набооре тайлов "+ tile.Value.tileset_id+" размером "+ map.tileset[tile.Value.tileset_id].tilecount+" начиная с "+ map.tileset[tile.Value.tileset_id].firstgid);
+                        }
+                        else 
+						{ 
 							if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].frame != null)
 							{
 								Debug.Log("Карта: добавим на сцену анимированный тайл " + tile.Value.tile_id);
@@ -163,7 +167,7 @@ namespace MyFantasy
 			foreach (KeyValuePair<int, Tileset> tileset in map.tileset)
 			{
 				// зайгрузим байты картинки в объект Texture
-				Texture2D texture = ImageToSpriteModel.LoadTexture(System.Convert.FromBase64String(tileset.Value.image), tileset.Value.trans);
+				Texture2D texture = ImageToSpriteModel.LoadTexture(System.Convert.FromBase64String(tileset.Value.resource), tileset.Value.trans);
 
 				for (int i = 0; i < tileset.Value.tilecount; i++)
 				{

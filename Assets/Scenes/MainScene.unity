@@ -4938,6 +4938,7 @@ MonoBehaviour:
   mapObject: {fileID: 961570895}
   worldObject: {fileID: 217698843}
   joystick: {fileID: 1183841432}
+  mobileActions: {fileID: 1782924110}
   SettingArea: {fileID: 3046298429839130036}
   SettingPrefabCheckbox: {fileID: 1027376590141588, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
   SettingPrefabScroll: {fileID: 1225465062972368, guid: c8e9e0dc2eb174635861b990cee2b0bb, type: 3}
@@ -5411,7 +5412,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1391205570}
   m_HandleRect: {fileID: 1391205569}
   m_Direction: 2
-  m_Value: 1
+  m_Value: 0
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -8332,7 +8333,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 1.199997, y: -46.899994}
+  m_AnchoredPosition: {x: 1.2000122, y: -46.899994}
   m_SizeDelta: {x: -212.9951, y: 56.50891}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &3046298430399257459

@@ -37,7 +37,7 @@ namespace UnityEngine.Tilemaps
         {
             foreach (TilesetTileAnimation anim in animations)
             {
-                for (int i = 0; i < anim.duration;  i+=10)
+                for (float i = 0; i < anim.duration;  i+= (1000 / Application.targetFrameRate * 0.6f))
                 {
                     this.sprites.Add(anim.sprite);
                 }   

@@ -15,7 +15,13 @@ namespace MyFantasy
         /// наш джойстик
         /// </summary>
         [SerializeField]
-        protected VariableJoystick joystick;
+        protected VariableJoystick joystick;      
+        
+        /// <summary>
+        /// наш джойстик
+        /// </summary>
+        [SerializeField]
+        private GameObject mobileActions;
 
         /// <summary>
         /// поле для генерации объектов настроек
@@ -147,6 +153,9 @@ namespace MyFantasy
                     if(settings.ContainsKey("joystick"))
                         joystick.gameObject.SetActive(int.Parse(settings["joystick"])>0);
 
+                    if (settings.ContainsKey("actions"))
+                        mobileActions.gameObject.SetActive(settings["actions"] == "mobile");
+       
                     foreach (var setting in settings)
                     {
                         if (!_types.ContainsKey(setting.Key)) 
@@ -163,10 +172,12 @@ namespace MyFantasy
                             case "slider":
                                 Slider slider = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Slider>();
                                 slider.value = float.Parse(setting.Value);
+                                slider.onValueChanged.Invoke(slider.value);
                             break;                           
                             case "dropdown":
                                 Dropdown dropdown = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Dropdown>();
                                 dropdown.value = Array.IndexOf(_lists[setting.Key], setting.Value);
+                                dropdown.onValueChanged.Invoke(dropdown.value);
                             break;
                         }
                             
@@ -180,7 +191,7 @@ namespace MyFantasy
 
         private void ScrollOnChange(string key, Slider slider, Text text)
         {
-            if(text!=null)
+            if (text!=null)
                 text.text = slider.value.ToString();
 
             _settings[key] = slider.value.ToString();

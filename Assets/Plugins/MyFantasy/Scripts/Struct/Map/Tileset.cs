@@ -20,7 +20,7 @@ namespace MyFantasy
 		public int margin;
 		public string trans;
 
-		public string image;
+		public string resource;
 
 		// здесь только нестанданртные tile с зависимыми данными (весь список возможных можно получить зная tilecount)
 		public Dictionary<int, TilesetTile> tile = new Dictionary<int, TilesetTile> { };

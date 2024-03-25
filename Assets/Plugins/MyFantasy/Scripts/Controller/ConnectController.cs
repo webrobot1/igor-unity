@@ -166,7 +166,7 @@ namespace MyFantasy
 			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
 			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
 			Time.fixedDeltaTime = 0.01f;
-			Application.targetFrameRate = 100;
+			Application.targetFrameRate = 60;
 
 			// это кажется не обязательным , но для разработки нужно что бы отключит автопресборку (Project settings->Editor->Enter Play Mode Option-> diale Domain and Scene flag)
 			// Подробнее https://youtu.be/sRx14YMbLuw
