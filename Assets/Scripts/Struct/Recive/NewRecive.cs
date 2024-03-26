@@ -8,6 +8,7 @@ namespace MyFantasy
     [System.Serializable]
     public class NewRecive<P, E, O> : Recive<PlayerRecive, EnemyRecive, ObjectRecive> where P : EntityRecive where E : EntityRecive where O : EntityRecive
     {
-        public Dictionary<string, Setting> settings = null;
+        public Dictionary<string, SettingRecive> settings = null;
+        public Dictionary<string, SpellRecive> spellBook = null;
     }
 }

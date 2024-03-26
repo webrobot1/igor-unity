@@ -284,7 +284,7 @@ namespace MyFantasy
 			else
 			{
 				// отрезок пути которой существо движется за кадр
-				timeout += getEvent(WalkResponse.GROUP).timeout ?? GetEventRemain(WalkResponse.GROUP);
+				timeout += GetEventRemain(WalkResponse.GROUP);
 			}
 
 			// на сколько от шага каждый кадр сервера сдвигать существо
@@ -293,7 +293,6 @@ namespace MyFantasy
 	
 			while (true)
 			{
-				//Log("Движение - идем");
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
 					LogWarning("Движение - Сменен action во время движения на " + action+", удаляем корутину");
@@ -339,9 +338,11 @@ namespace MyFantasy
 				}
 
 				//LogError("Движение - Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
-
+				
 				activeLast = DateTime.Now;
 				transform.localPosition = Vector3.MoveTowards(transform.localPosition, finish, (float)distancePerUpdate);
+
+				Log("Движение - пришли в "+ transform.localPosition +", осталось время "+ GetEventRemain(WalkResponse.GROUP)+" сек., расстояние "+ distance);
 
 				yield return new WaitForFixedUpdate();
 			}

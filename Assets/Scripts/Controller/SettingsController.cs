@@ -9,7 +9,7 @@ namespace MyFantasy
     /// <summary>
 	/// Класс для обновления Меню настрое игрока
 	/// </summary>
-    abstract public class SettingsController : UpdateController
+    abstract public class SettingsController : SpellBookController
     {
         /// <summary>
         /// наш джойстик
@@ -65,7 +65,7 @@ namespace MyFantasy
 
             if (joystick == null)
                 Error("не указан джойстик");
-
+          
 #if UNITY_WEBGL && !UNITY_EDITOR
                  WebGLRotation.Rotation(1);
 #else
@@ -75,7 +75,7 @@ namespace MyFantasy
 #endif           
         }
 
-        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
         {
             if (recive.settings != null)
             {

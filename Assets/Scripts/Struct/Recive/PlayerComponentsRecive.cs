@@ -9,5 +9,6 @@ namespace MyFantasy
 	public class PlayerComponentsRecive: EnemyComponentsRecive
 	{
 		public Dictionary<string, string> settings = null;
+		public Dictionary<string, bool> spellBook = null;
 	}
 }

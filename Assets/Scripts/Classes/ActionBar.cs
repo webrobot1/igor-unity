@@ -12,7 +12,7 @@ namespace MyFantasy
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class ActionBarController : MonoBehaviour, IPointerClickHandler
+    public class ActionBar : MonoBehaviour, IPointerClickHandler
     {
         /// <summary>
         /// наш джойстик

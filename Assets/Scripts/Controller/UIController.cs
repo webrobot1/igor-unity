@@ -18,14 +18,14 @@ namespace MyFantasy
         /// книга заклинаний
         /// </summary>
         [SerializeField]
-        private CanvasGroup settingGroup;        
-        
+        private CanvasGroup spellGroup;
+
         /// <summary>
         /// книга заклинаний
         /// </summary>
         [SerializeField]
-        private CanvasGroup spellBook;
-
+        private CanvasGroup settingGroup;        
+        
         /// <summary>
         /// группа всех меню
         /// </summary>
@@ -51,6 +51,9 @@ namespace MyFantasy
 
         protected override void Awake()
         {
+            if (spellGroup == null)
+                Error("не указан книга заклинаний");
+
             base.Awake();
             CloseAllMenu();   
         }
@@ -72,7 +75,7 @@ namespace MyFantasy
 
             if (Input.GetKeyDown(KeyCode.P))
             {
-                OpenClose(spellBook);
+                OpenClose(spellGroup);
             }            
             
             if (Input.GetKeyDown(KeyCode.Escape))

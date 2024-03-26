@@ -165,6 +165,7 @@ namespace MyFantasy
 					{
 						// вычтем время которое понадобилось что бы дойти ответу (половину пинга)
 						ev.finish = DateTime.Now.AddSeconds((double)kvp.Value.remain - ConnectController.Ping() / 2);
+						Log("События: Новое значение оставшегося времени "+ kvp.Key + " "+GetEventRemain(kvp.Key));
 					}
 
 					if (kvp.Value.timeout != null) 

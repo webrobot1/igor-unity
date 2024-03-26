@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 namespace MyFantasy
 {
-	public class Setting
+	public class SettingRecive
 	{
 		public string type;
 		public string title;

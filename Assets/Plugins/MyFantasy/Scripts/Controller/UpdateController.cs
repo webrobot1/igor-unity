@@ -137,14 +137,23 @@ namespace MyFantasy
 				if (recive.action == "remove") 
 					return null;
 
+				if (recive.prefab == null)
+                {
+					Error("Нельзя создать существо с пустым полем prefab");
+					return null;
+				}
+
 				UnityEngine.Object ob = Resources.Load("Prefabs/" + type + "/" + recive.prefab, typeof(GameObject));
 
 				if (ob == null)
-					ob = Resources.Load("Prefabs/" + type + "/Empty", typeof(GameObject));
-
+                {
+					Debug.LogError("Отсутвует и префаб Prefabs / " + type + " / " + recive.prefab);
+					ob = Resources.Load("Prefabs/" + type + "/Unknow", typeof(GameObject));
+				}
+					
 				if (ob == null)
 				{
-					Error("Отсутвует и префаб Prefabs / " + type + " / " + recive.prefab+ " и Prefabs/" + type + "/Empty для объекта " + key + " типа " + type);
+					Error("Отсутвует и префаб Prefabs/" + type + "/" + recive.prefab+ " и Prefabs/" + type + "/Unknow для объекта " + key);
 					return null;
 				}
 
