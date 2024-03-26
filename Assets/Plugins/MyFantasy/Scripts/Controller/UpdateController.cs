@@ -139,7 +139,7 @@ namespace MyFantasy
 
 				if (recive.prefab == null)
                 {
-					Error("Нельзя создать существо с пустым полем prefab");
+					Error("Нельзя создать существо "+ key + " с карты "+ map_id + " с пустым полем prefab");
 					return null;
 				}
 
@@ -147,7 +147,7 @@ namespace MyFantasy
 
 				if (ob == null)
                 {
-					Debug.LogError("Отсутвует и префаб Prefabs / " + type + " / " + recive.prefab);
+					Debug.LogError("Отсутвует и префаб Prefabs / " + type + " / " + recive.prefab+" у существа "+key);
 					ob = Resources.Load("Prefabs/" + type + "/Unknow", typeof(GameObject));
 				}
 					
