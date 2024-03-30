@@ -9,7 +9,6 @@ namespace MyFantasy
 	public class Tileset
 	{
 		public int tileset_id;
-		public int firstgid;
 		public int columns;
 		public int tilecount;
 		public int tilewidth;

@@ -62,7 +62,7 @@ namespace MyFantasy
 
                         if (!map.tileset[tile.Value.tileset_id].tile.ContainsKey(tile.Value.tile_id))
                         {
-							throw new Exception("Не найден тайл "+ tile.Value.tile_id+" в набооре тайлов "+ tile.Value.tileset_id+" размером "+ map.tileset[tile.Value.tileset_id].tilecount+" начиная с "+ map.tileset[tile.Value.tileset_id].firstgid);
+							throw new Exception("Не найден тайл "+ tile.Value.tile_id+" в набооре тайлов "+ tile.Value.tileset_id+" размером "+ map.tileset[tile.Value.tileset_id].tilecount);
                         }
                         else 
 						{ 
@@ -183,14 +183,14 @@ namespace MyFantasy
 					Sprite NewSprite = Sprite.Create(texture, new Rect(x - tileset.Value.margin, y - tileset.Value.margin, tileset.Value.tilewidth + tileset.Value.margin, tileset.Value.tileheight + tileset.Value.margin), Vector2.zero, map.tilewidth, 0, SpriteMeshType.FullRect);
 
 					// если у нас нет в переданном массиве данного тайла (те у него нет никаких параметров смещения и доп свойств и он просто не передавался)
-					if (tileset.Value.tile.ContainsKey(i + tileset.Value.firstgid))
+					if (tileset.Value.tile.ContainsKey(i))
 					{
-						tileset.Value.tile[i + tileset.Value.firstgid].sprite = NewSprite;
-						if (!animationCheck && tileset.Value.tile[i + tileset.Value.firstgid].frame != null)
+						tileset.Value.tile[i].sprite = NewSprite;
+						if (!animationCheck && tileset.Value.tile[i].frame != null)
 							animationCheck = true;
 					}
 					else
-						tileset.Value.tile[i + tileset.Value.firstgid] = new TilesetTile(NewSprite);
+						tileset.Value.tile[i] = new TilesetTile(NewSprite);
 				}
 
 
