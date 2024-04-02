@@ -10,7 +10,7 @@ namespace MyFantasy
     /// <summary>
 	/// Класс для обновления Frame UI игрока его цели атаки
 	/// </summary>
-    abstract public class PlayerController : StatController
+    abstract public class PlayerController : UpdateController
     {
         [Header("Для работы с иконкой персонажа и его цели")]
         [SerializeField]
@@ -56,10 +56,17 @@ namespace MyFantasy
             base.Awake();
 
             if (_playerFaceController == null)
-                Error("не присвоен фрейм жизней игрока");          
+            {
+                Error("не присвоен фрейм жизней игрока");
+                return;
+            }
+                      
             
             if (_targetFaceController == null)
-                Error("не присвоен фрейм жизней цели"); 
+            {
+                Error("не присвоен фрейм жизней цели");
+                return;
+            }               
         }
 
 
@@ -72,7 +79,7 @@ namespace MyFantasy
             HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, EnemyRecive, ObjectRecive>>(json));
         }
 
-        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
         {
             // после ACTION_LOAD старые объекты будут заменены новыми объектами клонами и надо сохранить все ключи что нам нужно будет залинковать с игроком (напрмиер цель)
             string tmp_target = null;

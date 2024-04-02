@@ -12,7 +12,7 @@ namespace MyFantasy
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class Spell: MoveableObject
+    public class Spell: MoveableObject, IPointerClickHandler
     {
         public Text title;
         public string group;
@@ -65,10 +65,36 @@ namespace MyFantasy
             {
                 double remainTime = PlayerController.Player.GetEventRemain(group);
                 if(remainTime > 0)
+                {
                     remain.text = remainTime + " сек.";
+                    image.raycastTarget = false;
+                }
                 else
+                {
+                    image.raycastTarget = true;
                     remain.text = "0 сек.";
+                }
+                   
+
+                if (Int32.Parse(mp.text) > PlayerController.Player.mp)
+                {
+                    image.color = new Color(image.color.r, image.color.g, image.color.b, 0.5f);
+                    image.raycastTarget = false;
+                }
+                else
+                {
+                    image.color = new Color(image.color.r, image.color.g, image.color.b, 1f);
+                    image.raycastTarget = true;
+                }
             } 
+        }
+
+        void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
+        {
+            if (Int32.Parse(mp.text) <= PlayerController.Player.mp && PlayerController.Player.GetEventRemain(group)<=0)
+            {
+                CursorController.TakeMoveable(this);
+            }
         }
 
         public override void Use(GameObject gameObject = null)
@@ -78,7 +104,7 @@ namespace MyFantasy
                 int num = gameObject.GetComponent<ActionBar>().num;
 
                 Debug.LogWarning("Быстрая клавиша " + num + ": отправим на сервер установку заклинания " + Magic);
-                ActionBar bar = Array.Find(UIController.Instance.ActionBars, element => element.num == num);
+                ActionBar bar = Array.Find(MainController.Instance.ActionBars, element => element.num == num);
 
                 ActionBarsResponse response = new ActionBarsResponse();
 
@@ -87,37 +113,42 @@ namespace MyFantasy
             }
             else
             {
-                Debug.Log("Используем заклинание "+ Magic);
-                switch (group)
+                if(Int32.Parse(mp.text) <= PlayerController.Player.mp)
                 {
-                    case "fight/attack":
-                        AttackResponse response = new AttackResponse();
-                        response.magic = Magic;
+                    Debug.Log("Используем заклинание "+ Magic);
+                    switch (group)
+                    {
+                        case "fight/attack":
+                            AttackResponse response = new AttackResponse();
+                            response.magic = Magic;
 
-                        if (gameObject != null && gameObject.GetComponent<ObjectModel>())
-                        {
-                            response.target = gameObject.GetComponent<ObjectModel>().key;
+                            if (gameObject != null && gameObject.GetComponent<ObjectModel>())
+                            {
+                                response.target = gameObject.GetComponent<ObjectModel>().key;
                            
-                            if(UIController.Instance.Target == null)
-                                UIController.Instance.Target = gameObject.GetComponent<ObjectModel>();
-                        }
-                        else if (UIController.Instance.Target != null)
-                        {
-                            response.target = UIController.Instance.Target.key;
-                        }
-                        else
-                        {
-                            // именно то в каком положении наш персонаж
-                            response.x = Math.Round(PlayerController.Player.Forward.x, PlayerController.position_precision);
-                            response.y = Math.Round(PlayerController.Player.Forward.y, PlayerController.position_precision);
-                        }
+                                if(MainController.Instance.Target == null)
+                                    MainController.Instance.Target = gameObject.GetComponent<ObjectModel>();
+                            }
+                            else if (MainController.Instance.Target != null)
+                            {
+                                response.target = MainController.Instance.Target.key;
+                            }
+                            else
+                            {
+                                // именно то в каком положении наш персонаж
+                                response.x = Math.Round(PlayerController.Player.Forward.x, PlayerController.position_precision);
+                                response.y = Math.Round(PlayerController.Player.Forward.y, PlayerController.position_precision);
+                            }
 
-                        response.Send();
-                    break;
-                    default:
-                        ConnectController.Error("неизвестный тип группы "+ group+" у заклинания "+Magic);
-                    break;
+                            response.Send();
+                        break;
+                        default:
+                            ConnectController.Error("неизвестный тип группы "+ group+" у заклинания "+Magic);
+                        break;
+                    }
                 }
+                else
+                    Debug.LogError("Недостаточно маны для заклинания " + Magic);
             }
         }
     }

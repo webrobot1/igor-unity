@@ -44,17 +44,27 @@ namespace MyFantasy
         /// если не null - то объект который двигаем
         /// </summary>
         public static MoveableObject MyMoveable;
-
         protected override void Awake()
         {
             base.Awake();
 
             if (cursor == null)
+            {
                 Error("не присвоен GameObject курсора с image компонентом");
-
+                return;
+            }
+              
             if (joystick == null)
+            {
                 Error("не указан джойстик");
+                return;
+            }   
         }
+
+        /// <summary>
+        /// если мы стреляем и продолжаем идти заблокируем поворот (он без запроса к серверу делется) в сторону хотьбы (а то спиной стреляем)
+        /// </summary>
+        private DateTime block_forward = DateTime.Now;
 
         protected override void Update ()
         {
@@ -105,11 +115,15 @@ namespace MyFantasy
                 if (MyMoveable != null)
                 {
                     Vector2 pos = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerController.Player.transform.position).normalized;
-                    PlayerController.Player.Forward = new Vector3(pos.x, pos.y, PlayerController.Player.Forward.z);
-                    
-                    MyMoveable.Use(gameObject);
 
-                    MyMoveable = null;
+                    if (player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
+                    {
+                        PlayerController.Player.Forward = new Vector3(pos.x, pos.y, PlayerController.Player.Forward.z);
+                        MyMoveable.Use(gameObject);
+                    }
+
+                    MyMoveable = null; 
+                    CloseAllMenu();
                     cursor.color = new Color(0, 0, 0, 0);
                 }
                 else
@@ -172,8 +186,8 @@ namespace MyFantasy
                                 Vector3 vector = new Vector3(horizontal, vertical, 0).normalized;
 
                                 // значение forward не сменится (тк его меняет только сервер) но запустится анимация при которой графика персонажа повернется
-                                //if (DateTime.Compare(block_forward, DateTime.Now) < 1)
-                                //   player.forward = vector;
+                                if (DateTime.Compare(block_forward, DateTime.Now) < 1)
+                                   player.Forward = vector;
 
                                 WalkResponse response = new WalkResponse();
 
@@ -203,6 +217,16 @@ namespace MyFantasy
             }
         }
 
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+        {
+            // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
+            if (player != null && key == player.key && recive.action != null)
+            {
+                block_forward = DateTime.Now.AddSeconds(0.2f);
+            }
+
+            return base.UpdateObject(map_id, key, recive, type);
+        }
         /// <summary>
         /// Метод вызываемый при перетаскивании
         /// </summary>
@@ -210,8 +234,8 @@ namespace MyFantasy
         public static void TakeMoveable(MoveableObject moveable)
         {
             MyMoveable = moveable;
-            UIController.Instance.cursor.sprite = moveable.Image.sprite;
-            UIController.Instance.cursor.color = Color.white;
+            MainController.Instance.cursor.sprite = moveable.Image.sprite;
+            MainController.Instance.cursor.color = Color.white;
         }
     }
 }

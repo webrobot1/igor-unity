@@ -17,31 +17,31 @@ namespace MyFantasy
         /// поле для генерации объектов настроек
         /// </summary>
         [SerializeField]
-        private Button SaveSettingsButton;
+        private Button saveSettingsButton;
 
         /// <summary>
         /// поле для генерации объектов настроек
         /// </summary>
         [SerializeField]
-        private Transform SettingArea;
+        private Transform settingArea;
 
         /// <summary>
         /// префабы блоков настроек - чекбокс
         /// </summary>
         [SerializeField]
-        private GameObject SettingPrefabCheckbox;
+        private GameObject settingPrefabCheckbox;
 
         /// <summary>
         /// префабы блоков настроек - скроллинг
         /// </summary>
         [SerializeField]
-        private GameObject SettingPrefabScroll;        
+        private GameObject settingPrefabScroll;        
         
         /// <summary>
         /// префабы блоков настроек - выпадающий список
         /// </summary>
         [SerializeField]
-        private GameObject SettingPrefabDropdown;
+        private GameObject settingPrefabDropdown;
 
         /// <summary>
         /// настрйоки ключ - значение
@@ -59,22 +59,44 @@ namespace MyFantasy
         {
             base.Awake();
 
-            if (SaveSettingsButton == null)
+            if (saveSettingsButton == null)
+            {
                 Error("не указана кнопка сохранения настроек");
+                return;
+            }
+                
+            saveSettingsButton.onClick.AddListener(delegate { SaveSettings(); });
 
-            SaveSettingsButton.onClick.AddListener(delegate { SaveSettings(); });
-
-            if (SettingArea == null)
-                Error("не указан transform области где будут выводится настройки с сервера");           
-            
-            if (SettingPrefabCheckbox == null)
-                Error("не указан prefab для настройки типа Checkbox");          
-            
-            if (SettingPrefabScroll == null)
-                Error("не указан prefab для настройки типа Scroll");          
-            
-            if (SettingPrefabDropdown == null)
+            if (settingArea == null)
+            {
+                Error("не указан transform области где будут выводится настройки с сервера");
+                return;
+            }
+                          
+            if (!settingArea.IsChildOf(settingGroup.transform))
+            {
+                Error("указанный объект Transform книги заклинаний книги на которую буду загружаться с сервера заклинаний не является часть CanvasGroup указанной как книга заклинаний");
+                return;
+            }
+                
+            if (settingPrefabCheckbox == null)
+            {
+                Error("не указан prefab для настройки типа Checkbox");
+                return;
+            }
+                                
+            if (settingPrefabScroll == null)
+            {
+                Error("не указан prefab для настройки типа Scroll");
+                return;
+            }
+                              
+            if (settingPrefabDropdown == null)
+            {
                 Error("не указан prefab для настройки типа DropDown меню");
+                return;
+            }
+                
           
 #if UNITY_WEBGL && !UNITY_EDITOR
                  WebGLRotation.Rotation(1);
@@ -89,7 +111,7 @@ namespace MyFantasy
         {
             if (recive.settings != null)
             {
-                foreach (Transform child in SettingArea)
+                foreach (Transform child in settingArea)
                 {
                     Destroy(child.gameObject);
                 }
@@ -102,14 +124,14 @@ namespace MyFantasy
                         case "checkbox":
                             Toggle toggle;
 
-                            prefab = Instantiate(SettingPrefabCheckbox, SettingArea) as GameObject;
+                            prefab = Instantiate(settingPrefabCheckbox, settingArea) as GameObject;
                             toggle = prefab.GetComponentInChildren<Toggle>();
                             toggle.onValueChanged.AddListener(delegate { CheckboxOnChange(setting.Key, toggle); });
                         break;
                         case "slider":
                             Slider slider;
                             
-                            prefab = Instantiate(SettingPrefabScroll, SettingArea) as GameObject;
+                            prefab = Instantiate(settingPrefabScroll, settingArea) as GameObject;
                             slider = prefab.GetComponentInChildren<Slider>();
 
                             Text text = prefab.transform.Find("Value").GetComponent<Text>();
@@ -124,7 +146,7 @@ namespace MyFantasy
                         case "dropdown":
                             Dropdown dropdown;
 
-                            prefab = Instantiate(SettingPrefabDropdown, SettingArea) as GameObject;
+                            prefab = Instantiate(settingPrefabDropdown, settingArea) as GameObject;
                             dropdown = prefab.GetComponentInChildren<Dropdown>();
 
                             List<string> list = new List<string>(setting.Value.values.Values);
@@ -176,16 +198,16 @@ namespace MyFantasy
                         switch (_types[setting.Key])
                         {
                             case "checkbox":
-                                Toggle toggle = SettingArea.Find(setting.Key).GetComponentInChildren<Toggle>();
+                                Toggle toggle = settingArea.Find(setting.Key).GetComponentInChildren<Toggle>();
                                 toggle.isOn = (int.Parse(setting.Value) != 0 ? true : false);
                             break;                            
                             case "slider":
-                                Slider slider = SettingArea.Find(setting.Key).GetComponentInChildren<Slider>();
+                                Slider slider = settingArea.Find(setting.Key).GetComponentInChildren<Slider>();
                                 slider.value = float.Parse(setting.Value);
                                 slider.onValueChanged.Invoke(slider.value);
                             break;                           
                             case "dropdown":
-                                Dropdown dropdown = SettingArea.Find(setting.Key).GetComponentInChildren<Dropdown>();
+                                Dropdown dropdown = settingArea.Find(setting.Key).GetComponentInChildren<Dropdown>();
                                 dropdown.value = Array.IndexOf(_lists[setting.Key], setting.Value);
                                 dropdown.onValueChanged.Invoke(dropdown.value);
                             break;

@@ -9,7 +9,7 @@ namespace MyFantasy
     /// <summary>
 	/// Класс для обновления Меню настрое игрока
 	/// </summary>
-    abstract public class SpellBookController : PlayerController
+    abstract public class SpellBookController : UIController
     {
         [Header("Для работы с книгой заклинаний")]
 
@@ -42,11 +42,24 @@ namespace MyFantasy
 
             base.Awake();
 
-            if (spellPrefab == null)
-                Error("не указан префаб заклинания в книге");              
-            
-            if (spellGroupArea == null)
-                Error("не указан Transform книги на которую буду загружаться с сервера заклинаний");       
+            if (spellPrefab == null) 
+            { 
+                Error("не указан префаб заклинания в книге");
+                return;
+            }
+                              
+            if (spellGroupArea == null) 
+            { 
+                Error("не указан Transform книги на которую буду загружаться с сервера заклинаний");
+                return;
+            }
+                
+            if (!spellGroupArea.IsChildOf(spellGroup.transform)) 
+            {  
+                Error("указанный объект Transform книги заклинаний книги на которую буду загружаться с сервера заклинаний не является часть CanvasGroup указанной как книга заклинаний");
+                return;
+            }
+               
         }
 
         protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)

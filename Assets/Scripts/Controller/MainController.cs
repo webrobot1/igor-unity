@@ -9,9 +9,9 @@ using UnityEngine.UI;
 namespace MyFantasy
 {
     /// <summary>
-	/// Класс для обновления статистика соединения
+	/// Класс верхнего уровня. Служит в том числе для обновления статистика соединения
 	/// </summary>
-    abstract public class StatController : UpdateController
+    public class MainController : CursorController
     {
         private float deltaTime;
 
@@ -25,18 +25,46 @@ namespace MyFantasy
         [SerializeField]
         private Text map;
 
+        /// <summary>
+        /// Singleton instance of the handscript
+        /// </summary>
+        private static MainController _instance;
+
+        public static MainController Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = FindObjectOfType<MainController>();
+                }
+
+                return _instance;
+            }
+        }
         protected override void Awake()
         {
             base.Awake();
 
             if (ping == null)
+            {
                 Error("не присвоен Text для статистики пинга");
+                return;
+            }
 
             if (fps == null)
-                Error("не присвоен Text для статистики fps");          
-            
+            {
+                Error("не присвоен Text для статистики fps");
+                return;
+            }
+                             
             if (fps == null)
+            {
                 Error("не присвоен Text для вывода номера карты");
+                return;
+            }
+
+            _instance = this;
         }
 
         protected override void Update()
@@ -48,7 +76,7 @@ namespace MyFantasy
             base.Update();
         }
 
-        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
         {
             base.HandleData(recive);
             if (recive.unixtime > 0)

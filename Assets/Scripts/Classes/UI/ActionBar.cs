@@ -10,8 +10,11 @@ namespace MyFantasy
     public class ActionBar : MonoBehaviour, IPointerClickHandler
     {
         public int num;
-
         private MoveableObject _item;
+
+        [SerializeField]
+        private Image _image;
+
         public MoveableObject Item
         {
             get 
@@ -20,26 +23,31 @@ namespace MyFantasy
             }
             set
             {
+                _item = value;
                 if (value == null)
                 {
-                    DestroyImmediate(_icon.GetComponent<Image>());
+                    _image.sprite = null;
                 }
                 else
                 {
-                    _icon.AddComponent<Image>(value.GetComponent<Image>());
+                    FixedUpdate();
                 }
-
-                _item = value;
             }
         }
 
-        [SerializeField]
-        private GameObject _icon;
-
+        protected void FixedUpdate()
+        {
+            if (_item!=null && PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
+            {
+                _image.sprite = _item.Image.sprite;
+                _image.color = _item.Image.color;
+                _image.raycastTarget = _item.Image.raycastTarget;
+            }
+        }
 
         protected void Awake()
         {
-            if (_icon == null)
+            if (_image == null)
                 ConnectController.Error("не указан gameObject для быстрох клавиш отвечающий за отображение картинок");
         }
 
@@ -48,7 +56,7 @@ namespace MyFantasy
             Debug.LogWarning("Быстрая клавиша " + num + ": нажали "+(_item == null?"на пустую":"на присвоенную"));
 
             // на сервере есть првоерка на то можем ли мы стрелять, но что бы не сдать впустую запрос который никчему не приведет  - ограничим и тут
-            if (_item != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
+            if (_item != null && PlayerController.Player!=null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
             {
                 _item.Use();
             } 

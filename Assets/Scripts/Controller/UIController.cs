@@ -6,7 +6,7 @@ namespace MyFantasy
     /// <summary>
     /// Класс верхнего уровня для управления всеми UI эллементами на экране и передачи в них инфомрацию с сервераб вешается на gameObject на сцене
     /// </summary>
-    public class UIController : SettingsController
+    abstract public class UIController : PlayerController
     {
         [Header("Список всплывающих UI меню")]
 
@@ -20,70 +20,43 @@ namespace MyFantasy
         /// книга заклинаний
         /// </summary>
         [SerializeField]
-        private CanvasGroup spellGroup;
+        protected CanvasGroup spellGroup;
 
         /// <summary>
         /// книга заклинаний
         /// </summary>
         [SerializeField]
-        private CanvasGroup settingGroup;        
-
-        /// <summary>
-        /// если мы стреляем и продолжаем идти заблокируем поворот (он без запроса к серверу делется) в сторону хотьбы (а то спиной стреляем)
-        /// </summary>
-        private DateTime block_forward = DateTime.Now;
-
-        /// <summary>
-        /// Singleton instance of the handscript
-        /// </summary>
-        private static UIController _instance;
-
-        public static UIController Instance
-        {
-            get
-            {
-                if (_instance == null)
-                {
-                    _instance = FindObjectOfType<UIController>();
-                }
-
-                return _instance;
-            }
-        }
+        protected CanvasGroup settingGroup;        
 
         protected override void Awake()
         {
             if (spellGroup == null)
-                Error("не указан CanvasGroup книги заклинаний");           
-            
-            if (settingGroup == null)
-                Error("не указана CanvasGroup настроек");
-
-            if (parentGroup == null)
-                Error("не указана CanvasGroup содержащая все остальные CanvasGroup с меню");
-
-            _instance = this;
-
-            base.Awake();
-            CloseAllMenu();   
-        }
-
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
-        {
-            // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
-            if (player != null && key == player.key && recive.action!=null)
             {
-                block_forward = DateTime.Now.AddSeconds(0.2f);
+                Error("не указан CanvasGroup книги заклинаний");
+                return;
             }
 
-            return base.UpdateObject(map_id, key, recive, type);
+            if (settingGroup == null)
+            {
+                Error("не указана CanvasGroup настроек");
+                return;
+            }
+
+            if (parentGroup == null)
+            {
+                Error("не указана CanvasGroup содержащая все остальные CanvasGroup с меню");
+                return;
+            }
+ 
+            base.Awake();
+            CloseAllMenu();   
         }
 
         protected override void Update()
         {
             base.Update();
 
-            if (Input.GetKeyDown(KeyCode.P))
+            if (Input.GetKeyDown(KeyCode.M))
             {
                 OpenClose(spellGroup);
             }            
@@ -94,6 +67,9 @@ namespace MyFantasy
             }
         }
 
+        /// <summary>
+        /// публичное что бы любой GameObject мог обратится к методу
+        /// </summary>
         public void OpenClose(CanvasGroup canvasGroup)
         {
             // закроем все меню
@@ -104,7 +80,7 @@ namespace MyFantasy
             canvasGroup.blocksRaycasts = canvasGroup.blocksRaycasts ?false:true;
         }
 
-        private void CloseAllMenu(CanvasGroup canvasGroup = null)
+        protected void CloseAllMenu(CanvasGroup canvasGroup = null)
         {
             if (parentGroup == null)
                 Error("не присвоена группа объектов меню объекту UI");

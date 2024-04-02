@@ -4,11 +4,11 @@ namespace MyFantasy
 	public class PlayerModel : EnemyModel
 	{
 		// для превращения в призрака игроков
-		protected SpriteRenderer sprite = null;
+		protected SpriteRenderer spriteRender = null;
 
 		protected override void Awake()
 		{
-			sprite = GetComponent<SpriteRenderer>();
+			spriteRender = GetComponent<SpriteRenderer>();
 			base.Awake();
 		}
 
@@ -20,13 +20,13 @@ namespace MyFantasy
 
 		protected override void Dead()
 		{
-			sprite.color = new Color(sprite.color.r, sprite.color.g, sprite.color.b, 0.5f); 
+			spriteRender.color = new Color(spriteRender.color.r, spriteRender.color.g, spriteRender.color.b, 0.5f); 
 			base.Dead();
 		}
 
 		protected override void Resurrect()
 		{
-			sprite.color = new Color(sprite.color.r, sprite.color.g, sprite.color.b, 1f);
+			spriteRender.color = new Color(spriteRender.color.r, spriteRender.color.g, spriteRender.color.b, 1f);
 			base.Resurrect();
 		}
 

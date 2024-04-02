@@ -553,7 +553,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Name
-      value: ActionButton4
+      value: ActionButton3
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
@@ -835,6 +835,7 @@ MonoBehaviour:
   aspect: 30
   hpLine: {fileID: 201437677}
   mpLine: {fileID: 418402465}
+  _layerIndex: 0
 --- !u!1 &290111636
 GameObject:
   m_ObjectHideFlags: 0
@@ -1093,7 +1094,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1342826447}
+      - m_Target: {fileID: 1342826448}
         m_TargetAssemblyTypeName: MyFantasy.UIController, Assembly-CSharp
         m_MethodName: OpenClose
         m_Mode: 2
@@ -1774,7 +1775,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1342826447}
+      - m_Target: {fileID: 1342826448}
         m_TargetAssemblyTypeName: MyFantasy.ConnectController, Assembly-CSharp-firstpass
         m_MethodName: Logout
         m_Mode: 1
@@ -1982,7 +1983,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Name
-      value: ActionButton6
+      value: ActionButton5
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
@@ -3154,7 +3155,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1342826447}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: MyFantasy.UIController, Assembly-CSharp
         m_MethodName: OpenClose
         m_Mode: 2
@@ -3576,6 +3577,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: spell
       objectReference: {fileID: 0}
+    - target: {fileID: 956592208919310235, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 76518a49a0d52f44495d004b3de8cbc8, type: 3}
     - target: {fileID: 956592209819098074, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 245.76498
@@ -3668,11 +3673,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3881087803549984436, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_AnchoredPosition.x
-      value: 25
+      value: -944
       objectReference: {fileID: 0}
     - target: {fileID: 3881087803549984436, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_AnchoredPosition.y
-      value: 26
+      value: -519
       objectReference: {fileID: 0}
     - target: {fileID: 3881087803549984436, guid: ec536a7718376554185e4a856d5ae230, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
@@ -3918,7 +3923,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Name
-      value: ActionButton3
+      value: ActionButton2
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
@@ -4180,7 +4185,7 @@ GameObject:
   - component: {fileID: 1342826445}
   - component: {fileID: 1342826444}
   - component: {fileID: 1342826443}
-  - component: {fileID: 1342826447}
+  - component: {fileID: 1342826448}
   m_Layer: 5
   m_Name: UI
   m_TagString: Untagged
@@ -4275,7 +4280,7 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
---- !u!114 &1342826447
+--- !u!114 &1342826448
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -4284,18 +4289,18 @@ MonoBehaviour:
   m_GameObject: {fileID: 1342826442}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: df6782994527c0344aa2a1123d0a09f4, type: 3}
+  m_Script: {fileID: 11500000, guid: 4df5e509b35f16046a60e020bf9fde7d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   GAME_ID: 2
   SERVER: my-fantasy.ru
   mapObject: {fileID: 961570895}
   worldObject: {fileID: 217698843}
-  ping: {fileID: 376761668}
-  fps: {fileID: 689199227}
-  map: {fileID: 1465688624}
   _playerFaceController: {fileID: 277289293}
   _targetFaceController: {fileID: 1866701914}
+  parentGroup: {fileID: 743352525}
+  spellGroup: {fileID: 1101012257}
+  settingGroup: {fileID: 3046298429504445841}
   spellPrefab: {fileID: 9018309426792617108, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
   spellGroupArea: {fileID: 2098926413}
   _actionBars:
@@ -4310,14 +4315,9 @@ MonoBehaviour:
   joystick: {fileID: 1183841432}
   cursor: {fileID: 338388585}
   cursor_offset: {x: 0, y: 0, z: 0}
-  SaveSettingsButton: {fileID: 878297135}
-  SettingArea: {fileID: 3046298429839130039}
-  SettingPrefabCheckbox: {fileID: 1027376590141588, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
-  SettingPrefabScroll: {fileID: 1225465062972368, guid: c8e9e0dc2eb174635861b990cee2b0bb, type: 3}
-  SettingPrefabDropdown: {fileID: 1682922888659924, guid: 7a4e32d027bc44b32bea2c73dacbd5ee, type: 3}
-  parentGroup: {fileID: 743352525}
-  spellGroup: {fileID: 1101012257}
-  settingGroup: {fileID: 3046298429504445841}
+  ping: {fileID: 376761668}
+  fps: {fileID: 689199227}
+  map: {fileID: 1465688624}
 --- !u!114 &1349307833 stripped
 MonoBehaviour:
   m_CorrespondingSourceObject: {fileID: 5750596226409506847, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
@@ -4588,7 +4588,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Name
-      value: ActionButton7
+      value: ActionButton6
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
@@ -5512,7 +5512,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Name
-      value: ActionButton5
+      value: ActionButton4
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
@@ -5753,7 +5753,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Name
-      value: ActionButton2
+      value: ActionButton1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
@@ -5828,6 +5828,7 @@ MonoBehaviour:
   aspect: 30
   hpLine: {fileID: 843498957}
   mpLine: {fileID: 1548051978}
+  _layerIndex: 0
 --- !u!212 &1866701915
 SpriteRenderer:
   m_ObjectHideFlags: 0
@@ -5994,7 +5995,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1342826447}
+      - m_Target: {fileID: 1342826448}
         m_TargetAssemblyTypeName: MyFantasy.UIController, Assembly-CSharp
         m_MethodName: OpenClose
         m_Mode: 2
@@ -6129,7 +6130,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1342826447}
+      - m_Target: {fileID: 1342826448}
         m_TargetAssemblyTypeName: MyFantasy.UIController, Assembly-CSharp
         m_MethodName: OpenClose
         m_Mode: 2
@@ -6288,7 +6289,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 1342826447}
+      - m_Target: {fileID: 0}
         m_TargetAssemblyTypeName: MyFantasy.UIController, Assembly-CSharp
         m_MethodName: OpenClose
         m_Mode: 2
@@ -7220,7 +7221,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.26000977, y: -0.000030517578}
+  m_AnchoredPosition: {x: 0.26000977, y: 0}
   m_SizeDelta: {x: 0.5299988, y: 0}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &3046298429839130040
@@ -7319,7 +7320,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 3046298429075175086}
   m_HandleRect: {fileID: 3046298429075175087}
   m_Direction: 2
-  m_Value: 1
+  m_Value: 0
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -7589,7 +7590,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Name
-      value: ActionButton1
+      value: ActionButton0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5750596226586057785, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 21300000, guid: 76518a49a0d52f44495d004b3de8cbc8, type: 3}
+    - target: {fileID: 5750596226586057785, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_Color.a
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}

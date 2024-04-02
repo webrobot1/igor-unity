@@ -27,16 +27,26 @@ namespace MyFantasy
             base.Awake();
 
             if (onlyMobileActions == null)
+            {
                 Error("не блок содержащий кнокпки бстрого доступа отображаемый только для мобильной версии");
+                return;
+            }
+              
             
-            if (_actionBars.Length!=7)
+            if (_actionBars.Length != 7)
+            {
                 Error("не блок содержащий кнокпки бстрого доступа  должен содержать 7 элементов");
+                return;
+            }
 
             for (int i = 0; i < 7; i++)
             {
                 if (_actionBars[i] == null)
+                {
                     Error("не указан GameObject кнопки быстрого доступа под нмоером "+ i);
-
+                    return;
+                }
+                    
                 _actionBars[i].num = i+1;
             }
         }
@@ -71,7 +81,7 @@ namespace MyFantasy
                                     
                                 _actionBars[action.Key - 1].Item = Spells[action.Value.id];
 
-                                Debug.LogWarning("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
+                                Debug.Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
                             break;
                             default:
                                 Error("Неизвестный тип быстрой клавиши " + action.Value.type + " под номером " + action.Key);
