@@ -12,6 +12,30 @@ namespace MyFantasy
 	/// </summary>
 	public class EnemyModel : ObjectModel
 	{
+		[Header("Для работы с значками состояния существа")]
+		/// <summary>
+		/// поле с жизнями выделленого существа
+		/// </summary>
+		public Image lifeBar;
+
+		/// <summary>
+		/// может быть null если мы через этот класс выделилил объект оно именно тут для совместимости как и то что ниже
+		/// </summary>
+		[NonSerialized]
+		public int? hp = null;
+
+		/// <summary>
+		/// может быть null если мы через этот класс выделилил объект
+		/// </summary>
+		[NonSerialized]
+		public int? mp = null;
+
+		[NonSerialized]
+		public int hpMax;
+
+		[NonSerialized]
+		public int mpMax;
+
 		/// <summary>
 		/// в основном используется для живых существ но если предмет что то переместит то у него тоже должна быть скорость
 		/// </summary>
@@ -20,7 +44,8 @@ namespace MyFantasy
         protected override void Awake()
         {
 			base.Awake();
-			lifeBar = GetComponentInChildren<CanvasGroup>().transform.GetChild(0).GetChild(0).GetComponent<Image>();
+			if (lifeBar == null)
+				ConnectController.Error("Ну казкана LifeBar у префабов живых существ");
 
 			// скороет если при работе со сценой забыли скрыть (оно показается только при выделении на карте существа) 
 			TargetController.DisableLine(lifeBar);

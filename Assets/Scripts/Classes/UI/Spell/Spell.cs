@@ -97,6 +97,9 @@ namespace MyFantasy
                         if (gameObject != null && gameObject.GetComponent<ObjectModel>())
                         {
                             response.target = gameObject.GetComponent<ObjectModel>().key;
+                           
+                            if(UIController.Instance.Target == null)
+                                UIController.Instance.Target = gameObject.GetComponent<ObjectModel>();
                         }
                         else if (UIController.Instance.Target != null)
                         {

@@ -114,12 +114,12 @@ namespace MyFantasy
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
             GameObject prefab = base.UpdateObject(map_id, key, recive, type);
-            if(key == player_key) 
+            if (player != null && prefab!=null)
             {
-                if (player != null && prefab!=null)
+                ObjectModel model = prefab.GetComponent<ObjectModel>();
+                if (recive.events != null)
                 {
-                    ObjectModel model = prefab.GetComponent<ObjectModel>();
-                    if (recive.events != null)
+                    if (key == player_key)
                     {
                         if (recive.events.ContainsKey(AttackResponse.GROUP))
                         {
@@ -143,22 +143,23 @@ namespace MyFantasy
                                     Debug.LogError("Цель " + attacker + " не найдена на сцене");
                             }
                         }
-                        else if (recive.events.ContainsKey(AttackResponse.GROUP))
+                    }
+                    else if (recive.events.ContainsKey(AttackResponse.GROUP))
+                    {
+                        // если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
+                        if (
+                            CanBeTarget(model)
+                                &&
+                            model.getEventData<AttackDataRecive>(AttackResponse.GROUP).target == player.key)
                         {
-                            // если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
-                            if (
-                                CanBeTarget(model)
-                                    &&
-                                model.getEventData<AttackDataRecive>(AttackResponse.GROUP).target == player.key)
-                            {
-                                // то передадим инфомрацию игроку что бы мы стали его целью
-                                Target = model;
-                                Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
-                            }
+                            // то передадим инфомрацию игроку что бы мы стали его целью
+                            Target = model;
+                            Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
                         }
                     }
                 }
             }
+         
             return prefab;
         }
 
@@ -177,9 +178,9 @@ namespace MyFantasy
                          (
                              (!persist_target && Vector3.Distance(Target.position, player.position) > Vector3.Distance(gameObject.transform.position, player.position))
                                  ||
-                             Target.hp == null
+                             ((EnemyModel)Target).hp == null
                                  ||
-                             Target.hp == 0
+                             ((EnemyModel)Target).hp == 0
                          )
                      )
                  )

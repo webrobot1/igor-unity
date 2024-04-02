@@ -58,6 +58,8 @@ namespace MyFantasy
 
         protected override void Update ()
         {
+            base.Update();
+
             //Makes sure that the icon follows the hand
             cursor.transform.position = Input.mousePosition + cursor_offset;
 
@@ -71,7 +73,17 @@ namespace MyFantasy
             {
                 cursor.raycastTarget = false;
                 GameObject gameObject = null;
-                if
+
+                RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
+
+                // кликнули на какой то объект
+                if (hit.transform != null && hit.transform.gameObject != null && hit.transform.gameObject.GetComponent<EntityModel>())
+                {
+                    gameObject = hit.transform.gameObject;
+                    Debug.Log("Кликнули на объект " + gameObject.name);
+                }
+
+                else if
                 (
                     (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
                 )
@@ -87,17 +99,6 @@ namespace MyFantasy
                         gameObject = results[0].gameObject;
                         Debug.Log("Кликнули на UI " + gameObject.name);
                     }    
-                }
-                else
-                {
-                    RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
-
-                    // кликнули на какой то объект
-                    if (hit.transform!=null && hit.transform.gameObject !=null && hit.transform.gameObject.GetComponent<EntityModel>())
-                    {
-                        gameObject = hit.transform.gameObject;
-                        Debug.Log("Кликнули на объект " + gameObject.name);
-                    }
                 }
 
 

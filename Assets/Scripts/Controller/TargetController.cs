@@ -29,10 +29,9 @@ namespace MyFantasy
         private Camera face_camera;
 
         /// <summary>
-        ///  активный слой анимации
+        ///  последняя воспроизведенная анимация
         /// </summary>
-        [NonSerialized]
-        public int layerIndex;
+        public int _layerIndex;
 
         private ObjectModel _target = null;
 
@@ -44,17 +43,19 @@ namespace MyFantasy
             spriteRender = transform.GetComponent<SpriteRenderer>();
 
             if (targetFrame == null)
-                PlayerController.Error("не наден фрейм жизней");
+                PlayerController.Error("не наден компонент CanvasGroup в блоке информации о цели");
 
             if (animator == null)
-                PlayerController.Error("не наден аниматор фрейма жизней");
+                PlayerController.Error("не наден компонент аниматор в блоке информации о цели");
 
             if (hpLine == null)
-                PlayerController.Error("не надено изображения жизней фрейма");
+                PlayerController.Error("не присвоен компонент Image жизней в в блоке информации о цели");
+
             hpText = hpLine.GetComponentInChildren<Text>();
 
             if (mpLine == null)
-                PlayerController.Error("не надено изображения жизней фрейма");
+                PlayerController.Error("не присвоен компонент Image маны в блоке информации о цели");
+
             mpText = mpLine.GetComponentInChildren<Text>();
 
             Target = null;
@@ -74,16 +75,16 @@ namespace MyFantasy
                 {
                     // не только скрыть но и позволить кликать по той области что бы ходить персонажем
                     targetFrame.alpha = 0;
-                    targetFrame.blocksRaycasts = false;
+                    //targetFrame.blocksRaycasts = false;
                 }
                     
 
                 if (_target != value)
                 {
                     // если с прошлого существа есть 
-                    if (_target != null && _target.lifeBar != null)
+                    if (_target != null && ((EnemyModel)_target).lifeBar != null)
                     {
-                        DisableLine(_target.lifeBar);
+                        DisableLine(((EnemyModel)_target).lifeBar);
                     }
 
                     _target = value;
@@ -104,42 +105,45 @@ namespace MyFantasy
                             GetComponent<SpriteRenderer>().sprite = value.GetComponent<SpriteRenderer>().sprite;
                         }
 
+                        EnemyModel enemyValue = value as EnemyModel;
+
                         // заполним поле жизней сразу
-                        if (value.hp != null)
+                        if (enemyValue.hp != null)
                         {
-                            if (value.hp > 0)
+                            if (enemyValue.hp > 0)
                                 EnableLine(hpLine);
                             else
                                 DisableLine(hpLine);
 
-                            FillUpdate(hpLine, (float)value.hp, value.hpMax, hpText, true);
+                            FillUpdate(hpLine, (float)enemyValue.hp, enemyValue.hpMax, hpText, true);
 
-                            if (value.lifeBar != null && (PlayerController.Player == null || value.key != PlayerController.Player.key))
+                            if (enemyValue.lifeBar != null && (PlayerController.Player == null || value.key != PlayerController.Player.key))
                             {
-                                if (value.hp > 0)
-                                    EnableLine(value.lifeBar);
-                                FillUpdate(value.lifeBar, (float)value.hp, value.hpMax, null, true);
+                                if (enemyValue.hp > 0)
+                                    EnableLine(enemyValue.lifeBar);
+
+                                FillUpdate(enemyValue.lifeBar, (float)enemyValue.hp, enemyValue.hpMax, null, true);
                             }
                         }
                         else
                             DisableLine(hpLine); 
 
-                        if (value.mp != null)
+                        if (enemyValue.mp != null)
                         {
                             // ДА! Тоже завязан показ на жизни
-                            if (value.mpMax>0 && ((value.hp != null && value.hp > 0) || (PlayerController.Player != null && _target.key == PlayerController.Player.key)))
+                            if (enemyValue.mpMax>0 && ((enemyValue.hp != null && enemyValue.hp > 0) || (PlayerController.Player != null && _target.key == PlayerController.Player.key)))
                                 EnableLine(mpLine);
                             else
                                 DisableLine(mpLine);
 
-                            FillUpdate(mpLine, (float)value.mp, value.mpMax, mpText, true);
+                            FillUpdate(mpLine, (float)enemyValue.mp, enemyValue.mpMax, mpText, true);
                         }
                         else
                             DisableLine(mpLine); 
 
                         // покажем целиком верхнюю группу с анимациями      
                         targetFrame.alpha = 1;
-                        targetFrame.blocksRaycasts = true;
+                       // targetFrame.blocksRaycasts = true;
                     }
                 }  
             }
@@ -175,46 +179,50 @@ namespace MyFantasy
             if (_target != null)
             {
                 CameraUpdate();
+
+                // если ушли слишком далеко от существа уберем его как цель
                 if (PlayerController.Player == null || (_target.key != PlayerController.Player.key && Vector3.Distance(PlayerController.Player.transform.position, _target.transform.position) >= PlayerController.Player.lifeRadius))
                 {
-                    _target = null;
+                    Target = null;
                     return;
                 }
                     
-                if (_target.animator != null && _target.layerIndex != layerIndex)
+                if (_target.animator != null && _target.CurrentAnimationIndex != _layerIndex)
                 {
                     Animate();
                 }
 
-                if (_target.hp != null)
+                EnemyModel enemyTarget = _target as EnemyModel;
+
+                if (enemyTarget.hp != null)
                 {
-                    if (_target.hp > 0 || (PlayerController.Player != null && _target.key == PlayerController.Player.key))
+                    if (enemyTarget.hp > 0 || (PlayerController.Player != null && _target.key == PlayerController.Player.key))
                         EnableLine(hpLine);
                     else
                         DisableLine(hpLine);
 
-                    FillUpdate(hpLine, (float)_target.hp, _target.hpMax, hpText);
+                    FillUpdate(hpLine, (float)enemyTarget.hp, enemyTarget.hpMax, hpText);
 
-                    if (_target.lifeBar != null && (PlayerController.Player == null || _target.key != PlayerController.Player.key))
+                    if (enemyTarget.lifeBar != null && (PlayerController.Player == null || enemyTarget.key != PlayerController.Player.key))
                     {
-                        if (_target.hp>0)
-                            EnableLine(_target.lifeBar); 
+                        if (enemyTarget.hp>0)
+                            EnableLine(enemyTarget.lifeBar); 
                         else
-                            DisableLine(_target.lifeBar);
+                            DisableLine(enemyTarget.lifeBar);
 
-                        FillUpdate(_target.lifeBar, (float)_target.hp, _target.hpMax);
+                        FillUpdate(enemyTarget.lifeBar, (float)enemyTarget.hp, enemyTarget.hpMax);
                     }     
                 }
                     
-                if (_target.mp!=null)
+                if (enemyTarget.mp!=null)
                 {
                     // ДА! Тоже завязан показ на жизни
-                    if (_target.mpMax>0 && ((_target.hp!=null && _target.hp>0) || (PlayerController.Player != null && _target.key == PlayerController.Player.key)))
+                    if (enemyTarget.mpMax>0 && ((enemyTarget.hp!=null && enemyTarget.hp>0) || (PlayerController.Player != null && enemyTarget.key == PlayerController.Player.key)))
                         EnableLine(mpLine);
                     else
                         DisableLine(mpLine);
 
-                    FillUpdate(mpLine, (float)_target.mp, _target.mpMax, mpText);
+                    FillUpdate(mpLine, (float)enemyTarget.mp, enemyTarget.mpMax, mpText);
                 }
             }     
         }
@@ -236,8 +244,8 @@ namespace MyFantasy
 
         private void Animate()
         {
-            _target.Animate(animator, _target.layerIndex);
-            layerIndex = _target.layerIndex;
+            _layerIndex = _target.CurrentAnimationIndex;
+            _target.Animate(animator, _target.CurrentAnimationIndex);
         }
     }
 }

@@ -25,32 +25,13 @@ namespace MyFantasy
 		/// <summary>
 		///  активный слой анимации
 		/// </summary>
-		[NonSerialized]
-		public int layerIndex = 0;
+		private int _layerIndex = 0;
 
-		/// <summary>
-		/// может быть null если мы через этот класс выделилил объект оно именно тут для совместимости как и то что ниже
-		/// </summary>
-		[NonSerialized]
-		public int? hp = null;
+		public int CurrentAnimationIndex
+		{
+			get { return _layerIndex; }
+		}
 
-		/// <summary>
-		/// поле с жизнями выделленого существа
-		/// </summary>
-		[NonSerialized]
-		public Image lifeBar;
-
-		/// <summary>
-		/// может быть null если мы через этот класс выделилил объект
-		/// </summary>
-		[NonSerialized]
-		public int? mp = null;
-
-		[NonSerialized]
-		public int hpMax;
-
-		[NonSerialized]
-		public int mpMax;
 
 		private Dictionary<string, Coroutine> coroutines = new Dictionary<string, Coroutine>();
 
@@ -108,10 +89,10 @@ namespace MyFantasy
 					&&
 				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
 					&&
-				(animator.GetCurrentAnimatorStateInfo(layerIndex).loop || animator.GetCurrentAnimatorStateInfo(layerIndex).normalizedTime >= 1.0f) 	
+				(animator.GetCurrentAnimatorStateInfo(_layerIndex).loop || animator.GetCurrentAnimatorStateInfo(_layerIndex).normalizedTime >= 1.0f) 	
 			)
 			{
-				string layer_name = animator.GetLayerName(layerIndex);
+				string layer_name = animator.GetLayerName(_layerIndex);
                 if (layer_name != "idle")
                 {
 					Log("Анимация " + key + " с " + action + " на idle (таймаут)");
@@ -226,7 +207,7 @@ namespace MyFantasy
 					}
 					animator.SetLayerWeight(layerIndex, 1);		
 				}
-				this.layerIndex = layerIndex;
+				this._layerIndex = layerIndex;
 
 				string name = animator.GetLayerName(layerIndex);
 				if (trigers.ContainsKey(name))
@@ -321,10 +302,10 @@ namespace MyFantasy
 							double slow = (last_ping_extropolation / ConnectController.MaxPing());
 							distancePerUpdate = distancePerUpdate * slow;
 
-							LogError("Движение - экстраполируем растоянием еще на " + step + ", уменьшим скорость движения учитывая новый ping (с "+ last_ping_extropolation*1000 + " на "+ ConnectController.MaxPing() * 1000 + ") на "+Math.Round((1-slow)*100)+" %");
+							LogWarning("Движение - экстраполируем растоянием еще на " + step + ", уменьшим скорость движения учитывая новый ping (с "+ last_ping_extropolation*1000 + " на "+ ConnectController.MaxPing() * 1000 + ") на "+Math.Round((1-slow)*100)+" %");
 						}
 						else
-							LogError("Движение - экстраполируем растоянием еще на " + step);
+							LogWarning("Движение - экстраполируем растоянием еще на " + step);
 					}
                     else 
 					{ 
