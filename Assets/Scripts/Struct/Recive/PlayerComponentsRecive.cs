@@ -10,5 +10,6 @@ namespace MyFantasy
 	{
 		public Dictionary<string, string> settings = null;
 		public Dictionary<string, bool> spellBook = null;
+		public Dictionary<int, ActionBarsRecive> actionbars = null;
 	}
 }

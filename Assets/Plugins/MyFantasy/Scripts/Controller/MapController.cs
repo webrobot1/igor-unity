@@ -15,6 +15,8 @@ namespace MyFantasy
 	/// </summary>
 	public abstract class MapController : ConnectController 
 	{
+		[Header("Укажите родительский GameObject карт и существ")]
+
 		/// <summary>
 		/// объект в котором будут дочерние объекты карт
 		/// </summary>

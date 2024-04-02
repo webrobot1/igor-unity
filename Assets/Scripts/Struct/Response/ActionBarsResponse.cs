@@ -5,13 +5,13 @@ namespace MyFantasy
     /// <summary>
     /// Структура отправляемых данных
     /// </summary>
-    public class SettingsResponse : Response
+    public class ActionBarsResponse : Response
     {
-        public Dictionary<string, string> settings;
+        public Dictionary<int, ActionBarsRecive> actionbars = new Dictionary<int, ActionBarsRecive>();
 
         public override string group
         {
-            get { return "ui/settings"; }
+            get { return "ui/actionbars"; }
         }   
     }
 }

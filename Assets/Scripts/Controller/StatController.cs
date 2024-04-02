@@ -11,10 +11,11 @@ namespace MyFantasy
     /// <summary>
 	/// Класс для обновления статистика соединения
 	/// </summary>
-    abstract public class StatController : SettingsController
+    abstract public class StatController : UpdateController
     {
         private float deltaTime;
 
+        [Header("Для работы с выводимой статистикой соединения")]
         [SerializeField]
         private Text ping;
 
@@ -29,7 +30,13 @@ namespace MyFantasy
             base.Awake();
 
             if (ping == null)
-                Error("не присвоен фрейм для статистики пинга"); 
+                Error("не присвоен Text для статистики пинга");
+
+            if (fps == null)
+                Error("не присвоен Text для статистики fps");          
+            
+            if (fps == null)
+                Error("не присвоен Text для вывода номера карты");
         }
 
         protected override void Update()
@@ -41,7 +48,7 @@ namespace MyFantasy
             base.Update();
         }
 
-        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
         {
             base.HandleData(recive);
             if (recive.unixtime > 0)

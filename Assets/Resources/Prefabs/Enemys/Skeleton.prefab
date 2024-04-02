@@ -169,6 +169,14 @@ PrefabInstance:
       propertyPath: m_PresetInfoIsWorld
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 1071038703394762215, guid: b9a812c9e0248f94c95b78936770b1fd, type: 3}
+      propertyPath: m_RaycastTarget
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2269419973993904499, guid: b9a812c9e0248f94c95b78936770b1fd, type: 3}
+      propertyPath: m_RaycastTarget
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2686472525129231977, guid: b9a812c9e0248f94c95b78936770b1fd, type: 3}
       propertyPath: m_Name
       value: LifeBar

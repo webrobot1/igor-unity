@@ -57,14 +57,14 @@ namespace MyFantasy
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
 		/// </summary>
-		public override Vector3 forward
+		public override Vector3 Forward
 		{
-			get { return base.forward; }
+			get { return base.Forward; }
 			set
 			{
 
 				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
-				if (value.x != base.forward.x || value.y != base.forward.y)
+				if (value.x != base.Forward.x || value.y != base.Forward.y)
 				{
 					//это Blend tree аниматора (в игре Игорья решил так вопрос с анимацией движения в разных направлениях. рекомендую и Вам)
 					if (animator)
@@ -74,6 +74,7 @@ namespace MyFantasy
 						if (animator.GetFloat("y") != value.y)
 							animator.SetFloat("y", value.y);
 					}
+					base.Forward = value; 
 				}
 			}
 		}
@@ -153,13 +154,13 @@ namespace MyFantasy
 						LogWarning("Движение - существо еще не звершило движение. Эстраполяция: " + Math.Round((Vector3.Distance(transform.localPosition, old_position) / Vector3.Distance(old_position, new_position)) * 100) + " % не дойдя с прошлого движения");
 					}
 
-					if ((recive.action == "walk" && (old_position + (forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map_id!=null && recive.map_id != old_map_id))
+					if ((recive.action == "walk" && (old_position + (Forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map_id!=null && recive.map_id != old_map_id))
 					{
 						// до получения новых пакетов продолжим движение в старой системе координат на 1 шаг (тк пришли уже новые для новой карты)
 						if (recive.map_id != null)
 						{
 							recive.action = "walk";
-							position = new_position = old_position + (forward * ConnectController.step);
+							position = new_position = old_position + (Forward * ConnectController.step);
 							Log("Движение - Переход между локациями, идем в "+ new_position);
 						}
 
@@ -311,7 +312,7 @@ namespace MyFantasy
 						extrapolation = true;
 
 						// добавим что идти нужно еще на пол шаг дальше в том же направлении
-						Vector3 step = forward * ConnectController.step * 0.5f;
+						Vector3 step = Forward * ConnectController.step * 0.5f;
 						finish += step;
 
 						// замедлим время дополнительного нашага 

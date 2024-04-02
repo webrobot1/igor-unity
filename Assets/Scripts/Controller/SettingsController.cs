@@ -9,25 +9,21 @@ namespace MyFantasy
     /// <summary>
 	/// Класс для обновления Меню настрое игрока
 	/// </summary>
-    abstract public class SettingsController : SpellBookController
+    abstract public class SettingsController : CursorController
     {
-        /// <summary>
-        /// наш джойстик
-        /// </summary>
-        [SerializeField]
-        protected VariableJoystick joystick;      
-        
-        /// <summary>
-        /// наш джойстик
-        /// </summary>
-        [SerializeField]
-        private GameObject mobileActions;
+        [Header("Для работы с меню настроек")]
 
         /// <summary>
         /// поле для генерации объектов настроек
         /// </summary>
         [SerializeField]
-        private GameObject SettingArea;
+        private Button SaveSettingsButton;
+
+        /// <summary>
+        /// поле для генерации объектов настроек
+        /// </summary>
+        [SerializeField]
+        private Transform SettingArea;
 
         /// <summary>
         /// префабы блоков настроек - чекбокс
@@ -63,8 +59,22 @@ namespace MyFantasy
         {
             base.Awake();
 
-            if (joystick == null)
-                Error("не указан джойстик");
+            if (SaveSettingsButton == null)
+                Error("не указана кнопка сохранения настроек");
+
+            SaveSettingsButton.onClick.AddListener(delegate { SaveSettings(); });
+
+            if (SettingArea == null)
+                Error("не указан transform области где будут выводится настройки с сервера");           
+            
+            if (SettingPrefabCheckbox == null)
+                Error("не указан prefab для настройки типа Checkbox");          
+            
+            if (SettingPrefabScroll == null)
+                Error("не указан prefab для настройки типа Scroll");          
+            
+            if (SettingPrefabDropdown == null)
+                Error("не указан prefab для настройки типа DropDown меню");
           
 #if UNITY_WEBGL && !UNITY_EDITOR
                  WebGLRotation.Rotation(1);
@@ -79,7 +89,7 @@ namespace MyFantasy
         {
             if (recive.settings != null)
             {
-                foreach (Transform child in SettingArea.transform)
+                foreach (Transform child in SettingArea)
                 {
                     Destroy(child.gameObject);
                 }
@@ -92,14 +102,14 @@ namespace MyFantasy
                         case "checkbox":
                             Toggle toggle;
 
-                            prefab = Instantiate(SettingPrefabCheckbox, SettingArea.transform) as GameObject;
+                            prefab = Instantiate(SettingPrefabCheckbox, SettingArea) as GameObject;
                             toggle = prefab.GetComponentInChildren<Toggle>();
                             toggle.onValueChanged.AddListener(delegate { CheckboxOnChange(setting.Key, toggle); });
                         break;
                         case "slider":
                             Slider slider;
                             
-                            prefab = Instantiate(SettingPrefabScroll, SettingArea.transform) as GameObject;
+                            prefab = Instantiate(SettingPrefabScroll, SettingArea) as GameObject;
                             slider = prefab.GetComponentInChildren<Slider>();
 
                             Text text = prefab.transform.Find("Value").GetComponent<Text>();
@@ -114,7 +124,7 @@ namespace MyFantasy
                         case "dropdown":
                             Dropdown dropdown;
 
-                            prefab = Instantiate(SettingPrefabDropdown, SettingArea.transform) as GameObject;
+                            prefab = Instantiate(SettingPrefabDropdown, SettingArea) as GameObject;
                             dropdown = prefab.GetComponentInChildren<Dropdown>();
 
                             List<string> list = new List<string>(setting.Value.values.Values);
@@ -154,7 +164,7 @@ namespace MyFantasy
                         joystick.gameObject.SetActive(int.Parse(settings["joystick"])>0);
 
                     if (settings.ContainsKey("actions"))
-                        mobileActions.gameObject.SetActive(settings["actions"] == "mobile");
+                        onlyMobileActions.gameObject.SetActive(settings["actions"] == "mobile");
        
                     foreach (var setting in settings)
                     {
@@ -166,16 +176,16 @@ namespace MyFantasy
                         switch (_types[setting.Key])
                         {
                             case "checkbox":
-                                Toggle toggle = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Toggle>();
+                                Toggle toggle = SettingArea.Find(setting.Key).GetComponentInChildren<Toggle>();
                                 toggle.isOn = (int.Parse(setting.Value) != 0 ? true : false);
                             break;                            
                             case "slider":
-                                Slider slider = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Slider>();
+                                Slider slider = SettingArea.Find(setting.Key).GetComponentInChildren<Slider>();
                                 slider.value = float.Parse(setting.Value);
                                 slider.onValueChanged.Invoke(slider.value);
                             break;                           
                             case "dropdown":
-                                Dropdown dropdown = SettingArea.transform.Find(setting.Key).GetComponentInChildren<Dropdown>();
+                                Dropdown dropdown = SettingArea.Find(setting.Key).GetComponentInChildren<Dropdown>();
                                 dropdown.value = Array.IndexOf(_lists[setting.Key], setting.Value);
                                 dropdown.onValueChanged.Invoke(dropdown.value);
                             break;
@@ -207,7 +217,7 @@ namespace MyFantasy
             _settings[key] = _lists[key][obj.value];
         }
 
-        public void Save()
+        private void SaveSettings()
         {
             SettingsResponse response = new SettingsResponse();
             response.settings = _settings;

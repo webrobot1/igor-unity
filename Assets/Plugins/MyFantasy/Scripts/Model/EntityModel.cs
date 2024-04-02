@@ -53,12 +53,12 @@ namespace MyFantasy
 		/// <summary>
 		/// при запросе поля выдает серверные значения. при смене - меняет transform position только в клиенте (на сервере меняется лишь попутно с другими событиями требующих направления)
 		/// </summary>
-		public virtual Vector3 forward
+		public virtual Vector3 Forward
 		{
 			get { return _forward; }
 			set
 			{
-				this.transform.forward.Set(value.x , value.y, 0);
+				_forward = value;
 			}
 		}
 
@@ -107,17 +107,16 @@ namespace MyFantasy
 			
 			if (recive.forward_x != null || recive.forward_y != null)
             {
-				Vector3 vector = new Vector3(recive.forward_x ?? forward.x, recive.forward_y ?? forward.y, 0);
+				Vector3 vector = new Vector3(recive.forward_x ?? Forward.x, recive.forward_y ?? Forward.y, 0);
 
 				if (vector.x != _forward.x || vector.y != _forward.y)
 				{
-					forward = vector;       // эта строка лишь развернет 
-					_forward = vector;      // а это будет отдавать при запросе forward данные с сервера а не реального разворота в клиенте
-
+					Forward = vector;      
+	
 					// следующий код применим только к объектам - предметам, он повернет их
 					if (type == "objects")
 					{
-						float angle = Mathf.Atan2(forward.x, forward.y) * Mathf.Rad2Deg * -1;
+						float angle = Mathf.Atan2(Forward.x, Forward.y) * Mathf.Rad2Deg * -1;
 						transform.rotation = Quaternion.Euler(0, 0, angle);
 					}
 				}

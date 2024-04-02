@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using UnityEngine;
 namespace MyFantasy
 {
 	public class SpellRecive

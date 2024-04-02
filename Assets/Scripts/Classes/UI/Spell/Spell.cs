@@ -12,11 +12,8 @@ namespace MyFantasy
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class Spell : MonoBehaviour, IPointerClickHandler
+    public class Spell: MoveableObject
     {
-        [SerializeField]
-        private Image image;
-
         public Text title;
         public string group;
         public Text description;
@@ -47,11 +44,9 @@ namespace MyFantasy
             }
         }
 
-        protected void Awake()
-        {
-            if (image == null)
-                ConnectController.Error("не найден объект sprite в для элемента Заклинания в книге");
 
+        protected override void Awake()
+        {
             if (title == null)
                 ConnectController.Error("не найден объект title в для элемента Заклинания в книге");
 
@@ -60,6 +55,8 @@ namespace MyFantasy
 
             if (mp == null)
                 ConnectController.Error("не найден объект mana в для элемента Заклинания в книге");
+
+            base.Awake();
         }
 
         protected void FixedUpdate()
@@ -74,43 +71,50 @@ namespace MyFantasy
             } 
         }
 
-        private Response? cast()
+        public override void Use(GameObject gameObject = null)
         {
-            switch (group)
+            if(gameObject!=null && gameObject.GetComponent<ActionBar>())
             {
-                case "fight/attack":
-                    AttackResponse response = new AttackResponse();
-                    response.magic = Magic;
+                int num = gameObject.GetComponent<ActionBar>().num;
 
-                    if (PlayerController.Target != null)
-                    {
-                        response.target = PlayerController.Target.key;
-                    }
-                    else
-                    {
-                        // именно то в каком положении наш персонаж
-                        response.x = Math.Round(PlayerController.Player.transform.forward.x, PlayerController.position_precision);
-                        response.y = Math.Round(PlayerController.Player.transform.forward.y, PlayerController.position_precision);
-                    }
+                Debug.LogWarning("Быстрая клавиша " + num + ": отправим на сервер установку заклинания " + Magic);
+                ActionBar bar = Array.Find(UIController.Instance.ActionBars, element => element.num == num);
 
-                    return response;
-                default:
-                    ConnectController.Error("неизвестный тип группы "+ group+" у заклинания "+Magic);
-                break;
-            }
+                ActionBarsResponse response = new ActionBarsResponse();
 
-            return null;
-        }
-
-        void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
-        {
-            // на сервере есть првоерка на то можем ли мы стрелять, но что бы не сдать впустую запрос который никчему не приведет  - ограничим и тут
-            if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
-            {
-                Debug.LogError(Magic);
-
-                Response response = cast();
+                response.actionbars.Add(bar.num, new ActionBarsRecive("spell", Magic));
                 response.Send();
+            }
+            else
+            {
+                Debug.Log("Используем заклинание "+ Magic);
+                switch (group)
+                {
+                    case "fight/attack":
+                        AttackResponse response = new AttackResponse();
+                        response.magic = Magic;
+
+                        if (gameObject != null && gameObject.GetComponent<ObjectModel>())
+                        {
+                            response.target = gameObject.GetComponent<ObjectModel>().key;
+                        }
+                        else if (UIController.Instance.Target != null)
+                        {
+                            response.target = UIController.Instance.Target.key;
+                        }
+                        else
+                        {
+                            // именно то в каком положении наш персонаж
+                            response.x = Math.Round(PlayerController.Player.Forward.x, PlayerController.position_precision);
+                            response.y = Math.Round(PlayerController.Player.Forward.y, PlayerController.position_precision);
+                        }
+
+                        response.Send();
+                    break;
+                    default:
+                        ConnectController.Error("неизвестный тип группы "+ group+" у заклинания "+Magic);
+                    break;
+                }
             }
         }
     }

@@ -9,8 +9,10 @@ namespace MyFantasy
     /// <summary>
 	/// Класс для обновления Меню настрое игрока
 	/// </summary>
-    abstract public class SpellBookController : UpdateController
+    abstract public class SpellBookController : PlayerController
     {
+        [Header("Для работы с книгой заклинаний")]
+
         /// <summary>
         /// префаб заклинания в книге
         /// </summary>
@@ -21,21 +23,33 @@ namespace MyFantasy
         /// префаб заклинания в книге
         /// </summary>
         [SerializeField]
-        private Transform spellGroupArea;      
+        private Transform spellGroupArea;
 
-        public static Dictionary<string, Spell> spells;
+        /// <summary>
+        /// список доступных заклинаний с их характеристиками 
+        /// </summary>
+        private static Dictionary<string, Spell> _spells;
+
+        public Dictionary<string, Spell> Spells
+        {
+            get { return _spells; }
+            set { }
+        }
 
         protected override void Awake()
         {
-            spells = new Dictionary<string, Spell>();
+            _spells = new Dictionary<string, Spell>();
 
             base.Awake();
 
             if (spellPrefab == null)
-                Error("не указан префаб заклинания в книге");       
+                Error("не указан префаб заклинания в книге");              
+            
+            if (spellGroupArea == null)
+                Error("не указан Transform книги на которую буду загружаться с сервера заклинаний");       
         }
 
-        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
         {
             if (recive.spellBook != null)
             {
@@ -55,7 +69,7 @@ namespace MyFantasy
                     prefab.description.text = spell.Value.description;
                     prefab.mp.text = spell.Value.mp.ToString();
 
-                    spells.Add(spell.Key, prefab);
+                    _spells.Add(spell.Key, prefab);
                 }
             }
 

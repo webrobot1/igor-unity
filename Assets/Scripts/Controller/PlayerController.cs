@@ -12,14 +12,12 @@ namespace MyFantasy
 	/// </summary>
     abstract public class PlayerController : StatController
     {
+        [Header("Для работы с иконкой персонажа и его цели")]
         [SerializeField]
         private TargetController _playerFaceController;  
         
         [SerializeField]
         private TargetController _targetFaceController;
-
-        // сделаем ссылку на объкт постоянной статической
-        private static TargetController _target;
 
         /// <summary>
         ///  это цель которую мы выбрали сами , не автоматическая
@@ -41,15 +39,15 @@ namespace MyFantasy
             }
         }
 
-        public static ObjectModel Target 
+        public ObjectModel Target 
         {
-            get { return _target.Target; } 
+            get { return _targetFaceController.Target; } 
             set 
             {
                 if (player != null && value != null && value.key != player.key)
-                    _target.Target = value; 
+                    _targetFaceController.Target = value; 
                 else
-                    _target.Target = null;
+                    _targetFaceController.Target = null;
             } 
         }
 
@@ -61,9 +59,7 @@ namespace MyFantasy
                 Error("не присвоен фрейм жизней игрока");          
             
             if (_targetFaceController == null)
-                Error("не присвоен фрейм жизней цели");
-
-            _target = _targetFaceController;    
+                Error("не присвоен фрейм жизней цели"); 
         }
 
 
@@ -82,9 +78,9 @@ namespace MyFantasy
             string tmp_target = null;
             if (recive.action == ACTION_LOAD)
             {
-                if (Target != null)
+                if (_targetFaceController.Target != null)
                 {
-                    tmp_target = Target.key;
+                    tmp_target = _targetFaceController.Target.key;
                 }
             }
 
@@ -105,12 +101,12 @@ namespace MyFantasy
                 GameObject gameObject = GameObject.Find(tmp_target);
                 if (gameObject == null)
                 {
-                    Target = null;
+                    _targetFaceController.Target = null;
                 }
                 else
                 {
                     Debug.LogError("Цель была найдена снова " + tmp_target);
-                    Target = gameObject.GetComponent<ObjectModel>();
+                    _targetFaceController.Target = gameObject.GetComponent<ObjectModel>();
                 }
             }
         }
