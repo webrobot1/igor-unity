@@ -84,7 +84,7 @@ namespace MyFantasy
                                 Debug.Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
                             break;
                             default:
-                                Error("Неизвестный тип быстрой клавиши " + action.Value.type + " под номером " + action.Key);
+                                Error("Неизвестный тип быстрой клавиши '" + action.Value.type + "' под номером " + action.Key);
                             return null;
                         }
                     }

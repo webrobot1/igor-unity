@@ -12,7 +12,6 @@ namespace MyFantasy
         public int num;
         private MoveableObject _item;
 
-        [SerializeField]
         private Image _image;
 
         public MoveableObject Item
@@ -47,6 +46,7 @@ namespace MyFantasy
 
         protected void Awake()
         {
+            _image = GetComponent<Image>();
             if (_image == null)
                 ConnectController.Error("не указан gameObject для быстрох клавиш отвечающий за отображение картинок");
         }
