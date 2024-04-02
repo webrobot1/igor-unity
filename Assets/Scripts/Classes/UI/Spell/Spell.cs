@@ -101,15 +101,19 @@ namespace MyFantasy
         {
             if(gameObject!=null && gameObject.GetComponent<ActionBar>())
             {
-                int num = gameObject.GetComponent<ActionBar>().num;
+                ActionBar bar = gameObject.GetComponent<ActionBar>();
+                if(bar.Item != this)
+                {
+                    Debug.Log("Быстрая клавиша " + bar.num + ": отправим на сервер установку заклинания " + Magic);
+                    ActionBarsResponse response = new ActionBarsResponse();
 
-                Debug.LogWarning("Быстрая клавиша " + num + ": отправим на сервер установку заклинания " + Magic);
-                ActionBar bar = Array.Find(MainController.Instance.ActionBars, element => element.num == num);
-
-                ActionBarsResponse response = new ActionBarsResponse();
-
-                response.actionbars.Add(bar.num, new ActionBarsRecive("spell", Magic));
-                response.Send();
+                    response.actionbars.Add(bar.num, new ActionBarsRecive("spell", Magic));
+                    response.Send();
+                }
+                else
+                {
+                    Debug.LogWarning("Быстрая клавиша " + bar.num + ": Попытка установить одинаковые значение");
+                }
             }
             else
             {
