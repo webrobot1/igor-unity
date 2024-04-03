@@ -157,7 +157,7 @@ namespace MyFantasy
 				Error("попытка загрузки карты " + map_id + " повторно");
 			else
 			{
-				string url = "http://" + SERVER + "/game/signin/get_map/?game_id=" + GAME_ID + "&map_id=" + map_id + "&token=" + player_token;
+				string url = "http://" + _sides[map_id].ip + "/game/signin/get_map/?game_id=" + GAME_ID + "&map_id=" + map_id + "&token=" + player_token;
 				Debug.Log("получаем карту " + map_id + " с " + url);
 
 				UnityWebRequest request = UnityWebRequest.Get(url);
