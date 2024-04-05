@@ -608,7 +608,7 @@ namespace MyFantasy
 
 		public new static void Error(string text, Exception ex = null)
 		{
-			errors.Add(text);
+			errors.Add(text+": "+ ex??ex.Message);
 
 			if (ex!=null)
 				Debug.LogException(ex);

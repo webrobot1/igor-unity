@@ -8,7 +8,7 @@ namespace MyFantasy
 	public class LayerObject
 	{
 		public int tile_id;
-		public int tileset_id;
+		public string tileset_image;
 
 		public string name = "";
 

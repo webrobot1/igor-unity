@@ -60,26 +60,27 @@ namespace MyFantasy
 						m.SetTRS(new Vector3(tile.Value.horizontal -0.5f, tile.Value.vertical - 0.5f), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
 						newTile.transform = m;
 
-                        if (!map.tileset[tile.Value.tileset_id].tile.ContainsKey(tile.Value.tile_id))
+                        if (!map.tileset[tile.Value.tileset_image].tile.ContainsKey(tile.Value.tile_id))
                         {
-							throw new Exception("Не найден тайл "+ tile.Value.tile_id+" в набооре тайлов "+ tile.Value.tileset_id+" размером "+ map.tileset[tile.Value.tileset_id].tilecount);
+							throw new Exception("Не найден тайл "+ tile.Value.tile_id+" в набооре тайлов "+ tile.Value.tileset_image + " размером "+ map.tileset[tile.Value.tileset_image].tilecount);
                         }
                         else 
 						{ 
-							if (map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].frame != null)
+							if (map.tileset[tile.Value.tileset_image].tile[tile.Value.tile_id].frame != null)
 							{
 								Debug.Log("Карта: добавим на сцену анимированный тайл " + tile.Value.tile_id);
-								newTile.addSprites(map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].frame);
+								newTile.addSprites(map.tileset[tile.Value.tileset_image].tile[tile.Value.tile_id].frame);
 							}
 							else
-								newTile.sprite = map.tileset[tile.Value.tileset_id].tile[tile.Value.tile_id].sprite;
+								newTile.sprite = map.tileset[tile.Value.tileset_image].tile[tile.Value.tile_id].sprite;
 
 							tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 						}
 					}
-					Debug.Log(newLayer.name + " раставлены tile");
+					Debug.Log("Карта: у слоя "+newLayer.name + " раставлены "+ layer.tiles.Count + " тайлов");
 				}
-				else if (layer.objects != null)
+				
+				if (layer.objects != null)
 				{
 					foreach (LayerObject obj in layer.objects)
 					{
@@ -93,12 +94,12 @@ namespace MyFantasy
 							m.SetTRS(new Vector3(obj.horizontal - 0.5f, obj.vertical - 0.5f), Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
 							newTile.transform = m;
 
-							if (map.tileset[obj.tileset_id].tile[obj.tile_id].frame != null)
+							if (map.tileset[obj.tileset_image].tile[obj.tile_id].frame != null)
 							{
-								newTile.addSprites(map.tileset[obj.tileset_id].tile[obj.tile_id].frame);
+								newTile.addSprites(map.tileset[obj.tileset_image].tile[obj.tile_id].frame);
 							}
 							else
-								newTile.sprite = map.tileset[obj.tileset_id].tile[obj.tile_id].sprite;
+								newTile.sprite = map.tileset[obj.tileset_image].tile[obj.tile_id].sprite;
 
 							// сместим координаты абсолютные на расположение главного слоя Map (у нас ноль идет от -180 для GEO расчетов) для получения относительных
 							tilemap.SetTile(new Vector3Int((int)(obj.x), (int)(obj.y), 0), newTile);
@@ -164,11 +165,15 @@ namespace MyFantasy
 			bool animationCheck = false;
 
 			// порежим изображение на плитку (тайлы)
-			foreach (KeyValuePair<int, Tileset> tileset in map.tileset)
+			foreach (KeyValuePair<string, Tileset> tileset in map.tileset)
 			{
 				// зайгрузим байты картинки в объект Texture
-				Texture2D texture = ImageToSpriteModel.LoadTexture(System.Convert.FromBase64String(tileset.Value.resource), tileset.Value.trans);
 
+				var decode = System.Convert.FromBase64String(tileset.Value.resource);
+				if (decode.Length == 0)
+					throw new Exception("Изображение "+tileset.Key+" имеет размер картинки 0");
+
+				Texture2D texture = ImageToSpriteModel.LoadTexture(decode, tileset.Value.trans);
 				for (int i = 0; i < tileset.Value.tilecount; i++)
 				{
 					// посчитаем где находится необходимая область тайла
@@ -204,7 +209,12 @@ namespace MyFantasy
 							foreach (TilesetTileAnimation frame in tile.Value.frame)
 							{
 								Debug.Log("Карта: создаем анмаиции для тайла " + tile.Key + " с тайлом "+ frame.tileid + " с паузами "+ frame.duration);
-								frame.sprite = tileset.Value.tile[frame.tileid].sprite;
+								if(tileset.Value.tile.ContainsKey(frame.tileid))
+									frame.sprite = tileset.Value.tile[frame.tileid].sprite;
+                                else
+                                {
+									throw new Exception("Не найден тайл под номером "+ frame.tileid+" в наборе tileset "+ tileset.Value.image+" ("+tileset.Key+")");
+                                }
 							}
 						}
 					}

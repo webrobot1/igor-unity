@@ -20,7 +20,7 @@ namespace MyFantasy
 		public int? spawn_sort = null;
 
 		// всегда словарь тк ключ - его ид для быстрого доступа из слоям
-		public Dictionary<int, Tileset> tileset = new Dictionary<int, Tileset> {};
+		public Dictionary<string, Tileset> tileset = new Dictionary<string, Tileset> {};
 		public Layer[] layer;
 	}
 }
