@@ -11,7 +11,7 @@ namespace MyFantasy
     /// <summary>
 	/// Класс верхнего уровня. Служит в том числе для обновления статистика соединения
 	/// </summary>
-    public class MainController : CursorController
+    public class MainController : SettingsController
     {
         private float deltaTime;
 

@@ -16,7 +16,7 @@ namespace MyFantasy
                 Screen.orientation = ScreenOrientation.AutoRotation;
             #endif
 
-            base.Start();
+            base.Awake();
         }
 
         public static void EnterFullScreenMode()
