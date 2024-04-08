@@ -1,14 +1,7 @@
 using Newtonsoft.Json;
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using UnityEngine;
-using UnityEngine.Networking;
-using UnityEngine.SceneManagement;
-
-using WebGLSupport;
 
 namespace MyFantasy
 {
@@ -27,12 +20,14 @@ namespace MyFantasy
 		/// </summary>
 		protected override void HandleData<P,E,O>(Recive<P, E, O> recive)
 		{
+			base.HandleData(recive);
+
 			if (recive.action != null)
 			{
 				switch (recive.action)
 				{
 					case ACTION_LOAD:
-						Debug.LogWarning("полная перезагрузка мира");
+						Debug.LogWarning("WebSocket: полная перезагрузка мира");
 
 						// удаляет не сразу а на следующем кадре все карты
 						// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
@@ -46,7 +41,7 @@ namespace MyFantasy
 								}
                                 else
                                 {
-									Debug.Log("Не очищаем игрока при перезагрузке");
+									player.Log("Не очищаем игрока при перезагрузке");
                                 }	
 							}
 						}	
@@ -69,13 +64,13 @@ namespace MyFantasy
 						if (mapObject.transform.Find(map.Key.ToString()) !=null)
 							map_zone.localPosition = mapObject.transform.Find(map.Key.ToString()).localPosition;
 
-						Debug.LogWarning("Создаем область для объектов " + map.Key);
+						Debug.LogWarning("WebSocket: Создаем область для объектов " + map.Key);
 					}
 
 					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
 					if (map.Value.players == null && map.Value.enemys == null && map.Value.objects == null)
 					{
-						Debug.LogWarning("локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
+						Debug.LogWarning("WebSocket: локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
 
 						// если саму зону оставить надо
 						foreach (Transform child in map_zone.transform)
@@ -118,8 +113,6 @@ namespace MyFantasy
 					}
 				}
 			}
-
-			base.HandleData(recive);
 		}
 
 		/// <summary>
@@ -139,7 +132,7 @@ namespace MyFantasy
 
 				if (recive.prefab == null)
                 {
-					Error("Нельзя создать существо "+ key + " с карты "+ map_id + " с пустым полем prefab");
+					Error("WebSocket: Нельзя создать существо " + key + " с карты "+ map_id + " с пустым полем prefab");
 					return null;
 				}
 
@@ -153,7 +146,7 @@ namespace MyFantasy
 					
 				if (ob == null)
 				{
-					Error("Отсутвует и префаб Prefabs/" + type + "/" + recive.prefab+ " и Prefabs/" + type + "/Unknow для объекта " + key);
+					Error("WebSocket: Отсутвует и префаб Prefabs/" + type + "/" + recive.prefab+ " и Prefabs/" + type + "/Unknow для объекта " + key);
 					return null;
 				}
 
@@ -163,7 +156,7 @@ namespace MyFantasy
 				model = prefab.GetComponent<EntityModel>();
 				if (model == null)
 				{
-					Error("Отсутвует скрипт модели на объекте " + key);
+					Error("WebSocket: Отсутвует скрипт модели на объекте " + key);
 					return null;
 				}
 				
@@ -203,7 +196,7 @@ namespace MyFantasy
 			}
 			catch (Exception ex)
 			{
-				Error("Не удалось загрузить " + key, ex);
+				Error("WebSocket: Не удалось загрузить " + key, ex);
 				return null;
 			}
 

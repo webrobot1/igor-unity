@@ -150,13 +150,13 @@ namespace MyFantasy
 			{
 				using (MemoryStream target = new MemoryStream())
 				{
-					Debug.Log("Декодируем карту");
+					Debug.Log("Карты: Декодируем карту");
 					using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
 					{
 						decompressStream.CopyTo(target);
 					}
 
-					Debug.Log("Парсим карту");
+					Debug.Log("Карты: Парсим карту");
 					map = JsonConvert.DeserializeObject<Map>(Encoding.UTF8.GetString(target.ToArray()));
 				}
 			}

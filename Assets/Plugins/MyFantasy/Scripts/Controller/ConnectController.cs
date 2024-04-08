@@ -206,10 +206,10 @@ namespace MyFantasy
 				{
 					if (DateTime.Compare((DateTime)loading, DateTime.Now) < 1)
 					{
-						Error("Слишком долгая пауза загрузки");
+						Error("WebSocket: Слишком долгая пауза загрузки");
 					}
 					else
-						Debug.Log("Пауза");
+						Debug.Log("WebSocket: Пауза получения запросов");
 				}
 				
 				if (errors.Count == 0)
@@ -225,11 +225,11 @@ namespace MyFantasy
 					}
 					catch (Exception ex)
 					{
-						Error("Ошибка разбора разбора данных", ex);
+						Error("WebSocket: Ошибка разбора разбора данных", ex);
 					}
 
 					if (connect!=null && reload == ReloadStatus.None && (connect.ReadyState == WebSocketState.Closed || connect.ReadyState == WebSocketState.Closing))
-						Error("Соединение закрыто для запросов (" + connect.ReadyState + ")");
+						Error("WebSocket: Соединение закрыто для запросов (" + connect.ReadyState + ")");
 
 					if (reload == ReloadStatus.Start)
 					{
@@ -278,14 +278,14 @@ namespace MyFantasy
             {		
 				if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.New || connect.ReadyState == WebSocketState.Connecting))
 				{
-					Error("WebSocket - соединение сих пор открыто");
+					Error("WebSocket: соединение сих пор открыто");
 				}
 				else
 				{
 					try
 					{
 						WebSocket ws = new WebSocket(address);
-						Debug.Log("WebSocket - новое соединение с сервером " + ws.Url);
+						Debug.Log("WebSocket: новое соединение с сервером " + ws.Url);
 
 						// так в C# можно
 						ws.SetCredentials(player_key, player_token, true);
@@ -298,13 +298,13 @@ namespace MyFantasy
 								tcpClient.NoDelay = true;
 							#endif
 
-							Debug.Log("WebSocket - соединение с сервером " + ws.Url + " установлено");
+							Debug.Log("WebSocket: соединение с сервером " + ws.Url + " установлено");
 					
 							// если к моменту соединения есть ошибки или загружена сцена регистрации
 							if (coroutine != null || errors.Count > 0)
                             {
 								ws.CloseAsync();
-								throw new Exception("В процессе инициализации класса произошли ошибки");
+								throw new Exception("WebSocket: В процессе инициализации класса произошли ошибки");
 							}							
 							else
 								connect = ws;
@@ -314,17 +314,17 @@ namespace MyFantasy
 							if(connect != null) 
 							{ 
 								if (reload == ReloadStatus.None && connect == ws)
-									Error("WebSocket - текущее соединение " + connect.Url+ " закрыто сервером: " + ev.Code);
+									Error("WebSocket: текущее соединение " + connect.Url+ " закрыто сервером: " + ev.Code);
 								else
-									Debug.Log("WebSocket - закрылось старое соединение с сервером " + ws.Url);
+									Debug.Log("WebSocket: закрылось старое соединение с сервером " + ws.Url);
 							}
 						};
 						ws.OnError += (sender, ev) =>
 						{
 							if (reload == ReloadStatus.None && connect!=null && connect == ws)
-								Error("WebSocket - Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
+								Error("WebSocket: Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
 							else
-								Debug.LogError("WebSocket - Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
+								Debug.LogError("WebSocket: Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
 						};
 						ws.OnMessage += (sender, ev) =>
 						{
@@ -338,7 +338,7 @@ namespace MyFantasy
 										using (MemoryStream target = new MemoryStream())
 										{
 #if UNITY_EDITOR
-											Debug.Log("Декодируем пакет");
+											Debug.Log("WebSocket: Декодируем пакет");
 #endif
 											using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
 											{
@@ -349,11 +349,11 @@ namespace MyFantasy
 									}
 
 									if (text.Length == 0)
-										Error("Пришло пустое сообщение");
+										Error("WebSocket: Пришло пустое сообщение");
 									else
 									{
 #if UNITY_EDITOR
-										Debug.Log("WebSocket - Пришел пакет" + text);
+										Debug.Log("WebSocket: Пришел пакет" + text);
 #endif
 										Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
 
@@ -373,8 +373,7 @@ namespace MyFantasy
 
 												// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
 												reload = ReloadStatus.Start;
-
-												Debug.Log("WebSocket - Перезаход в игру");
+												player.Log("Перезаход в игру");
 											}
 
 											if (recive.action == ACTION_LOAD)
@@ -409,12 +408,12 @@ namespace MyFantasy
 								}
 								else
 								{
-									Debug.LogError("Пакеты продолжают приходить" + (connect != null ? " при отсутвующем ссылке на соединение" : ", но ссылка на соединение до сих пор есть"));
+									Debug.LogError("WebSocket: Пакеты продолжают приходить" + (connect != null ? " при отсутвующем ссылке на соединение" : ", но ссылка на соединение до сих пор есть"));
 								}
 							}
 							catch(Exception ex)
 							{
-								Error("WebSocket - Ошибка обработки сообщения от сервера: ", ex);
+								Error("WebSocket: Ошибка обработки сообщения от сервера: ", ex);
 							}
 						};
 
@@ -430,12 +429,12 @@ namespace MyFantasy
 					}
 					catch (Exception ex)
 					{
-						Error("WebSocket - Ошибка октрытия соединения ", ex);
+						Error("WebSocket: Ошибка открытия соединения ", ex);
 					}
 				}
 			}
 			else
-				throw new Exception("В процессе инициализации класса произошли ошибки");
+				throw new Exception("WebSocket: В процессе инициализации класса произошли ошибки");
 		}
 
 		/// <summary>
@@ -508,7 +507,7 @@ namespace MyFantasy
 						if (player.getEvent(data.group).action == "")
 							player.getEvent(data.group).action = null;
 
-						Debug.Log(player.key+": отправили в websocket " + json);
+						player.Log("отправили в websocket " + json);
 						Put2Send(json);	
 					}
 					//else
@@ -516,11 +515,11 @@ namespace MyFantasy
 				}
 				catch (Exception ex)
 				{
-					Error("WebSocket - Ошибка отправки данных", ex);
+					Error("WebSocket: Ошибка отправки данных", ex);
 				}		
 			}
 			else
-				Debug.LogWarning("WebSocket - Загрузка мира, команда " + data.action +"/"+ data.group + " отклонена");
+				player.LogWarning("Загрузка мира, команда " + data.action +"/"+ data.group + " отклонена");
 		}
 
 		/// <summary>
@@ -551,7 +550,7 @@ namespace MyFantasy
 
 			player.getEvent(group).finish = DateTime.Now.AddSeconds(timeout);
 
-			Debug.Log("Новое значение оставшегося времени группы событий "+ group + ": "+ player.GetEventRemain(group));
+			player.Log("Новое значение оставшегося времени группы событий " + group + ": "+ player.GetEventRemain(group));
 		}
 
 		private static void Close()
@@ -561,10 +560,10 @@ namespace MyFantasy
 				if (connect.ReadyState != WebSocketState.Closed && connect.ReadyState != WebSocketState.Closing)
 				{
 					connect.CloseAsync();
-					Debug.LogError("WebSocket - закрытие соедения "+connect.Url);
+					Debug.LogError("WebSocket:  закрытие соедения " + connect.Url);
 				}
 				else
-					Debug.LogWarning("WebSocket - содинение уже закрывается " + connect.Url);
+					Debug.LogWarning("WebSocket: содинение уже закрывается " + connect.Url);
 
 				connect = null;
 			}
@@ -589,10 +588,10 @@ namespace MyFantasy
 
 						byte[] toSend = memoryStream.ToArray();
 						if (toSend.Length == 0)
-							Error("Ошибка кодирование пакета на отправку");
+							Error("WebSocket: Ошибка кодирование пакета на отправку");
 						else
 						{
-							Debug.Log("Отправляем пакет " + toSend.Length + " байт");
+							Debug.Log("WebSocket: Отправляем пакет " + toSend.Length + " байт");
 #if !UNITY_WEBGL || UNITY_EDITOR
 							connect.SendAsync(toSend, null);
 #else
@@ -603,7 +602,7 @@ namespace MyFantasy
 				}
 			}
 			else
-				Error("нельзя отправлять к серверу пустые строки");
+				Error("WebSocket: нельзя отправлять к серверу пустые строки");
 		}
 
 		public new static void Error(string text, Exception ex = null)
@@ -628,7 +627,7 @@ namespace MyFantasy
 		/// <param name="error">сама ошибка</param>
 		protected virtual IEnumerator LoadRegister(string error = null)
 		{
-			Debug.LogWarning("загружаем сцену регистрации");
+			Debug.LogWarning("WebSocket: загружаем сцену регистрации");
 
 			if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
 			{
@@ -648,7 +647,7 @@ namespace MyFantasy
 
 		void OnApplicationQuit()
 		{
-			Debug.Log("Закрытие приложения");
+			Debug.Log("WebSocket: Закрытие приложения");
 			Close();
 			errors.Clear();
 		}

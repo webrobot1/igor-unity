@@ -41,10 +41,10 @@ namespace MyFantasy
 			base.Awake();
 
 			if (mapObject == null)
-				Error("не присвоен GameObject для карт");
+				Error("Карты: не присвоен GameObject для карт");
 
 			if (worldObject == null)
-				Error("не присвоен GameObject для игровых обектов");
+				Error("Карты: не присвоен GameObject для игровых обектов");
 
 
 			// на случай если мы как разработчик какие то тестовые данные оставили
@@ -71,7 +71,7 @@ namespace MyFantasy
 		{
 			if (recive.sides != null)
 			{
-				Debug.Log("Обрабатываем стороны карт");
+				Debug.Log("Карты: Обрабатываем стороны карт");
 
 				// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
 				if (_maps.Count > 0)
@@ -81,7 +81,7 @@ namespace MyFantasy
 						int map_id = Int32.Parse(grid.name);
 						if (!recive.sides.ContainsKey(map_id))
 						{
-							Debug.Log("уничтожаем неиспользуемую карту " + map_id);
+							Debug.Log("Карты: уничтожаем неиспользуемую карту " + map_id);
 							DestroyImmediate(mapObject.transform.Find(map_id.ToString()).gameObject);
 							DestroyImmediate(worldObject.transform.Find(map_id.ToString()).gameObject);
 
@@ -140,24 +140,25 @@ namespace MyFantasy
 					}
 				}
 				else
-					Error("На сцене присутвует карта "+ map_id + " которая не является текущей или смежной");
+					Error("Карты: На сцене присутвует карта "+ map_id + " которая не является текущей или смежной");
 			}
 		}
 
 		protected virtual IEnumerator DownloadMap(int map_id)
 		{
 			if (!_sides.ContainsKey(map_id))
-				Error("карта " + map_id + " не является какой либо частью текущих локаций");			
+				Error("Карты: " + map_id + " не является какой либо частью текущих локаций");			
 			else if (mapObject.transform.Find(map_id.ToString()) != null)
-				Error("карта " + map_id + " уже выгружена в игровое пространство");
+				Error("Карты: " + map_id + " уже выгружена в игровое пространство");
 			else if (_maps.ContainsKey(map_id))
-				Error("попытка загрузки карты " + map_id + " повторно");
+				Error("Карты: попытка загрузки " + map_id + " повторно");
 			else
 			{
 				string url = "http://" + _sides[map_id].ip + "/game/signin/get_map/?game_id=" + GAME_ID + "&map_id=" + map_id + "&token=" + player_token;
-				Debug.Log("получаем карту " + map_id + " с " + url);
+				Debug.Log("Карты: получаем " + map_id + " с " + url);
 
 				UnityWebRequest request = UnityWebRequest.Get(url);
+				request.redirectLimit = 1;
 
 				yield return request.SendWebRequest();
 
@@ -166,7 +167,7 @@ namespace MyFantasy
 				if (text.Length > 0)
 				{
 					#if UNITY_EDITOR
-						Debug.Log("Ответ от сервера карт " + text);
+						Debug.Log("Карты: Ответ от сервера ("+ _sides[map_id].ip + ") " + text);
 					#endif
 					try
 					{
@@ -174,11 +175,11 @@ namespace MyFantasy
 
 						if (recive.error.Length > 0)
 						{
-							Error("Ошибка запроса карты " + map_id + ": " + recive.error);
+							Error("Карты: Ошибка запроса " + map_id + ": " + recive.error);
 						}
 						else if (recive.map.Length > 0)
 						{
-							Debug.Log("Обновляем карту " + map_id);
+							Debug.Log("Карты: Обновляем " + map_id);
 
 							Transform grid = new GameObject(map_id.ToString()).transform;
 							grid.gameObject.AddComponent<Grid>();
@@ -193,24 +194,25 @@ namespace MyFantasy
 									SortMap();
 								}
 								else 
-									Debug.LogError("Карта "+ map_id + " загружена в то время когда уже ее нет в массиве сторон (возможно игрок уже ушел с карты где она была нужна)");
+									Debug.LogError("Карты: " + map_id + " загружена в то время когда уже ее нет в массиве сторон (возможно игрок уже ушел с карты где она была нужна)");
 							}
 							catch (Exception ex)
 							{
-								Error("Ошибка разбора карты", ex);
+								Error("Карты: Ошибка разбора карты", ex);
 							}
 						}
 						else
-							Error("ответ запроса сервера карт не содержит карту");
+							Error("Карты: ответ запроса сервера " + _sides[map_id].ip + " не содержит карту");
 					}
 					catch (Exception ex)
 					{
-						Error("Ошибка запроса карты", ex);
+						Error("Карты: Ошибка запроса с сервера"+ _sides[map_id].ip, ex);
 					}
 				}
-				else
-					Error("Пустой ответ сервера карт  " + request.error);
-
+                else
+                {
+					Error("Карты: устой ответ сервера " + _sides[map_id].ip + " (" + request.responseCode + "): " + request.error);
+				}
 				request.Dispose();
 			}			
 

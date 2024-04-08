@@ -81,7 +81,7 @@ namespace MyFantasy
                                     
                                 _actionBars[action.Key - 1].Item = Spells[action.Value.id];
 
-                                Debug.Log("Ѕыстра€ клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
+                                player.Log("Ѕыстра€ клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
                             break;
                             default:
                                 Error("Ќеизвестный тип быстрой клавиши '" + action.Value.type + "' под номером " + action.Key);

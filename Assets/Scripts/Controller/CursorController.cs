@@ -90,7 +90,7 @@ namespace MyFantasy
                 if (hit.transform != null && hit.transform.gameObject != null && hit.transform.gameObject.GetComponent<EntityModel>())
                 {
                     gameObject = hit.transform.gameObject;
-                    Debug.Log("Кликнули на объект " + gameObject.name);
+                    player.Log("Кликнули на объект " + gameObject.name);
                 }
 
                 else if
@@ -107,7 +107,7 @@ namespace MyFantasy
                     if (results.Count > 0)
                     {
                         gameObject = results[0].gameObject;
-                        Debug.Log("Кликнули на UI " + gameObject.name);
+                        player.Log("Кликнули на UI " + gameObject.name);
                     }    
                 }
 

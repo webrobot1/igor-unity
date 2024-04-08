@@ -95,7 +95,7 @@ namespace MyFantasy
 
             if (_playerFaceController.Target == null && player != null)
             {
-                Debug.Log("Инициализация фрейма игрока");
+                player.Log("Инициализация фрейма игрока");
 
                 // установим иконку нашего персонажа в превью и свяжем его анимацию с ней
                 // именно Player - новый объект нашего игрока унаследованного от объекта плагина сервера 
@@ -104,7 +104,7 @@ namespace MyFantasy
 
             if (recive.action == ACTION_LOAD && tmp_target != null && Target == null)
             {
-                Debug.LogError("Потерялась цель игрока при загрузке " + tmp_target);
+                player.LogError("Потерялась цель игрока при загрузке " + tmp_target);
                 GameObject gameObject = GameObject.Find(tmp_target);
                 if (gameObject == null)
                 {
@@ -112,7 +112,7 @@ namespace MyFantasy
                 }
                 else
                 {
-                    Debug.LogError("Цель была найдена снова " + tmp_target);
+                    player.LogError("Цель была найдена снова " + tmp_target);
                     _targetFaceController.Target = gameObject.GetComponent<ObjectModel>();
                 }
             }
@@ -143,11 +143,11 @@ namespace MyFantasy
                                     if (attackerModel != null && CanBeTarget(attackerModel))
                                     {
                                         Target = attackerModel;
-                                        Debug.Log("Новая цель атаки с сервера: " + attacker);
+                                        player.Log("Новая цель атаки с сервера: " + attacker);
                                     }
                                 }
                                 else
-                                    Debug.LogError("Цель " + attacker + " не найдена на сцене");
+                                    player.LogError("Цель " + attacker + " не найдена на сцене");
                             }
                         }
                     }
@@ -161,7 +161,7 @@ namespace MyFantasy
                         {
                             // то передадим инфомрацию игроку что бы мы стали его целью
                             Target = model;
-                            Debug.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
+                            player.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
                         }
                     }
                 }
