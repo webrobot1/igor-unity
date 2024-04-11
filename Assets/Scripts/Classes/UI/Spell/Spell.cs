@@ -97,11 +97,11 @@ namespace MyFantasy
             }
         }
 
-        public override void Use(GameObject gameObject = null)
+        public override void Use(Vector2 pos = new Vector2(), GameObject obj = null)
         {
-            if(gameObject!=null && gameObject.GetComponent<ActionBar>())
+            if(obj != null && obj.GetComponent<ActionBar>())
             {
-                ActionBar bar = gameObject.GetComponent<ActionBar>();
+                ActionBar bar = obj.GetComponent<ActionBar>();
                 if(bar.Item != this)
                 {
                     Debug.Log("Быстрая клавиша " + bar.num + ": отправим на сервер установку заклинания " + Magic);
@@ -126,10 +126,9 @@ namespace MyFantasy
                             AttackResponse response = new AttackResponse();
                             response.magic = Magic;
 
-                            if (gameObject != null && gameObject.GetComponent<ObjectModel>())
+                            if (obj != null && obj.GetComponent<ObjectModel>()!=null)
                             {
-                                response.target = gameObject.GetComponent<ObjectModel>().key;
-                           
+                                response.target = obj.GetComponent<ObjectModel>().key;                      
                                 if(MainController.Instance.Target == null)
                                     MainController.Instance.Target = gameObject.GetComponent<ObjectModel>();
                             }
@@ -137,11 +136,13 @@ namespace MyFantasy
                             {
                                 response.target = MainController.Instance.Target.key;
                             }
-                            else
+                            else if(pos != Vector2.zero)
                             {
+                                PlayerController.Player.Forward = new Vector3(pos.x, pos.y, PlayerController.Player.Forward.z);
+
                                 // именно то в каком положении наш персонаж
-                                response.x = Math.Round(PlayerController.Player.Forward.x, PlayerController.position_precision);
-                                response.y = Math.Round(PlayerController.Player.Forward.y, PlayerController.position_precision);
+                                response.x = Math.Round(pos.x, PlayerController.position_precision);
+                                response.y = Math.Round(pos.y, PlayerController.position_precision);
                             }
 
                             response.Send();

@@ -58,7 +58,7 @@ namespace MyFantasy
 			get { return _forward; }
 			set
 			{
-				_forward = value;
+				// нельзя менять кроме как по данным с сервера тк нужно для расчета движимся ли мы или телепортируемся
 			}
 		}
 
@@ -111,8 +111,9 @@ namespace MyFantasy
 
 				if (vector.x != _forward.x || vector.y != _forward.y)
 				{
-					Forward = vector;      
-	
+					Forward = vector;
+					_forward = vector;
+
 					// следующий код применим только к объектам - предметам, он повернет их
 					if (type == "objects")
 					{

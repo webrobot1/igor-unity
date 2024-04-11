@@ -14,7 +14,7 @@ namespace MyFantasy
 		protected static string login;
 		protected static string password;
 
-		public static void Error(string error = null, Exception ex = null)
+		public static void  Error(string error = null, Exception ex = null)
 		{
             if (error != null) 
 			{ 

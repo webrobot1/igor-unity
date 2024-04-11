@@ -43,7 +43,6 @@ namespace MyFantasy
 			get { return base.Forward; }
 			set
 			{
-
 				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
 				if (value.x != base.Forward.x || value.y != base.Forward.y)
 				{
@@ -162,7 +161,7 @@ namespace MyFantasy
 						}
 
 						// выстрелы могут телепортироваться в конце что бы их взрыв был на клетке существа а негде то около рядом
-						Log("Движение -телепорт из " + transform.localPosition + " в " + new_position);
+						Log("Движение -телепорт из " + transform.localPosition + " в " + new_position+" ("+Vector3.Distance(transform.localPosition, new_position) +")");
 						transform.localPosition = new_position;
 					}
 				}
@@ -309,11 +308,14 @@ namespace MyFantasy
 					}
                     else 
 					{ 
-						LogWarning("Движение - дошли" + (extrapolation ? " и была экстраполяция расстоянием" : ""));
-
-						// если экстраполировали расстоянием то остаемся в тех координатах куда мы прошли чуть больше, что бы не отбрасывало назад (на координаты сервера)
-						if(!extrapolation)
+                        // если экстраполировали расстоянием то остаемся в тех координатах куда мы прошли чуть больше, что бы не отбрасывало назад (на координаты сервера)
+                        if (!extrapolation)
+                        {
+							LogWarning("Движение - дошли, но телепортируеся на "+ Vector3.Distance(transform.localPosition, finish)+" до конечной точки");
 							transform.localPosition = finish;
+						}
+						else
+							LogWarning("Движение - дошли и была экстраполяция расстоянием");
 
 						break;
 					}
@@ -324,7 +326,7 @@ namespace MyFantasy
 				activeLast = DateTime.Now;
 				transform.localPosition = Vector3.MoveTowards(transform.localPosition, finish, (float)distancePerUpdate);
 
-				Log("Движение - пришли в "+ transform.localPosition +", осталось время "+ GetEventRemain(WalkResponse.GROUP)+" сек., расстояние "+ distance);
+				Log("Движение - перешли в "+ transform.localPosition +", осталось время "+ GetEventRemain(WalkResponse.GROUP)+" сек., расстояние "+ distance);
 
 				yield return new WaitForFixedUpdate();
 			}

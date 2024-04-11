@@ -590,7 +590,7 @@ namespace MyFantasy
 				Error("WebSocket: нельзя отправлять к серверу пустые строки");
 		}
 
-		public new static void Error(string text, Exception ex = null)
+		public static new void Error(string text, Exception ex = null)
 		{
 			errors.Add(text+": "+ ex??ex.Message);
 

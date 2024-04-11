@@ -24,7 +24,7 @@ namespace MyFantasy
         /// <param name="gameObject">
         /// На какой объект перетаскивается (из быстрого меню просто null)
         /// </param>
-        public abstract void Use(GameObject gameObject = null);
+        public abstract void Use(Vector2 pos = new Vector2(), GameObject obj = null);
 
         protected virtual void Awake()
         {

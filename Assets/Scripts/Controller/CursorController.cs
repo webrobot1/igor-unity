@@ -111,15 +111,11 @@ namespace MyFantasy
                     }    
                 }
 
-
                 if (MyMoveable != null)
                 {
-                    Vector2 pos = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerController.Player.transform.position).normalized;
-
                     if (player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
                     {
-                        PlayerController.Player.Forward = new Vector3(pos.x, pos.y, PlayerController.Player.Forward.z);
-                        MyMoveable.Use(gameObject);
+                        MyMoveable.Use((Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerController.Player.transform.position).normalized, gameObject);
                     }
 
                     MyMoveable = null; 
@@ -208,6 +204,9 @@ namespace MyFantasy
 
                             move_to = Vector3.zero;
                         }
+
+                        // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
+                        block_forward = DateTime.Now.AddSeconds((double)player.getEvent(WalkResponse.GROUP).timeout);
                     }
                 }
                 catch (Exception ex)
@@ -219,11 +218,6 @@ namespace MyFantasy
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
-            // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
-            if (player != null && key == player.key && recive.action != null)
-            {
-                block_forward = DateTime.Now.AddSeconds(0.2f);
-            }
 
             return base.UpdateObject(map_id, key, recive, type);
         }
