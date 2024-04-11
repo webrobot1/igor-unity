@@ -570,35 +570,20 @@ namespace MyFantasy
 		}
 
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
+		// не сжимаем отправляемый на сервер пакет (он и так мал - так бы сервер лишнее время тратил на раскодировку а выхлопа сжатия малых пакетов нет и они даже больше)
 		public static void Put2Send(string json)
 		{
 			if (json.Length > 0)
 			{
-				byte[] bytes = Encoding.UTF8.GetBytes(json);
-
 				// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
 				if (connect != null && connect.ReadyState == WebSocketState.Open)
 				{
-					using (var memoryStream = new MemoryStream())
-					{
-						using (var gzipStream = new GZipStream(memoryStream, System.IO.Compression.CompressionLevel.Optimal))
-						{
-							gzipStream.Write(bytes, 0, bytes.Length);
-						}
-
-						byte[] toSend = memoryStream.ToArray();
-						if (toSend.Length == 0)
-							Error("WebSocket: Ошибка кодирование пакета на отправку");
-						else
-						{
-							Debug.Log("WebSocket: Отправляем пакет " + toSend.Length + " байт");
-#if !UNITY_WEBGL || UNITY_EDITOR
-							connect.SendAsync(toSend, null);
-#else
-							connect.Send(toSend);
-#endif
-						}
-					}
+					byte[] bytes = Encoding.UTF8.GetBytes(json);
+					#if !UNITY_WEBGL || UNITY_EDITOR
+						connect.SendAsync(bytes, null);
+					#else
+						connect.Send(bytes);
+					#endif
 				}
 			}
 			else

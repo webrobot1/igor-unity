@@ -18,7 +18,6 @@ namespace MyFantasy
 		public int margin = 0;
 		public string trans;
 
-		public string image;
 		public string resource;
 		public string tileset_image;
 		

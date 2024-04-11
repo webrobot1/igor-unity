@@ -68,7 +68,7 @@ namespace MyFantasy
 						{ 
 							if (map.tileset[tile.Value.tileset_image].tile[tile.Value.tile_id].frame != null)
 							{
-								Debug.Log("Карта: добавим на сцену анимированный тайл " + tile.Value.tile_id);
+								//Debug.Log("Карта: добавим на сцену анимированный тайл " + tile.Value.tile_id);
 								newTile.addSprites(map.tileset[tile.Value.tileset_image].tile[tile.Value.tile_id].frame);
 							}
 							else
@@ -182,6 +182,8 @@ namespace MyFantasy
 					// что бы не снизу вверх брал отрезки (тайлы) а сверху вниз? при этом не менять рендеринг Vector2(0,0) в NewSprite (из за смены оторого появляются полоски)
 					int y = ((tileset.Value.tilecount - i - 1) / tileset.Value.columns) * (tileset.Value.tileheight + tileset.Value.spacing) + tileset.Value.margin;
 
+					//Debug.Log("Фомируем тайл в позиции "+x+", "+y+" набора "+ tileset.Value.tileset_image+ " в "+ tileset.Value.tilecount+" тайлов из "+ tileset.Value.columns + " колонок");
+
 					// вырежем необходимую область
 					//  программе tiled точка опоры НЕ в центре а с угла (какого можно глянуть, забыл) но если менять на 0.0 часть тайлов в unity пропадают часть куда то смещаютя
 					// что бы это работала везде в этом классе где SetTRS есть (смещение) после поворота по горизонтали или вертикали смещаем таил назад (тк в Tiled он на месте остается если отражается)
@@ -213,7 +215,7 @@ namespace MyFantasy
 									frame.sprite = tileset.Value.tile[frame.tileid].sprite;
                                 else
                                 {
-									throw new Exception("Не найден тайл под номером "+ frame.tileid+" в наборе tileset "+ tileset.Value.image+" ("+tileset.Key+")");
+									throw new Exception("Не найден тайл под номером "+ frame.tileid+" в наборе tileset "+ tileset.Value.tileset_image+ " ("+tileset.Key+")");
                                 }
 							}
 						}
