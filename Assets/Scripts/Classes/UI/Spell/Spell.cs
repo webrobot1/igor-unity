@@ -102,18 +102,19 @@ namespace MyFantasy
             if(obj != null && obj.GetComponent<ActionBar>())
             {
                 ActionBar bar = obj.GetComponent<ActionBar>();
-                if(bar.Item != this)
+                ActionBarsResponse response = new ActionBarsResponse();
+
+                if (bar.Item != this)
                 {
                     Debug.Log("Быстрая клавиша " + bar.num + ": отправим на сервер установку заклинания " + Magic);
-                    ActionBarsResponse response = new ActionBarsResponse();
-
                     response.actionbars.Add(bar.num, new ActionBarsRecive("spell", Magic));
-                    response.Send();
                 }
                 else
                 {
-                    Debug.LogWarning("Быстрая клавиша " + bar.num + ": Попытка установить одинаковые значение");
+                    Debug.LogWarning("Быстрая клавиша " + bar.num + ": Попытка установить одинаковые значение - очищаем ячейку");
+                    response.actionbars.Add(bar.num, null);
                 }
+                response.Send();
             }
             else
             {

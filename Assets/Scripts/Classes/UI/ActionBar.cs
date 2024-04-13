@@ -26,7 +26,6 @@ namespace MyFantasy
                 if (value == null)
                 {
                     _image.sprite = null;
-                    _image.color = new Color(_image.color.r, _image.color.g, _image.color.b, 0f);
                 }
                 else
                 {
@@ -37,11 +36,19 @@ namespace MyFantasy
 
         protected void FixedUpdate()
         {
-            if (_item!=null && PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
+            if (_item!=null)
             {
-                _image.sprite = _item.Image.sprite;
-                _image.color = _item.Image.color;
-                _image.raycastTarget = _item.Image.raycastTarget;
+                if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE) 
+                {
+                    _image.sprite = _item.Image.sprite;
+                    _image.color = _item.Image.color;
+                    _image.raycastTarget = _item.Image.raycastTarget;
+                }
+            }
+            else
+            {
+                _image.color = new Color(_image.color.r, _image.color.g, _image.color.b, 0f);
+                _image.raycastTarget = true;
             }
         }
 
@@ -54,7 +61,7 @@ namespace MyFantasy
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
-            Debug.LogWarning("Быстрая клавиша " + num + ": нажали "+(_item == null?"на пустую":"на присвоенную"));
+            Debug.Log("Быстрая клавиша " + num + ": нажали "+(_item == null?"на пустую":"на присвоенную"));
 
             // на сервере есть првоерка на то можем ли мы стрелять, но что бы не сдать впустую запрос который никчему не приведет  - ограничим и тут
             if (_item != null && PlayerController.Player!=null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
