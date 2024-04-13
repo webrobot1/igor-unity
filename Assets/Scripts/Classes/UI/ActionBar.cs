@@ -26,6 +26,7 @@ namespace MyFantasy
                 if (value == null)
                 {
                     _image.sprite = null;
+                    _image.color = new Color(_image.color.r, _image.color.g, _image.color.b, 0f);
                 }
                 else
                 {
