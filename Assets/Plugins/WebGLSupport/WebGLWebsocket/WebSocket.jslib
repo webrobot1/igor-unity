@@ -286,7 +286,7 @@ var LibraryWebSocket = {
 	 * @param bufferPtr Pointer to the message buffer
 	 * @param length Length of the message in the buffer
 	 */
-	WebSocketSend: function(instanceId, bufferPtr, length) {
+	WebSocketSend: function(instanceId, bufferPtr, length){
 	
 		var instance = webSocketState.instances[instanceId];
 		if (!instance) return -1;

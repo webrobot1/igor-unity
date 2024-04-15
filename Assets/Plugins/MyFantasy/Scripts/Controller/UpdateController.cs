@@ -170,6 +170,10 @@ namespace MyFantasy
 					player = model;
 					if (!getSides().ContainsKey(map_id)) 
 						Error("Запись о карте "+ map_id + " игрока не пришла вместе с доступными сторонами");
+
+					#if UNITY_WEBGL && !UNITY_EDITOR
+						WebGLSupport.WebGLDebug.DebugCheck(map_id);
+					#endif
 				}
 
 				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
