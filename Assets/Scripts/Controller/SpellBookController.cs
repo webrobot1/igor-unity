@@ -28,7 +28,7 @@ namespace MyFantasy
         /// <summary>
         /// список доступных заклинаний с их характеристиками 
         /// </summary>
-        private static Dictionary<string, Spell> _spells = new Dictionary<string, Spell>();
+        private static Dictionary<string, Spell> _spells;
 
         public Dictionary<string, Spell> Spells
         {
@@ -39,7 +39,9 @@ namespace MyFantasy
         protected override void Awake()
         {
             base.Awake();
-
+           
+            // объявлять тут тк мы используем в unity Editor опцию при который вызод из play моде НЕ очищает статику (зато быстро выходит и заходит, но надо очищать вручную везде в Awake)
+            _spells = new Dictionary<string, Spell>();
             if (spellPrefab == null) 
             { 
                 Error("не указан префаб заклинания в книге");
@@ -64,6 +66,7 @@ namespace MyFantasy
         {
             if (recive.spellBook != null)
             {
+                // если книга заклинаний пришла по новой с сервера
                 _spells = new Dictionary<string, Spell>();
                 foreach (Transform child in spellGroupArea)
                 {
