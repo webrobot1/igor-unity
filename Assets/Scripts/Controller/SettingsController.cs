@@ -54,7 +54,6 @@ namespace MyFantasy
         /// </summary>
         private Dictionary<string, string[]> _lists = new Dictionary<string, string[]>();
 
-
         protected override void Awake()
         {
             base.Awake();
@@ -116,6 +115,7 @@ namespace MyFantasy
                     Destroy(child.gameObject);
                 }
 
+                _types = new Dictionary<string, string>();
                 foreach (var setting in recive.settings)
                 {
                     GameObject prefab;
@@ -180,19 +180,19 @@ namespace MyFantasy
                 if (settings != null)
                 {
                     if (settings.ContainsKey("fps"))
-                        Application.targetFrameRate = int.Parse(settings["fps"]);                      
-                    
-                    if(settings.ContainsKey("joystick"))
-                        joystick.gameObject.SetActive(int.Parse(settings["joystick"])>0);
+                        Application.targetFrameRate = int.Parse(settings["fps"]);
+
+                    if (settings.ContainsKey("joystick"))
+                        joystick.gameObject.SetActive(int.Parse(settings["joystick"]) > 0);
 
                     if (settings.ContainsKey("actions"))
                         onlyMobileActions.gameObject.SetActive(settings["actions"] == "mobile");
-       
+
                     foreach (var setting in settings)
                     {
-                        if (!_types.ContainsKey(setting.Key)) 
+                        if (!_types.ContainsKey(setting.Key))
                         {
-                            Error("С сервера пришла настройка с остутвующим в значением " + setting.Key);
+                            Error("С сервера пришла настройка " + setting.Key + " со значением "+ setting.Value + ", но отсутвует ее параметры ");
                             return null;
                         }
                         switch (_types[setting.Key])
@@ -200,19 +200,19 @@ namespace MyFantasy
                             case "checkbox":
                                 Toggle toggle = settingArea.Find(setting.Key).GetComponentInChildren<Toggle>();
                                 toggle.isOn = (int.Parse(setting.Value) != 0 ? true : false);
-                            break;                            
+                                break;
                             case "slider":
                                 Slider slider = settingArea.Find(setting.Key).GetComponentInChildren<Slider>();
                                 slider.value = float.Parse(setting.Value);
                                 slider.onValueChanged.Invoke(slider.value);
-                            break;                           
+                                break;
                             case "dropdown":
                                 Dropdown dropdown = settingArea.Find(setting.Key).GetComponentInChildren<Dropdown>();
                                 dropdown.value = Array.IndexOf(_lists[setting.Key], setting.Value);
                                 dropdown.onValueChanged.Invoke(dropdown.value);
-                            break;
+                                break;
                         }
-                            
+
                         _settings[setting.Key] = setting.Value;
                     }
                 }

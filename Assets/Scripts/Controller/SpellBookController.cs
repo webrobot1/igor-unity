@@ -28,7 +28,7 @@ namespace MyFantasy
         /// <summary>
         /// список доступных заклинаний с их характеристиками 
         /// </summary>
-        private static Dictionary<string, Spell> _spells;
+        private static Dictionary<string, Spell> _spells = new Dictionary<string, Spell>();
 
         public Dictionary<string, Spell> Spells
         {
@@ -38,8 +38,6 @@ namespace MyFantasy
 
         protected override void Awake()
         {
-            _spells = new Dictionary<string, Spell>();
-
             base.Awake();
 
             if (spellPrefab == null) 
@@ -66,6 +64,7 @@ namespace MyFantasy
         {
             if (recive.spellBook != null)
             {
+                _spells = new Dictionary<string, Spell>();
                 foreach (Transform child in spellGroupArea)
                 {
                     Destroy(child.gameObject);
