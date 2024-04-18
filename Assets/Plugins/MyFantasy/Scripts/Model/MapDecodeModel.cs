@@ -4,7 +4,6 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Tilemaps;
-using ICSharpCode.SharpZipLib.BZip2;
 using Newtonsoft.Json;
 using System.IO.Compression;
 
