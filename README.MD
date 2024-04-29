@@ -1,7 +1,6 @@
 # Клиентская часть демоснтсрационной 2D MMORPG игры "Игорь" проекта [http://my-fantasy.ru/](http://my-fantasy.ru/) на Unity.
-## Видео описание работы входящего в игру плагина сетевого взаимодействия [YouTube](https://youtu.be/NyRiODUeChE).
 ## Серверная часть игры доступна в реппозитории [Игорь - серверная часть](https://github.com/webrobot1/igor-server).
-## при компиляции не забудьте сменить [ИД](https://github.com/webrobot1/igor-unity/blob/master/Assets/Plugins/MyFantasy/Scripts/Controller/BaseController.cs#L10C24-L10C25) игры на тот что был выдан в сервисе
+### При компиляции не забудьте сменить [ИД](https://github.com/webrobot1/igor-unity/blob/master/Assets/Plugins/MyFantasy/Scripts/Controller/BaseController.cs#L10C24-L10C25) игры на тот что был выдан в сервисе
 
 Общее описание папок:
 
