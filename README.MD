@@ -1,6 +1,7 @@
-Клиентская часть 2D MMORPG онлайн игры "Игорь" для демонстрации проекта [http://my-fantasy.ru/](http://my-fantasy.ru/) на Unity.
-Видео описание работы входящего в игру плагина сетевого взаимодействия [YouTube](https://youtu.be/NyRiODUeChE).
-Серверная часть игры доступна в реппозитории [Игорь - серверная часть](https://github.com/webrobot1/igor-server).
+# Клиентская часть демоснтсрационной 2D MMORPG игры "Игорь" проекта [http://my-fantasy.ru/](http://my-fantasy.ru/) на Unity.
+## Видео описание работы входящего в игру плагина сетевого взаимодействия [YouTube](https://youtu.be/NyRiODUeChE).
+## Серверная часть игры доступна в реппозитории [Игорь - серверная часть](https://github.com/webrobot1/igor-server).
+## при компиляции не забудьте сменить [ИД](https://github.com/webrobot1/igor-unity/blob/master/Assets/Plugins/MyFantasy/Scripts/Controller/BaseController.cs#L10C24-L10C25) игры на тот что был выдан в сервисе
 
 Общее описание папок:
 
@@ -35,24 +36,9 @@
 	
 
 
-Для разработки непосредственно вашей игры вам понадобиться обновлять из данного репозитория Assest/Plugins (тк я доблавяю все новые функции) и работать в папке Assets/Scripts:
-
-+ изменить дизайн Assets\Scenes\RegisterScene (опционально)
-+ изменить Assets\Scripts\Controller\PlayerController (что бы обрабатывать action команды которые глобально что то делают из [событий](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) в админ панели) - он висит на Camera MainScene, [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Controller/PlayerController.cs) 
-+ изменить CameraController из примера  (опционально возможно захочется добавить pixelPerfect или cinemachine camera механики и тд) - он так же висит на на Camera в MainScene, [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Controller/CameraController.cs)
-+ изменить Assets\Scripts\Struct\Recive\ComponentsRecive добавив туда пользовательские поля - [компонтенты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9) созданные Вами в админ панели, [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Struct/Recive/) 
-+ изменить Assets\Scripts\Model\NewPlayerModel, NewEnemyModel, NewObjectModel что бы указвать что делать в игре при изменении полей и компонентов (какую анимацию включать. компонетнты меняются на сервере благодаря [игровым событиям](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTh9) - [пример](https://github.com/webrobot1/unity/tree/master/Assets/Scripts/Model/)	
-+ скомпилировать билд webgl для [отладки](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjB9), после чего [загрузить его](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MjF9) в админ панель и добавлять [карты](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTd9), игровые механики, [пользователские поля](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTl9). 
-+ После откладки можно так же создать игру для мобильных устройств и ПК с загрузкой ее на маркет плейсы (Google Play Market, Steam) тк данная демо игра поддерживает портирование своих библиотек на различные устройства
-	
-Все вышеуказанные действия уже сделаны в игре и вы можете просто скопировать проект и добавить-изменить механики и компонтенты в админ панели на те что вам нужны убрав-изменит в моделях какая анимация должна запускаться. И пусть Вас не смущает что сцен всего две - карты сами будут подгружаться с сервера на MainScene при изменении на сервере карты игрока (сами карты и объекты на них менять можно в [админ панели](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6MTd9))	
-
+Для разработки непосредственно вашей игры вам работать в папке Assets/Scripts, подробнее в документации на [сайте](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6NjB9) 
 
 	PS NewTonJson выбран взамен стандартного UnityJson для работы со структурами не просто так, менять его на UnityJson - на свой страх и риск 
-	PS для webgl может понадобиться отключить profiling в Built Settings тк забьется память браузера в console после прихода по websocket большого количества пакетов
-	PS если вы захотите поставить взамен WebsocketSharp из данного проекта что то свое знайте:
-	
-+ в подобных библиотеках используется код примерно следующего содержания: "_tcpClient = new TcpClient (_uri.DnsSafeHost, _uri.Port);" - который необходимо дополнять строками вида _tcpClient.NoDelay = true; (из коробки в WebSocketSharp этого нетб но в данном прокете уже все скомпилировано как надо). В противном случае TcpClient в C# НЕ отправит ваш пакет пока буфер не заполнится (то есть если пакеты у вас на телефоне не шлются достаточно часто он будет ждать их) - это назвается алгоритм Нейгла.	 
+	PS для webgl может понадобиться отключить profiling в Built Settings тк забьется память браузера в console после прихода по websocket большого количества пакетов	 
 
 ![Игорь - 2D MMORPG на Unity, клиентская часть](https://github.com/webrobot1/webrobot1/assets/20768848/c291e8ae-9e2f-4745-93c7-2f95df620cd2)
-	
