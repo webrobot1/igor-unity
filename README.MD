@@ -1,5 +1,8 @@
 # Демонстрационная 2D MMORPG игра "Игорь" (клиент) проекта [http://my-fantasy.ru/](http://my-fantasy.ru/) на Unity.
 ## Смотрите так же [Игорь - серверная часть](https://github.com/webrobot1/igor-server).
+
+![Слайд16](https://github.com/webrobot1/webrobot1/assets/20768848/5c93a1c2-63e6-4c49-a2d0-70898746d498)
+
 ### При компиляции не забудьте сменить [ИД](https://github.com/webrobot1/igor-unity/blob/master/Assets/Plugins/MyFantasy/Scripts/Controller/BaseController.cs#L10C24-L10C25) игры на вашу (из сервиса)
 
 Общее описание папок:
