@@ -510,8 +510,8 @@ namespace MyFantasy
 						player.Log("отправили в websocket " + json);
 						Put2Send(json);	
 					}
-					//else
-					//	Debug.LogError("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
+					else
+						Debug.LogWarning("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
 				}
 				catch (Exception ex)
 				{
