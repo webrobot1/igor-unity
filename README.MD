@@ -1,6 +1,6 @@
 # Демонстрационная 2D MMORPG игра "Игорь" (клиент) проекта [http://my-fantasy.ru/](http://my-fantasy.ru/) на Unity.
 ## Смотрите так же [Игорь - серверная часть](https://github.com/webrobot1/igor-server).
-
+### Демо [тут](http://my-fantasy.ru/articles/frontend/index/eyJpZCI6Mn0=)
 ![Слайд16](https://github.com/webrobot1/webrobot1/assets/20768848/5c93a1c2-63e6-4c49-a2d0-70898746d498)
 
 ### При компиляции не забудьте сменить [ИД](https://github.com/webrobot1/igor-unity/blob/master/Assets/Plugins/MyFantasy/Scripts/Controller/BaseController.cs#L10C24-L10C25) игры на вашу (из сервиса)
@@ -42,6 +42,8 @@
 
 	PS NewTonJson выбран взамен стандартного UnityJson для работы со структурами не просто так, менять его на UnityJson - на свой страх и риск 
 	PS для webgl может понадобиться отключить profiling в Built Settings тк забьется память браузера в console после прихода по websocket большого количества пакетов	 
+
+ Игра одинаково хорошо взаимодействует с сервером в версиях для ПК, браузеров или мобильных устройств
 
 ![Презентация игрового сервера Моя Фантазия от программиста Стрельцова Михаила Вячеславовича](https://github.com/webrobot1/webrobot1/assets/20768848/576982cd-31d9-4c70-b28b-6239911dc041)
 ![Игорь - 2D MMORPG на Unity, клиентская часть](https://github.com/webrobot1/webrobot1/assets/20768848/c291e8ae-9e2f-4745-93c7-2f95df620cd2)
