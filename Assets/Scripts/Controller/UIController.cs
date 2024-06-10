@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace MyFantasy
+namespace Mmogick
 {
     /// <summary>
     /// Класс верхнего уровня для управления всеми UI эллементами на экране и передачи в них инфомрацию с сервераб вешается на gameObject на сцене

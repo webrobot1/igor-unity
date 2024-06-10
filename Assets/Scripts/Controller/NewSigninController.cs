@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using WebGLSupport;
 
-namespace MyFantasy
+namespace Mmogick
 {
     public class NewSigninController : SigninController
     {

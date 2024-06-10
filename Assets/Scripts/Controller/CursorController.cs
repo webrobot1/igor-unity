@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace MyFantasy
+namespace Mmogick
 {
     public abstract class CursorController : ActionBarsController
     {

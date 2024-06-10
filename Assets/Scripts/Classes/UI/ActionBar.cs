@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace MyFantasy
+namespace Mmogick
 {
     /// <summary>
     /// Класс для отправки данных (действий игрока)

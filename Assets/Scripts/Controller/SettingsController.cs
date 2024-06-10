@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using WebGLSupport;
 
-namespace MyFantasy
+namespace Mmogick
 {
     /// <summary>
 	/// Класс для обновления Меню настрое игрока

@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 
-namespace MyFantasy
+namespace Mmogick
 {
     /// <summary>
 	/// Класс для обновления Frame UI игрока его цели атаки

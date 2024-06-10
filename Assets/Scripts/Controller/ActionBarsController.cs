@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace MyFantasy
+namespace Mmogick
 {
     abstract public class ActionBarsController : SpellBookController
     {

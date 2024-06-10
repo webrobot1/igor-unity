@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-namespace MyFantasy
+namespace Mmogick
 {
 	public class SettingRecive
 	{

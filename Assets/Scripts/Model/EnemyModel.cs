@@ -5,7 +5,7 @@ using Newtonsoft.Json.Linq;
 using UnityEngine.UI;
 using System;
 
-namespace MyFantasy
+namespace Mmogick
 {
 	/// <summary>
 	/// объекты могут быть не анимированы. враги и игроки что анследуют этот класс - обязательно должны иметь анмицию + модель статистики (жизни и тп)

@@ -1,5 +1,5 @@
 using UnityEngine;
-namespace MyFantasy
+namespace Mmogick
 {
 	public class PlayerModel : EnemyModel
 	{

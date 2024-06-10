@@ -1,4 +1,4 @@
-namespace MyFantasy
+namespace Mmogick
 {
 	/// <summary>
 	/// Структура полученных данных - объект

@@ -1,4 +1,4 @@
-namespace MyFantasy
+namespace Mmogick
 {
 	public class ActionBarsRecive
 	{

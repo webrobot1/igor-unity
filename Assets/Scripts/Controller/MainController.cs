@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 
-namespace MyFantasy
+namespace Mmogick
 {
     /// <summary>
 	/// Класс верхнего уровня. Служит в том числе для обновления статистика соединения

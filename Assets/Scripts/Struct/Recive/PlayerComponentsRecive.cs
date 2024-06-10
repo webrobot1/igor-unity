@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace MyFantasy
+namespace Mmogick
 {
 	/// <summary>
 	/// Структура полученных данных - произвольыне поля

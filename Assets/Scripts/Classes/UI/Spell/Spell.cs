@@ -7,7 +7,7 @@ using UnityEngine.Rendering;
 using UnityEngine.UI;
 using WebGLSupport;
 
-namespace MyFantasy
+namespace Mmogick
 {
     /// <summary>
     /// Класс для отправки данных (действий игрока)

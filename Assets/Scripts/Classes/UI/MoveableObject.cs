@@ -2,7 +2,7 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace MyFantasy
+namespace Mmogick
 {
     public abstract class MoveableObject : MonoBehaviour, IPointerClickHandler
     {

@@ -1,12 +1,9 @@
 using UnityEngine;
-using MyFantasy;
-using UnityEngine.UI;
 using System;
-using UnityEngine.Tilemaps;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace MyFantasy
+namespace Mmogick
 {
     /// <summary>
 	/// Класс настройки зоны видимости вокруг игрока

@@ -1,7 +1,5 @@
-﻿using System;
-using AOT;
+﻿using AOT;
 using System.Runtime.InteropServices; // for DllImport
-using UnityEngine;
 
 namespace WebGLSupport
 {
@@ -18,7 +16,7 @@ namespace WebGLSupport
         [MonoPInvokeCallback(typeof(OnSendCallback))]
         public static void DelegateOnSend(System.IntPtr stringPtr)
         {
-            MyFantasy.ConnectController.Put2Send(Marshal.PtrToStringAuto(stringPtr));
+            Mmogick.ConnectController.Put2Send(Marshal.PtrToStringAuto(stringPtr));
         }
 
         public static void DebugCheck(int map_id)
