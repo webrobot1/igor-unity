@@ -3,7 +3,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace Mmogick
 {
@@ -97,7 +96,42 @@ namespace Mmogick
 				// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
 				foreach (KeyValuePair<int, Point> side in recive.sides)
 				{
-					if (!_maps.ContainsKey(side.Key)) StartCoroutine(DownloadMap(side.Key));
+					if (!_maps.ContainsKey(side.Key))
+					{
+						StartCoroutine(Patcher.GetMap(_sides[side.Key].ip, GAME_ID, player_token, side.Key, _sides[side.Key].version, (Patcher patcher) =>
+						{
+							if (patcher.error.Length > 0)
+								Error(patcher.error);
+							else
+							{
+								Debug.Log("Карты: Обновляем " + _sides[side.Key]);
+
+								Transform grid = new GameObject(side.Key.ToString()).transform;
+								grid.gameObject.AddComponent<Grid>();
+								grid.SetParent(mapObject.transform, false);
+
+								// приведем координаты в сответсвие с сеткой Unity
+								try
+								{
+									if (!_sides.ContainsKey(side.Key))
+										Debug.LogError("Карты: " + side.Key + " загружена в то время когда уже ее нет в массиве сторон (возможно игрок уже ушел с карты где она была нужна)");
+									else if (mapObject.transform.Find(side.Key.ToString()) != null)
+										Error("Карты: " + side.Key + " уже выгружена в игровое пространство");
+									else if (_maps.ContainsKey(side.Key))
+										Error("Карты: попытка загрузки " + side.Key + " повторно");
+									else
+									{
+										_maps.Add(side.Key, MapDecodeModel.generate(patcher.result, grid));
+										SortMap();
+									}
+								}
+								catch (Exception ex)
+								{
+									Error("Карты: Ошибка разбора карты", ex);
+								}
+							}
+						}));
+					}
 				}
 			}
 		}
@@ -142,81 +176,6 @@ namespace Mmogick
 				else
 					Error("Карты: На сцене присутвует карта "+ map_id + " которая не является текущей или смежной");
 			}
-		}
-
-		protected virtual IEnumerator DownloadMap(int map_id)
-		{
-			if (!_sides.ContainsKey(map_id))
-				Error("Карты: " + map_id + " не является какой либо частью текущих локаций");			
-			else if (mapObject.transform.Find(map_id.ToString()) != null)
-				Error("Карты: " + map_id + " уже выгружена в игровое пространство");
-			else if (_maps.ContainsKey(map_id))
-				Error("Карты: попытка загрузки " + map_id + " повторно");
-			else
-			{
-				string url = "http://" + _sides[map_id].ip + "/maps2d/patch/get_map/?map_id=" + map_id + "&token=" + player_token;
-				Debug.Log("Карты: получаем " + map_id + " с " + url);
-
-				UnityWebRequest request = UnityWebRequest.Get(url);
-				request.redirectLimit = 1;
-
-				yield return request.SendWebRequest();
-
-				// проверим что пришло в ответ
-				string text = request.downloadHandler.text;
-				if (text.Length > 0)
-				{
-					#if UNITY_EDITOR
-						Debug.Log("Карты: Ответ от сервера ("+ _sides[map_id].ip + ") " + text);
-					#endif
-					try
-					{
-						MapDecodeRecive recive = JsonConvert.DeserializeObject<MapDecodeRecive>(text);
-
-						if (recive.error.Length > 0)
-						{
-							Error("Карты: Ошибка запроса " + map_id + ": " + recive.error);
-						}
-						else if (recive.map.Length > 0)
-						{
-							Debug.Log("Карты: Обновляем " + map_id);
-
-							Transform grid = new GameObject(map_id.ToString()).transform;
-							grid.gameObject.AddComponent<Grid>();
-							grid.SetParent(mapObject.transform, false);
-
-							// приведем координаты в сответсвие с сеткой Unity
-							try
-							{
-								if (_sides.ContainsKey(map_id))
-								{
-									_maps.Add(map_id, MapDecodeModel.generate(recive.map, grid));
-									SortMap();
-								}
-								else 
-									Debug.LogError("Карты: " + map_id + " загружена в то время когда уже ее нет в массиве сторон (возможно игрок уже ушел с карты где она была нужна)");
-							}
-							catch (Exception ex)
-							{
-								Error("Карты: Ошибка разбора карты", ex);
-							}
-						}
-						else
-							Error("Карты: ответ запроса сервера " + _sides[map_id].ip + " не содержит карту");
-					}
-					catch (Exception ex)
-					{
-						Error("Карты: Ошибка запроса с сервера"+ _sides[map_id].ip, ex);
-					}
-				}
-                else
-                {
-					Error("Карты: устой ответ сервера " + _sides[map_id].ip + " (" + request.responseCode + "): " + request.error);
-				}
-				request.Dispose();
-			}			
-
-			yield break;
 		}
 	}
 }

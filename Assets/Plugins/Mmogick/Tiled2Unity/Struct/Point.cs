@@ -11,6 +11,7 @@ namespace Mmogick
 		public float y;
 
 		public string ip;
+		public int version;
 		public int port;
 
 		new public string ToString()

@@ -4,9 +4,9 @@ namespace Mmogick
     /// —cтруктура получаемых данных данных
     /// </summary>
     [System.Serializable]
-    public class MapDecodeRecive
+    public class DataDecodeRecive
     {
-        public string map = "";
+        public string data = "";
 
         /// <summary>
         /// возможные ошибки (если не пусто - произойдет разъединение, но где быстрее - в клиенте или на сервере сказать сложно)
