@@ -98,17 +98,13 @@ namespace Mmogick
 				{
 					if (!_maps.ContainsKey(side.Key))
 					{
-						StartCoroutine(Patcher.GetMap(_sides[side.Key].ip, GAME_ID, player_token, side.Key, _sides[side.Key].version, (Patcher patcher) =>
+						StartCoroutine(Patcher.GetMap(_sides[side.Key].ip, GAME_ID, player_token, side.Key, _sides[side.Key].updated, (Patcher patcher) =>
 						{
-							if (patcher.error.Length > 0)
+							if (patcher.error != null)
 								Error(patcher.error);
 							else
 							{
-								Debug.Log("Карты: Обновляем " + _sides[side.Key]);
-
-								Transform grid = new GameObject(side.Key.ToString()).transform;
-								grid.gameObject.AddComponent<Grid>();
-								grid.SetParent(mapObject.transform, false);
+								Debug.Log("Карты: Обновляем " + side.Key);
 
 								// приведем координаты в сответсвие с сеткой Unity
 								try
@@ -121,6 +117,10 @@ namespace Mmogick
 										Error("Карты: попытка загрузки " + side.Key + " повторно");
 									else
 									{
+										Transform grid = new GameObject(side.Key.ToString()).transform;
+										grid.gameObject.AddComponent<Grid>();
+										grid.SetParent(mapObject.transform, false);
+
 										_maps.Add(side.Key, MapDecodeModel.generate(patcher.result, grid));
 										SortMap();
 									}
