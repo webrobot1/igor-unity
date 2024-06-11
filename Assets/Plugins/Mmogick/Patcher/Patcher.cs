@@ -35,10 +35,10 @@ namespace Mmogick
 
 #if UNITY_WEBGL && !UNITY_EDITOR
 			folder = "idbfs";		
-#elif UNITY_EDITOR
+#elif UNITY_EDITOR || UNITY_ANDROID || UNITY_IOS
 			folder = Application.persistentDataPath;
 #else
-			folder = Application.dataPath;
+			folder = Path.GetDirectoryName(Application.dataPath);
 #endif
 			Patcher patcher = new Patcher(Path.Combine(folder, "Maps", game_id.ToString(), map_id.ToString()), url);
 
@@ -51,53 +51,58 @@ namespace Mmogick
 				Debug.Log("Карты: используем кеш " + map_id + " версии "+ updated + " с " + patcher.path);
 			}
             else
-            {				
-				Debug.Log("Карты: получаем " + map_id + " с " + patcher.url + " - " + (exists && !version_ok?"версия устарела":"фаил остутвует в кеше"));
-
-				UnityWebRequest request = UnityWebRequest.Get(patcher.url);
-				request.redirectLimit = 1;
-
-				yield return request.SendWebRequest();
-
-				// проверим что пришло в ответ
-				string result = request.downloadHandler.text;
-				if (result.Length > 0)
-				{
-					try
-					{
-						DataDecodeRecive recive = JsonConvert.DeserializeObject<DataDecodeRecive>(result);
-						if (recive.error.Length > 0)
-						{
-							patcher.error = "Карты: Ошибка запроса " + map_id + ": " + recive.error;
-						}
-						else if (recive.data.Length == 0)
-							patcher.error = "Карты: ответ запроса карты " + map_id + " c сервера " + server + " не содержит карту";
-                        else
-                        {
-							patcher.result = recive.data;
-							if (!Directory.Exists(patcher.path))
-								Directory.CreateDirectory(patcher.path);
-
-							File.WriteAllText(Path.Combine(patcher.path, MAP_FILE), patcher.result);
-							File.WriteAllText(Path.Combine(patcher.path, VERSION_FILE), updated.ToString());
-
-#if UNITY_WEBGL && !UNITY_EDITOR
-	JsSync();
-#endif
-						}
-					}
-					catch (Exception ex)
-					{
-						patcher.error = "Карты: Ошибка раскодирования ответа с сервера" + server + ": " + ex;
-					}
-				}
-				else
-					patcher.error = "Карты: пустой ответ сервера " + server + " (" + request.responseCode + "): " + request.error;
-
-				request.Dispose();
+            {
+				Debug.Log("Карты: получаем " + map_id + " с " + patcher.url + " - " + (exists && !version_ok ? "версия устарела" : "фаил остутвует в кеше"));
+				yield return patcher.download(updated);
 			}
 			callback(patcher);
 			yield break;
 		}
+
+		public IEnumerator download(int updated)
+		{		
+			UnityWebRequest request = UnityWebRequest.Get(url);
+			request.redirectLimit = 1;
+
+			yield return request.SendWebRequest();
+
+			// проверим что пришло в ответ
+			string data = request.downloadHandler.text;
+			if (data.Length > 0)
+			{
+				try
+				{
+					DataDecodeRecive recive = JsonConvert.DeserializeObject<DataDecodeRecive>(data);
+					if (recive.error.Length > 0)
+					{
+						error = "Патчер: Ошибка запроса " + url + ": " + recive.error;
+					}
+					else if (recive.data.Length == 0)
+						error = "Патчер: ответ запроса c сервера " + url + " не содержит данных";
+					else
+					{
+						result = recive.data;
+						if (!Directory.Exists(path))
+							Directory.CreateDirectory(path);
+
+						File.WriteAllText(Path.Combine(path, MAP_FILE), result);
+						File.WriteAllText(Path.Combine(path, VERSION_FILE), updated.ToString());
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+	JsSync();
+#endif
+					}
+				}
+				catch (Exception ex)
+				{
+					error = "Патчер: Ошибка раскодирования ответа с сервера" + url + ": " + ex;
+				}
+			}
+			else
+				error = "Патчер: пустой ответ сервера " + url + " (" + request.responseCode + "): " + request.error;
+
+			request.Dispose(); 
+			yield break;
+		}		
 	}
 }

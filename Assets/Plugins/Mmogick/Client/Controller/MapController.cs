@@ -102,6 +102,8 @@ namespace Mmogick
 						{
 							if (patcher.error != null)
 								Error(patcher.error);
+							if (patcher.result == null || patcher.result.Length == 0)
+								Error("Карты: пришел пустой ответ от патчера");
 							else
 							{
 								Debug.Log("Карты: Обновляем " + side.Key);
