@@ -206,7 +206,7 @@ namespace SpriterDotNetUnity
     {
         public static void SetParent(this GameObject child, GameObject parent)
         {
-            child.transform.SetParent(parent.transform);
+            child.transform.SetParent(parent.transform, false);
         }
 
         internal static void CreateSprites(SpriterEntity entity, ChildData cd, GameObject parent)

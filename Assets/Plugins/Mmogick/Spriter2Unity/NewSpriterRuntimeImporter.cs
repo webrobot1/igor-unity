@@ -25,7 +25,7 @@ namespace Mmogick
 
         private static readonly string ObjectNameSprites = "Sprites";
         private static readonly string ObjectNameMetadata = "Metadata";
-        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, Transform parent = null)
+        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName)
         {
             GameObject go = GameObject.Find(entityName);
             if (go == null)
@@ -40,8 +40,8 @@ namespace Mmogick
             behaviour.UseNativeTags = false;
             if (SpriterImporterUtil.HasSound(entity)) go.AddComponent<AudioSource>();
 
-            sprites.SetParent(go);
-            metadata.SetParent(go);
+            sprites.transform.SetParent(go.transform, false);
+            metadata.transform.SetParent(go.transform, false);
 
             ChildData cd = new ChildData();
             SpriterImporterUtil.CreateSprites(entity, cd, sprites);
@@ -53,7 +53,6 @@ namespace Mmogick
             behaviour.enabled = true;
             behaviour.ChildData = cd;
 
-            go.transform.parent = parent;
             return behaviour;
         }
 
