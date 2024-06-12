@@ -1,34 +1,7 @@
 using UnityEngine;
-using System.IO;
-using System;
 
 public static class ImageToSpriteModel 
 {
-
-    //Static class instead of _instance
-    // Usage from any other script:
-    // MySprite = ImageToSpriteModel.LoadNewSprite(FilePath, [PixelsPerUnit (optional)], [spriteType(optional)])
-
-    /// <summary>
-    /// Создание спрайта из фаила текстуры
-    /// </summary>
-    /// <param name="FilePath"></param>
-    /// <param name="PixelsPerUnit"></param>
-    /// <param name="spriteType"></param>
-    /// <returns></returns>
-    public static Sprite LoadNewSprite(string FilePath, float PixelsPerUnit = 100.0f, SpriteMeshType spriteType = SpriteMeshType.FullRect)
-    {
-        // Load a PNG or JPG image from disk to a Texture2D, assign this texture to a new sprite and return its reference
-        if (!File.Exists(FilePath))
-            throw new Exception("Не удается найти указанный путь к картинке " + FilePath);
-
-        byte[] FileData = File.ReadAllBytes(FilePath);
-        Texture2D SpriteTexture = LoadTexture(FileData);
-        Sprite NewSprite = Sprite.Create(SpriteTexture, new Rect(0, 0, SpriteTexture.width, SpriteTexture.height), new Vector2(0, 0), PixelsPerUnit, 0, spriteType);
-
-        return NewSprite;
-    }
-
     /// <summary>
     /// Загрузка текстуры из байтов
     /// </summary>

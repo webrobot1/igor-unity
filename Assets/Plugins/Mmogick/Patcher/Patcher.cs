@@ -11,7 +11,7 @@ namespace Mmogick
 	public class Patcher
 	{
 		private const string VERSION_FILE = "version.txt";
-		private const string MAP_FILE = "map.txt";
+		private const string FILE = "data.txt";
 
 		public string error;
 		public string result;
@@ -24,85 +24,99 @@ namespace Mmogick
 
 		public Patcher(string path, string url)
         {
-			this.path = path;
+			string folder;
+
+			#if UNITY_WEBGL && !UNITY_EDITOR
+						folder = "idbfs";		
+			#elif UNITY_EDITOR || UNITY_ANDROID || UNITY_IOS
+						folder = Application.persistentDataPath;
+			#else
+						folder = Path.GetDirectoryName(Application.dataPath);
+			#endif
+
+			this.path = Path.Combine(folder, path);
 			this.url = url;
         }
+
+		public static IEnumerator GetAnimation(string server, int game_id, string token, string prefab, System.Action<Patcher> callback)
+        {
+			string url = "http://" + server + "/animations2d/patch/get/?prefab=" + prefab + "&token=" + token;
+			Patcher patcher = new Patcher(Path.Combine("Animations", game_id.ToString(), prefab), url);
+
+			yield return patcher.get(0);
+
+			callback(patcher);
+			yield break;
+		} 
 
 		public static IEnumerator GetMap(string server, int game_id, string token, int map_id, int updated, System.Action<Patcher> callback)
 		{
 			string url = "http://" + server + "/maps2d/patch/get_map/?map_id=" + map_id + "&token=" + token;
-			string folder;
+			Patcher patcher = new Patcher(Path.Combine("Maps", game_id.ToString(), map_id.ToString()), url);
+			
+			yield return patcher.get(updated);
 
-#if UNITY_WEBGL && !UNITY_EDITOR
-			folder = "idbfs";		
-#elif UNITY_EDITOR || UNITY_ANDROID || UNITY_IOS
-			folder = Application.persistentDataPath;
-#else
-			folder = Path.GetDirectoryName(Application.dataPath);
-#endif
-			Patcher patcher = new Patcher(Path.Combine(folder, "Maps", game_id.ToString(), map_id.ToString()), url);
-
-			bool exists = File.Exists(Path.Combine(patcher.path, MAP_FILE)) && File.Exists(Path.Combine(patcher.path, VERSION_FILE));
-			bool version_ok = exists && File.ReadAllText(Path.Combine(patcher.path, VERSION_FILE)) == updated.ToString();
-
-			if (exists && version_ok)
-			{
-				patcher.result = File.ReadAllText(Path.Combine(patcher.path, MAP_FILE));
-				Debug.Log("Карты: используем кеш " + map_id + " версии "+ updated + " с " + patcher.path);
-			}
-            else
-            {
-				Debug.Log("Карты: получаем " + map_id + " с " + patcher.url + " - " + (exists && !version_ok ? "версия устарела" : "фаил остутвует в кеше"));
-				yield return patcher.download(updated);
-			}
 			callback(patcher);
 			yield break;
 		}
 
-		public IEnumerator download(int updated)
-		{		
-			UnityWebRequest request = UnityWebRequest.Get(url);
-			request.redirectLimit = 1;
+		private IEnumerator get(int updated)
+		{
+			bool exists = File.Exists(Path.Combine(path, FILE)) && File.Exists(Path.Combine(path, VERSION_FILE));
+			bool version_ok = exists && File.ReadAllText(Path.Combine(path, VERSION_FILE)) == updated.ToString();
 
-			yield return request.SendWebRequest();
-
-			// проверим что пришло в ответ
-			string data = request.downloadHandler.text;
-			if (data.Length > 0)
+			if (exists && version_ok)
 			{
-				try
-				{
-					DataDecodeRecive recive = JsonConvert.DeserializeObject<DataDecodeRecive>(data);
-					if (recive.error.Length > 0)
-					{
-						error = "Патчер: Ошибка запроса " + url + ": " + recive.error;
-					}
-					else if (recive.data.Length == 0)
-						error = "Патчер: ответ запроса c сервера " + url + " не содержит данных";
-					else
-					{
-						result = recive.data;
-						if (!Directory.Exists(path))
-							Directory.CreateDirectory(path);
+				result = File.ReadAllText(Path.Combine(path, FILE));
+				Debug.Log("Патчер: используем кеш " + url + " версии " + updated + " с " + path);
+			}
+			else
+			{
+				Debug.Log("Патчер: получаем " + url + " с " + url + " - " + (exists && !version_ok ? "версия устарела" : "фаил остутвует в кеше"));
 
-						File.WriteAllText(Path.Combine(path, MAP_FILE), result);
-						File.WriteAllText(Path.Combine(path, VERSION_FILE), updated.ToString());
+				UnityWebRequest request = UnityWebRequest.Get(url);
+				request.redirectLimit = 1;
+
+				yield return request.SendWebRequest();
+
+				// проверим что пришло в ответ
+				string data = request.downloadHandler.text;
+				if (data.Length > 0)
+				{
+					try
+					{
+						DataDecodeRecive recive = JsonConvert.DeserializeObject<DataDecodeRecive>(data);
+						if (recive.error.Length > 0)
+						{
+							error = "Патчер: Ошибка запроса " + url + ": " + recive.error;
+						}
+						else if (recive.data.Length == 0)
+							error = "Патчер: ответ запроса c сервера " + url + " не содержит данных";
+						else
+						{
+							result = recive.data;
+							if (!Directory.Exists(path))
+								Directory.CreateDirectory(path);
+
+							File.WriteAllText(Path.Combine(path, FILE), result);
+							File.WriteAllText(Path.Combine(path, VERSION_FILE), updated.ToString());
 
 #if UNITY_WEBGL && !UNITY_EDITOR
 	JsSync();
 #endif
+						}
+					}
+					catch (Exception ex)
+					{
+						error = "Патчер: Ошибка раскодирования ответа с сервера" + url + ": " + ex;
 					}
 				}
-				catch (Exception ex)
-				{
-					error = "Патчер: Ошибка раскодирования ответа с сервера" + url + ": " + ex;
-				}
-			}
-			else
-				error = "Патчер: пустой ответ сервера " + url + " (" + request.responseCode + "): " + request.error;
+				else
+					error = "Патчер: пустой ответ сервера " + url + " (" + request.responseCode + "): " + request.error;
 
-			request.Dispose(); 
-			yield break;
+				request.Dispose();
+				yield break;
+			}
 		}		
 	}
 }

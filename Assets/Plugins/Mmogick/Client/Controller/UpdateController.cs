@@ -1,6 +1,9 @@
 using Newtonsoft.Json;
 using System;
+using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using UnityEngine;
 
 namespace Mmogick
@@ -162,6 +165,36 @@ namespace Mmogick
 				
 				model.key = key;
 				model.Log("создан с префабом " + recive.prefab);
+
+				StartCoroutine(Patcher.GetAnimation(SERVER, GAME_ID, player_token, recive.prefab, (Patcher patcher) =>
+				{
+					if (patcher.error != null)
+						Error(patcher.error);
+					if (patcher.result == null || patcher.result.Length == 0)
+						Error("Анимации: пришел пустой ответ от патчера");
+					else
+					{
+						Debug.Log("Анимации: декодируем пакет анимации для " + key);
+						
+						SpriterPacket packet;
+						using (MemoryStream source = new MemoryStream(System.Convert.FromBase64String(patcher.result)))
+						{
+							using (MemoryStream target = new MemoryStream())
+							{
+								using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
+								{
+									decompressStream.CopyTo(target);
+								}
+
+								Debug.Log("Карты: Парсим карту");
+								packet = JsonConvert.DeserializeObject<SpriterPacket>(Encoding.UTF8.GetString(target.ToArray()));
+							}
+						}
+						
+						Debug.Log("Анимации: обновляем анмиацию " + key);
+						NewSpriterRuntimeImporter.CreateSpriter(packet, key);
+					}
+				}));
 
 				model.type = type.ToLower();
 
