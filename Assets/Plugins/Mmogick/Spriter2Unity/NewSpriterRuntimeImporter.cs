@@ -27,14 +27,12 @@ namespace Mmogick
         private static readonly string ObjectNameMetadata = "Metadata";
         public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, Transform parent = null)
         {
-            GameObject go = new GameObject(entityName);
+            GameObject go = GameObject.Find(entityName);
+            if (go == null)
+                throw new Exception("При создании анимации объект более не сущетвует на сцене");
+
             SpriterDotNetBehaviour behaviour = go.AddComponent<SpriterDotNetBehaviour>();
             SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, entityName, behaviour);
-            if (entity == null)
-            {
-                UnityEngine.Object.Destroy(go);
-                return null;
-            }
 
             GameObject sprites = new GameObject(ObjectNameSprites);
             GameObject metadata = new GameObject(ObjectNameMetadata);
@@ -86,16 +84,16 @@ namespace Mmogick
             return entity;
         }
 
-        private static IEnumerable<SdnFileEntry> LoadAssets(Dictionary<string, SpriterFile> files)
+        private static IEnumerable<SdnFileEntry> LoadAssets(SpriterFile[] files)
         {
-            foreach (KeyValuePair<string, SpriterFile> file in files)
+            foreach (SpriterFile file in files)
             {
                 SdnFileEntry entry = new SdnFileEntry
                 {
-                    FolderId = file.Value.folder_id,
-                    FileId = file.Value.id,
+                    FolderId = file.folder_id,
+                    FileId = file.id,
                 };
-                entry.Sprite = file.Value.Sprite;
+                entry.Sprite = file.Sprite;
 
                 yield return entry;
             }

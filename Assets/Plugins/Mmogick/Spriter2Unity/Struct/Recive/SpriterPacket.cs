@@ -5,6 +5,6 @@ namespace Mmogick
     public class SpriterPacket
     {
         public string xml;
-        public Dictionary<string, SpriterFile> files;
+        public SpriterFile[] files;
     }
 }

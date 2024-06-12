@@ -101,7 +101,7 @@ namespace Mmogick
 						StartCoroutine(Patcher.GetMap(_sides[side.Key].ip, GAME_ID, player_token, side.Key, _sides[side.Key].updated, (Patcher patcher) =>
 						{
 							if (patcher.error != null)
-								Error(patcher.error);
+								Error("Карты: ошибка " + patcher.error);
 							if (patcher.result == null || patcher.result.Length == 0)
 								Error("Карты: пришел пустой ответ от патчера");
 							else

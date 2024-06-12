@@ -1,3 +1,4 @@
+using SpriterDotNetUnity;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -104,8 +105,16 @@ namespace Mmogick
 						StartCoroutine(this.Destroy());
 					}	
 				}
-				else
+                else
+                {
 					action = recive.action;
+					SpriterDotNetBehaviour animator = FindObjectOfType<SpriterDotNetBehaviour>();
+					if (animator != null) // && animator.Animator.HasAnimation(action)
+					{
+						Debug.Log("Анимация");
+						animator.Animator.Play("Running");
+					}
+				}
 			}
 			
 			if (recive.forward_x != null || recive.forward_y != null)
