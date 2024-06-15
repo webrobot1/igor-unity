@@ -48,10 +48,10 @@ namespace Mmogick
 		[NonSerialized]
 		public string action = "idle";
 
+		[NonSerialized]
+		public string prefab;
 
 		protected DateTime created;
-		protected string prefab;
-
 		private Vector3 _forward = Vector3.zero;
 
 		/// <summary>

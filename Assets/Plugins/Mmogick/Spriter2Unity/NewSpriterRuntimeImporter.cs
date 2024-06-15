@@ -31,6 +31,16 @@ namespace Mmogick
             if (go == null)
                 throw new Exception("При создании анимации объект более не сущетвует на сцене");
 
+            if (go.GetComponent<SpriterDotNetBehaviour>() != null)
+            {
+                GameObject.DestroyImmediate(go.GetComponent<SpriterDotNetBehaviour>());
+                if(go.transform.Find(ObjectNameSprites)!=null)
+                    GameObject.DestroyImmediate(go.transform.Find(ObjectNameSprites));
+
+                if (go.transform.Find(ObjectNameMetadata) != null)
+                    GameObject.DestroyImmediate(go.transform.Find(ObjectNameMetadata));
+            }
+
             SpriterDotNetBehaviour behaviour = go.AddComponent<SpriterDotNetBehaviour>();
             SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, entityName, behaviour);
 
@@ -40,8 +50,8 @@ namespace Mmogick
             behaviour.UseNativeTags = false;
             if (SpriterImporterUtil.HasSound(entity)) go.AddComponent<AudioSource>();
 
-            sprites.transform.SetParent(go.transform, false);
-            metadata.transform.SetParent(go.transform, false);
+            sprites.SetParent(go);
+            metadata.SetParent(go);
 
             ChildData cd = new ChildData();
             SpriterImporterUtil.CreateSprites(entity, cd, sprites);

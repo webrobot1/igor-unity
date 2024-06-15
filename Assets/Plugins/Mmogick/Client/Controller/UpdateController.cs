@@ -133,15 +133,12 @@ namespace Mmogick
 				if (recive.action == "remove") 
 					return null;
 
-				if (recive.prefab == null)
-                {
-					Error("WebSocket: Нельзя создать существо " + key + " с карты "+ map_id + " с пустым полем prefab");
-					return null;
-				}
+				UnityEngine.Object ob = null;
 
-				UnityEngine.Object ob = Resources.Load("Prefabs/" + type + "/" + recive.prefab, typeof(GameObject));
+				if (recive.prefab != null)
+					ob = Resources.Load("Prefabs/" + type + "/" + recive.prefab, typeof(GameObject));
 
-				if (ob == null)
+				if (recive.prefab == null || ob == null)
                 {
 					Debug.LogError("Отсутвует и префаб Prefabs / " + type + " / " + recive.prefab+" у существа "+key);
 					ob = Resources.Load("Prefabs/" + type + "/Unknow", typeof(GameObject));
@@ -165,42 +162,6 @@ namespace Mmogick
 				
 				model.key = key;
 				model.Log("создан с префабом " + recive.prefab);
-
-				StartCoroutine(Patcher.GetAnimation(SERVER, GAME_ID, player_token, recive.prefab, (Patcher patcher) =>
-				{
-					if (patcher.error != null)
-						Error("Анимации: ошибка "+patcher.error);
-					if (patcher.result == null || patcher.result.Length == 0)
-						Error("Анимации: пришел пустой ответ от патчера");
-					else
-					{
-						Debug.Log("Анимации: декодируем пакет анимации для " + key);
-                        try
-                        {
-							SpriterPacket packet;
-							using (MemoryStream source = new MemoryStream(System.Convert.FromBase64String(patcher.result)))
-							{
-								using (MemoryStream target = new MemoryStream())
-								{
-									using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
-									{
-										decompressStream.CopyTo(target);
-									}
-
-									Debug.Log("Карты: Парсим карту");
-									packet = JsonConvert.DeserializeObject<SpriterPacket>(Encoding.UTF8.GetString(target.ToArray()));
-								}
-							}
-						
-							Debug.Log("Анимации: обновляем анмиацию " + packet.xml);
-							NewSpriterRuntimeImporter.CreateSpriter(packet, key);
-                        }
-						catch(Exception ex)
-                        {
-							Error("Анимации: ошибка " + ex);
-						}
-					}
-				}));
 
 				model.type = type.ToLower();
 
@@ -230,11 +191,48 @@ namespace Mmogick
 			}
 
 			model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
-
 			prefab.transform.SetParent(worldObject.transform.Find(map_id.ToString()).transform, false);
 
 			try
 			{
+				if (recive.prefab!=null && model.prefab != recive.prefab)
+                {
+					StartCoroutine(Patcher.GetAnimation(SERVER, GAME_ID, player_token, recive.prefab, (Patcher patcher) =>
+					{
+						if (patcher.error != null)
+							Error("Анимации: ошибка " + patcher.error);
+						if (patcher.result == null || patcher.result.Length == 0)
+							Error("Анимации: пришел пустой ответ от патчера");
+						else
+						{
+							Debug.Log("Анимации: декодируем пакет анимации для " + key);
+							try
+							{
+								SpriterPacket packet;
+								using (MemoryStream source = new MemoryStream(System.Convert.FromBase64String(patcher.result)))
+								{
+									using (MemoryStream target = new MemoryStream())
+									{
+										using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
+										{
+											decompressStream.CopyTo(target);
+										}
+
+										Debug.Log("Карты: Парсим карту");
+										packet = JsonConvert.DeserializeObject<SpriterPacket>(Encoding.UTF8.GetString(target.ToArray()));
+									}
+								}
+
+								Debug.Log("Анимации: обновляем анмиацию " + packet.xml);
+								NewSpriterRuntimeImporter.CreateSpriter(packet, key);
+							}
+							catch (Exception ex)
+							{
+								Error("Анимации: ошибка " + ex);
+							}
+						}
+					}));
+				}
 				model.SetData(recive);
 			}
 			catch (Exception ex)
