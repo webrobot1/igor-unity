@@ -35,7 +35,7 @@ namespace Mmogick
 				newLayer.transform.SetParent(grid, false);
 				newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
 
-				if (layer.visible == 0)
+				if (!layer.visible)
 				{
 					newLayer.SetActive(false);
 					Debug.Log(layer.name + "- слой скрыт");
@@ -231,8 +231,8 @@ namespace Mmogick
 					foreach (KeyValuePair<int, LayerTile>tile in layer.tiles)
 					{
 						// если указанный тайл (клетка) не пустая
-						tile.Value.x = tile.Key % map.columns;
-						tile.Value.y = (tile.Key / map.columns) * -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
+						tile.Value.x = tile.Key % map.width;
+						tile.Value.y = (tile.Key / map.width) * -1; // что бы не снизу вверх рисовалась сетка слоя тайловой графики а снизу вверх
 					}
 				}
 

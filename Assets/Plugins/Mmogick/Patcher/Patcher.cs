@@ -51,7 +51,7 @@ namespace Mmogick
 
 		public static IEnumerator GetMap(string server, int game_id, string token, int map_id, int updated, System.Action<Patcher> callback)
 		{
-			string url = "http://" + server + "/maps2d/patch/get_map/?map_id=" + map_id + "&token=" + token;
+			string url = "http://" + server + "/maps2d/patch/get_map/" + map_id + "/" + token;
 			Patcher patcher = new Patcher(Path.Combine("Maps", game_id.ToString(), map_id.ToString()), url);
 			
 			yield return patcher.get(updated);

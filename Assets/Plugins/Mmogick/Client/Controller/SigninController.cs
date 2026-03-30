@@ -65,7 +65,7 @@ namespace Mmogick
 			formData.AddField("login", login);
 			formData.AddField("password", password);
 
-			string url = "http://" + SERVER + "/api/game/" + action + "?game_id=" + GAME_ID;
+			string url = "http://" + SERVER + "/api/game/" + GAME_ID + "/" + action;
 			Debug.Log("Подключение к " + url);
 
 			UnityWebRequest request = UnityWebRequest.Post(url, formData);

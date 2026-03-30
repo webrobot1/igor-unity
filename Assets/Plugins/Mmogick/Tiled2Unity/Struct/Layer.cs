@@ -15,7 +15,7 @@ namespace Mmogick
 	{
 		public int layer_id;
 		public string name;
-		public int visible = 1;
+		public bool visible = true;
 		public float opacity = 1;
 		public int isSpawn = 0;
 

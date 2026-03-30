@@ -22,9 +22,9 @@ namespace Mmogick
 		public float height;
 
 		public float rotation;
-		public int visible = 1;
+		public bool visible = true;
 
-		public int ellipse;
+		public bool ellipse;
 		
 		public Point[] polygon;
 		public Point[] polyline;
