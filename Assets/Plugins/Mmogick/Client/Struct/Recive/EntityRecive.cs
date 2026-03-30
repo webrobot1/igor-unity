@@ -14,13 +14,13 @@ namespace Mmogick
 		public float? y;
 		public float? z;
 
-		public int? map_id = null;
+		public int? map = null;
 		public string prefab;
 		public string login;
 		public string action;
 
-		public float? forward_x = null;
-		public float? forward_y = null;
+		public float? forwardX = null;
+		public float? forwardY = null;
 	
 		public int? sort = null;
 		public int? lifeRadius = null;

@@ -87,8 +87,8 @@ namespace Mmogick
         {
             if (key == player_key)
             {
-                if (recive.map_id != null)
-                    map.text = "Карта: " + recive.map_id;
+                if (recive.map != null)
+                    map.text = "Карта: " + recive.map;
             }
 
             return base.UpdateObject(map_id, key, recive, type);

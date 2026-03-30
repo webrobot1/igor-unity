@@ -114,7 +114,7 @@ namespace Mmogick
 		protected void SetData(ObjectRecive recive)
 		{
 			Vector3 old_position = position;
-			int old_map_id = map_id;
+			int old_map_id = map;
 
 			base.SetData(recive);
 
@@ -134,10 +134,10 @@ namespace Mmogick
 						LogWarning("Движение - существо еще не звершило движение. Эстраполяция: " + Math.Round((Vector3.Distance(transform.localPosition, old_position) / Vector3.Distance(old_position, new_position)) * 100) + " % не дойдя с прошлого движения");
 					}
 
-					if ((recive.action == "walk" && (old_position + (Forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map_id!=null && recive.map_id != old_map_id))
+					if ((recive.action == "walk" && (old_position + (Forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map!=null && recive.map != old_map_id))
 					{
 						// до получения новых пакетов продолжим движение в старой системе координат на 1 шаг (тк пришли уже новые для новой карты)
-						if (recive.map_id != null)
+						if (recive.map != null)
 						{
 							recive.action = "walk";
 							position = new_position = old_position + (Forward * ConnectController.step);

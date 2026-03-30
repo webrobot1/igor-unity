@@ -37,7 +37,7 @@ namespace Mmogick
 		/// может изменится в процессе игры (переход на другую локацию)
 		/// </summary>
 		[NonSerialized]
-		public int map_id;
+		public int map;
 
 		[NonSerialized]
 		public string login;
@@ -82,9 +82,9 @@ namespace Mmogick
 		/// </summary>
 		public virtual void SetData(EntityRecive recive)
 		{
-			if (recive.map_id != null)
+			if (recive.map != null)
 			{
-				this.map_id = (int)recive.map_id;
+				this.map = (int)recive.map;
 			}
 
 			if (recive.action != null)
@@ -97,7 +97,7 @@ namespace Mmogick
 					if (action != recive.action)
                     {
 						action = recive.action;
-						StartCoroutine(this.Remove(recive.map_id != null));
+						StartCoroutine(this.Remove(recive.map != null));
 					}
                     else
                     {
@@ -117,9 +117,9 @@ namespace Mmogick
 				}
 			}
 			
-			if (recive.forward_x != null || recive.forward_y != null)
+			if (recive.forwardX != null || recive.forwardY != null)
             {
-				Vector3 vector = new Vector3(recive.forward_x ?? Forward.x, recive.forward_y ?? Forward.y, 0);
+				Vector3 vector = new Vector3(recive.forwardX ?? Forward.x, recive.forwardY ?? Forward.y, 0);
 
 				if (vector.x != _forward.x || vector.y != _forward.y)
 				{
