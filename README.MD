@@ -3,9 +3,24 @@
 ### Демо [тут](http://mmogick.ru/articles/frontend/index/eyJpZCI6Mn0=)
 ![Слайд16](https://github.com/webrobot1/webrobot1/assets/20768848/5c93a1c2-63e6-4c49-a2d0-70898746d498)
 
+Unity 2021.3.0f1 (LTS). Клиент для 2D MMO RPG сервера.
+
+## Структура проекта
+
+Весь код находится в `Assets/Scripts/`:
+
+| Папка | Назначение |
+|-------|-----------|
+| `Controller/` | Контроллеры игровой логики (камера, игрок, заклинания, UI, таргетинг) |
+| `Model/` | Модели сущностей (Player, Enemy, Object) |
+| `Struct/` | Структуры данных для обмена с сервером (Recive/Response) |
+| `Classes/` | UI-классы |
+
+Всё остальное в `Assets/` — UI-интерфейс, спрайты, анимации и ресурсы отображения. В перспективе анимации и карты будут загружаться с сервера при старте клиента (аналогично тому, как уже загружается тайлмап).
+
 ### При компиляции не забудьте сменить [ИД](https://github.com/webrobot1/igor-unity/blob/master/Assets/Plugins/MyFantasy/Scripts/Controller/BaseController.cs#L10C24-L10C25) игры на вашу (из сервиса)
 
-Общее описание папок:
+### Описание папок
 
 	Assets\Plugins						- плагины для работы с игры Unity с: фокусом WebGl, страницы отладки на странцие http://mmogick.ru/api, websocket в тч webgl и др описанные в этой папке отдельно
 	  Assets\Plugins\GitIntegration				- плагины интеграции с Git по статье https://habr.com/ru/post/493488/
@@ -17,31 +32,29 @@
 	  Assets\Plugins\MyFantasy		   		- плагин для интеграции с онлайн-сервером http://mmogick.ru/articles/frontend/index/eyJpZCI6M30=
 		Assets\Plugins\MyFantasy\Model  		- базовые классы моделей (PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за стандартные данные (например координаты) пришли
 		Assets\Plugins\MyFantasy\Protocol  		- содержит классы что создают WebSocket класс (для браузера и ПК с мобилками он разный) и вешают на него обработчики
-		Assets\Plugins\MyFantasy\Scripts\Controller 	- игровые классы 
+		Assets\Plugins\MyFantasy\Scripts\Controller 	- игровые классы
 		  BaseController.cs		 		- базовый класс от которого наследуются RegisterController.cs и ConnectController.csю содержит адрес сервера и общий метод для управления фокусов в WebGl и http запросов
 		  ConnectController.cs				- создает инициализирует вызрв класса WebSocket, обрабатыавет пакеты с игровым миром и шлет данные дальше в модели через метод SetData
 		Assets\Plugins\MyFantasy\Struct  		- описание структур запросов и ответов от сервера
 		  Map\						- описание стрктур на которые разбивается декодированная карта с сервера
 		  Recive\  					- описание структур полученных от сервера данных (это базовые полученыне пакеты которые не зависят от компонтентов и механик в админке, например карты, авторизация и тд)
-		  Response\  					- описание структур отправляемых на сервер данных (это базовые запросы которые не зависят от компонтентов и механик в админке, например для движения) 
+		  Response\  					- описание структур отправляемых на сервер данных (это базовые запросы которые не зависят от компонтентов и механик в админке, например для движения)
 	Assets\Resources		- папка с графикой и префабами (пока у сервера нет функционала загрузки и работы с графикой и анимацией что бы хранить ее на сервере)
-	Assets\WebGLTemplates  		- содержит шаблон WebGl для работы панели отладки (http://mmogick.ru/articles/frontend/index/eyJpZCI6MjB9) - отличается от стандартного наличием дополнительного JavaScript кода 
+	Assets\WebGLTemplates  		- содержит шаблон WebGl для работы панели отладки (http://mmogick.ru/articles/frontend/index/eyJpZCI6MjB9) - отличается от стандартного наличием дополнительного JavaScript кода
 	Assets\Scenes			- содержит сцену входа/регистрации и сцену игры. тк все даныне карт и инфомрация о объектах содержится на сервере - то сцена пуста, ее заполняет Assets\Scripts\Controller\ConnectController
 	Assets\Scripts\Model  		- классы моделей префабов (унаследованных от PlayerModel.cs, EnemyModel.cs, ObjectModel.cs) которые изменяют анимацию в клиенте в зависимости от того что за данные пришли (в частности компоненты)
 	Assets\Scripts\Struct  		- описание структур запросов и ответов от сервера
 	  Recive\  			- стуктуры что нужно переопределить в плагине (в частности это стукруты игроков, монстров и объектов и их пользовательские поля (http://mmogick.ru/articles/frontend/index/eyJpZCI6MTl9))
 	  Response\  			- структуры игровых механик (команд что отправляются с клиента) с данными что ожидает сервер (настраиваются в личном кабинете сервера http://mmogick.ru/articles/frontend/index/eyJpZCI6MTh9)
-	Assets\Scripts\Controller       - игровые классы 
+	Assets\Scripts\Controller       - игровые классы
 	  CameraController.cs		- изменение размер отдаления камеры для разного масштаба
 	  PlayerController.cs   	- класc обрабатывает что нажал игрок и что надо отправлять на сервер, наследуется от ConnectController
-	  RegisterController.cs		- класс обработчик сцены входа и регистрации в игру , после загружает сцену Main и передает управление PlayerController.cs 
-	
+	  RegisterController.cs		- класс обработчик сцены входа и регистрации в игру , после загружает сцену Main и передает управление PlayerController.cs
 
+Для разработки непосредственно вашей игры вам работать в папке Assets/Scripts, подробнее в документации на [сайте](http://mmogick.ru/articles/frontend/index/eyJpZCI6NjB9)
 
-Для разработки непосредственно вашей игры вам работать в папке Assets/Scripts, подробнее в документации на [сайте](http://mmogick.ru/articles/frontend/index/eyJpZCI6NjB9) 
-
-	PS NewTonJson выбран взамен стандартного UnityJson для работы со структурами не просто так, менять его на UnityJson - на свой страх и риск 
-	PS для webgl может понадобиться отключить profiling в Built Settings тк забьется память браузера в console после прихода по websocket большого количества пакетов	 
+	PS NewTonJson выбран взамен стандартного UnityJson для работы со структурами не просто так, менять его на UnityJson - на свой страх и риск
+	PS для webgl может понадобиться отключить profiling в Built Settings тк забьется память браузера в console после прихода по websocket большого количества пакетов
 
  Игра одинаково хорошо взаимодействует с сервером в версиях для ПК, браузеров или мобильных устройств
 
