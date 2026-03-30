@@ -5,7 +5,7 @@ namespace Mmogick
 {
     abstract public class ActionBarsController : SpellBookController
     {
-        [Header("Для работы с меню быстрого доступа")]
+        [Header("Р”Р»СЏ СЂР°Р±РѕС‚С‹ СЃ РјРµРЅСЋ Р±С‹СЃС‚СЂРѕРіРѕ РґРѕСЃС‚СѓРїР°")]
 
         [SerializeField]
         private ActionBar[] _actionBars = new ActionBar[7];
@@ -17,7 +17,7 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// дополнительные кнокпки быстрого доступа (скрваемые)
+        /// РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Рµ РєРЅРѕРєРїРєРё Р±С‹СЃС‚СЂРѕРіРѕ РґРѕСЃС‚СѓРїР° (СЃРєСЂРІР°РµРјС‹Рµ)
         /// </summary>
         [SerializeField]
         protected GameObject onlyMobileActions;
@@ -28,14 +28,14 @@ namespace Mmogick
 
             if (onlyMobileActions == null)
             {
-                Error("не блок содержащий кнокпки бстрого доступа отображаемый только для мобильной версии");
+                Error("РЅРµ Р±Р»РѕРє СЃРѕРґРµСЂР¶Р°С‰РёР№ РєРЅРѕРєРїРєРё Р±СЃС‚СЂРѕРіРѕ РґРѕСЃС‚СѓРїР° РѕС‚РѕР±СЂР°Р¶Р°РµРјС‹Р№ С‚РѕР»СЊРєРѕ РґР»СЏ РјРѕР±РёР»СЊРЅРѕР№ РІРµСЂСЃРёРё");
                 return;
             }
               
             
             if (_actionBars.Length != 7)
             {
-                Error("не блок содержащий кнокпки бстрого доступа  должен содержать 7 элементов");
+                Error("РЅРµ Р±Р»РѕРє СЃРѕРґРµСЂР¶Р°С‰РёР№ РєРЅРѕРєРїРєРё Р±СЃС‚СЂРѕРіРѕ РґРѕСЃС‚СѓРїР°  РґРѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ 7 СЌР»РµРјРµРЅС‚РѕРІ");
                 return;
             }
 
@@ -43,7 +43,7 @@ namespace Mmogick
             {
                 if (_actionBars[i] == null)
                 {
-                    Error("не указан GameObject кнопки быстрого доступа под нмоером "+ i);
+                    Error("РЅРµ СѓРєР°Р·Р°РЅ GameObject РєРЅРѕРїРєРё Р±С‹СЃС‚СЂРѕРіРѕ РґРѕСЃС‚СѓРїР° РїРѕРґ РЅРјРѕРµСЂРѕРј "+ i);
                     return;
                 }
                     
@@ -62,7 +62,7 @@ namespace Mmogick
                     {
                         if (action.Key == 0 || action.Key > _actionBars.Length)
                         {
-                            Error("Пришел номер быстрый клавиши " + action.Key + " однако настроено в клиентской части лишь " + _actionBars.Length);
+                            Error("РџСЂРёС€РµР» РЅРѕРјРµСЂ Р±С‹СЃС‚СЂС‹Р№ РєР»Р°РІРёС€Рё " + action.Key + " РѕРґРЅР°РєРѕ РЅР°СЃС‚СЂРѕРµРЅРѕ РІ РєР»РёРµРЅС‚СЃРєРѕР№ С‡Р°СЃС‚Рё Р»РёС€СЊ " + _actionBars.Length);
                             return null;
                         }
                            
@@ -75,16 +75,16 @@ namespace Mmogick
                             case "spell":
                                 if (!Spells.ContainsKey(action.Value.id))
                                 {
-                                    Error("не найдено заклинание " + action.Value.id + " установленное на быструю клавишу " + action.Key);
+                                    Error("РЅРµ РЅР°Р№РґРµРЅРѕ Р·Р°РєР»РёРЅР°РЅРёРµ " + action.Value.id + " СѓСЃС‚Р°РЅРѕРІР»РµРЅРЅРѕРµ РЅР° Р±С‹СЃС‚СЂСѓСЋ РєР»Р°РІРёС€Сѓ " + action.Key);
                                     return null;
                                 }
                                     
                                 _actionBars[action.Key - 1].Item = Spells[action.Value.id];
 
-                                player.Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
+                                player.Log("Р‘С‹СЃС‚СЂР°СЏ РєР»Р°РІРёС€Р° "+ action.Key + ": РѕР±РЅРѕРІРёР»Рё РґР°РЅРЅС‹Рµ Р·Р°РєР»РёРЅР°РЅРёРµРј СЃ СЃРµСЂРІРµСЂР° " + action.Value.id);
                             break;
                             default:
-                                Error("Неизвестный тип быстрой клавиши '" + action.Value.type + "' под номером " + action.Key);
+                                Error("РќРµРёР·РІРµСЃС‚РЅС‹Р№ С‚РёРї Р±С‹СЃС‚СЂРѕР№ РєР»Р°РІРёС€Рё '" + action.Value.type + "' РїРѕРґ РЅРѕРјРµСЂРѕРј " + action.Key);
                             return null;
                         }
                     }

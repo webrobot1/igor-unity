@@ -12,7 +12,7 @@ namespace Mmogick
 		public int? min;
 		public int? max;
 
-		public string value;								// текущее значение
-		public Dictionary<string, string> values = null;    // для выпаюающего меню
+		public string value;								// С‚РµРєСѓС‰РµРµ Р·РЅР°С‡РµРЅРёРµ
+		public Dictionary<string, string> values = null;    // РґР»СЏ РІС‹РїР°СЋР°СЋС‰РµРіРѕ РјРµРЅСЋ
     }
 }

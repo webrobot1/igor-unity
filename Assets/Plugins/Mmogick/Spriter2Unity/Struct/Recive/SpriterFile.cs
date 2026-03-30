@@ -15,7 +15,7 @@ namespace Mmogick
             {
                 var decode = System.Convert.FromBase64String(resource);
                 if (decode.Length == 0)
-                    throw new Exception("Изображение " + id + " имеет размер картинки 0");
+                    throw new Exception("РР·РѕР±СЂР°Р¶РµРЅРёРµ " + id + " РёРјРµРµС‚ СЂР°Р·РјРµСЂ РєР°СЂС‚РёРЅРєРё 0");
 
                 Texture2D texture = new Texture2D(2, 2); //, TextureFormat.RGBA32, false
                 texture.filterMode = FilterMode.Point;

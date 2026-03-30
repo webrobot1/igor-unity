@@ -18,7 +18,21 @@ Unity 2021.3.0f1 (LTS). Клиент для 2D MMO RPG сервера.
 
 Всё остальное в `Assets/` — UI-интерфейс, спрайты, анимации и ресурсы отображения. В перспективе анимации и карты будут загружаться с сервера при старте клиента (аналогично тому, как уже загружается тайлмап).
 
-### При компиляции не забудьте сменить [ИД](https://github.com/webrobot1/igor-unity/blob/master/Assets/Plugins/MyFantasy/Scripts/Controller/BaseController.cs#L10C24-L10C25) игры на вашу (из сервиса)
+### Настройки подключения
+
+В `Assets/Plugins/Mmogick/Client/Controller/BaseController.cs` задаются:
+- `GAME_ID` — ID вашего проекта в личном кабинете http://mmogick.ru/ (раздел Игры)
+- `SERVER` — адрес сервера по умолчанию (можно переопределить через UI при авторизации)
+
+### Авторизация
+
+Форма авторизации (RegisterScene) содержит поля: сервер, логин, пароль. Адрес сервера предзаполняется из `SERVER`, но может быть изменён пользователем.
+
+API маршруты (POST):
+- `/api/game/register?game_id=ID` — регистрация
+- `/api/game/auth?game_id=ID` — авторизация
+
+Сервер возвращает `host` (адрес WebSocket), `key`, `token` — после чего клиент подключается по WebSocket к игровой карте.
 
 ### Описание папок
 
@@ -60,3 +74,60 @@ Unity 2021.3.0f1 (LTS). Клиент для 2D MMO RPG сервера.
 
 ![Презентация игрового сервера Моя Фантазия от программиста Стрельцова Михаила Вячеславовича](https://github.com/webrobot1/webrobot1/assets/20768848/576982cd-31d9-4c70-b28b-6239911dc041)
 ![Игорь - 2D MMORPG на Unity, клиентская часть](https://github.com/webrobot1/webrobot1/assets/20768848/c291e8ae-9e2f-4745-93c7-2f95df620cd2)
+
+
+## Среда разработки
+
+Unity Editor запущен на **Windows**, проект (`C:\Unity\release`) — в файловой системе Windows, доступен из WSL как `/mnt/c/Unity/release`. При работе через WSL Claude Code читает/пишет файлы через `/mnt/c/`, но Unity компилирует и запускает их на Windows-стороне.
+
+### Workflow разработки клиентских фич (lessons → release)
+
+Фичи реализуются **последовательно** в `/mnt/c/Unity/release`:
+1. Определить что нового в очередном уроке — сравнить содержимое папки урока с предыдущим уроком
+2. Понять как новая механика взаимодействует с сервером — посмотреть текущий код sandbox (`/var/www/html/game/Build/Sandbox/storage`) и существующие механики/компоненты (`/var/www/html/game/Build/Game/storage`)
+3. Реализовать фичу в `/mnt/c/Unity/release` с учётом того, как устроен текущий клиент
+4. Документировать реализацию (описание механики, взаимодействие клиент-сервер) в `/var/www/html/lessons/README.MD` с пометкой номера урока (lesson)
+
+При разработке новой фичи — обязательно смотреть как была реализована предыдущая, чтобы сохранить единообразие подхода.
+
+## Окружение разработчика
+
+Установить расширение VS Code - C# Dev Kit
+Установить расширение VS Code - Unity for Visual Studio Code (автодополнение Unity API, подсветка .shader/.asmdef)
+
+В Unity Editor: Edit → Preferences → External Tools → External Script Editor — выбрать VS Code.
+Unity сгенерирует .sln и .csproj файлы — автодополнение, навигация по коду заработают.
+
+Если работа ведётся только с Unity-клиентом без серверной части (PHP) — WSL не требуется.
+VS Code открывается на Windows напрямую (`C:\Unity\release`), все расширения и отладка работают нативно без ограничений.
+
+### Работа с Unity/C# через WSL (для совместной работы с PHP-сервером и AI-ассистентом)
+
+WSL нужен когда разработчик одновременно работает с серверными механиками (PHP) и клиентом (Unity), и хочет подключить AI-ассистента (Claude Code) к обоим проектам. Только из WSL доступны оба: PHP нативно, Unity через `/mnt/c/`. Если работа ведётся только с клиентом — WSL не нужен (см. выше).
+
+#### Ограничения при работе через WSL
+
+- **Attach debugger к Unity не работает** — Unity Editor на Windows, VS Code выполняет отладку в WSL. Для отладки Unity — открывать проект в отдельном окне VS Code без WSL
+- **Чтение/запись файлов через /mnt/c/ медленнее** — кросс-файловая система WSL ↔ Windows. При редактировании отдельных скриптов незаметно, но операции с большим количеством файлов (поиск по проекту, индексация) могут быть ощутимо медленнее
+- **Права доступа к файлам** — файлы на /mnt/c/ принадлежат root с маской 777, git может показывать лишние изменения прав. Решение: в WSL настроить `/etc/wsl.conf` секцию `[automount]` с `options = "metadata,umask=22,fmask=11"`
+- **Символические ссылки** — symlinks созданные в WSL могут не работать в Windows и наоборот
+- **Открытие из консоли Unity** — двойной клик по ошибке в Unity Console не откроет файл в WSL-подключённом VS Code, т.к. Unity не знает про WSL
+
+#### .NET SDK в WSL
+
+Для работы C# Dev Kit в WSL необходим .NET SDK. Установка:
+  1. Добавить репозиторий Microsoft:
+     wget https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
+     sudo dpkg -i /tmp/packages-microsoft-prod.deb && rm /tmp/packages-microsoft-prod.deb
+     sudo apt-get update
+  2. Установить SDK:
+     sudo apt-get install -y dotnet-sdk-8.0
+
+### MCP Unity (управление Unity Editor из AI-ассистента)
+
+Пакет MCP Unity позволяет AI-ассистентам (Claude Code, Cursor, Windsurf) управлять Unity Editor.
+
+1. В Unity Editor: **Window → Package Manager → "+" → Add package from git URL:**
+   `https://github.com/CoderGamester/mcp-unity.git`
+
+2. При работе через WSL — в Unity Editor: **Tools → MCP Unity → Server Window** — включить **"Allow Remote Connections"**. Без этого Unity слушает только на `[::1]` (IPv6 loopback), недоступный из WSL.

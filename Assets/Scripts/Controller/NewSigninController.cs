@@ -21,7 +21,7 @@ namespace Mmogick
 
         public static void EnterFullScreenMode()
         {
-            // в версии отладки полный экран не делаем
+            // РІ РІРµСЂСЃРёРё РѕС‚Р»Р°РґРєРё РїРѕР»РЅС‹Р№ СЌРєСЂР°РЅ РЅРµ РґРµР»Р°РµРј
             #if !DEVELOPMENT_BUILD
                 #if UNITY_WEBGL && !UNITY_EDITOR 
                     WebGLFullscreen.requestFullscreen();  

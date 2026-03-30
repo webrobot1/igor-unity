@@ -7,7 +7,7 @@ namespace UnityEngine.Tilemaps
         private List<Sprite> sprites = new List<Sprite> { };
         protected TilemapModel() { }
 
-        // максимальная скорость
+        // РјР°РєСЃРёРјР°Р»СЊРЅР°СЏ СЃРєРѕСЂРѕСЃС‚СЊ
         private int speed = 100;
 
         public override bool GetTileAnimationData(Vector3Int location, ITilemap tileMap, ref TileAnimationData tileAnimationData)

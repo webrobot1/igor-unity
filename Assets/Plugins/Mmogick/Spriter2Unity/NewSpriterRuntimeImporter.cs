@@ -29,7 +29,7 @@ namespace Mmogick
         {
             GameObject go = GameObject.Find(entityName);
             if (go == null)
-                throw new Exception("При создании анимации объект более не сущетвует на сцене");
+                throw new Exception("РџСЂРё СЃРѕР·РґР°РЅРёРё Р°РЅРёРјР°С†РёРё РѕР±СЉРµРєС‚ Р±РѕР»РµРµ РЅРµ СЃСѓС‰РµС‚РІСѓРµС‚ РЅР° СЃС†РµРЅРµ");
 
             if (go.GetComponent<SpriterDotNetBehaviour>() != null)
             {
@@ -77,7 +77,7 @@ namespace Mmogick
             Spriter spriter = SpriterReader.Default.Read(packet.xml);
 
             if(spriter.Entities.Length>1)
-                throw new Exception("В наборе может быть одна сущность с анимациями");
+                throw new Exception("Р’ РЅР°Р±РѕСЂРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ РѕРґРЅР° СЃСѓС‰РЅРѕСЃС‚СЊ СЃ Р°РЅРёРјР°С†РёСЏРјРё");
 
             SpriterEntity entity = spriter.Entities[0];
 

@@ -15,6 +15,7 @@ using UnityEngine.SceneManagement;
 	using WebGLWebsocket;
 #else
 	using WebSocketSharp;
+	// Note: Ensure WebSocketSharp is installed via NuGet or as a local package
 #endif
 
 
@@ -276,7 +277,7 @@ namespace Mmogick
 
 			if (coroutine == null && errors.Count == 0)
             {		
-				if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.New || connect.ReadyState == WebSocketState.Connecting))
+				if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.Connecting))
 				{
 					Error("WebSocket: соединение сих пор открыто");
 				}
