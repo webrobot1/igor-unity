@@ -26,8 +26,6 @@ namespace Mmogick
 		public int? lifeRadius = null;
 		
 
-		public DateTime? created = null;
-		
 		public Dictionary<string, EventRecive> events;
 
 		/// <summary>

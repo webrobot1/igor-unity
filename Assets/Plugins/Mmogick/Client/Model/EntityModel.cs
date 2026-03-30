@@ -51,7 +51,6 @@ namespace Mmogick
 		[NonSerialized]
 		public string prefab;
 
-		protected DateTime created;
 		private Vector3 _forward = Vector3.zero;
 
 		/// <summary>
@@ -156,9 +155,6 @@ namespace Mmogick
 
 			if (recive.lifeRadius != null)
 				this.lifeRadius = (int)recive.lifeRadius;
-
-			if (recive.created != null)
-				this.created = (DateTime)recive.created;
 
 			if (recive.prefab != null)
 				this.prefab = recive.prefab;

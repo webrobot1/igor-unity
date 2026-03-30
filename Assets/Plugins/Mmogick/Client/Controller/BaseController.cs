@@ -7,7 +7,7 @@ namespace Mmogick
 	abstract public class BaseController : MonoBehaviour
 	{
 		[Header("Настройки соединения с сервером")]
-		protected int GAME_ID = 2;                         // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://mmogick.ru  раздела Игры
+		protected int GAME_ID = 1;                         // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://mmogick.ru  раздела Игры
 		protected string SERVER = "localhost";			   // это физический адрес удаленного vps сервера где крутится prodiction (дефолтное значение, можно переопределить через UI)
 
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
