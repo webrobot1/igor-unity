@@ -7,7 +7,6 @@ namespace Mmogick
 	[System.Serializable]
 	public class Point
 	{
-		public int id;
 		public float x;
 		public float y;
 

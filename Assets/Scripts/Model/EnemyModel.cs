@@ -90,15 +90,15 @@ namespace Mmogick
 					}
 					hp = (int)components.hp;
 				}
-				if (components.hpmax != null)
-					hpMax = (int)components.hpmax;
+				if (components.hp_max != null)
+					hpMax = (int)components.hp_max;
 
 				if (components.mp != null)
 					mp = (int)components.mp;
 
 				// ниже сравниваем c null тк может быть значение 0 которое надо обработать
-				if (components.mpmax != null)
-					mpMax = (int)components.mpmax;
+				if (components.mp_max != null)
+					mpMax = (int)components.mp_max;
 			}
 		}
 
