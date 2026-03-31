@@ -71,7 +71,7 @@ namespace Mmogick
 					}
 
 					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
-					if (map.Value.players == null && map.Value.enemys == null && map.Value.objects == null)
+					if (map.Value.player == null && map.Value.enemy == null && map.Value.objects == null && map.Value.animal == null)
 					{
 						Debug.LogWarning("WebSocket: локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
 
@@ -85,22 +85,30 @@ namespace Mmogick
 					}
 					else
 					{
-						if (map.Value.players != null)
+						if (map.Value.player != null)
 						{
 							//Debug.Log("Обновляем игроков");
-							foreach (var player in map.Value.players)
+							foreach (var player in map.Value.player)
 							{
 								UpdateObject(map.Key, player.Key, player.Value, "Players");
 							}
 						}
 
 						// если есть враги
-						if (map.Value.enemys != null)
+						if (map.Value.enemy != null)
 						{
 							//Debug.Log("Обновляем enemy");
-							foreach (var enemy in map.Value.enemys)
+							foreach (var enemy in map.Value.enemy)
 							{
 								UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
+							}
+						}
+
+						if (map.Value.animal != null)
+						{
+							foreach (var animal in map.Value.animal)
+							{
+								UpdateObject(map.Key, animal.Key, animal.Value, "Animals");
 							}
 						}
 

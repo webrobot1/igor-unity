@@ -1,11 +1,22 @@
 using System;
+using Newtonsoft.Json; // для InitJsonSettings (закомментирован)
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace Mmogick
-{		
+{
 	abstract public class BaseController : MonoBehaviour
 	{
+		// Включить для отладки несовпадений JSON-полей между сервером и клиентом:
+		// [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+		// static void InitJsonSettings()
+		// {
+		// 	JsonConvert.DefaultSettings = () => new JsonSerializerSettings
+		// 	{
+		// 		MissingMemberHandling = MissingMemberHandling.Error
+		// 	};
+		// }
+
 		[Header("Настройки соединения с сервером")]
 		protected int GAME_ID = 1;                         // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://mmogick.ru  раздела Игры
 		protected string SERVER = "localhost";			   // это физический адрес удаленного vps сервера где крутится prodiction (дефолтное значение, можно переопределить через UI)
