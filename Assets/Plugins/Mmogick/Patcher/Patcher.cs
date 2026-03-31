@@ -40,6 +40,10 @@ namespace Mmogick
 
 		public static IEnumerator GetAnimation(string server, int game_id, string token, string prefab, System.Action<Patcher> callback)
         {
+			// TODO: endpoint /animations2d/patch/get/ не реализован на сервере
+			yield break;
+
+			/*
 			string url = "http://" + server + "/animations2d/patch/get/?prefab=" + prefab + "&token=" + token;
 			Patcher patcher = new Patcher(Path.Combine("Animations", game_id.ToString(), prefab), url);
 
@@ -47,6 +51,7 @@ namespace Mmogick
 
 			callback(patcher);
 			yield break;
+			*/
 		} 
 
 		public static IEnumerator GetMap(string server, int game_id, string token, int map_id, int updated, System.Action<Patcher> callback)

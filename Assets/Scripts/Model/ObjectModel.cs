@@ -134,7 +134,7 @@ namespace Mmogick
 						LogWarning("Движение - существо еще не звершило движение. Эстраполяция: " + Math.Round((Vector3.Distance(transform.localPosition, old_position) / Vector3.Distance(old_position, new_position)) * 100) + " % не дойдя с прошлого движения");
 					}
 
-					if ((recive.action == "walk" && (old_position + (Forward * ConnectController.step)).ToString() == new_position.ToString()) || (recive.map!=null && recive.map != old_map_id))
+					if ((recive.action == "walk" && Vector3.Distance(old_position + (Forward * ConnectController.step), new_position) < ConnectController.step * 0.5f) || (recive.map!=null && recive.map != old_map_id))
 					{
 						// до получения новых пакетов продолжим движение в старой системе координат на 1 шаг (тк пришли уже новые для новой карты)
 						if (recive.map != null)
@@ -244,23 +244,20 @@ namespace Mmogick
 
 			float distance;
 
-			// отрезок пути которой существо движется за кадр
-			double last_ping_extropolation = ConnectController.Ping();
-			
-			double timeout = (1 / ConnectController.server_fps);					   // если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
-			timeout += ConnectController.Ping();                                       // время с который одна локация передаст другой локации пакет с существом или игроком																
+			double timeout = (1.0 / ConnectController.server_fps);					   // если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
+			timeout += ConnectController.Ping();                                       // время с который одна локация передаст другой локации пакет с существом или игроком
 			timeout += Time.fixedDeltaTime;											   // добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
 
-			// если мы уходим с карты надо замедлиться на время полных пинга 
+			// если мы уходим с карты надо замедлиться на время полных пинга
 			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
 			if (action == ConnectController.ACTION_REMOVE)
-            {	
+            {
 				// если расчетное время получения пакета меньше чем обычно анимация шага у персонажа - делаем время анимации шага персонада
 				if (timeout < getEvent(WalkResponse.GROUP).timeout)
 					timeout = (double)getEvent(WalkResponse.GROUP).timeout;
 			}
 			//мы не знаем будет ли существо идти дальше (новый пакет с запазданием придет после завершения текущего движения даже если пришлел ровно к нему)
-			//это времени для возврата с сервера нам результата назад уже следующего события движения 
+			//это времени для возврата с сервера нам результата назад уже следующего события движения
 			//и раз мы не знаем наверняка будет ли существо идти дальше всегда поедполагаем что ДА (там не сильно далеко уйдем даже если НЕТ)
 			else
 			{
@@ -271,7 +268,9 @@ namespace Mmogick
 			// на сколько от шага каждый кадр сервера сдвигать существо
 			double distancePerUpdate = (Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
 			bool extrapolation = false;
-	
+			// время начала экстраполяции для ограничения по MaxPing * 2
+			DateTime extrapolationStart = DateTime.MinValue;
+
 			while (true)
 			{
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
@@ -286,28 +285,28 @@ namespace Mmogick
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
-					// если ожидается пакет на движение или мы удаляемся - двинемся еще на  шаг максимум
+					// если ожидается пакет на движение или мы удаляемся — экстраполируем на полный шаг с замедлением
 					if ((getEvent(WalkResponse.GROUP).action!=null && getEvent(WalkResponse.GROUP).action.Length>0 || action == ConnectController.ACTION_REMOVE) && !extrapolation)
 					{
 						extrapolation = true;
+						extrapolationStart = DateTime.Now;
 
-						// добавим что идти нужно еще на пол шаг дальше в том же направлении
-						Vector3 step = Forward * ConnectController.step * 0.5f;
-						finish += step;
+						// полный шаг вместо половины — больше запас для ожидания пакета
+						finish += Forward * ConnectController.step;
+						// замедляемся чтобы не уйти далеко от серверной позиции
+						distancePerUpdate *= 0.7;
 
-						// замедлим время дополнительного нашага 
-						if (ConnectController.MaxPing() > last_ping_extropolation)
-						{
-							double slow = (last_ping_extropolation / ConnectController.MaxPing());
-							distancePerUpdate = distancePerUpdate * slow;
-
-							LogWarning("Движение - экстраполируем растоянием еще на " + step + ", уменьшим скорость движения учитывая новый ping (с "+ last_ping_extropolation*1000 + " на "+ ConnectController.MaxPing() * 1000 + ") на "+Math.Round((1-slow)*100)+" %");
-						}
-						else
-							LogWarning("Движение - экстраполируем растоянием еще на " + step);
+						LogWarning("Движение - экстраполируем на полный шаг, замедление 0.7x");
 					}
-                    else 
-					{ 
+                    else
+					{
+						// проверяем лимит времени экстраполяции — не ждать дольше MaxPing * 2
+						if (extrapolation && DateTime.Compare(extrapolationStart.AddSeconds(ConnectController.MaxPing() * 2), DateTime.Now) < 1)
+						{
+							LogWarning("Движение - лимит времени экстраполяции, останавливаемся");
+							break;
+						}
+
                         // если экстраполировали расстоянием то остаемся в тех координатах куда мы прошли чуть больше, что бы не отбрасывало назад (на координаты сервера)
                         if (!extrapolation)
                         {
@@ -321,8 +320,6 @@ namespace Mmogick
 					}
 				}
 
-				//LogError("Движение - Оставшееся время: "+GetEventRemain(WalkResponse.GROUP));
-				
 				activeLast = DateTime.Now;
 				transform.localPosition = Vector3.MoveTowards(transform.localPosition, finish, (float)distancePerUpdate);
 

@@ -118,6 +118,12 @@ namespace Mmogick
 		/// </summary>
 		private static DateTime? loading;
 
+		// Эмуляция нестабильного пинга: задержка получения пакетов (мс). 0 = отключено
+		public static int SIMULATE_LATENCY_MIN = 0;
+		public static int SIMULATE_LATENCY_MAX = 0;
+		private static System.Random _latencyRandom = new System.Random();
+		private static Queue<KeyValuePair<DateTime, byte[]>> _delayedPackets = new Queue<KeyValuePair<DateTime, byte[]>>();
+
 		/// <summary>
 		/// если не null - загружаем сцену регистрации при ошибке или переподключаемся
 		/// </summary>
@@ -193,7 +199,21 @@ namespace Mmogick
 		}
 
 
-		protected virtual void Update() { }
+		protected virtual void Update()
+		{
+			// обработка пакетов с эмулированной задержкой
+			if (SIMULATE_LATENCY_MIN > 0)
+			{
+				lock (_delayedPackets)
+				{
+					while (_delayedPackets.Count > 0 && _delayedPackets.Peek().Key <= DateTime.Now)
+					{
+						byte[] rawData = _delayedPackets.Dequeue().Value;
+						ProcessRawPacket(rawData);
+					}
+				}
+			}
+		}
 
 		/// <summary>
 		/// Проверка наличие новых данных или ошибок соединения
@@ -331,86 +351,18 @@ namespace Mmogick
 						{
 							try
 							{
-								if (coroutine == null && reload == ReloadStatus.None)
+								// эмуляция задержки сети: буферизуем пакет для обработки позже в Update
+								if (SIMULATE_LATENCY_MIN > 0)
 								{
-									string text;
-									using (MemoryStream source = new MemoryStream(ev.RawData))
-									{
-										using (MemoryStream target = new MemoryStream())
-										{
-#if UNITY_EDITOR
-											Debug.Log("WebSocket: Декодируем пакет");
-#endif
-											using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
-											{
-												decompressStream.CopyTo(target);
-												text = Encoding.UTF8.GetString(target.ToArray());
-											}
-										}
-									}
-
-									if (text.Length == 0)
-										Error("WebSocket: Пришло пустое сообщение");
-									else
-									{
-#if UNITY_EDITOR
-										Debug.Log("WebSocket: Пришел пакет" + text);
-#endif
-										Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
-
-										if (recive.error != null)
-										{
-											Error(recive.error);
-										}
-										else
-										{
-											// сразу не подключаемя тк нужно дождаться fixed update который обработает существующие пакеты в тч и тот что пришел сейчас
-											if (recive.host != null)
-											{
-												// закроем соединение что бы не пришел пакет о закрытие соединения
-												Close();
-
-												ConnectController.host = recive.host;
-
-												// поставим флаг после которого на следующем кадре запустится корутина загрузки сцены (тут нельзя запускать корутину ты мы в уже в некой корутине)
-												reload = ReloadStatus.Start;
-												player.Log("Перезаход в игру");
-											}
-
-											if (recive.action == ACTION_LOAD)
-											{
-												// если это полная загрузка мира то предыдущие запросы удалим (в этом пакете есть весь мир)
-												// очищать можно только тут loading  не давал Update
-												recives.Clear();
-
-												// снимем флаг загрузки и разрешим отправлять пакеты к серверу
-												loading = null;
-											}
-
-											// это тоже обновим тут что бы ping и pings не делать protected 
-											if (recive.unixtime > 0)
-											{
-												double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
-												pings.Add(tmp_ping);
-
-												// если пришедший пинг больше текущего или пришла пора обновить пинги
-												if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
-												{
-													ping = Math.Round((pings.Sum() / pings.Count), 3);
-													max_ping = Math.Round(pings.Max(), 3);
-													if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
-														pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
-												}
-											}
-
-											recives.Enqueue(text);
-										}
-									}
+									int delay = _latencyRandom.Next(SIMULATE_LATENCY_MIN, SIMULATE_LATENCY_MAX + 1);
+									byte[] copy = new byte[ev.RawData.Length];
+									System.Buffer.BlockCopy(ev.RawData, 0, copy, 0, ev.RawData.Length);
+									lock (_delayedPackets)
+										_delayedPackets.Enqueue(new KeyValuePair<DateTime, byte[]>(DateTime.Now.AddMilliseconds(delay), copy));
+									return;
 								}
-								else
-								{
-									Debug.LogError("WebSocket: Пакеты продолжают приходить" + (connect != null ? " при отсутвующем ссылке на соединение" : ", но ссылка на соединение до сих пор есть"));
-								}
+
+								ProcessRawPacket(ev.RawData);
 							}
 							catch(Exception ex)
 							{
@@ -438,6 +390,85 @@ namespace Mmogick
 				throw new Exception("WebSocket: В процессе инициализации класса произошли ошибки");
 		}
 
+		// Обработка сырого пакета (из OnMessage или из буфера задержки)
+		private static void ProcessRawPacket(byte[] rawData)
+		{
+			if (coroutine == null && reload == ReloadStatus.None)
+			{
+				string text;
+				// gzip magic bytes: 0x1F 0x8B — если нет, пакет пришёл без сжатия
+				if (rawData.Length >= 2 && rawData[0] == 0x1F && rawData[1] == 0x8B)
+				{
+					using (MemoryStream source = new MemoryStream(rawData))
+					{
+						using (MemoryStream target = new MemoryStream())
+						{
+							using (var decompressStream = new GZipStream(source, CompressionMode.Decompress))
+							{
+								decompressStream.CopyTo(target);
+								text = Encoding.UTF8.GetString(target.ToArray());
+							}
+						}
+					}
+				}
+				else
+				{
+					text = Encoding.UTF8.GetString(rawData);
+				}
+
+				if (text.Length == 0)
+					Error("WebSocket: Пришло пустое сообщение");
+				else
+				{
+#if UNITY_EDITOR
+					Debug.Log("WebSocket: Пришел пакет" + text);
+#endif
+					Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
+
+					if (recive.error != null)
+					{
+						Error(recive.error);
+					}
+					else
+					{
+						if (recive.host != null)
+						{
+							Close();
+							ConnectController.host = recive.host;
+							reload = ReloadStatus.Start;
+							player.Log("Перезаход в игру");
+						}
+
+						if (recive.action == ACTION_LOAD)
+						{
+							recives.Clear();
+							loading = null;
+						}
+
+						if (recive.unixtime > 0)
+						{
+							double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
+							pings.Add(tmp_ping);
+
+							if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
+							{
+								ping = Math.Round((pings.Sum() / pings.Count), 3);
+								max_ping = Math.Round(pings.Max(), 3);
+								if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
+									pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
+							}
+						}
+
+						recives.Enqueue(text);
+					}
+				}
+			}
+			else
+			{
+				Debug.LogError("WebSocket: Пакеты продолжают приходить" + (connect != null ? " при отсутвующем ссылке на соединение" : ", но ссылка на соединение до сих пор есть"));
+			}
+		}
+
 		/// <summary>
 		/// не отправляется моментально а ставиться в очередь на отправку (перезаписывает текущю). придет время - отправится на сервер (может чуть раньше если пинг большой)
 		/// </summary>
@@ -458,17 +489,18 @@ namespace Mmogick
 					}
 
 					// на это время шлем пакет раньше . в нем заложена пересылка нашего пакета от websocket сервера в гейм сервер после в песочницу, отработака команды и возврат по цепочке обратно в webscoekt сервер 
-					remain -= (1 / server_fps / 2);
+					remain -= (1.0 / server_fps / 2);
 
 					// мы можем отправить запрос сброси событие сервера или если нет события и таймаут меньше или равен таймауту события (если больще - то аналогичный запрос мы УЖЕ отправили) или если есть событие но таймаут уже близок к завершению (интерполяция)
-					if 
+					if
 						(
-							remain<=0 
+							remain<=0
 								||
 							// может быть и null когда событие только создано или отправили пакет когда был action == "" (что означает что на сервере нет текущего события в обработке и модно слать)
-							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout) 
+							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout)
 								||
-							player.getEvent(data.group).from_client != true
+							// серверное событие (from_client=false) — можно перехватить. null исключён чтобы не срабатывало на неинициализированном
+							(player.getEvent(data.group).from_client != true && player.getEvent(data.group).from_client != null)
 						)
 					{
 
@@ -484,7 +516,7 @@ namespace Mmogick
 							last_ping_send = DateTime.Now.AddSeconds(PING_SEND_SEC);
 						}
 
-                        // создадим условно уникальный номер нашего сообщения (она же и временная метка) для того что бы сервер вернул ее (вычив время сколько она была на сервере) и получим пинг
+                        // временная метка для расчёта пинга — сервер вернёт её обратно, клиент вычислит RTT
                         if (DateTime.Compare(last_ping_request, DateTime.Now) < 1)
                         {
 							data.unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
@@ -541,11 +573,11 @@ namespace Mmogick
 		/// </summary>
 		private static void SetTimeout(string group)
 		{
-			// поставим примерно време когда наступит таймаут (с овтетом он нам более точно скажет тк таймаут может и плавающий в механике быть)
+			// поставим примерно время когда наступит таймаут (с ответом он нам более точно скажет тк таймаут может и плавающий в механике быть)
 			double timeout = (double)player.getEvent(group).timeout;
-	
-			if (player.GetEventRemain(group) > Ping() / 2)								// если до конца события осталось больше чем успеет дойти запрос до сервера (время = половины пинга)  то учитываем если
-				timeout += player.GetEventRemain(group);	
+
+			if (player.GetEventRemain(group) > Ping() / 2)								// если до конца события осталось больше чем успеет дойти запрос до сервера (время = половины пинга) то учитываем
+				timeout += player.GetEventRemain(group);
 			else
 				timeout += Ping() / 2;                                                  // если нет - то учитываем время на доставку запроса (пол пинга)
 
