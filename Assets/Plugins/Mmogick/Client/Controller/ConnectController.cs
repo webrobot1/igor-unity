@@ -421,7 +421,7 @@ namespace Mmogick
 				else
 				{
 #if UNITY_EDITOR
-					Debug.Log("WebSocket: Пришел пакет" + text);
+					if (EntityModel.verbose)	Debug.Log("WebSocket: Пришел пакет" + text);
 #endif
 					Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
 
