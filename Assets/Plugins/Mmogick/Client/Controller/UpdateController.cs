@@ -54,7 +54,7 @@ namespace Mmogick
 
 			if (recive.world != null)
 			{
-				Debug.Log("Обрабатываем мир");
+				if (EntityModel.verbose) Debug.Log("Обрабатываем мир");
 				foreach (var map in recive.world)
 				{
 					// найдем карту на сцене для которых пришло обнолление. если пусто - создадим ее

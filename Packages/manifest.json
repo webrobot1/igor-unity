@@ -1,6 +1,17 @@
 {
+  "scopedRegistries": [
+    {
+      "name": "OpenUPM",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.ivanmurzak",
+        "org.nuget",
+        "extensions.unity"
+      ]
+    }
+  ],
   "dependencies": {
-    "com.gamelovers.mcp-unity": "https://github.com/CoderGamester/mcp-unity.git",
+    "com.ivanmurzak.unity.mcp": "0.29.1",
     "com.unity.2d.animation": "14.0.3",
     "com.unity.2d.pixel-perfect": "5.1.1",
     "com.unity.2d.psdimporter": "13.0.2",

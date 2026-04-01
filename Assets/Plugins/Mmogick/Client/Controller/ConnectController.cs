@@ -229,7 +229,7 @@ namespace Mmogick
 					{
 						Error("WebSocket: Слишком долгая пауза загрузки");
 					}
-					else
+					else if (EntityModel.verbose)
 						Debug.Log("WebSocket: Пауза получения запросов");
 				}
 				
@@ -543,7 +543,7 @@ namespace Mmogick
 						player.Log("отправили в websocket " + json);
 						Put2Send(json);	
 					}
-					else
+					else if (EntityModel.verbose)
 						Debug.LogWarning("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
 				}
 				catch (Exception ex)

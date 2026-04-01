@@ -190,7 +190,7 @@ namespace Mmogick
 					if (kvp.Value.from_client != null)
 						ev.from_client = kvp.Value.from_client;
 
-					if (kvp.Value.action != null) 
+					if (kvp.Value.action != null)
 					{
 						ev.action = kvp.Value.action;
 
@@ -240,14 +240,23 @@ namespace Mmogick
 			return ((DateTime)getEvent(group).finish).Subtract(DateTime.Now).TotalSeconds;
 		}
 
+		/// <summary>
+		/// Включает вывод Log и LogWarning для всех entity.
+		/// При false подавляются информационные и предупреждающие сообщения (LogError выводится всегда).
+		/// Переключается в runtime: EntityModel.verbose = true/false
+		/// </summary>
+		public static bool verbose = false;
+
 		public void Log(string message)
         {
-			Debug.Log(name + ": "+ message);
+			if (verbose)
+				Debug.Log(name + ": "+ message);
 		}
 
 		public void LogWarning(string message)
         {
-			Debug.LogWarning(name + ": "+ message);
+			if (verbose)
+				Debug.LogWarning(name + ": "+ message);
 		}
 		public void LogError(string message)
         {
