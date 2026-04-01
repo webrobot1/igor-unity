@@ -421,7 +421,7 @@ namespace Mmogick
 				else
 				{
 #if UNITY_EDITOR
-					if (EntityModel.verbose)	Debug.Log("WebSocket: Пришел пакет" + text);
+					Debug.Log("WebSocket: Пришел пакет" + text);
 #endif
 					Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
 
@@ -496,8 +496,8 @@ namespace Mmogick
 						(
 							remain<=0
 								||
-							// может быть и null когда событие только создано или отправили пакет когда был action == "" (что означает что на сервере нет текущего события в обработке и модно слать)
-							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout)
+							// на сервере нет текущего события — можно слать, но только если мы ещё не отправляли (from_client != true предотвращает повторную отправку до ответа сервера)
+							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout && player.getEvent(data.group).from_client != true)
 								||
 							// серверное событие (from_client=false) — можно перехватить. null исключён чтобы не срабатывало на неинициализированном
 							(player.getEvent(data.group).from_client != true && player.getEvent(data.group).from_client != null)

@@ -13,6 +13,9 @@ namespace Mmogick
 
 		public float step;
 		public int fps;
+		
+		public int map;
+		public int game;
 
 		public int position_precision;
 
