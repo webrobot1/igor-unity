@@ -11,7 +11,7 @@ namespace Mmogick
     /// <summary>
 	/// Класс верхнего уровня. Служит в том числе для обновления статистика соединения
 	/// </summary>
-    public class MainController : SettingsController
+    public class MainController : CombatTextController
     {
         private float deltaTime;
 
@@ -57,7 +57,7 @@ namespace Mmogick
                 Error("не присвоен Text для статистики fps");
                 return;
             }
-                             
+
             if (fps == null)
             {
                 Error("не присвоен Text для вывода номера карты");

@@ -7,10 +7,11 @@ namespace Mmogick
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class ActionBar : MonoBehaviour, IPointerClickHandler
+    public class ActionBar : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         public int num;
         private MoveableObject _item;
+        private Tooltip _tooltip;
 
         private Image _image;
 
@@ -67,7 +68,28 @@ namespace Mmogick
             if (_item != null && PlayerController.Player!=null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
             {
                 _item.Use();
-            } 
+            }
+        }
+
+        public void SetTooltip(Tooltip tooltip)
+        {
+            _tooltip = tooltip;
+        }
+
+        void IPointerEnterHandler.OnPointerEnter(PointerEventData eventData)
+        {
+            if (_item != null && _tooltip != null)
+            {
+                string text = _item.GetTooltipText();
+                if (text != null)
+                    _tooltip.Show(transform.position, text);
+            }
+        }
+
+        void IPointerExitHandler.OnPointerExit(PointerEventData eventData)
+        {
+            if (_tooltip != null)
+                _tooltip.Hide();
         }
     }
 }

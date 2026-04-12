@@ -59,6 +59,11 @@ namespace Mmogick
             base.Awake();
         }
 
+        public override string GetTooltipText()
+        {
+            return title.text + "\n" + description.text + "\nMana: " + mp.text;
+        }
+
         protected void FixedUpdate()
         {
             if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)

@@ -4,10 +4,15 @@ using UnityEngine.UI;
 
 namespace Mmogick
 {
-    public abstract class MoveableObject : MonoBehaviour, IPointerClickHandler
+    public abstract class MoveableObject : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         [SerializeField]
         protected Image image;
+
+        /// <summary>
+        /// Назначается контроллером при создании объекта
+        /// </summary>
+        protected Tooltip tooltip;
 
         /// <summary>
         /// Нужен для курсора (перетаскивание картинки предмета)
@@ -35,6 +40,22 @@ namespace Mmogick
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
             CursorController.TakeMoveable(this);
+        }
+
+        public virtual string GetTooltipText() { return null; }
+
+        void IPointerEnterHandler.OnPointerEnter(PointerEventData eventData)
+        {
+            if (tooltip == null) return;
+            string text = GetTooltipText();
+            if (text != null)
+                tooltip.Show(transform.position, text);
+        }
+
+        void IPointerExitHandler.OnPointerExit(PointerEventData eventData)
+        {
+            if (tooltip != null)
+                tooltip.Hide();
         }
     }
 }

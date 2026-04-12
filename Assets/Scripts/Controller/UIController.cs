@@ -16,6 +16,9 @@ namespace Mmogick
         [SerializeField]
         private GameObject parentGroup;
 
+        [SerializeField]
+        protected Tooltip tooltip;
+
         /// <summary>
         /// книга заклинаний
         /// </summary>
@@ -47,7 +50,13 @@ namespace Mmogick
                 Error("не указана CanvasGroup содержащая все остальные CanvasGroup с меню");
                 return;
             }
- 
+
+            if (tooltip == null)
+            {
+                Error("не присвоен Tooltip");
+                return;
+            }
+
             base.Awake();
             CloseAllMenu();   
         }

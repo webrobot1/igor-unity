@@ -99,6 +99,7 @@ Unity Editor запущен на **Windows**, проект (`C:\Unity\release`) 
 
 Установить расширение VS Code - C# Dev Kit
 Установить расширение VS Code - Unity for Visual Studio Code (автодополнение Unity API, подсветка .shader/.asmdef)
+Установить расширение VS Code - Claude Code (опционально, для работы с AI-ассистентом)
 
 В Unity Editor: Edit → Preferences → External Tools → External Script Editor — выбрать VS Code.
 Unity сгенерирует .sln и .csproj файлы — автодополнение, навигация по коду заработают.
@@ -106,14 +107,9 @@ Unity сгенерирует .sln и .csproj файлы — автодополн
 Если работа ведётся только с Unity-клиентом без серверной части (PHP) — WSL не требуется.
 VS Code открывается на Windows напрямую (`C:\Unity\release`), все расширения и отладка работают нативно без ограничений.
 
+При связке Windows + WSL всё программное обеспечение (Unity, VS Code, .NET SDK, расширения) устанавливается **на Windows**. В WSL ставится только серверная часть (PHP, MySQL, Apache).
 
-#### .NET SDK в WSL
+#### AI Game Developer (опционально)
 
-Для работы C# Dev Kit в WSL необходим .NET SDK. Установка:
-  1. Добавить репозиторий Microsoft:
-     wget https://packages.microsoft.com/config/ubuntu/24.04/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
-     sudo dpkg -i /tmp/packages-microsoft-prod.deb && rm /tmp/packages-microsoft-prod.deb
-     sudo apt-get update
-  2. Установить SDK:
-     sudo apt-get install -y dotnet-sdk-8.0
+Плагин [AI Game Developer](https://ai-game.dev/download) (Unity MCP) позволяет AI-ассистентам (Claude Code, Cursor) управлять Unity Editor: выполнять C# код, кликать по UI, читать состояние объектов, делать скриншоты. Подробности подключения к Claude Code — см. `docs/Окружение Claude Code.MD` серверного проекта.
 

@@ -237,8 +237,16 @@ namespace Mmogick
                 else
                     line.fillAmount = Mathf.Lerp(line.fillAmount, newFill, Time.deltaTime * lineSpeed);
 
+                // текст обновляем всегда сразу, без lerp
                 if (text != null)
                     text.text = current + " / " + max;
+            }
+            // при force=false текст может не обновиться если fillAmount уже совпал, но значения изменились
+            else if (text != null)
+            {
+                string newText = current + " / " + max;
+                if (text.text != newText)
+                    text.text = newText;
             }
         }
 

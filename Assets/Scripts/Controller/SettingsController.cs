@@ -95,7 +95,7 @@ namespace Mmogick
                 Error("не указан prefab для настройки типа DropDown меню");
                 return;
             }
-                
+
           
 #if UNITY_WEBGL && !UNITY_EDITOR
                  WebGLRotation.Rotation(1);
@@ -245,5 +245,6 @@ namespace Mmogick
             response.settings = _settings;
             response.Send();
         }
+
     }
 }

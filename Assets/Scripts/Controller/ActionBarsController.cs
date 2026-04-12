@@ -46,8 +46,9 @@ namespace Mmogick
                     Error("не указан GameObject кнопки быстрого доступа под нмоером "+ i);
                     return;
                 }
-                    
+
                 _actionBars[i].num = i+1;
+                _actionBars[i].SetTooltip(tooltip);
             }
         }
 

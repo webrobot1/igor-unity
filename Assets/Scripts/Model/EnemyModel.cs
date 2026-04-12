@@ -88,6 +88,7 @@ namespace Mmogick
 					{
 						Dead();
 					}
+
 					hp = (int)components.hp;
 				}
 				if (components.hp_max != null)
