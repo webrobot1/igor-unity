@@ -64,6 +64,21 @@ namespace Mmogick
             return title.text + "\n" + description.text + "\nMana: " + mp.text;
         }
 
+        public override bool IsOnCooldown()
+        {
+            return PlayerController.Player != null && PlayerController.Player.GetEventRemain(group) > 0;
+        }
+
+        public override (float fillAmount, float remainSeconds) GetCooldownProgress()
+        {
+            if (PlayerController.Player == null) return (0f, 0f);
+            double remainTime = PlayerController.Player.GetEventRemain(group);
+            if (remainTime <= 0) return (0f, 0f);
+            double timeout = (double)PlayerController.Player.getEvent(group).timeout;
+            float fill = timeout > 0 ? (float)(remainTime / timeout) : 0f;
+            return (fill, (float)remainTime);
+        }
+
         protected void FixedUpdate()
         {
             if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)

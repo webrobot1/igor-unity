@@ -44,6 +44,16 @@ namespace Mmogick
 
         public virtual string GetTooltipText() { return null; }
 
+        /// <summary>
+        /// На кулдауне ли объект (заклинание, предмет и т.д.)
+        /// </summary>
+        public virtual bool IsOnCooldown() { return false; }
+
+        /// <summary>
+        /// Прогресс кулдауна: fillAmount (0..1) и оставшееся время в секундах. Для UI overlay.
+        /// </summary>
+        public virtual (float fillAmount, float remainSeconds) GetCooldownProgress() { return (0f, 0f); }
+
         void IPointerEnterHandler.OnPointerEnter(PointerEventData eventData)
         {
             if (tooltip == null) return;
