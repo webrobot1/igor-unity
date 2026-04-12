@@ -126,13 +126,15 @@ namespace Mmogick
                 ObjectModel model = prefab.GetComponent<ObjectModel>();
                 if (recive.events != null)
                 {
+                    // fight/attack — нотификатор цели атаки (добавляется bolt/melee при попадании)
+                    string attackGroup = recive.events.ContainsKey("fight/attack") ? "fight/attack" : null;
+
                     if (key == player_key)
                     {
-                        if (recive.events.ContainsKey(AttackResponse.GROUP))
+                        if (attackGroup != null)
                         {
-                            // мы можем переопределить цель если мы ее сами не выбрали или не нацелены на безжизненное существо или мертвое существо
-                            // если с севрера пришло что мы кого то атакуем мы вынуждены переключить цель и не важно кого хочет игрок атаковать
-                            string attacker = player.getEventData<AttackDataRecive>(AttackResponse.GROUP).target;
+                            // если с сервера пришло что мы кого то атакуем — переключить цель
+                            string attacker = player.getEventData<AttackDataRecive>(attackGroup).target;
 
                             if (attacker != null)
                             {
@@ -151,17 +153,16 @@ namespace Mmogick
                             }
                         }
                     }
-                    else if (recive.events.ContainsKey(AttackResponse.GROUP))
+                    else if (attackGroup != null)
                     {
-                        // если существо атакует игрока и игроку можно установить эту цель (подробнее в функции SelectTarget) - установим
+                        // если существо атакует игрока — установим его как цель
                         if (
                             CanBeTarget(model)
                                 &&
-                            model.getEventData<AttackDataRecive>(AttackResponse.GROUP).target == player.key)
+                            model.getEventData<AttackDataRecive>(attackGroup).target == player.key)
                         {
-                            // то передадим инфомрацию игроку что бы мы стали его целью
                             Target = model;
-                            player.LogWarning("Сущность " + key + " атакует нас, установим ее как цель цель");
+                            player.LogWarning("Сущность " + key + " атакует нас, установим ее как цель");
                         }
                     }
                 }

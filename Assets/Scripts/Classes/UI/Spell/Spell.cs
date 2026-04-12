@@ -81,31 +81,14 @@ namespace Mmogick
 
         protected void FixedUpdate()
         {
-            if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
+            if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
             {
-                double remainTime = PlayerController.Player.GetEventRemain(group);
-                if(remainTime > 0)
-                {
-                    remain.text = remainTime + " сек.";
-                    image.raycastTarget = false;
-                }
-                else
-                {
-                    image.raycastTarget = true;
-                    remain.text = "0 сек.";
-                }
-                   
+                bool onCooldown = IsOnCooldown();
+                bool unavailable = PlayerController.Player.hp <= 0 || Int32.Parse(mp.text) > PlayerController.Player.mp;
 
-                if (Int32.Parse(mp.text) > PlayerController.Player.mp)
-                {
-                    image.color = new Color(image.color.r, image.color.g, image.color.b, 0.5f);
-                    image.raycastTarget = false;
-                }
-                else
-                {
-                    image.color = new Color(image.color.r, image.color.g, image.color.b, 1f);
-                    image.raycastTarget = true;
-                }
+                remain.text = onCooldown ? PlayerController.Player.GetEventRemain(group) + " сек." : "0 сек.";
+                image.color = new Color(image.color.r, image.color.g, image.color.b, unavailable ? 0.5f : 1f);
+                image.raycastTarget = !onCooldown && !unavailable;
             } 
         }
 
@@ -143,13 +126,13 @@ namespace Mmogick
                     Debug.Log("Используем заклинание "+ Magic);
                     switch (group)
                     {
-                        case "fight/attack":
-                            AttackResponse response = new AttackResponse();
+                        case "fight/bolt":
+                            BoltResponse response = new BoltResponse();
                             response.magic = Magic;
 
                             if (obj != null && obj.GetComponent<ObjectModel>()!=null)
                             {
-                                response.target = obj.GetComponent<ObjectModel>().key;                      
+                                response.target = obj.GetComponent<ObjectModel>().key;
                                 if(MainController.Instance.Target == null)
                                     MainController.Instance.Target = gameObject.GetComponent<ObjectModel>();
                             }
@@ -161,9 +144,14 @@ namespace Mmogick
                             {
                                 PlayerController.Player.Forward = new Vector3(pos.x, pos.y, PlayerController.Player.Forward.z);
 
-                                // именно то в каком положении наш персонаж
                                 response.x = Math.Round(pos.x, PlayerController.position_precision);
                                 response.y = Math.Round(pos.y, PlayerController.position_precision);
+                            }
+                            else
+                            {
+                                // без цели и без направления — стреляем по forward игрока
+                                response.x = Math.Round(PlayerController.Player.Forward.x, PlayerController.position_precision);
+                                response.y = Math.Round(PlayerController.Player.Forward.y, PlayerController.position_precision);
                             }
 
                             response.Send();

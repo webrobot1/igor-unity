@@ -1,11 +1,11 @@
 namespace Mmogick
 {
     /// <summary>
-    /// Структура отправляемых данных
+    /// Ближняя атака (рукопашная)
     /// </summary>
-    public class AttackResponse : Response
+    public class MeleeResponse : Response
     {
-        public const string GROUP = "fight/attack";
+        public const string GROUP = "fight/melee";
 
         public override string group
         {
@@ -16,8 +16,6 @@ namespace Mmogick
         public double? y;
         public double? z;
 
-
         public string target;
-        public string magic;
     }
 }
