@@ -127,14 +127,14 @@ namespace Mmogick
                 if (recive.events != null)
                 {
                     // fight/attack — нотификатор цели атаки (добавляется bolt/melee при попадании)
-                    string attackGroup = recive.events.ContainsKey("fight/attack") ? "fight/attack" : null;
+                    string group = recive.events.ContainsKey("status/hurt") ? "status/hurt" : null;
 
                     if (key == player_key)
                     {
-                        if (attackGroup != null)
+                        if (group != null)
                         {
                             // если с сервера пришло что мы кого то атакуем — переключить цель
-                            string attacker = player.getEventData<AttackDataRecive>(attackGroup).target;
+                            string attacker = player.getEventData<HurtDataRecive>(group).from;
 
                             if (attacker != null)
                             {
@@ -151,18 +151,6 @@ namespace Mmogick
                                 else
                                     player.LogError("Цель " + attacker + " не найдена на сцене");
                             }
-                        }
-                    }
-                    else if (attackGroup != null)
-                    {
-                        // если существо атакует игрока — установим его как цель
-                        if (
-                            CanBeTarget(model)
-                                &&
-                            model.getEventData<AttackDataRecive>(attackGroup).target == player.key)
-                        {
-                            Target = model;
-                            player.LogWarning("Сущность " + key + " атакует нас, установим ее как цель");
                         }
                     }
                 }
