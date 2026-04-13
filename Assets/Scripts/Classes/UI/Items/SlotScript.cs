@@ -12,7 +12,6 @@ namespace Mmogick
 
         private Item _item;
         private int _slotNum;
-        private int _count;
         private Dictionary<string, string> _components;
 
         public int SlotNum
@@ -26,20 +25,15 @@ namespace Mmogick
             get { return _item; }
         }
 
-        public int Count
-        {
-            get { return _count; }
-        }
-
         public Dictionary<string, string> Components
         {
             get { return _components; }
         }
 
-        public void SetItem(Item item, int count)
+        public void SetItem(Item item, int count, Dictionary<string, string> components = null)
         {
             _item = item;
-            _count = count;
+            _components = components;
 
             if (item != null)
             {
@@ -53,25 +47,17 @@ namespace Mmogick
             }
         }
 
-        public void SetComponents(Dictionary<string, string> components)
-        {
-            _components = components;
-        }
-
         public void Clear()
         {
             _item = null;
-            _count = 0;
             _components = null;
             _icon.sprite = null;
             _icon.color = new Color(1, 1, 1, 0);
             _stackText.text = "";
-
         }
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
-            // Только подбор — если рука пустая и слот не пустой
             if (CursorController.MyMoveable == null && _item != null)
                 CursorController.TakeMoveable(_item);
         }

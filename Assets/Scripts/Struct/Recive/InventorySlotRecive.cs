@@ -7,15 +7,13 @@ namespace Mmogick
 	{
 		public string id;
 		public int count;
-		public Dictionary<string, string> components = new Dictionary<string, string>();
+		public Dictionary<string, string> components;
 
 		public InventorySlotRecive(string id, int count, Dictionary<string, string> components = null)
 		{
 			this.id = id;
 			this.count = count;
-
-			if(components != null)
-				this.components = components;
+			this.components = components;
 		}
 	}
 }

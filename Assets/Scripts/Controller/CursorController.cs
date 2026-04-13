@@ -113,17 +113,23 @@ namespace Mmogick
 
                 if (MyMoveable != null)
                 {
+                    var held = MyMoveable;
+
                     if (player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
                     {
-                        MyMoveable.Use((Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerController.Player.transform.position).normalized, gameObject);
+                        held.Use((Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerController.Player.transform.position).normalized, gameObject);
                     }
 
-                    // не закрывать меню если дроп на слот инвентаря (сортировка внутри открытого инвентаря)
-                    bool droppedOnInventorySlot = gameObject != null && gameObject.GetComponentInParent<SlotScript>() != null;
-                    MyMoveable = null;
-                    if (!droppedOnInventorySlot)
-                        CloseAllMenu();
-                    cursor.color = new Color(0, 0, 0, 0);
+                    // если Use() установил новый moveable (chain-swap) — не сбрасывать
+                    if (MyMoveable == held)
+                    {
+                        MyMoveable = null;
+                        cursor.color = new Color(0, 0, 0, 0);
+
+                        bool droppedOnInventorySlot = gameObject != null && gameObject.GetComponentInParent<SlotScript>() != null;
+                        if (!droppedOnInventorySlot)
+                            CloseAllMenu();
+                    }
                 }
                 else
                 {

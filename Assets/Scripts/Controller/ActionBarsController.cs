@@ -136,14 +136,17 @@ namespace Mmogick
                                     player.Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
                                 break;
                                 case "item":
-                                    if (!Items.ContainsKey(action.Value.id))
+                                    int slotNum = int.Parse(action.Value.id);
+                                    Item item = GetItemBySlot(slotNum);
+                                    if (item != null)
                                     {
-                                        Error("не найден предмет " + action.Value.id + " установленный на быструю клавишу " + action.Key);
-                                        return null;
+                                        _actionBars[action.Key - 1].Item = item;
+                                        player.Log("Быстрая клавиша " + action.Key + ": обновили данные предметом из слота " + slotNum);
                                     }
-                                    _actionBars[action.Key - 1].Item = Items[action.Value.id];
-
-                                    player.Log("Быстрая клавиша " + action.Key + ": обновили данные предметом с сервера " + action.Value.id);
+                                    else
+                                    {
+                                        _actionBars[action.Key - 1].Item = null;
+                                    }
                                 break;
                                 default:
                                     Error("Неизвестный тип быстрой клавиши '" + action.Value.type + "' под номером " + action.Key);
