@@ -54,6 +54,11 @@ namespace Mmogick
         /// </summary>
         public virtual (float fillAmount, float remainSeconds) GetCooldownProgress() { return (0f, 0f); }
 
+        /// <summary>
+        /// Стоимость маны объекта (заклинание и т.д.). 0 = нет стоимости.
+        /// </summary>
+        public virtual int ManaCost { get { return 0; } set { } }
+
         void IPointerEnterHandler.OnPointerEnter(PointerEventData eventData)
         {
             if (tooltip == null) return;

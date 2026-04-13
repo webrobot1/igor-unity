@@ -48,7 +48,7 @@ namespace Mmogick
                     _image.color = _item.Image.color;
                     _image.raycastTarget = _item.Image.raycastTarget;
 
-                    // Cooldown overlay
+                    // Cooldown overlay + mana cost
                     if (_cooldownOverlay != null)
                     {
                         var (fill, remain) = _item.GetCooldownProgress();
@@ -59,14 +59,29 @@ namespace Mmogick
                             _image.raycastTarget = false;
 
                             if (_cooldownText != null)
+                            {
                                 _cooldownText.text = remain.ToString("F2");
+                                _cooldownText.color = Color.white;
+                            }
                         }
                         else
                         {
                             _cooldownOverlay.fillAmount = 0;
                             _cooldownOverlay.enabled = false;
+
                             if (_cooldownText != null)
-                                _cooldownText.text = "";
+                            {
+                                int manaCost = _item.ManaCost;
+                                if (manaCost > 0 && PlayerController.Player.mp < manaCost)
+                                {
+                                    _cooldownText.text = manaCost.ToString();
+                                    _cooldownText.color = new Color(0.3f, 0.5f, 1f);
+                                }
+                                else
+                                {
+                                    _cooldownText.text = "";
+                                }
+                            }
                         }
                     }
                 }

@@ -18,10 +18,16 @@ namespace Mmogick
         public string group;
         public Text description;
 
-        public Text mp;
+        [SerializeField] private Text mp;
         public Text remain;
 
         private string _magic;
+
+        public override int ManaCost
+        {
+            get { return int.Parse(mp.text); }
+            set { mp.text = value.ToString(); }
+        }
 
         public string Magic
         {
@@ -61,8 +67,10 @@ namespace Mmogick
 
         public override string GetTooltipText()
         {
-            return title.text + "\n" + description.text + "\nMana: " + mp.text;
+            return title.text + "\n" + description.text + "\nMana: " + ManaCost;
         }
+
+
 
         public override bool IsOnCooldown()
         {
@@ -84,7 +92,7 @@ namespace Mmogick
             if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
             {
                 bool onCooldown = IsOnCooldown();
-                bool unavailable = PlayerController.Player.hp <= 0 || Int32.Parse(mp.text) > PlayerController.Player.mp;
+                bool unavailable = PlayerController.Player.hp <= 0 || ManaCost > PlayerController.Player.mp;
 
                 remain.text = onCooldown ? PlayerController.Player.GetEventRemain(group) + " сек." : "0 сек.";
                 image.color = new Color(image.color.r, image.color.g, image.color.b, unavailable ? 0.5f : 1f);
@@ -94,7 +102,7 @@ namespace Mmogick
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
-            if (Int32.Parse(mp.text) <= PlayerController.Player.mp && PlayerController.Player.GetEventRemain(group)<=0)
+            if (ManaCost <= PlayerController.Player.mp && PlayerController.Player.GetEventRemain(group)<=0)
             {
                 CursorController.TakeMoveable(this);
             }
@@ -121,7 +129,7 @@ namespace Mmogick
             }
             else
             {
-                if(Int32.Parse(mp.text) <= PlayerController.Player.mp)
+                if(ManaCost <= PlayerController.Player.mp)
                 {
                     Debug.Log("Используем заклинание "+ Magic);
                     switch (group)

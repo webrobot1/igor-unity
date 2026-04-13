@@ -82,7 +82,7 @@ namespace Mmogick
 
                     prefab.title.text = spell.Value.name;
                     prefab.description.text = spell.Value.description;
-                    prefab.mp.text = spell.Value.mp.ToString();
+                    prefab.ManaCost = spell.Value.mp;
 
                     _spells.Add(spell.Key, prefab);
                 }
