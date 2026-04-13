@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Mmogick
 {
-    abstract public class ActionBarsController : SpellBookController
+    abstract public class ActionBarsController : InventoryController
     {
         [Header("Для работы с меню быстрого доступа")]
 
@@ -92,14 +92,13 @@ namespace Mmogick
                 _mobileActionBars[i].SetTooltip(tooltip);
                 _actionBars[mainSlots + i] = _mobileActionBars[i];
             }
-
         }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
             {
-                Dictionary<int, ActionBarsRecive> actionbars = ((PlayerRecive)recive).components.actionbars;
+                Dictionary<int, ActionBarsRecive?> actionbars = ((PlayerRecive)recive).components.actionbars;
                 if (actionbars != null)
                 {
                     if (_actionBars == null)
@@ -107,31 +106,49 @@ namespace Mmogick
 
                     foreach (var action in actionbars)
                     {
-                        if (action.Key == 0 || action.Key > _actionBars.Length)
+                        if (action.Key < 1 || action.Key > _actionBars.Length)
                         {
                             Error("Пришел номер быстрый клавиши " + action.Key + " однако настроено в клиентской части лишь " + _actionBars.Length);
                             return null;
                         }
 
-                        switch (action.Value.type)
+                        var barSlot = _actionBars[action.Key - 1];
+
+                        if(action.Value == null)
+                            barSlot.Item = null;
+
+                        else
                         {
-                            case "":
-                                _actionBars[action.Key - 1].Item = null;
-                            break;
-                            case "spell":
-                                if (!Spells.ContainsKey(action.Value.id))
-                                {
-                                    Error("не найдено заклинание " + action.Value.id + " установленное на быструю клавишу " + action.Key);
-                                    return null;
-                                }
+                            switch (action.Value.type)
+                            {
+                                case "":
+                                    _actionBars[action.Key - 1].Item = null;
+                                break;
+                                case "spell":
+                                    if (!Spells.ContainsKey(action.Value.id))
+                                    {
+                                        Error("не найдено заклинание " + action.Value.id + " установленное на быструю клавишу " + action.Key);
+                                        return null;
+                                    }
 
-                                _actionBars[action.Key - 1].Item = Spells[action.Value.id];
+                                    _actionBars[action.Key - 1].Item = Spells[action.Value.id];
 
-                                player.Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
-                            break;
-                            default:
-                                Error("Неизвестный тип быстрой клавиши '" + action.Value.type + "' под номером " + action.Key);
-                            return null;
+                                    player.Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
+                                break;
+                                case "item":
+                                    if (!Items.ContainsKey(action.Value.id))
+                                    {
+                                        Error("не найден предмет " + action.Value.id + " установленный на быструю клавишу " + action.Key);
+                                        return null;
+                                    }
+                                    _actionBars[action.Key - 1].Item = Items[action.Value.id];
+
+                                    player.Log("Быстрая клавиша " + action.Key + ": обновили данные предметом с сервера " + action.Value.id);
+                                break;
+                                default:
+                                    Error("Неизвестный тип быстрой клавиши '" + action.Value.type + "' под номером " + action.Key);
+                                return null;
+                            }
                         }
                     }
                 }

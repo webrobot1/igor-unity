@@ -29,7 +29,13 @@ namespace Mmogick
         /// книга заклинаний
         /// </summary>
         [SerializeField]
-        protected CanvasGroup settingGroup;        
+        protected CanvasGroup settingGroup;
+
+        /// <summary>
+        /// инвентарь
+        /// </summary>
+        [SerializeField]
+        protected CanvasGroup inventoryGroup;
 
         protected override void Awake()
         {
@@ -42,6 +48,12 @@ namespace Mmogick
             if (settingGroup == null)
             {
                 Error("не указана CanvasGroup настроек");
+                return;
+            }
+
+            if (inventoryGroup == null)
+            {
+                Error("не указана CanvasGroup инвентаря");
                 return;
             }
 
@@ -70,6 +82,11 @@ namespace Mmogick
                 OpenClose(spellGroup);
             }            
             
+            if (Input.GetKeyDown(KeyCode.I))
+            {
+                OpenClose(inventoryGroup);
+            }
+
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 OpenClose(settingGroup);

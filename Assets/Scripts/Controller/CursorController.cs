@@ -118,8 +118,11 @@ namespace Mmogick
                         MyMoveable.Use((Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerController.Player.transform.position).normalized, gameObject);
                     }
 
-                    MyMoveable = null; 
-                    CloseAllMenu();
+                    // не закрывать меню если дроп на слот инвентаря (сортировка внутри открытого инвентаря)
+                    bool droppedOnInventorySlot = gameObject != null && gameObject.GetComponentInParent<SlotScript>() != null;
+                    MyMoveable = null;
+                    if (!droppedOnInventorySlot)
+                        CloseAllMenu();
                     cursor.color = new Color(0, 0, 0, 0);
                 }
                 else

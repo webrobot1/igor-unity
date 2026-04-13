@@ -46,7 +46,7 @@ namespace Mmogick
                 {
                     _image.sprite = _item.Image.sprite;
                     _image.color = _item.Image.color;
-                    _image.raycastTarget = _item.Image.raycastTarget;
+                    _image.raycastTarget = true;
 
                     // Cooldown overlay + mana cost
                     if (_cooldownOverlay != null)
@@ -56,8 +56,6 @@ namespace Mmogick
                         {
                             _cooldownOverlay.fillAmount = fill;
                             _cooldownOverlay.enabled = true;
-                            _image.raycastTarget = false;
-
                             if (_cooldownText != null)
                             {
                                 _cooldownText.text = remain.ToString("F2");

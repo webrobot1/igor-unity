@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 
+#nullable enable
+
 namespace Mmogick
 {
 	/// <summary>
@@ -8,8 +10,9 @@ namespace Mmogick
 	[System.Serializable]
 	public class PlayerComponentsRecive: EnemyComponentsRecive
 	{
-		public Dictionary<string, string> settings = null;
-		public Dictionary<string, bool> spellBook = null;
-		public Dictionary<int, ActionBarsRecive> actionbars = null;
+		public Dictionary<string, string>? settings = null;
+		public Dictionary<string, bool>? spellBook = null;
+		public Dictionary<int, ActionBarsRecive?>? actionbars = null;
+		public Dictionary<int, InventorySlotRecive>? inventory = null;
 	}
 }

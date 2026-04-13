@@ -96,7 +96,7 @@ namespace Mmogick
 
                 remain.text = onCooldown ? PlayerController.Player.GetEventRemain(group) + " сек." : "0 сек.";
                 image.color = new Color(image.color.r, image.color.g, image.color.b, unavailable ? 0.5f : 1f);
-                image.raycastTarget = !onCooldown && !unavailable;
+                image.raycastTarget = true;
             } 
         }
 

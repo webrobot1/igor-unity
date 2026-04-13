@@ -7,7 +7,7 @@ namespace Mmogick
     /// </summary>
     public class ActionBarsResponse : Response
     {
-        public Dictionary<int, ActionBarsRecive> actionbars = new Dictionary<int, ActionBarsRecive>();
+        public Dictionary<int, ActionBarsRecive?> actionbars = new Dictionary<int, ActionBarsRecive?>();
 
         public override string group
         {
