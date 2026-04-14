@@ -128,6 +128,14 @@ namespace Mmogick
 					SceneManager.UnloadScene("RegisterScene");
 				}
 
+				// Content-addressable кеш тайлов: архив графики + мета (If-Modified-Since) ДО входа в игру
+				string syncError = null;
+				yield return TileCacheService.SyncAll(data.host, GAME_ID, data.token, err => syncError = err);
+				if (syncError != null)
+				{
+					Error(syncError);
+					yield break;
+				}
 				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)
 				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
 

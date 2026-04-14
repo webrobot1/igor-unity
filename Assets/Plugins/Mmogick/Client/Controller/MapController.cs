@@ -123,7 +123,7 @@ namespace Mmogick
 										grid.gameObject.AddComponent<Grid>();
 										grid.SetParent(mapObject.transform, false);
 
-										_maps.Add(side.Key, MapDecodeModel.generate(patcher.result, grid));
+										_maps.Add(side.Key, MapDecodeModel.generate(patcher.result, grid, GAME_ID));
 										SortMap();
 									}
 								}

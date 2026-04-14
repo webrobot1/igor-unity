@@ -8,7 +8,7 @@ namespace Mmogick
 	[System.Serializable]
 	public class TilesetTileAnimation
 	{
-		public int tileid;
+		public string tileid;
 		public int duration;
 		public Sprite sprite;
 	}

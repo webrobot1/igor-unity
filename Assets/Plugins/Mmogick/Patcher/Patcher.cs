@@ -56,10 +56,15 @@ namespace Mmogick
 
 		public static IEnumerator GetMap(string server, int game_id, string token, int map_id, int updated, System.Action<Patcher> callback)
 		{
-			string url = "http://" + server + "/maps2d/patch/get_map/" + map_id + "/" + token;
+			string url = "http://" + server + "/maps2d/client/map/" + map_id + "/" + token;
 			Patcher patcher = new Patcher(Path.Combine("Maps", game_id.ToString(), map_id.ToString()), url);
-			
-			yield return patcher.get(updated);
+
+			// Кеш карты ведёт TileCacheService (If-Modified-Since, persistentDataPath/games/{gameId}/maps).
+			yield return TileCacheService.GetMap(server, game_id, map_id, token, (string json, string error) =>
+			{
+				patcher.result = json;
+				patcher.error  = error;
+			});
 
 			callback(patcher);
 			yield break;
@@ -113,7 +118,7 @@ namespace Mmogick
 					}
 					catch (Exception ex)
 					{
-						error = "Патчер: Ошибка раскодирования ответа с сервера" + url + ": " + ex;
+						error = "Патчер: Ошибка раскодирования ответа с сервера " + url + ": " + ex;
 					}
 				}
 				else
