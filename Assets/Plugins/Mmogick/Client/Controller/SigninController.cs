@@ -136,6 +136,15 @@ namespace Mmogick
 					Error(syncError);
 					yield break;
 				}
+
+				// Аналогично для анимаций: ZIP картинок (sha256.ext) + per-game library overrides
+				yield return AnimationCacheService.SyncAll(data.host, GAME_ID, data.token, err => syncError = err);
+				if (syncError != null)
+				{
+					Error(syncError);
+					yield break;
+				}
+
 				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)
 				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
 

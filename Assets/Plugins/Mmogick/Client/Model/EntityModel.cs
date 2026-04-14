@@ -107,11 +107,23 @@ namespace Mmogick
                 else
                 {
 					action = recive.action;
-					SpriterDotNetBehaviour animator = FindObjectOfType<SpriterDotNetBehaviour>();
-					if (animator != null) // && animator.Animator.HasAnimation(action)
+					// Берём аниматор именно этой сущности, а не первый найденный в сцене
+					SpriterDotNetBehaviour animator = GetComponent<SpriterDotNetBehaviour>();
+					if (animator != null && animator.Animator != null)
 					{
-						Debug.Log("Анимация");
-						animator.Animator.Play("Running");
+						if (animator.Animator.HasAnimation(action))
+						{
+							animator.Animator.Play(action);
+							// Per-game speed override из GameAnimation.intervalOverride (по имени prefab).
+							// interval_override < 100 (значение по умолчанию AnimationClip.interval) = быстрее.
+							var ov = AnimationCacheService.GetLibraryOverrideByName(prefab);
+							if (ov?.interval_override != null && ov.interval_override.Value > 0)
+								animator.Animator.Speed = 100f / ov.interval_override.Value;
+							else
+								animator.Animator.Speed = 1.0f;
+						}
+						else
+							LogWarning("Анимация: action '" + action + "' не найден в SCML");
 					}
 				}
 			}

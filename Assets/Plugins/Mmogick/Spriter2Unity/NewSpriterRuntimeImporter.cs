@@ -25,7 +25,7 @@ namespace Mmogick
 
         private static readonly string ObjectNameSprites = "Sprites";
         private static readonly string ObjectNameMetadata = "Metadata";
-        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName)
+        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, int gameId)
         {
             GameObject go = GameObject.Find(entityName);
             if (go == null)
@@ -42,7 +42,7 @@ namespace Mmogick
             }
 
             SpriterDotNetBehaviour behaviour = go.AddComponent<SpriterDotNetBehaviour>();
-            SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, entityName, behaviour);
+            SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, entityName, behaviour, gameId);
 
             GameObject sprites = new GameObject(ObjectNameSprites);
             GameObject metadata = new GameObject(ObjectNameMetadata);
@@ -66,7 +66,7 @@ namespace Mmogick
             return behaviour;
         }
 
-        private static SpriterEntity FetchOrCacheSpriterEntityDataFromFile(SpriterPacket packet, string entityName, SpriterDotNetBehaviour spriterDotNetBehaviour)
+        private static SpriterEntity FetchOrCacheSpriterEntityDataFromFile(SpriterPacket packet, string entityName, SpriterDotNetBehaviour spriterDotNetBehaviour, int gameId)
         {
             if (SpriterEntityDatas.TryGetValue(entityName, out SpriterEntityData cachedEntityData))
             {
@@ -83,7 +83,7 @@ namespace Mmogick
 
             SpriterData spriterData = ScriptableObject.CreateInstance<SpriterData>();
             spriterData.Spriter = spriter;
-            spriterData.FileEntries = LoadAssets(packet.files).ToArray();
+            spriterData.FileEntries = LoadAssets(packet.files, gameId).ToArray();
 
             SpriterEntityData entityData = new SpriterEntityData(entity, spriterData);
             SpriterEntityDatas[entity.Name] = entityData;
@@ -93,7 +93,7 @@ namespace Mmogick
             return entity;
         }
 
-        private static IEnumerable<SdnFileEntry> LoadAssets(SpriterFile[] files)
+        private static IEnumerable<SdnFileEntry> LoadAssets(SpriterFile[] files, int gameId)
         {
             foreach (SpriterFile file in files)
             {
@@ -102,10 +102,10 @@ namespace Mmogick
                     FolderId = file.folder_id,
                     FileId = file.id,
                 };
-                entry.Sprite = file.Sprite;
+                entry.Sprite = file.GetSprite(gameId);
 
                 yield return entry;
             }
-        }   
+        }
     }
 }

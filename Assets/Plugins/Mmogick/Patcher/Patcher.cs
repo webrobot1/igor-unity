@@ -19,6 +19,10 @@ namespace Mmogick
 		public string path;
 		public string url;
 
+		// Заполняется AnimationCacheService.GetStructure через Patcher.GetAnimation.
+		// Содержит SCML XML + sha256-список картинок (грузятся из локального кеша).
+		public SpriterPacket spriterPacket;
+
 		[DllImport("__Internal")]
 		private static extern void JsSync();
 
@@ -38,21 +42,19 @@ namespace Mmogick
 			this.url = url;
         }
 
+		// Скачивает SCML+sha256-маппинг с /animations2d/patch/structure (с ETag-кешированием).
+		// Картинки берутся из локального кеша AnimationCacheService (см. SyncImagesArchive).
 		public static IEnumerator GetAnimation(string server, int game_id, string token, string prefab, System.Action<Patcher> callback)
-        {
-			// TODO: endpoint /animations2d/patch/get/ не реализован на сервере
-			yield break;
-
-			/*
-			string url = "http://" + server + "/animations2d/patch/get/?prefab=" + prefab + "&token=" + token;
-			Patcher patcher = new Patcher(Path.Combine("Animations", game_id.ToString(), prefab), url);
-
-			yield return patcher.get(0);
-
+		{
+			Patcher patcher = new Patcher(Path.Combine("Animations", game_id.ToString(), prefab), "");
+			yield return AnimationCacheService.GetStructure(server, game_id, prefab, token, (xml, files, error) =>
+			{
+				patcher.error = error;
+				if (error == null)
+					patcher.spriterPacket = new SpriterPacket { xml = xml, files = files };
+			});
 			callback(patcher);
-			yield break;
-			*/
-		} 
+		}
 
 		public static IEnumerator GetMap(string server, int game_id, string token, int map_id, int updated, System.Action<Patcher> callback)
 		{
