@@ -12,8 +12,8 @@ using UnityEngine.Networking;
 namespace Mmogick
 {
 	// Content-addressable кеш анимаций игры. Работает с 3 endpoint'ами сервера:
-	//   GET /animations2d/patch/structure/{prefab}/{token} — SCML XML + sha256-маппинг (If-None-Match/ETag)
-	//   GET /animations2d/patch/images/{gameId}/{token}    — ZIP всех картинок игры (If-Modified-Since)
+	//   GET /animations2d/patch/structure/{gameId}/{prefab}/{token} — SCML XML + sha256-маппинг (If-None-Match/ETag)
+	//   GET /animations2d/patch/images/{gameId}/{token}             — ZIP всех картинок игры (If-Modified-Since)
 	//   GET /animations2d/patch/library/{gameId}/{token}?since=<ts> — diff per-game overrides
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/animations/
@@ -244,7 +244,7 @@ namespace Mmogick
 			string structFile = Path.Combine(StructPath(gameId), prefab + ".json");
 			_manifest.prefab_etags.TryGetValue(prefab, out string etag);
 
-			string url = "http://" + host + "/animations2d/patch/structure/" + prefab + "/" + token;
+			string url = "http://" + host + "/animations2d/patch/structure/" + gameId + "/" + prefab + "/" + token;
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(etag))
 				req.SetRequestHeader("If-None-Match", etag);
