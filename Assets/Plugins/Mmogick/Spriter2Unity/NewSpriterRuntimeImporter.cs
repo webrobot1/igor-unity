@@ -83,7 +83,7 @@ namespace Mmogick
 
             SpriterData spriterData = ScriptableObject.CreateInstance<SpriterData>();
             spriterData.Spriter = spriter;
-            spriterData.FileEntries = LoadAssets(packet.files, gameId).ToArray();
+            spriterData.FileEntries = LoadAssets(spriter, packet.files, gameId).ToArray();
 
             SpriterEntityData entityData = new SpriterEntityData(entity, spriterData);
             SpriterEntityDatas[entity.Name] = entityData;
@@ -93,18 +93,20 @@ namespace Mmogick
             return entity;
         }
 
-        private static IEnumerable<SdnFileEntry> LoadAssets(SpriterFile[] files, int gameId)
+        private static IEnumerable<SdnFileEntry> LoadAssets(Spriter spriter, Dictionary<int, string> files, int gameId)
         {
-            foreach (SpriterFile file in files)
+            foreach (SpriterFolder folder in spriter.Folders)
             {
-                SdnFileEntry entry = new SdnFileEntry
+                foreach (SpriterFile file in folder.Files)
                 {
-                    FolderId = file.folder_id,
-                    FileId = file.id,
-                };
-                entry.Sprite = file.GetSprite(gameId);
-
-                yield return entry;
+                    files.TryGetValue(file.Id, out string fileName);
+                    yield return new SdnFileEntry
+                    {
+                        FolderId = folder.Id,
+                        FileId   = file.Id,
+                        Sprite   = AnimationCacheService.GetSprite(gameId, fileName),
+                    };
+                }
             }
         }
     }

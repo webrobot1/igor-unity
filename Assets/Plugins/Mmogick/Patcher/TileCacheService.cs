@@ -174,6 +174,7 @@ namespace Mmogick
 
 			if (req.responseCode == 304)
 			{
+				Debug.Log("TileCache: архив тайлов актуален (кеш)");
 				req.Dispose();
 				yield break;
 			}
@@ -188,6 +189,7 @@ namespace Mmogick
 			byte[] zipBytes = req.downloadHandler.data;
 			req.Dispose();
 
+			int extractedCount = 0;
 			try
 			{
 				string tilesDir = TilesPath(gameId);
@@ -204,6 +206,7 @@ namespace Mmogick
 						{
 							src.CopyTo(dst);
 						}
+						extractedCount++;
 					}
 				}
 			}
@@ -213,6 +216,7 @@ namespace Mmogick
 				yield break;
 			}
 
+			Debug.Log("TileCache: архив тайлов обновлён, распаковано " + extractedCount + " файлов");
 			_manifest.archive_last_modified = lastMod;
 			SaveManifest(gameId);
 			_spriteCache.Clear(); // новые PNG могли появиться — сбросим кеш спрайтов
@@ -247,10 +251,12 @@ namespace Mmogick
 			try { resp = JsonConvert.DeserializeObject<MetaResponse>(text); }
 			catch (Exception ex) { onError?.Invoke("TileCache meta parse: " + ex.Message); yield break; }
 
+			int metaCount = 0;
 			if (resp.meta != null)
 			{
-				foreach (var kv in resp.meta) _meta[kv.Key] = kv.Value;
+				foreach (var kv in resp.meta) { _meta[kv.Key] = kv.Value; metaCount++; }
 			}
+			Debug.Log("TileCache: мета обновлена, получено " + metaCount + " записей");
 			_manifest.last_meta_updated = resp.now;
 			SaveManifest(gameId);
 			SaveMeta(gameId);
@@ -272,6 +278,7 @@ namespace Mmogick
 
 			if (req.responseCode == 304 && File.Exists(mapFile))
 			{
+				Debug.Log("TileCache: карта " + mapId + " из кеша");
 				callback(File.ReadAllText(mapFile), null);
 				req.Dispose();
 				yield break;
@@ -297,6 +304,7 @@ namespace Mmogick
 				JsSync();
 			#endif
 
+			Debug.Log("TileCache: карта " + mapId + " скачана с сервера");
 			callback(json, null);
 		}
 
@@ -308,8 +316,7 @@ namespace Mmogick
 			string path = Path.Combine(TilesPath(gameId), sha256 + ".png");
 			if (!File.Exists(path))
 			{
-				Debug.LogError("TileCache: отсутствует графика тайла " + sha256 + " (архив устарел?)");
-				return null;
+				throw new Exception("TileCache: отсутствует графика тайла " + sha256 + " (архив устарел?)");
 			}
 
 			byte[] bytes = File.ReadAllBytes(path);
@@ -318,6 +325,7 @@ namespace Mmogick
 			tex.filterMode = FilterMode.Point;
 			s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), tex.width, 0, SpriteMeshType.FullRect);
 			_spriteCache[sha256] = s;
+			Debug.Log("TileCache: спрайт " + sha256 + " загружен с диска");
 			return s;
 		}
 

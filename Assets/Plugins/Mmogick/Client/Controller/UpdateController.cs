@@ -203,9 +203,12 @@ namespace Mmogick
 
 			try
 			{
-				if (recive.prefab != null && model.prefab != recive.prefab)
+				// SCML-анимация цепляется только если такой Prefab есть в серверном списке (AnimationCacheService._library).
+				// Имя Prefab глобально уникально в пределах игры — совпадает с именем Unity-prefab в Resources/Prefabs/{type}/.
+				if (recive.prefab != null && model.prefab != recive.prefab
+					&& AnimationCacheService.HasPrefab(recive.prefab))
 				{
-					StartCoroutine(Patcher.GetAnimation(SERVER, GAME_ID, player_token, recive.prefab, (Patcher patcher) =>
+					StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, recive.prefab, (AnimationPatcher patcher) =>
 					{
 						if (patcher.error != null)
 						{

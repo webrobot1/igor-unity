@@ -12,9 +12,9 @@ using UnityEngine.Networking;
 namespace Mmogick
 {
 	// Content-addressable кеш анимаций игры. Работает с 3 endpoint'ами сервера:
-	//   GET /animations2d/patch/structure/{gameId}/{prefab}/{token} — SCML XML + sha256-маппинг (If-None-Match/ETag)
-	//   GET /animations2d/patch/images/{gameId}/{token}             — ZIP всех картинок игры (If-Modified-Since)
-	//   GET /animations2d/patch/library/{gameId}/{token}?since=<ts> — diff per-game overrides
+	//   GET /animation/patch/{gameId}/{token}/structure/{prefab} — SCML XML + sha256-маппинг (If-None-Match/ETag)
+	//   GET /animation/patch/{gameId}/{token}/images             — ZIP всех картинок игры (If-Modified-Since)
+	//   GET /animation/patch/{gameId}/{token}/library?since=<ts> — список Prefab игры
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/animations/
 	//   images/{sha256}.{ext}     — распакованные из ZIP /images
@@ -32,7 +32,7 @@ namespace Mmogick
 		private const string STRUCT_DIR    = "structures";
 
 		private static SyncManifest _manifest;
-		private static Dictionary<int, LibraryItem> _library;
+		private static Dictionary<string, int> _library;  // prefab.name → updated (unix-timestamp)
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
 		[Serializable]
@@ -44,26 +44,17 @@ namespace Mmogick
 		}
 
 		[Serializable]
-		public class LibraryItem
-		{
-			public int    animation_id;
-			public string name;
-			public int?   interval_override;
-			public int    updated;
-		}
-
-		[Serializable]
 		private class LibraryResponse
 		{
-			public LibraryItem[] items;
-			public int           now;
+			public Dictionary<string, int> items;
+			public int                     now;
 		}
 
 		[Serializable]
 		private class StructurePayload
 		{
-			public string       xml;
-			public SpriterFile[] files;
+			public string                  xml;
+			public Dictionary<int, string> files;  // file_id → "sha256.ext"
 		}
 
 		[Serializable]
@@ -106,8 +97,8 @@ namespace Mmogick
 			{
 				string lp = LibraryPath(gameId);
 				_library = File.Exists(lp)
-					? JsonConvert.DeserializeObject<Dictionary<int, LibraryItem>>(File.ReadAllText(lp))
-					: new Dictionary<int, LibraryItem>();
+					? JsonConvert.DeserializeObject<Dictionary<string, int>>(File.ReadAllText(lp))
+					: new Dictionary<string, int>();
 			}
 			if (!Directory.Exists(ImagesPath(gameId))) Directory.CreateDirectory(ImagesPath(gameId));
 			if (!Directory.Exists(StructPath(gameId))) Directory.CreateDirectory(StructPath(gameId));
@@ -140,7 +131,7 @@ namespace Mmogick
 		// Архив: GET с If-Modified-Since. 304 → ничего. 200 → unzip в images/.
 		public static IEnumerator SyncImagesArchive(string host, int gameId, string token, Action<string> onError)
 		{
-			string url = "http://" + host + "/animations2d/patch/images/" + gameId + "/" + token;
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/images";
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(_manifest.archive_last_modified))
 				req.SetRequestHeader("If-Modified-Since", _manifest.archive_last_modified);
@@ -150,6 +141,7 @@ namespace Mmogick
 
 			if (req.responseCode == 304)
 			{
+				Debug.Log("AnimationCache: архив картинок актуален (кеш)");
 				req.Dispose();
 				yield break;
 			}
@@ -171,6 +163,7 @@ namespace Mmogick
 			byte[] zipBytes = req.downloadHandler.data;
 			req.Dispose();
 
+			int extractedCount = 0;
 			try
 			{
 				string imagesDir = ImagesPath(gameId);
@@ -186,6 +179,7 @@ namespace Mmogick
 						{
 							src.CopyTo(dst);
 						}
+						extractedCount++;
 					}
 				}
 			}
@@ -195,6 +189,7 @@ namespace Mmogick
 				yield break;
 			}
 
+			Debug.Log("AnimationCache: архив картинок обновлён, распаковано " + extractedCount + " файлов");
 			_manifest.archive_last_modified = lastMod;
 			SaveManifest(gameId);
 			_spriteCache.Clear(); // новые картинки могли появиться
@@ -206,7 +201,7 @@ namespace Mmogick
 		// Library: GET ?since=<library_since>. Ответ мержится в _library по animation_id.
 		public static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
-			string url = "http://" + host + "/animations2d/patch/library/" + gameId + "/" + token + "?since=" + _manifest.library_since;
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + _manifest.library_since;
 			UnityWebRequest req = UnityWebRequest.Get(url);
 
 			yield return req.SendWebRequest();
@@ -225,11 +220,16 @@ namespace Mmogick
 			try { resp = JsonConvert.DeserializeObject<LibraryResponse>(text); }
 			catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
 
+			int libCount = 0;
 			if (resp.items != null)
 			{
-				foreach (var item in resp.items)
-					_library[item.animation_id] = item;
+				foreach (var kv in resp.items)
+				{
+					_library[kv.Key] = kv.Value;
+					libCount++;
+				}
 			}
+			Debug.Log("AnimationCache: библиотека обновлена, получено " + libCount + " префабов");
 			_manifest.library_since = resp.now;
 			SaveManifest(gameId);
 			SaveLibrary(gameId);
@@ -238,13 +238,13 @@ namespace Mmogick
 		// Структура анимации: SCML XML + sha256-маппинг.
 		// If-None-Match → 304 = читаем из кеша. 200 → распаковываем base64+gzip, сохраняем, возвращаем.
 		public static IEnumerator GetStructure(string host, int gameId, string prefab, string token,
-			Action<string, SpriterFile[], string> callback)
+			Action<string, Dictionary<int, string>, string> callback)
 		{
 			EnsureLoaded(gameId);
 			string structFile = Path.Combine(StructPath(gameId), prefab + ".json");
 			_manifest.prefab_etags.TryGetValue(prefab, out string etag);
 
-			string url = "http://" + host + "/animations2d/patch/structure/" + gameId + "/" + prefab + "/" + token;
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/structure/" + prefab;
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(etag))
 				req.SetRequestHeader("If-None-Match", etag);
@@ -253,6 +253,7 @@ namespace Mmogick
 
 			if (req.responseCode == 304 && File.Exists(structFile))
 			{
+				Debug.Log("AnimationCache: структура " + prefab + " из кеша");
 				try
 				{
 					var cached = JsonConvert.DeserializeObject<StructurePayload>(File.ReadAllText(structFile));
@@ -308,20 +309,20 @@ namespace Mmogick
 				JsSync();
 			#endif
 
+			Debug.Log("AnimationCache: структура " + prefab + " скачана с сервера");
 			callback(payload.xml, payload.files, null);
 		}
 
-		// Sprite по sha256: грузится из локального кеша картинок, кешируется в памяти.
-		public static Sprite GetSprite(int gameId, string sha256, string ext)
+		// Sprite по имени файла ("sha256.ext"): грузится из локального кеша, кешируется в памяти.
+		public static Sprite GetSprite(int gameId, string fileName)
 		{
-			string key = sha256 + "." + ext;
-			if (_spriteCache.TryGetValue(key, out Sprite s)) return s;
+			if (string.IsNullOrEmpty(fileName)) return null;
+			if (_spriteCache.TryGetValue(fileName, out Sprite s)) return s;
 
-			string path = Path.Combine(ImagesPath(gameId), key);
+			string path = Path.Combine(ImagesPath(gameId), fileName);
 			if (!File.Exists(path))
 			{
-				Debug.LogError("AnimationCache: отсутствует картинка " + key + " (архив устарел?)");
-				return null;
+				throw new Exception("AnimationCache: отсутствует картинка " + fileName + " (архив устарел?)");
 			}
 
 			byte[] bytes = File.ReadAllBytes(path);
@@ -329,25 +330,17 @@ namespace Mmogick
 			tex.LoadImage(bytes);
 			tex.filterMode = FilterMode.Point;
 			s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), tex.width, 0, SpriteMeshType.FullRect);
-			_spriteCache[key] = s;
+			_spriteCache[fileName] = s;
+			Debug.Log("AnimationCache: спрайт " + fileName + " загружен с диска");
 			return s;
 		}
 
-		// Per-game override по animation_id (если клиент знает) или null.
-		public static LibraryItem GetLibraryOverride(int animationId)
-		{
-			if (_library == null) return null;
-			_library.TryGetValue(animationId, out LibraryItem item);
-			return item;
-		}
+		// Все имена префабов игры (из /prefabs). Используется для создания GameObject'ов по префабам.
+		public static IEnumerable<string> GetPrefabs()
+			=> _library != null ? _library.Keys : System.Linq.Enumerable.Empty<string>();
 
-		// Per-game override по имени prefab (admin-задаваемое имя в библиотеке игры) или null.
-		public static LibraryItem GetLibraryOverrideByName(string name)
-		{
-			if (_library == null) return null;
-			foreach (var kv in _library)
-				if (kv.Value.name == name) return kv.Value;
-			return null;
-		}
+		// true если Prefab с таким именем существует в серверном списке.
+		public static bool HasPrefab(string name)
+			=> _library != null && _library.ContainsKey(name);
 	}
 }
