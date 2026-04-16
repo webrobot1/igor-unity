@@ -17,7 +17,7 @@ namespace Mmogick
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/
 	//   tiles/{sha256}.png
-	//   meta.json    — { sha256: TileMeta } (только для тайлов у которых реально есть мета)
+	//   meta.json    — { sha256: Tile } (только для тайлов у которых реально есть мета)
 	//   sync.json    — { archive_last_modified, last_meta_updated, map_versions: {mapId: ts} }
 	public static class TileCacheService
 	{
@@ -30,7 +30,7 @@ namespace Mmogick
 		private const string MAPS_DIR = "maps";
 
 		private static SyncManifest _manifest;
-		private static Dictionary<string, TileMeta> _meta;
+		private static Dictionary<string, Tile> _meta;
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
 		[System.Serializable]
@@ -39,55 +39,6 @@ namespace Mmogick
 			public string archive_last_modified;
 			public string last_meta_updated;
 			public Dictionary<int, string> map_versions = new Dictionary<int, string>();
-		}
-
-		[System.Serializable]
-		public class TileMeta
-		{
-			public TileAnimation[] frame;
-			public TileObjectGroup[] objectgroup;
-			public TileProperty[] property;
-		}
-
-		[System.Serializable]
-		public class TileAnimation
-		{
-			public string tileid;
-			public int duration;
-		}
-
-		[System.Serializable]
-		public class TileObjectGroup
-		{
-			public string name;
-			public TileObject[] objects;
-			public TileProperty[] property;
-		}
-
-		[System.Serializable]
-		public class TileObject
-		{
-			public string name;
-			public string type;
-			public float x;
-			public float y;
-			public float width;
-			public float height;
-			public float rotation;
-			public bool ellipse;
-			public bool point;
-			public Point[] polygon;
-			public Point[] polyline;
-			public string sha256;
-		}
-
-		[System.Serializable]
-		public class TileProperty
-		{
-			public string name;
-			public string value;
-			public string type;
-			public string propertytype;
 		}
 
 
@@ -124,8 +75,8 @@ namespace Mmogick
 			{
 				string mp = MetaPath(gameId);
 				_meta = File.Exists(mp)
-					? JsonConvert.DeserializeObject<Dictionary<string, TileMeta>>(File.ReadAllText(mp))
-					: new Dictionary<string, TileMeta>();
+					? JsonConvert.DeserializeObject<Dictionary<string, Tile>>(File.ReadAllText(mp))
+					: new Dictionary<string, Tile>();
 			}
 			if (!Directory.Exists(TilesPath(gameId))) Directory.CreateDirectory(TilesPath(gameId));
 			if (!Directory.Exists(MapsPath(gameId))) Directory.CreateDirectory(MapsPath(gameId));
@@ -247,11 +198,11 @@ namespace Mmogick
 			string text = req.downloadHandler.text;
 			req.Dispose();
 
-			Dictionary<string, TileMeta> parsed;
-			try { parsed = JsonConvert.DeserializeObject<Dictionary<string, TileMeta>>(text); }
+			Dictionary<string, Tile> parsed;
+			try { parsed = JsonConvert.DeserializeObject<Dictionary<string, Tile>>(text); }
 			catch (Exception ex) { onError?.Invoke("TileCache meta parse: " + ex.Message); yield break; }
 
-			_meta = parsed ?? new Dictionary<string, TileMeta>();
+			_meta = parsed ?? new Dictionary<string, Tile>();
 			Debug.Log("TileCache: мета обновлена, получено " + _meta.Count + " записей");
 			_manifest.last_meta_updated = lastMod;
 			SaveManifest(gameId);
@@ -326,10 +277,10 @@ namespace Mmogick
 		}
 
 		// Мета по sha256 (или null если её нет).
-		public static TileMeta GetMeta(string sha256)
+		public static Tile GetMeta(string sha256)
 		{
 			if (_meta == null) return null;
-			_meta.TryGetValue(sha256, out TileMeta m);
+			_meta.TryGetValue(sha256, out Tile m);
 			return m;
 		}
 	}

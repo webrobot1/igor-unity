@@ -4,9 +4,12 @@ namespace Mmogick
 	/// отдельный тайл в палитре который может быть отдельынм спрайтом
 	/// </summary>
 	[System.Serializable]
-	public class Tile
+	public class TileAnimation
 	{
-		public LayerObject[] objects;
-		public TileAnimation[] frame;
+		public string sha256;
+		public int duration;
+
+		// заполняется в процесса персинга
+		public Sprite sprite;
 	}
 }
