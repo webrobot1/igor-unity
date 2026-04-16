@@ -11,9 +11,9 @@ using System.Runtime.InteropServices;
 namespace Mmogick
 {
 	// Content-addressable кеш тайлов игры. Работает с 3 endpoint'ами сервера:
-	//   GET  /maps2d/client/archive/{token}  — ZIP со всеми PNG графики (If-Modified-Since)
-	//   GET  /maps2d/client/map/{id}/{token} — terrain.json карты (If-Modified-Since)
-	//   POST /maps2d/client/meta/{token}     — батч меты (frame/objectgroup/property) с since
+	//   GET /map/patch/{game}/{token}/archive     — ZIP со всеми PNG графики (If-Modified-Since)
+	//   GET /map/patch/{game}/{token}/map/{mapId} — terrain.json карты (If-Modified-Since)
+	//   GET /map/patch/{game}/{token}/tile        — tile meta игры (If-Modified-Since)
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/
 	//   tiles/{sha256}.png
@@ -78,7 +78,7 @@ namespace Mmogick
 			public bool point;
 			public Point[] polygon;
 			public Point[] polyline;
-			public string tile_id;
+			public string sha256;
 		}
 
 		[System.Serializable]
@@ -90,12 +90,6 @@ namespace Mmogick
 			public string propertytype;
 		}
 
-		[System.Serializable]
-		private class MetaResponse
-		{
-			public string now;
-			public Dictionary<string, TileMeta> meta;
-		}
 
 		// Корень кеша для игры
 		private static string GamePath(int gameId)
@@ -164,7 +158,7 @@ namespace Mmogick
 		// Архив: GET с If-Modified-Since. 304 → ничего. 200 → unzip в tiles/.
 		public static IEnumerator SyncArchive(string host, int gameId, string token, Action<string> onError)
 		{
-			string url = "http://" + host + "/maps2d/client/archive/" + token;
+			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/archive";
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(_manifest.archive_last_modified))
 				req.SetRequestHeader("If-Modified-Since", _manifest.archive_last_modified);
@@ -225,18 +219,23 @@ namespace Mmogick
 			#endif
 		}
 
-		// Мета: POST с { since }. Ответ мержится в _meta (перезапись по sha256).
+		// Tile meta игры: GET с If-Modified-Since. 304 → ничего. 200 → полный дамп заменяет _meta.
 		public static IEnumerator SyncMeta(string host, int gameId, string token, Action<string> onError)
 		{
-			string url = "http://" + host + "/maps2d/client/meta/" + token;
-			string body = JsonConvert.SerializeObject(new { since = _manifest.last_meta_updated });
-			var req = new UnityWebRequest(url, "POST");
-			req.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(body));
+			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/tile";
+			UnityWebRequest req = UnityWebRequest.Get(url);
+			if (!string.IsNullOrEmpty(_manifest.last_meta_updated))
+				req.SetRequestHeader("If-Modified-Since", _manifest.last_meta_updated);
 			req.downloadHandler = new DownloadHandlerBuffer();
-			req.SetRequestHeader("Content-Type", "application/json");
 
 			yield return req.SendWebRequest();
 
+			if (req.responseCode == 304)
+			{
+				Debug.Log("TileCache: мета тайлов актуальна (кеш)");
+				req.Dispose();
+				yield break;
+			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
 				onError?.Invoke("TileCache meta: " + req.responseCode + " " + req.error);
@@ -244,25 +243,22 @@ namespace Mmogick
 				yield break;
 			}
 
+			string lastMod = req.GetResponseHeader("Last-Modified");
 			string text = req.downloadHandler.text;
 			req.Dispose();
 
-			MetaResponse resp;
-			try { resp = JsonConvert.DeserializeObject<MetaResponse>(text); }
+			Dictionary<string, TileMeta> parsed;
+			try { parsed = JsonConvert.DeserializeObject<Dictionary<string, TileMeta>>(text); }
 			catch (Exception ex) { onError?.Invoke("TileCache meta parse: " + ex.Message); yield break; }
 
-			int metaCount = 0;
-			if (resp.meta != null)
-			{
-				foreach (var kv in resp.meta) { _meta[kv.Key] = kv.Value; metaCount++; }
-			}
-			Debug.Log("TileCache: мета обновлена, получено " + metaCount + " записей");
-			_manifest.last_meta_updated = resp.now;
+			_meta = parsed ?? new Dictionary<string, TileMeta>();
+			Debug.Log("TileCache: мета обновлена, получено " + _meta.Count + " записей");
+			_manifest.last_meta_updated = lastMod;
 			SaveManifest(gameId);
 			SaveMeta(gameId);
 		}
 
-		// terrain.json карты: If-Modified-Since → 304 из кеша, иначе скачать и сохранить.
+		// terrain.json + tile meta карты: If-Modified-Since → 304 из кеша, иначе скачать и сохранить.
 		// callback вызывается с JSON-строкой карты либо error-сообщением.
 		public static IEnumerator GetMap(string host, int gameId, int mapId, string token, Action<string, string> callback)
 		{
@@ -270,7 +266,7 @@ namespace Mmogick
 			string mapFile = Path.Combine(MapsPath(gameId), mapId + ".json");
 			_manifest.map_versions.TryGetValue(mapId, out string lastMod);
 
-			string url = "http://" + host + "/maps2d/client/map/" + mapId + "/" + token;
+			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/map/" + mapId;
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(lastMod)) req.SetRequestHeader("If-Modified-Since", lastMod);
 

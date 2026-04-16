@@ -1,9 +1,4 @@
-using Newtonsoft.Json;
 using System.Collections.Generic;
-using UnityEngine;
-using System.Linq;
-using System;
-using Newtonsoft.Json.Linq;
 
 namespace Mmogick
 {
@@ -13,7 +8,6 @@ namespace Mmogick
 	[System.Serializable]
 	public class Layer
 	{
-		public int layer_id;
 		public string name;
 		public bool visible = true;
 		public float opacity = 1;

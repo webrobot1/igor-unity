@@ -18,8 +18,6 @@ namespace Mmogick
 
 		public int? spawn_sort = null;
 
-		// всегда словарь тк ключ - его ид для быстрого доступа из слоям
-		public Dictionary<string, Tileset> tileset = new Dictionary<string, Tileset> {};
-		public Layer[] layer;
+		public Dictionary<int, Layer> layer = new Dictionary<int, Layer> {};
 	}
 }

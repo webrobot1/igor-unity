@@ -17,7 +17,7 @@ namespace Mmogick
 			Map map = JsonConvert.DeserializeObject<Map>(json);
 
 			// Пересчёт позиционных полей из ключа словаря (pos = y*width + x)
-			foreach (Layer layer in map.layer)
+			foreach (Layer layer in map.layer.Values)
 			{
 				if (layer.tiles != null)
 				{
@@ -31,7 +31,7 @@ namespace Mmogick
 				{
 					foreach (LayerObject obj in layer.objects)
 					{
-						if (!string.IsNullOrEmpty(obj.tile_id))
+						if (!string.IsNullOrEmpty(obj.sha256))
 						{
 							obj.x = obj.x / map.tilewidth;
 							obj.y = obj.y / map.tileheight;
@@ -42,7 +42,7 @@ namespace Mmogick
 
 			int sort = 0;
 
-			foreach (Layer layer in map.layer)
+			foreach (Layer layer in map.layer.Values)
 			{
 				GameObject newLayer = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 				newLayer.name = layer.name;
@@ -66,7 +66,7 @@ namespace Mmogick
 						m.SetTRS(new Vector3(tile.Value.horizontal - 0.5f, tile.Value.vertical - 0.5f), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
 						newTile.transform = m;
 
-						applySprite(newTile, gameId, tile.Value.tile_id);
+						applySprite(newTile, gameId, tile.Value.sha256);
 						tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 					}
 					Debug.Log("Карта: у слоя " + newLayer.name + " раставлены " + layer.tiles.Count + " тайлов");
@@ -76,14 +76,14 @@ namespace Mmogick
 				{
 					foreach (LayerObject obj in layer.objects)
 					{
-						if (string.IsNullOrEmpty(obj.tile_id)) continue;
+						if (string.IsNullOrEmpty(obj.sha256)) continue;
 
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 						var m = newTile.transform;
 						m.SetTRS(new Vector3(obj.horizontal - 0.5f, obj.vertical - 0.5f), Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
 						newTile.transform = m;
 
-						applySprite(newTile, gameId, obj.tile_id);
+						applySprite(newTile, gameId, obj.sha256);
 						tilemap.SetTile(new Vector3Int((int)obj.x, (int)obj.y, 0), newTile);
 					}
 				}
@@ -126,10 +126,10 @@ namespace Mmogick
 			var meta = TileCacheService.GetMeta(sha256);
 			if (meta != null && meta.frame != null && meta.frame.Length > 0)
 			{
-				var frames = new TilesetTileAnimation[meta.frame.Length];
+				var frames = new TileAnimation[meta.frame.Length];
 				for (int i = 0; i < meta.frame.Length; i++)
 				{
-					frames[i] = new TilesetTileAnimation
+					frames[i] = new TileAnimation
 					{
 						tileid   = meta.frame[i].tileid,
 						duration = meta.frame[i].duration,

@@ -32,9 +32,9 @@ namespace UnityEngine.Tilemaps
             base.RefreshTile(position, tilemap);
         }
 
-        public void addSprites(Mmogick.TilesetTileAnimation[] animations)
+        public void addSprites(Mmogick.TileAnimation[] animations)
         {
-            foreach (Mmogick.TilesetTileAnimation anim in animations)
+            foreach (Mmogick.TileAnimation anim in animations)
             {
                 for (int i = 0; i < anim.duration; i += 10)
                 {

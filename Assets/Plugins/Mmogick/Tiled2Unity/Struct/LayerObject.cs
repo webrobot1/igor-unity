@@ -7,7 +7,7 @@ namespace Mmogick
 	[System.Serializable]
 	public class LayerObject
 	{
-		public string tile_id;
+		public string sha256;
 		public string tileset_image;
 
 		public string name = "";
