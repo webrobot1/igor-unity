@@ -104,18 +104,26 @@ namespace Mmogick
 						StartCoroutine(this.Destroy());
 					}	
 				}
-                else if (action != recive.action)
+                else
                 {
-					action = recive.action;
 					// Берём аниматор именно этой сущности, а не первый найденный в сцене
 					SpriterDotNetBehaviour animator = GetComponent<SpriterDotNetBehaviour>();
 					if (animator != null && animator.Animator != null)
 					{
-						if (animator.Animator.HasAnimation(action))
-							animator.Animator.Play(action);
-						else
-							LogWarning("Анимация: action '" + action + "' не найден в SCML");
+						// Перезапускаем анимацию если:
+						// - action сменился → Play(новая);
+						// - action тот же, но текущая не-loop → повторный action от сервера = проиграть снова.
+						bool changed = action != recive.action;
+						bool nonLoop = animator.Animator.CurrentAnimation != null && !animator.Animator.CurrentAnimation.Looping;
+						if (changed || nonLoop)
+						{
+							if (animator.Animator.HasAnimation(recive.action))
+								animator.Animator.Play(recive.action);
+							else
+								LogWarning("Анимация: action '" + recive.action + "' не найден в SCML");
+						}
 					}
+					action = recive.action;
 				}
 			}
 			

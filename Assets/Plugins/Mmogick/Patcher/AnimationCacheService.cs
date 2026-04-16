@@ -132,6 +132,8 @@ namespace Mmogick
 		public static IEnumerator SyncImagesArchive(string host, int gameId, string token, Action<string> onError)
 		{
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/images";
+			Debug.Log("Запрашиваю архив картинок анимаций "+url);
+			
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(_manifest.archive_last_modified))
 				req.SetRequestHeader("If-Modified-Since", _manifest.archive_last_modified);
@@ -202,8 +204,9 @@ namespace Mmogick
 		public static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + _manifest.library_since;
-			UnityWebRequest req = UnityWebRequest.Get(url);
+			Debug.Log("Запрашиваю список префабов "+url);
 
+			UnityWebRequest req = UnityWebRequest.Get(url);
 			yield return req.SendWebRequest();
 
 			if (req.result != UnityWebRequest.Result.Success)
@@ -245,6 +248,8 @@ namespace Mmogick
 			_manifest.prefab_etags.TryGetValue(prefab, out string etag);
 
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/structure/" + prefab;
+			Debug.Log("Запрашиваю анимацию префаба "+url);
+			
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(etag))
 				req.SetRequestHeader("If-None-Match", etag);

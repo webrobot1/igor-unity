@@ -110,6 +110,8 @@ namespace Mmogick
 		public static IEnumerator SyncArchive(string host, int gameId, string token, Action<string> onError)
 		{
 			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/archive";
+			Debug.Log("Запрашиваю архив изображения карт "+url);
+			
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(_manifest.archive_last_modified))
 				req.SetRequestHeader("If-Modified-Since", _manifest.archive_last_modified);
@@ -174,6 +176,8 @@ namespace Mmogick
 		public static IEnumerator SyncMeta(string host, int gameId, string token, Action<string> onError)
 		{
 			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/tile";
+			Debug.Log("Запрашиваю анимации карт "+url);
+			
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(_manifest.last_meta_updated))
 				req.SetRequestHeader("If-Modified-Since", _manifest.last_meta_updated);
@@ -218,6 +222,8 @@ namespace Mmogick
 			_manifest.map_versions.TryGetValue(mapId, out string lastMod);
 
 			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/map/" + mapId;
+			Debug.Log("Запрашиваю плитку карты "+url);
+			
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(lastMod)) req.SetRequestHeader("If-Modified-Since", lastMod);
 

@@ -115,6 +115,24 @@ namespace Mmogick
 
 			else
 			{
+			
+				// Content-addressable кеш тайлов: архив графики + мета (If-Modified-Since) ДО входа в игру
+				string syncError = null;
+				yield return StartCoroutine(TileCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err));
+				if (syncError != null)
+				{
+					Error(syncError);
+					yield break;
+				}
+
+				// Аналогично для анимаций: ZIP картинок (sha256.ext) + per-game library overrides
+				yield return StartCoroutine(AnimationCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err));
+				if (syncError != null)
+				{
+					Error(syncError);
+					yield break;
+				}
+				
 				if (!SceneManager.GetSceneByName("MainScene").IsValid())
 				{
 					AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
@@ -127,26 +145,8 @@ namespace Mmogick
 					}
 					SceneManager.UnloadScene("RegisterScene");
 				}
-
-				// Content-addressable кеш тайлов: архив графики + мета (If-Modified-Since) ДО входа в игру
-				string syncError = null;
-				yield return TileCacheService.SyncAll(data.host, GAME_ID, data.token, err => syncError = err);
-				if (syncError != null)
-				{
-					Error(syncError);
-					yield break;
-				}
-
-				// Аналогично для анимаций: ZIP картинок (sha256.ext) + per-game library overrides
-				yield return AnimationCacheService.SyncAll(data.host, GAME_ID, data.token, err => syncError = err);
-				if (syncError != null)
-				{
-					Error(syncError);
-					yield break;
-				}
-
 				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)
-				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
+				//ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
 
 				// asyncLoad.allowSceneActivation = true;
 			}
