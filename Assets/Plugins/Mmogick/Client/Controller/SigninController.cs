@@ -135,6 +135,7 @@ namespace Mmogick
 				
 				if (!SceneManager.GetSceneByName("MainScene").IsValid())
 				{
+					Debug.Log("Загружаю сцену игры ");
 					AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
 					// asyncLoad.allowSceneActivation = false;
 

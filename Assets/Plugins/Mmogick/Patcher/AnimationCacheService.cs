@@ -162,35 +162,38 @@ namespace Mmogick
 			}
 
 			string lastMod = req.GetResponseHeader("Last-Modified");
-			byte[] zipBytes = req.downloadHandler.data;
-			req.Dispose();
-
 			int extractedCount = 0;
-			try
+
+			if(req.downloadedBytes>0)
 			{
-				string imagesDir = ImagesPath(gameId);
-				using (var ms = new MemoryStream(zipBytes))
-				using (var zip = new ZipArchive(ms, ZipArchiveMode.Read))
+				byte[] zipBytes = req.downloadHandler.data;	
+				try
 				{
-					foreach (var entry in zip.Entries)
+					string imagesDir = ImagesPath(gameId);
+					using (var ms = new MemoryStream(zipBytes))
+					using (var zip = new ZipArchive(ms, ZipArchiveMode.Read))
 					{
-						if (string.IsNullOrEmpty(entry.Name)) continue;
-						string dest = Path.Combine(imagesDir, entry.Name);
-						using (var src = entry.Open())
-						using (var dst = File.Create(dest))
+						foreach (var entry in zip.Entries)
 						{
-							src.CopyTo(dst);
+							if (string.IsNullOrEmpty(entry.Name)) continue;
+							string dest = Path.Combine(imagesDir, entry.Name);
+							using (var src = entry.Open())
+							using (var dst = File.Create(dest))
+							{
+								src.CopyTo(dst);
+							}
+							extractedCount++;
 						}
-						extractedCount++;
 					}
 				}
+				catch (Exception ex)
+				{
+					onError?.Invoke("AnimationCache archive unzip: " + ex.Message);
+					yield break;
+				}
 			}
-			catch (Exception ex)
-			{
-				onError?.Invoke("AnimationCache archive unzip: " + ex.Message);
-				yield break;
-			}
-
+			req.Dispose();
+			
 			Debug.Log("AnimationCache: архив картинок обновлён, распаковано " + extractedCount + " файлов");
 			_manifest.archive_last_modified = lastMod;
 			SaveManifest(gameId);
