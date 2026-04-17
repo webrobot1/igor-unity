@@ -81,28 +81,59 @@ namespace Mmogick
 
                 if (_target != value)
                 {
-                    // если с прошлого существа есть 
+                    // если с прошлого существа есть
                     if (_target != null && ((EnemyModel)_target).lifeBar != null)
                     {
                         DisableLine(((EnemyModel)_target).lifeBar);
                     }
 
+                    // снимаем любой ранее собранный Spriter-mirror с target-UI, прежде чем настраивать новую цель
+                    NewSpriterRuntimeImporter.ClearMirror(gameObject);
+
                     _target = value;
                     if (value != null)
                     {
-                        if (value.animator != null)
+                        var localSr = GetComponent<SpriteRenderer>();
+
+                        // value.animator.enabled == false когда цель использует Spriter
+                        // (NewSpriterRuntimeImporter.CreateSpriter выключает legacy Animator и корневой SpriteRenderer).
+                        if (value.animator != null && value.animator.enabled)
                         {
+                            if (localSr != null) localSr.enabled = true;
                             animator.runtimeAnimatorController = value.animator.runtimeAnimatorController;
                             Animate();
                         }
-                        else 
+                        else
                         {
-                            SpriteRenderer spriteRender = value.GetComponent<SpriteRenderer>();
-                            if (spriteRender == null)
-                                PlayerController.Error("На выбранном объекте налюдения присутвует колайдер но отсутвует Animator и SpriteRenderer");
-
                             animator.runtimeAnimatorController = null;
-                            GetComponent<SpriteRenderer>().sprite = value.GetComponent<SpriteRenderer>().sprite;
+                            // чтобы FixedUpdate не кинул Animate() из-за рассинхрона слоя
+                            _layerIndex = value.CurrentAnimationIndex;
+
+                            var srcSpriter = value.GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
+                            if (srcSpriter != null && srcSpriter.SpriterData != null)
+                            {
+                                // Зеркалим Spriter-анимацию в target-UI, чтобы face_camera снимала её вживую.
+                                // SpriteRenderer оставляем с последним корневым fallback-спрайтом (его bounds нужны CameraUpdate),
+                                // но рендер выключаем — показывать будут Spriter-дети.
+                                SpriteRenderer srcFallbackSr = value.GetComponent<SpriteRenderer>();
+                                if (localSr != null)
+                                {
+                                    if (srcFallbackSr != null && srcFallbackSr.sprite != null)
+                                        localSr.sprite = srcFallbackSr.sprite;
+                                    localSr.enabled = false;
+                                }
+                                NewSpriterRuntimeImporter.MirrorFromSource(srcSpriter, gameObject);
+                            }
+                            else
+                            {
+                                // Статичный фолбэк для не-анимированных целей.
+                                if (localSr != null) localSr.enabled = true;
+                                SpriteRenderer spriteRender = value.GetComponent<SpriteRenderer>();
+                                if (spriteRender == null)
+                                    PlayerController.Error("На выбранном объекте налюдения присутвует колайдер но отсутвует Animator и SpriteRenderer");
+                                if (localSr != null)
+                                    localSr.sprite = spriteRender != null ? spriteRender.sprite : null;
+                            }
                         }
 
                         EnemyModel enemyValue = value as EnemyModel;

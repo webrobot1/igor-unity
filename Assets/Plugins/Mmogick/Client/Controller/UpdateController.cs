@@ -190,7 +190,9 @@ namespace Mmogick
 					if (prefab.GetComponent<SpriteRenderer>())
 						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)getMaps()[map_id].spawn_sort + model.sort;
 					if (prefab.GetComponentInChildren<Canvas>())
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)getMaps()[map_id].spawn_sort + 1 + model.sort;
+						// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации
+						// (Spriter создаёт N child-sprite'ов с собственным sortingOrder 0..N-1 из UnityAnimator).
+						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)getMaps()[map_id].spawn_sort + 100 + model.sort;
 				}
 			}
             else 

@@ -419,7 +419,9 @@ namespace Mmogick
 		public static Sprite GetSprite(int gameId, string fileName)
 		{
 			if (string.IsNullOrEmpty(fileName)) return null;
-			if (_spriteCache.TryGetValue(fileName, out Sprite s)) return s;
+			// Unity-объект в словаре может быть уничтожен Resources.UnloadUnusedAssets при переходе сцен
+			// (static-ссылка C# живёт, но нативный ресурс снесён). Проверяем через == null и пересоздаём.
+			if (_spriteCache.TryGetValue(fileName, out Sprite cached) && cached != null) return cached;
 
 			string path = Path.Combine(ImagesPath(gameId), fileName);
 			if (!File.Exists(path))
@@ -431,9 +433,11 @@ namespace Mmogick
 			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
 			tex.LoadImage(bytes);
 			tex.filterMode = FilterMode.Point;
+			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			// PixelsPerUnit должен совпадать с SpriterDotNetBehaviour.Ppu (=100), иначе UnityAnimator.ApplySpriteTransform
 			// считает info.X/info.Y в разных масштабах для разных спрайтов — и части персонажа разлетаются.
-			s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), 100f, 0, SpriteMeshType.FullRect);
+			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), 100f, 0, SpriteMeshType.FullRect);
+			s.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			_spriteCache[fileName] = s;
 			Debug.Log("AnimationCache: спрайт " + fileName + " загружен с диска");
 			return s;

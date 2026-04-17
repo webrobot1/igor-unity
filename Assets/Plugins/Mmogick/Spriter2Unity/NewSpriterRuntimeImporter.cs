@@ -7,6 +7,50 @@ using UnityEngine;
 
 namespace Mmogick
 {
+    /// <summary>
+    /// Подтягивает LifeBar над реальным верхом Spriter-персонажа.
+    /// Ждёт пару кадров после запуска SpriterDotNetBehaviour (transforms заполняются UnityAnimator'ом),
+    /// затем измеряет агрегированные Bounds активных SpriteRenderer'ов и сдвигает LifeBar.
+    /// Самоуничтожается после одной корректировки.
+    /// </summary>
+    internal class SpriterLifeBarAdjuster : MonoBehaviour
+    {
+        private Transform lifeBar;
+        private Transform spritesRoot;
+        private int framesRemaining = 2;
+
+        public void Init(Transform lifeBar, Transform spritesRoot)
+        {
+            this.lifeBar = lifeBar;
+            this.spritesRoot = spritesRoot;
+        }
+
+        void LateUpdate()
+        {
+            if (lifeBar == null || spritesRoot == null) { Destroy(this); return; }
+            if (framesRemaining-- > 0) return;
+
+            Bounds agg = default;
+            bool hasAny = false;
+            foreach (var sr in spritesRoot.GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                if (sr == null || sr.sprite == null || !sr.enabled) continue;
+                if (!hasAny) { agg = sr.bounds; hasAny = true; }
+                else agg.Encapsulate(sr.bounds);
+            }
+
+            // Двигаем LifeBar только если bounds валидные (не нулевой размер).
+            if (hasAny && agg.size.sqrMagnitude > 0.0001f)
+            {
+                Vector3 topLocal = transform.InverseTransformPoint(new Vector3(transform.position.x, agg.max.y, 0f));
+                Vector3 pos = lifeBar.localPosition;
+                pos.y = topLocal.y + 0.25f;
+                lifeBar.localPosition = pos;
+            }
+            Destroy(this);
+        }
+    }
+
     public class NewSpriterRuntimeImporter
     {
         private struct SpriterEntityData
@@ -72,7 +116,77 @@ namespace Mmogick
             SpriteRenderer fallbackSpriteRenderer = go.GetComponent<SpriteRenderer>();
             if (fallbackSpriteRenderer != null) fallbackSpriteRenderer.enabled = false;
 
+            // LifeBar в префабе позиционирован под fallback-sprite (скелет).
+            // У Spriter-персонажа фактическая высота другая — поднимем LifeBar над реальным bounding box.
+            var lifeBar = go.transform.Find("LifeBar");
+            if (lifeBar != null)
+            {
+                var adjuster = go.AddComponent<SpriterLifeBarAdjuster>();
+                adjuster.Init(lifeBar, sprites.transform);
+            }
+
             return behaviour;
+        }
+
+        /// <summary>
+        /// Создаёт автономную Spriter-анимацию на <paramref name="targetGo"/>, переиспользуя SpriterData/Entity с уже собранного источника.
+        /// Нужно для живого отображения Spriter-цели в target-UI (где раньше показывалась legacy Animator-анимация).
+        /// Все дочерние "Sprites"/"Metadata" и любой SpriterDotNetBehaviour на targetGo будут пересозданы.
+        /// </summary>
+        public static SpriterDotNetBehaviour MirrorFromSource(SpriterDotNetBehaviour source, GameObject targetGo)
+        {
+            ClearMirror(targetGo);
+            if (source == null || source.SpriterData == null || source.SpriterData.Spriter == null) return null;
+
+            var entities = source.SpriterData.Spriter.Entities;
+            if (entities == null || entities.Length == 0) return null;
+            SpriterEntity entity = entities[0];
+
+            SpriterDotNetBehaviour behaviour = targetGo.AddComponent<SpriterDotNetBehaviour>();
+            behaviour.SpriterData = source.SpriterData;
+            behaviour.UseNativeTags = source.UseNativeTags;
+
+            GameObject sprites = new GameObject(ObjectNameSprites);
+            GameObject metadata = new GameObject(ObjectNameMetadata);
+            sprites.SetParent(targetGo);
+            metadata.SetParent(targetGo);
+
+            ChildData cd = new ChildData();
+            SpriterImporterUtil.CreateSprites(entity, cd, sprites);
+            SpriterImporterUtil.CreateCollisionRectangles(entity, cd, metadata);
+            SpriterImporterUtil.CreatePoints(entity, cd, metadata);
+            cd.Verify();
+
+            // Положим Spriter-детям тот же layer, что и у target-UI GameObject, чтобы face_camera их видела.
+            SetLayerRecursively(sprites, targetGo.layer);
+            SetLayerRecursively(metadata, targetGo.layer);
+
+            behaviour.EntityIndex = entity.Id;
+            behaviour.enabled = true;
+            behaviour.ChildData = cd;
+            return behaviour;
+        }
+
+        /// <summary>
+        /// Снимает ранее собранный Spriter-mirror с <paramref name="targetGo"/> (удаляет SpriterDotNetBehaviour и дочерние Sprites/Metadata).
+        /// </summary>
+        public static void ClearMirror(GameObject targetGo)
+        {
+            if (targetGo == null) return;
+            var existing = targetGo.GetComponent<SpriterDotNetBehaviour>();
+            if (existing != null) GameObject.DestroyImmediate(existing);
+            var oldSprites = targetGo.transform.Find(ObjectNameSprites);
+            if (oldSprites != null) GameObject.DestroyImmediate(oldSprites.gameObject);
+            var oldMetadata = targetGo.transform.Find(ObjectNameMetadata);
+            if (oldMetadata != null) GameObject.DestroyImmediate(oldMetadata.gameObject);
+        }
+
+        private static void SetLayerRecursively(GameObject root, int layer)
+        {
+            if (root == null) return;
+            root.layer = layer;
+            foreach (Transform t in root.transform)
+                SetLayerRecursively(t.gameObject, layer);
         }
 
         private static SpriterEntity FetchOrCacheSpriterEntityDataFromFile(SpriterPacket packet, string entityName, SpriterDotNetBehaviour spriterDotNetBehaviour, int gameId)

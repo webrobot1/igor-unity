@@ -289,7 +289,9 @@ namespace Mmogick
 		// Sprite по sha256: грузится из PNG-файла локального кеша, кешируется в памяти.
 		public static Sprite GetSprite(int gameId, string sha256)
 		{
-			if (_spriteCache.TryGetValue(sha256, out Sprite s)) return s;
+			// Unity-объект в словаре может быть уничтожен Resources.UnloadUnusedAssets при переходе сцен
+			// (static-ссылка C# живёт, но нативный ресурс снесён). Проверяем через == null и пересоздаём.
+			if (_spriteCache.TryGetValue(sha256, out Sprite cached) && cached != null) return cached;
 
 			string path = Path.Combine(TilesPath(gameId), sha256 + ".png");
 			if (!File.Exists(path))
@@ -301,7 +303,9 @@ namespace Mmogick
 			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
 			tex.LoadImage(bytes);
 			tex.filterMode = FilterMode.Point;
-			s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), tex.width, 0, SpriteMeshType.FullRect);
+			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
+			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), tex.width, 0, SpriteMeshType.FullRect);
+			s.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			_spriteCache[sha256] = s;
 			Debug.Log("TileCache: спрайт " + sha256 + " загружен с диска");
 			return s;
