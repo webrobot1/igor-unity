@@ -98,6 +98,31 @@ namespace Mmogick
 			#endif
 		}
 
+		// Полный сброс локального кеша тайлов/карт игры: manifest, meta, tiles/, maps/.
+		// Вызывается из SigninController при ошибке SyncAll — следующий заход пересоберёт всё с нуля.
+		public static void ResetCache(int gameId)
+		{
+			Debug.LogWarning("TileCache: сброс кеша игры " + gameId);
+			_manifest = new SyncManifest();
+			_meta = new Dictionary<string, Tile>();
+			_spriteCache.Clear();
+
+			try
+			{
+				if (File.Exists(ManifestPath(gameId))) File.Delete(ManifestPath(gameId));
+				if (File.Exists(MetaPath(gameId)))     File.Delete(MetaPath(gameId));
+				if (Directory.Exists(TilesPath(gameId))) Directory.Delete(TilesPath(gameId), true);
+				if (Directory.Exists(MapsPath(gameId)))  Directory.Delete(MapsPath(gameId), true);
+			}
+			catch (Exception ex) { Debug.LogWarning("TileCache: ошибка при сбросе кеша: " + ex.Message); }
+
+			Directory.CreateDirectory(TilesPath(gameId));
+			Directory.CreateDirectory(MapsPath(gameId));
+			#if UNITY_WEBGL && !UNITY_EDITOR
+				JsSync();
+			#endif
+		}
+
 		// Полная синхронизация перед входом в игру: архив PNG + мета. Вызывать ДО Connect.
 		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null)
 		{

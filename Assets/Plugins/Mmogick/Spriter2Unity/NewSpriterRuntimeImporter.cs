@@ -63,6 +63,15 @@ namespace Mmogick
             behaviour.enabled = true;
             behaviour.ChildData = cd;
 
+            // Spriter успешно установлен — глушим резервные визуалы префаба на корне,
+            // чтобы legacy-Animator (overrideController) и корневой SpriteRenderer
+            // не проигрывали фолбэк-анимацию (например, Dead) параллельно со Spriter'ом.
+            Animator fallbackAnimator = go.GetComponent<Animator>();
+            if (fallbackAnimator != null) fallbackAnimator.enabled = false;
+
+            SpriteRenderer fallbackSpriteRenderer = go.GetComponent<SpriteRenderer>();
+            if (fallbackSpriteRenderer != null) fallbackSpriteRenderer.enabled = false;
+
             return behaviour;
         }
 

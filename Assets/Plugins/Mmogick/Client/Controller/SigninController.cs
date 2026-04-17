@@ -116,11 +116,13 @@ namespace Mmogick
 			else
 			{
 			
-				// Content-addressable кеш тайлов: архив графики + мета (If-Modified-Since) ДО входа в игру
+				// Content-addressable кеш тайлов: архив графики + мета (If-Modified-Since) ДО входа в игру.
+				// При ошибке — чистим локальный кеш: рассинхрон с сервером самовосстанавливается при следующем заходе.
 				string syncError = null;
 				yield return StartCoroutine(TileCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err));
 				if (syncError != null)
 				{
+					TileCacheService.ResetCache(GAME_ID);
 					Error(syncError);
 					yield break;
 				}
@@ -129,6 +131,7 @@ namespace Mmogick
 				yield return StartCoroutine(AnimationCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err));
 				if (syncError != null)
 				{
+					AnimationCacheService.ResetCache(GAME_ID);
 					Error(syncError);
 					yield break;
 				}
@@ -147,7 +150,7 @@ namespace Mmogick
 					SceneManager.UnloadScene("RegisterScene");
 				}
 				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)
-				//ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
+				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
 
 				// asyncLoad.allowSceneActivation = true;
 			}
