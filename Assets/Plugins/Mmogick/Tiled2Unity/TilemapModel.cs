@@ -12,7 +12,7 @@ namespace UnityEngine.Tilemaps
 
         public override bool GetTileAnimationData(Vector3Int location, ITilemap tileMap, ref TileAnimationData tileAnimationData)
         {
-            if (sprites != null)
+            if (sprites != null && sprites.Count > 0)
             {
                 tileAnimationData.animatedSprites = sprites.ToArray();
                 tileAnimationData.animationSpeed = speed;
