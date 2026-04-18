@@ -220,7 +220,7 @@ namespace Mmogick
 		// Список анимаций игры, обновлённых с прошлого захода (Animation.updated >= structures_since).
 		// Не качает сами структуры — лишь сигнал для PreFetchStructures, какие из library надо
 		// принудительно обновить (даже если локальный structures/{id}.json уже есть).
-		public static IEnumerator SyncAnimations(string host, int gameId, string token, HashSet<int> delta, Action<string> onError)
+		private static IEnumerator SyncAnimations(string host, int gameId, string token, HashSet<int> delta, Action<string> onError)
 		{
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/animations?since=" + _manifest.structures_since;
 			Debug.Log("Запрашиваю список изменившихся анимаций "+url);
@@ -273,7 +273,7 @@ namespace Mmogick
 		}
 
 		// Архив: GET с If-Modified-Since. 304 → ничего. 200 → unzip в images/.
-		public static IEnumerator SyncImagesArchive(string host, int gameId, string token, Action<string> onError)
+		private static IEnumerator SyncImagesArchive(string host, int gameId, string token, Action<string> onError)
 		{
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/images";
 			Debug.Log("Запрашиваю архив картинок анимаций "+url);
@@ -363,7 +363,7 @@ namespace Mmogick
 		}
 
 		// Library: GET ?since=<library_since>. Ответ мержится в _library по animation_id.
-		public static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
+		private static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + _manifest.library_since;
 			Debug.Log("Запрашиваю список префабов "+url);
@@ -420,7 +420,6 @@ namespace Mmogick
 		public static IEnumerator GetStructure(string host, int gameId, string prefab, string token,
 			Action<string, Dictionary<int, string>, string> callback)
 		{
-			EnsureLoaded(gameId);
 			if (!_library.TryGetValue(prefab, out PrefabEntry entry))
 			{
 				callback(null, null, "AnimationCache structure: Prefab '" + prefab + "' отсутствует в library");
