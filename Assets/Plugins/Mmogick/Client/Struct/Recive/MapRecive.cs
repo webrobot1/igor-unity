@@ -3,14 +3,14 @@ using System.Collections.Generic;
 namespace Mmogick
 {
     /// <summary>
-    /// структура получаемых данных мира определенной  карты
+    /// Структура получаемых данных мира определённой карты.
+    /// После унификации Enemy/Animal/Objects в единую Entity используются две группы:
+    /// player (игроки) и entity (все остальные). Вид конкретного entity — в EntityRecive.kind.
     /// </summary>
     [System.Serializable]
-    public class MapRecive<P, E, O> where P : EntityRecive where E : EntityRecive where O : EntityRecive
+    public class MapRecive<P, E> where P : EntityRecive where E : EntityRecive
     {
         public Dictionary<string, P> player;
-        public Dictionary<string, E> enemy;
-        public Dictionary<string, O> objects;
-        public Dictionary<string, E> animal;
+        public Dictionary<string, E> entity;
     }
 }

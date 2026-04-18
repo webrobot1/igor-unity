@@ -7,9 +7,9 @@ namespace Mmogick
     /// —cтруктура получаемых данных данных
     /// </summary>
     [System.Serializable]
-    public class Recive<P, E, O> where P : EntityRecive where E : EntityRecive where O : EntityRecive
+    public class Recive<P, E> where P : EntityRecive where E : EntityRecive
     {
-        public Dictionary<int, MapRecive<P, E, O>> world;
+        public Dictionary<int, MapRecive<P, E>> world;
 
         /// <summary>
         ///  с какой стороны какой номер карты (мы мо этим номерам при пеерходе на другую карту смещаем карты что бы не запрашивать их снова)

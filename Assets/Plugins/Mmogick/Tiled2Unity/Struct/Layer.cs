@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace Mmogick
 {
@@ -19,8 +20,12 @@ namespace Mmogick
 
 		public string resource;
 
-		// строго словарь так ключ это порядковый номер на карте и при отправке пакета мы пустые клчи удаляем так что они могу  не порядку идти хотя изначально по прдяку с пустыми клетками
+		// Sparse-словарь: ключ — порядковый индекс ячейки на карте (y*width + x),
+		// значение — сырая строка вида "sha256" или "sha256:f". Парсится через
+		// LayerTileDictionaryConverter в LayerTile с ленивым извлечением полей.
+		[JsonConverter(typeof(LayerTileDictionaryConverter))]
 		public Dictionary<int, LayerTile> tiles;
+
 		public LayerObject[] objects;
 	}
 }

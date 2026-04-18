@@ -106,7 +106,7 @@ namespace Mmogick
 #endif           
         }
 
-        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive> recive)
         {
             if (recive.settings != null)
             {

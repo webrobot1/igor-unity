@@ -76,10 +76,10 @@ namespace Mmogick
         /// </summary>
         protected override void Handle(string json)
         {
-            HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, EnemyRecive, ObjectRecive>>(json));
+            HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, EnemyRecive>>(json));
         }
 
-        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive, ObjectRecive> recive)
+        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive> recive)
         {
             // после ACTION_LOAD старые объекты будут заменены новыми объектами клонами и надо сохранить все ключи что нам нужно будет залинковать с игроком (напрмиер цель)
             string tmp_target = null;

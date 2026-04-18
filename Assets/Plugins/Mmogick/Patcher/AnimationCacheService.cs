@@ -12,30 +12,36 @@ using UnityEngine.Networking;
 namespace Mmogick
 {
 	// Content-addressable кеш анимаций игры. Работает с 4 endpoint'ами сервера:
-	//   GET /animation/patch/{gameId}/{token}/structure/{animationId} — SCML XML + sha256-маппинг (If-None-Match/ETag)
-	//   GET /animation/patch/{gameId}/{token}/images                  — ZIP всех картинок игры (If-Modified-Since)
+	//   GET /animation/patch/{gameId}/{token}/structure/{animationId} — SCML XML
+	//   GET /animation/patch/{gameId}/{token}/images                  — ZIP (sha256.ext + _files.json) (If-Modified-Since)
 	//   GET /animation/patch/{gameId}/{token}/prefabs?since=<ts>      — map prefab.name → animation_id
 	//   GET /animation/patch/{gameId}/{token}/animations?since=<ts>   — map animation_id → updated_ts (delta)
+	// Маппинг action→clip (entity_actions) приходит инлайном в ответе /api/game/{gameId}/auth
+	// и хранится в ConnectController.entity_actions (session state) — сюда передаётся параметром GetClipName.
 	//
 	// Дедупликация: несколько Prefab одной игры могут ссылаться на одну Animation — качаем её один раз.
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/animations/
 	//   images/{sha256}.{ext}         — распакованные из ZIP /images
-	//   structures/{animationId}.json — кеш ответа /structure (xml + files), payload base64+gzip
+	//   structures/{animationId}.xml  — кеш SCML XML от /structure
+	//   files.json                    — animationId → idx → sha256.ext (берётся из _files.json в ZIP)
 	//   library.json                  — prefab.name → animation_id (мержится по диффам ?since)
-	//   sync.json                     — manifest (archive_last_modified, animation_etags{}, library_since, structures_since)
+	//   sync.json                     — manifest (archive_last_modified, library_since, structures_since)
 	public static class AnimationCacheService
 	{
 		[DllImport("__Internal")]
 		private static extern void JsSync();
 
-		private const string MANIFEST_FILE = "sync.json";
-		private const string LIBRARY_FILE  = "library.json";
-		private const string IMAGES_DIR    = "images";
-		private const string STRUCT_DIR    = "structures";
+		private const string MANIFEST_FILE        = "sync.json";
+		private const string LIBRARY_FILE         = "library.json";
+		private const string FILES_FILE           = "files.json";
+		private const string ARCHIVE_FILES_ENTRY  = "_files.json";
+		private const string IMAGES_DIR           = "images";
+		private const string STRUCT_DIR           = "structures";
 
 		private static SyncManifest _manifest;
-		private static Dictionary<string, int> _library;  // prefab.name → animation_id
+		private static Dictionary<string, PrefabEntry> _library;                     // prefab.name → {animation, entity}
+		private static Dictionary<int, Dictionary<int, string>> _files;              // animationId → idx → sha256.ext
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
 		[Serializable]
@@ -47,10 +53,17 @@ namespace Mmogick
 		}
 
 		[Serializable]
+		public class PrefabEntry
+		{
+			public int animation;
+			public int entity;
+		}
+
+		[Serializable]
 		private class LibraryResponse
 		{
-			public Dictionary<string, int> items;  // prefab.name → animation_id (диффы по ?since)
-			public int                     now;
+			public Dictionary<string, PrefabEntry> items;  // prefab.name → {animation, entity} (диффы по ?since)
+			public int                             now;
 		}
 
 		[Serializable]
@@ -61,17 +74,27 @@ namespace Mmogick
 		}
 
 		[Serializable]
-		private class StructurePayload
-		{
-			public string                  xml;
-			public Dictionary<int, string> files;  // file_id → "sha256.ext"
-		}
-
-		[Serializable]
 		private class StructureResponse
 		{
-			public string data;  // base64(gzip(json))
-			public string error;
+			public string data;  // base64(gzip(xml))
+		}
+
+		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx)
+		// при неуспешном HTTP-запросе. Fallback — код+generic error от UnityWebRequest.
+		private static string ExtractError(UnityWebRequest req)
+		{
+			string body = req.downloadHandler?.text;
+			if (!string.IsNullOrEmpty(body))
+			{
+				try
+				{
+					var err = JsonConvert.DeserializeObject<Dictionary<string, string>>(body);
+					if (err != null && err.TryGetValue("error", out string msg) && !string.IsNullOrEmpty(msg))
+						return msg;
+				}
+				catch { }
+			}
+			return req.responseCode + " " + req.error;
 		}
 
 		// Корень кеша анимаций для игры
@@ -88,12 +111,13 @@ namespace Mmogick
 			return path;
 		}
 
-		private static string ImagesPath(int gameId)    => Path.Combine(AnimationsPath(gameId), IMAGES_DIR);
-		private static string StructPath(int gameId)    => Path.Combine(AnimationsPath(gameId), STRUCT_DIR);
-		private static string ManifestPath(int gameId)  => Path.Combine(AnimationsPath(gameId), MANIFEST_FILE);
-		private static string LibraryPath(int gameId)   => Path.Combine(AnimationsPath(gameId), LIBRARY_FILE);
+		private static string ImagesPath(int gameId)          => Path.Combine(AnimationsPath(gameId), IMAGES_DIR);
+		private static string StructPath(int gameId)          => Path.Combine(AnimationsPath(gameId), STRUCT_DIR);
+		private static string ManifestPath(int gameId)        => Path.Combine(AnimationsPath(gameId), MANIFEST_FILE);
+		private static string LibraryPath(int gameId)         => Path.Combine(AnimationsPath(gameId), LIBRARY_FILE);
+		private static string FilesPath(int gameId)           => Path.Combine(AnimationsPath(gameId), FILES_FILE);
 
-		// Загружает manifest + library с диска. Идемпотентно.
+		// Загружает manifest + library + files с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
 			if (_manifest == null)
@@ -106,12 +130,22 @@ namespace Mmogick
 			if (_library == null)
 			{
 				string lp = LibraryPath(gameId);
-				_library = new Dictionary<string, int>();
+				_library = new Dictionary<string, PrefabEntry>();
 				if (File.Exists(lp))
 				{
-					// Если старый формат несовместим — сбрасываем library_since=0 для полной пересинхронизации.
-					try { _library = JsonConvert.DeserializeObject<Dictionary<string, int>>(File.ReadAllText(lp)) ?? new Dictionary<string, int>(); }
-					catch { _library = new Dictionary<string, int>(); _manifest.library_since = 0; }
+					// Старый формат (string→int) → на новый не парсится — catch, reset since=0 для полной пересинхронизации.
+					try { _library = JsonConvert.DeserializeObject<Dictionary<string, PrefabEntry>>(File.ReadAllText(lp)) ?? new Dictionary<string, PrefabEntry>(); }
+					catch { _library = new Dictionary<string, PrefabEntry>(); _manifest.library_since = 0; }
+				}
+			}
+			if (_files == null)
+			{
+				string fp = FilesPath(gameId);
+				_files = new Dictionary<int, Dictionary<int, string>>();
+				if (File.Exists(fp))
+				{
+					try { _files = JsonConvert.DeserializeObject<Dictionary<int, Dictionary<int, string>>>(File.ReadAllText(fp)) ?? new Dictionary<int, Dictionary<int, string>>(); }
+					catch { _files = new Dictionary<int, Dictionary<int, string>>(); }
 				}
 			}
 			if (!Directory.Exists(ImagesPath(gameId))) Directory.CreateDirectory(ImagesPath(gameId));
@@ -134,6 +168,14 @@ namespace Mmogick
 			#endif
 		}
 
+		private static void SaveFiles(int gameId)
+		{
+			File.WriteAllText(FilesPath(gameId), JsonConvert.SerializeObject(_files));
+			#if UNITY_WEBGL && !UNITY_EDITOR
+				JsSync();
+			#endif
+		}
+
 		// Полный сброс локального кеша анимаций игры: manifest, library, structures/, images/.
 		// Вызывается при обнаружении рассинхронизации (например, сервер отвечает 404 на animation_id из library).
 		// После сброса следующий SyncAll пересобирает всё с нуля.
@@ -141,14 +183,16 @@ namespace Mmogick
 		{
 			Debug.LogWarning("AnimationCache: сброс кеша игры " + gameId);
 			_manifest = new SyncManifest();
-			_library = new Dictionary<string, int>();
+			_library = new Dictionary<string, PrefabEntry>();
+			_files = new Dictionary<int, Dictionary<int, string>>();
 			_spriteCache.Clear();
 
 			string root = AnimationsPath(gameId);
 			try
 			{
-				if (File.Exists(ManifestPath(gameId))) File.Delete(ManifestPath(gameId));
-				if (File.Exists(LibraryPath(gameId)))  File.Delete(LibraryPath(gameId));
+				if (File.Exists(ManifestPath(gameId)))       File.Delete(ManifestPath(gameId));
+				if (File.Exists(LibraryPath(gameId)))        File.Delete(LibraryPath(gameId));
+				if (File.Exists(FilesPath(gameId)))          File.Delete(FilesPath(gameId));
 				if (Directory.Exists(StructPath(gameId))) Directory.Delete(StructPath(gameId), true);
 				if (Directory.Exists(ImagesPath(gameId))) Directory.Delete(ImagesPath(gameId), true);
 			}
@@ -162,6 +206,7 @@ namespace Mmogick
 		}
 
 		// Полная синхронизация перед входом в игру: архив картинок + library + delta анимаций + предзагрузка структур. Вызывать ДО Connect.
+		// entity_actions в SyncAll не качается — приходит инлайном в ответе /auth и хранится в ConnectController.entity_actions.
 		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null)
 		{
 			EnsureLoaded(gameId);
@@ -185,7 +230,7 @@ namespace Mmogick
 
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("AnimationCache animations: " + req.responseCode + " " + req.error);
+				onError?.Invoke("AnimationCache animations: " + ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -214,7 +259,7 @@ namespace Mmogick
 			var seen = new HashSet<int>();
 			foreach (var kv in _library)
 			{
-				int animationId = kv.Value;
+				int animationId = kv.Value.animation;
 				if (!seen.Add(animationId)) continue;
 				string structFile = Path.Combine(StructPath(gameId), animationId + ".json");
 				bool inDelta = delta.Contains(animationId);
@@ -255,7 +300,7 @@ namespace Mmogick
 			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("AnimationCache archive: " + req.responseCode + " " + req.error);
+				onError?.Invoke("AnimationCache archive: " + ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -265,7 +310,8 @@ namespace Mmogick
 
 			if(req.downloadedBytes>0)
 			{
-				byte[] zipBytes = req.downloadHandler.data;	
+				byte[] zipBytes = req.downloadHandler.data;
+				bool filesExtracted = false;
 				try
 				{
 					string imagesDir = ImagesPath(gameId);
@@ -275,6 +321,19 @@ namespace Mmogick
 						foreach (var entry in zip.Entries)
 						{
 							if (string.IsNullOrEmpty(entry.Name)) continue;
+							// _files.json — не картинка, а маппинг animationId → idx → sha256.ext. Кладём в память + на диск отдельно.
+							if (entry.Name == ARCHIVE_FILES_ENTRY)
+							{
+								using (var src = entry.Open())
+								using (var sr  = new StreamReader(src))
+								{
+									string json = sr.ReadToEnd();
+									_files = JsonConvert.DeserializeObject<Dictionary<int, Dictionary<int, string>>>(json)
+									         ?? new Dictionary<int, Dictionary<int, string>>();
+								}
+								filesExtracted = true;
+								continue;
+							}
 							string dest = Path.Combine(imagesDir, entry.Name);
 							using (var src = entry.Open())
 							using (var dst = File.Create(dest))
@@ -290,6 +349,7 @@ namespace Mmogick
 					onError?.Invoke("AnimationCache archive unzip: " + ex.Message);
 					yield break;
 				}
+				if (filesExtracted) SaveFiles(gameId);
 			}
 			req.Dispose();
 			
@@ -313,7 +373,7 @@ namespace Mmogick
 
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("AnimationCache library: " + req.responseCode + " " + req.error);
+				onError?.Invoke("AnimationCache library: " + ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -340,28 +400,51 @@ namespace Mmogick
 			SaveLibrary(gameId);
 		}
 
-		// Структура анимации: SCML XML + sha256-маппинг. Ключ кеша/URL — Animation.id (шерится между Prefab-ами).
+		// Резолв action → имя SCML-клипа для данного prefab.
+		// null если: library/entityActions ещё не загружены, prefab неизвестен, маппинга на action нет.
+		// Вызывающий (EntityModel.SetData) делает fallback на action как имя клипа при null.
+		// entityActions — session-словарь из ConnectController.entity_actions (приходит в /auth).
+		public static string GetClipName(string prefab, string action, Dictionary<int, Dictionary<string, string>> entityActions)
+		{
+			if (_library == null || string.IsNullOrEmpty(prefab)) return null;
+			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return null;
+			if (entityActions == null) return null;
+			if (!entityActions.TryGetValue(p.entity, out var map) || map == null) return null;
+			return map.TryGetValue(action, out var clip) ? clip : null;
+		}
+
+		// SCML XML анимации. Ключ кеша/URL — Animation.id (шерится между Prefab-ами).
 		// Если локальный кеш есть — читаем с диска (свежесть проверяется через /animations до вызова).
 		// Иначе — GET /structure/{id} → распаковываем base64+gzip, сохраняем, возвращаем.
+		// Маппинг SCML-file-idx → sha256.ext подтягивается из _files (прилетает в /images как _files.json).
 		public static IEnumerator GetStructure(string host, int gameId, string prefab, string token,
 			Action<string, Dictionary<int, string>, string> callback)
 		{
 			EnsureLoaded(gameId);
-			if (!_library.TryGetValue(prefab, out int animationId))
+			if (!_library.TryGetValue(prefab, out PrefabEntry entry))
 			{
 				callback(null, null, "AnimationCache structure: Prefab '" + prefab + "' отсутствует в library");
 				yield break;
 			}
-			string structFile = Path.Combine(StructPath(gameId), animationId + ".json");
+			int animationId = entry.animation;
+			string structFile = Path.Combine(StructPath(gameId), animationId + ".xml");
+
+			if (!_files.TryGetValue(animationId, out var filesForAnim))
+			{
+				// Должен прийти из /images вместе с архивом. Если нет — сигналим ошибку, вызывающий сделает ResetCache.
+				callback(null, null, "AnimationCache structure: отсутствует files для animation " + animationId + " (архив устарел?)");
+				yield break;
+			}
+
 			if (File.Exists(structFile))
 			{
 				Debug.Log("AnimationCache: структура " + animationId + " из кеша");
 				try
 				{
-					var cached = JsonConvert.DeserializeObject<StructurePayload>(File.ReadAllText(structFile));
-					callback(cached.xml, cached.files, null);
+					string cachedXml = File.ReadAllText(structFile);
+					callback(cachedXml, filesForAnim, null);
 				}
-				catch (Exception ex) { callback(null, null, "AnimationCache cache parse: " + ex.Message); }
+				catch (Exception ex) { callback(null, null, "AnimationCache cache read: " + ex.Message); }
 				yield break;
 			}
 
@@ -373,7 +456,7 @@ namespace Mmogick
 
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				callback(null, null, "AnimationCache structure " + animationId + ": " + req.responseCode + " " + req.error);
+				callback(null, null, "AnimationCache structure " + animationId + ": " + ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -385,13 +468,7 @@ namespace Mmogick
 			try { wrapper = JsonConvert.DeserializeObject<StructureResponse>(body); }
 			catch (Exception ex) { callback(null, null, "AnimationCache structure wrapper: " + ex.Message); yield break; }
 
-			if (!string.IsNullOrEmpty(wrapper.error))
-			{
-				callback(null, null, "AnimationCache structure server error: " + wrapper.error);
-				yield break;
-			}
-
-			StructurePayload payload;
+			string xml;
 			try
 			{
 				byte[] gzipped = Convert.FromBase64String(wrapper.data);
@@ -400,19 +477,18 @@ namespace Mmogick
 				using (var dst = new MemoryStream())
 				{
 					gz.CopyTo(dst);
-					string json = Encoding.UTF8.GetString(dst.ToArray());
-					payload = JsonConvert.DeserializeObject<StructurePayload>(json);
+					xml = Encoding.UTF8.GetString(dst.ToArray());
 				}
 			}
 			catch (Exception ex) { callback(null, null, "AnimationCache structure decode: " + ex.Message); yield break; }
 
-			File.WriteAllText(structFile, JsonConvert.SerializeObject(payload));
+			File.WriteAllText(structFile, xml);
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
 			#endif
 
 			Debug.Log("AnimationCache: структура " + animationId + " скачана с сервера");
-			callback(payload.xml, payload.files, null);
+			callback(xml, filesForAnim, null);
 		}
 
 		// Sprite по имени файла ("sha256.ext"): грузится из локального кеша, кешируется в памяти.

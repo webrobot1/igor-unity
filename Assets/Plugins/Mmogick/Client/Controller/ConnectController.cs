@@ -77,6 +77,13 @@ namespace Mmogick
 		protected static string player_token;
 
 		/// <summary>
+		/// Маппинг entity_id → action → clip.name, приходит инлайном в ответе /auth.
+		/// Сессионный state (на диск не пишется), живёт параллельно с token/key/step.
+		/// Читается резолвером AnimationCacheService.GetClipName.
+		/// </summary>
+		public static Dictionary<int, Dictionary<string, string>> entity_actions;
+
+		/// <summary>
 		/// текущий используемый хост
 		/// </summary>
 		private static string host;
@@ -260,7 +267,7 @@ namespace Mmogick
 						// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
 						loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 						connect = null;
-						Connect(host, player_key, player_token, step, position_precision, server_fps);
+						Connect(host, player_key, player_token, step, position_precision, server_fps, entity_actions);
 					}
 				}
 				else
@@ -278,7 +285,7 @@ namespace Mmogick
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps)
+		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps, Dictionary<int, Dictionary<string, string>> entity_actions)
 		{
 			ConnectController.host = host;
 			ConnectController.player_key = player_key;
@@ -286,6 +293,7 @@ namespace Mmogick
 			ConnectController.server_fps = server_fps;
 			ConnectController.step = step;                                    // максимальный размер шага. умножается тк по диагонали идет больще
 			ConnectController.position_precision = position_precision;        // длина шага
+			ConnectController.entity_actions = entity_actions;
 
 			recives.Clear();		
 
@@ -423,7 +431,7 @@ namespace Mmogick
 #if UNITY_EDITOR
 					Debug.Log("WebSocket: Пришел пакет" + text);
 #endif
-					Recive<EntityRecive, EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(text);
+					Recive<EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive>>(text);
 
 					if (recive.error != null)
 					{

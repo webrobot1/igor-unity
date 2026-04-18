@@ -150,7 +150,7 @@ namespace Mmogick
 					SceneManager.UnloadScene("RegisterScene");
 				}
 				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)
-				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps);
+				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps, data.entity_actions);
 
 				// asyncLoad.allowSceneActivation = true;
 			}

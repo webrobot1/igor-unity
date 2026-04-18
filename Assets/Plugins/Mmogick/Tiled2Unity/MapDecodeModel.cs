@@ -62,9 +62,7 @@ namespace Mmogick
 					foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
 					{
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-						var m = newTile.transform;
-						m.SetTRS(new Vector3(tile.Value.horizontal - 0.5f, tile.Value.vertical - 0.5f), Quaternion.Euler(tile.Value.vertical * 180, tile.Value.horizontal * 180, 0f), Vector3.one);
-						newTile.transform = m;
+						newTile.transform = BuildTileMatrix(tile.Value.flipH, tile.Value.flipV, tile.Value.flipD, tile.Value.rotHex120);
 
 						applySprite(newTile, gameId, tile.Value.sha256);
 						tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
@@ -78,10 +76,23 @@ namespace Mmogick
 					{
 						if (string.IsNullOrEmpty(obj.sha256)) continue;
 
+						// Сервер кодирует flip-маску в суффиксе "sha:hex" — формат идентичен LayerTile.
+						// См. AbstractObject::jsonSerialize в PHP и TileFlagParser.
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-						var m = newTile.transform;
-						m.SetTRS(new Vector3(obj.horizontal - 0.5f, obj.vertical - 0.5f), Quaternion.Euler(obj.vertical * 180, obj.horizontal * 180, 0f), Vector3.one);
-						newTile.transform = m;
+						Matrix4x4 trs = BuildTileMatrix(obj.flipH, obj.flipV, obj.flipD, obj.rotHex120);
+
+						// Tiled rotation для объектов — CW в градусах вокруг точки (x,y),
+						// которая совпадает с pivot спрайта (0,0) в координатах ячейки
+						// (Sprite.Create с pivot=(0,0)). Знак инвертируем: Tiled CW → Unity Z CCW.
+						// Поворот применяется СЛЕВА от flip-матрицы: сначала нормализуется
+						// ориентация флагами (внутри ячейки), затем весь объект крутится вокруг pivot.
+						if (obj.rotation != 0f)
+						{
+							Matrix4x4 rotMat = Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, -obj.rotation));
+							trs = rotMat * trs;
+						}
+
+						newTile.transform = trs;
 
 						applySprite(newTile, gameId, obj.sha256);
 						tilemap.SetTile(new Vector3Int((int)obj.x, (int)obj.y, 0), newTile);
@@ -142,6 +153,60 @@ namespace Mmogick
 			{
 				newTile.sprite = TileCacheService.GetSprite(gameId, sha256);
 			}
+		}
+
+		/// <summary>
+		/// Собирает матрицу преобразования тайла по Tiled-флагам.
+		///
+		/// Спрайты тайлов имеют pivot (0,0) (см. TileCacheService.Sprite.Create),
+		/// один тайл = 1 unit. Все преобразования применяются вокруг центра ячейки (0.5, 0.5).
+		///
+		/// Сводная таблица для квадратной карты (Tiled tmx-spec):
+		///   D H V → rotZ(deg) scaleX scaleY
+		///   0 0 0 →   0       +1     +1
+		///   0 1 0 →   0       -1     +1   (отражение по X)
+		///   0 0 1 →   0       +1     -1   (отражение по Y)
+		///   0 1 1 → 180       +1     +1   (= rot 180)
+		///   1 1 0 →  90       +1     +1   (rotate 90° против часовой в Unity-смысле)
+		///   1 1 1 →  90       +1     -1
+		///   1 0 1 → 270       +1     +1
+		///   1 0 0 → 270       +1     -1
+		///
+		/// rotHex120 — для hex-карт; на квадратных не приходит, но обрабатываем как Z-поворот на 120°.
+		/// </summary>
+		private static Matrix4x4 BuildTileMatrix(bool flipH, bool flipV, bool flipD, bool rotHex120)
+		{
+			if (!flipH && !flipV && !flipD && !rotHex120)
+				return Matrix4x4.identity;
+
+			float rotZ = 0f;
+			float sx = 1f, sy = 1f;
+
+			if (!flipD)
+			{
+				if (flipH && flipV) { rotZ = 180f; }
+				else if (flipH)     { sx = -1f; }
+				else if (flipV)     { sy = -1f; }
+			}
+			else
+			{
+				if (flipH && flipV)      { rotZ = 90f;  sy = -1f; }
+				else if (flipH)          { rotZ = 90f;  }
+				else if (flipV)          { rotZ = 270f; }
+				else                     { rotZ = 270f; sy = -1f; }
+			}
+
+			if (rotHex120) rotZ += 120f;
+
+			Quaternion rot = Quaternion.Euler(0f, 0f, rotZ);
+			Vector3 scale  = new Vector3(sx, sy, 1f);
+
+			// Поворот/масштаб вокруг центра ячейки (0.5, 0.5).
+			// Итог: T(c) * R * S * T(-c)
+			Vector3 c = new Vector3(0.5f, 0.5f, 0f);
+			Matrix4x4 trs = Matrix4x4.TRS(Vector3.zero, rot, scale);
+			Vector3 offset = c - trs.MultiplyPoint3x4(c);
+			return Matrix4x4.TRS(offset, rot, scale);
 		}
 	}
 }

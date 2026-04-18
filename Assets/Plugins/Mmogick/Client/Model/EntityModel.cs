@@ -117,10 +117,14 @@ namespace Mmogick
 						bool nonLoop = animator.Animator.CurrentAnimation != null && !animator.Animator.CurrentAnimation.Looping;
 						if (changed || nonLoop)
 						{
-							if (animator.Animator.HasAnimation(recive.action))
-								animator.Animator.Play(recive.action);
+							// Резолв action → SCML clip через серверный маппинг (per game+entity).
+							// Если маппинга нет — fallback на action как имя клипа (backward-compat).
+							string prefabName = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
+							string clipName = AnimationCacheService.GetClipName(prefabName, recive.action, ConnectController.entity_actions) ?? recive.action;
+							if (animator.Animator.HasAnimation(clipName))
+								animator.Animator.Play(clipName);
 							else
-								LogWarning("Анимация: action '" + recive.action + "' не найден в SCML");
+								LogWarning("Анимация: clip '" + clipName + "' (action '" + recive.action + "') не найден в SCML");
 						}
 					}
 					action = recive.action;

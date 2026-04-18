@@ -14,14 +14,14 @@ namespace Mmogick
 	abstract public class UpdateController : MapController
 	{
 		protected override void Handle(string json)
-		{		
-			HandleData(JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive, EntityRecive>>(json));				
+		{
+			HandleData(JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive>>(json));
 		}
 
 		/// <summary>
 		/// Обработка пришедших от сервера значений
 		/// </summary>
-		protected override void HandleData<P,E,O>(Recive<P, E, O> recive)
+		protected override void HandleData<P,E>(Recive<P, E> recive)
 		{
 			base.HandleData(recive);
 
@@ -70,8 +70,8 @@ namespace Mmogick
 						Debug.LogWarning("WebSocket: Создаем область для объектов " + map.Key);
 					}
 
-					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты 
-					if (map.Value.player == null && map.Value.enemy == null && map.Value.objects == null && map.Value.animal == null)
+					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты
+					if (map.Value.player == null && map.Value.entity == null)
 					{
 						Debug.LogWarning("WebSocket: локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
 
@@ -87,38 +87,19 @@ namespace Mmogick
 					{
 						if (map.Value.player != null)
 						{
-							//Debug.Log("Обновляем игроков");
 							foreach (var player in map.Value.player)
 							{
-								UpdateObject(map.Key, player.Key, player.Value, "Players");
+								UpdateObject(map.Key, player.Key, player.Value, "player");
 							}
 						}
 
-						// если есть враги
-						if (map.Value.enemy != null)
+						// Унифицированная группа entity — различаем по kind-полю внутри каждой сущности.
+						// Папка префабов в Resources/Prefabs/ совпадает с именем kind один-в-один.
+						if (map.Value.entity != null)
 						{
-							//Debug.Log("Обновляем enemy");
-							foreach (var enemy in map.Value.enemy)
+							foreach (var ent in map.Value.entity)
 							{
-								UpdateObject(map.Key, enemy.Key, enemy.Value, "Enemys");
-							}
-						}
-
-						if (map.Value.animal != null)
-						{
-							foreach (var animal in map.Value.animal)
-							{
-								UpdateObject(map.Key, animal.Key, animal.Value, "Animals");
-							}
-						}
-
-						// если есть объекты
-						if (map.Value.objects != null)
-						{
-							//Debug.Log("Обновляем объекты");
-							foreach (var obj in map.Value.objects)
-							{
-								UpdateObject(map.Key, obj.Key, obj.Value, "Objects");
+								UpdateObject(map.Key, ent.Key, ent.Value, ent.Value.kind);
 							}
 						}
 					}

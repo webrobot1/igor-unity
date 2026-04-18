@@ -66,7 +66,7 @@ namespace Mmogick
 		/// <summary>
 		/// Обработка пакета - с какой стороны какая ID карты на сцене
 		/// </summary>
-		protected virtual void HandleData<P, E, O>(Recive<P, E, O> recive) where P : EntityRecive where E : EntityRecive where O : EntityRecive
+		protected virtual void HandleData<P, E>(Recive<P, E> recive) where P : EntityRecive where E : EntityRecive
 		{
 			if (recive.sides != null)
 			{

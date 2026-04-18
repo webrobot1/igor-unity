@@ -61,6 +61,24 @@ namespace Mmogick
 		private static string ManifestPath(int gameId) => Path.Combine(GamePath(gameId), MANIFEST_FILE);
 		private static string MetaPath(int gameId)   => Path.Combine(GamePath(gameId), META_FILE);
 
+		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx/5xx).
+		// Fallback — код+generic error от UnityWebRequest.
+		private static string ExtractError(UnityWebRequest req)
+		{
+			string body = req.downloadHandler?.text;
+			if (!string.IsNullOrEmpty(body))
+			{
+				try
+				{
+					var err = JsonConvert.DeserializeObject<Dictionary<string, string>>(body);
+					if (err != null && err.TryGetValue("error", out string msg) && !string.IsNullOrEmpty(msg))
+						return msg;
+				}
+				catch { }
+			}
+			return req.responseCode + " " + req.error;
+		}
+
 		// Загружает manifest + meta с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
@@ -152,7 +170,7 @@ namespace Mmogick
 			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("TileCache archive: " + req.responseCode + " " + req.error);
+				onError?.Invoke("TileCache archive: " + ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -218,7 +236,7 @@ namespace Mmogick
 			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("TileCache meta: " + req.responseCode + " " + req.error);
+				onError?.Invoke("TileCache meta: " + ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -263,7 +281,7 @@ namespace Mmogick
 			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				callback(null, "TileCache map " + mapId + ": " + req.responseCode + " " + req.error);
+				callback(null, "TileCache map " + mapId + ": " + ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
