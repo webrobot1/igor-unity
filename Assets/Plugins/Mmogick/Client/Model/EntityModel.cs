@@ -167,7 +167,7 @@ namespace Mmogick
 			if (recive.lifeRadius != null)
 				this.lifeRadius = (int)recive.lifeRadius;
 
-			if (recive.prefab != null)
+			if (!string.IsNullOrEmpty(recive.prefab))
 				this.prefab = recive.prefab;
 
 			if (recive.login != null)
