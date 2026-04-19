@@ -25,7 +25,8 @@ namespace Mmogick
 
             Sprite sprite = Resources.Load<Sprite>("Sprites/Items/" + id);
             if (sprite == null)
-                sprite = Resources.Load<Sprite>("Sprites/Items/unknow");
+                // unknow.png общий для всех «неизвестных» ассетов — лежит в Resources/Sprites/, не в Items/
+                sprite = Resources.Load<Sprite>("Sprites/unknow");
 
             if (image != null && sprite != null)
                 image.sprite = sprite;

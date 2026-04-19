@@ -9,8 +9,22 @@ using UnityEngine.UI;
 namespace Mmogick
 {
 	/// <summary>
-	/// Collider2D обязателен — по нему CursorController.Physics2D.Raycast определяет клик по сущности (выделение цели).
-	/// Серверная физика авторитарна, сам коллайдер физику не симулирует, он нужен только для mouse-picking.
+	/// Collider2D обязателен исключительно для mouse-picking цели.
+	///
+	/// Как это работает:
+	///   CursorController.Update() по клику делает Physics2D.Raycast из Camera.main в мировую точку курсора;
+	///   первый hit с GameObject'а, у которого есть EntityModel → это и есть выбранная цель (persist_target = true).
+	///   Без Collider2D raycast ничего не увидит и нельзя будет кликать по персонажам/объектам.
+	///
+	/// Почему НЕ физика:
+	///   столкновения/движение авторитарны на сервере, клиент только получает позиции пакетами
+	///   (см. ObjectModel.Walk корутину). Коллайдер в физ-симуляции не участвует — поэтому Rigidbody2D
+	///   рядом ставим как Kinematic (не Dynamic): его задача — просто подсказать Physics2D, что collider
+	///   двигается, чтобы движок не перестраивал spatial index статических collider'ов каждый кадр.
+	///
+	/// Размер/offset капсулы тюнится под визуал конкретной сущности; при рефакторинге не забыть,
+	/// что wrap-ом SpriteRenderer'а в child "Sprites" (UpdateController.UpdateObject) меняется только
+	/// визуальный scale, а Collider2D остаётся на корне со своими префабными размерами.
 	/// </summary>
 	[RequireComponent(typeof(Collider2D))]
 	public class ObjectModel : EntityModel

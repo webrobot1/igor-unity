@@ -168,13 +168,10 @@ namespace Mmogick
 							{
 								int order = _maps[map_id].spawn_sort + model.sort;
 
-								// SortingGroup на корне (ставится при загрузке Spriter'а) — приоритетнее
-								// корневого SpriteRenderer, который удаляется при приходе Spriter-анимации.
+								// SortingGroup гарантирован на корне каждой сущности (см. UpdateController.UpdateObject).
 								var group = child.gameObject.GetComponent<UnityEngine.Rendering.SortingGroup>();
 								if (group != null)
 									group.sortingOrder = order;
-								else if (child.gameObject.GetComponent<SpriteRenderer>())
-									child.gameObject.GetComponent<SpriteRenderer>().sortingOrder = order;
 
 								if (child.gameObject.GetComponentInChildren<Canvas>())
 									// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации

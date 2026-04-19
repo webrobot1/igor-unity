@@ -81,6 +81,46 @@ API маршруты:
 ![Игорь - 2D MMORPG на Unity, клиентская часть](https://github.com/webrobot1/webrobot1/assets/20768848/c291e8ae-9e2f-4745-93c7-2f95df620cd2)
 
 
+## Настройки Unity-проекта, влияющие на клиентскую логику
+
+Часть клиентской нормализации/сортировки сущностей опирается на конкретные настройки импортёра и Graphics Settings. Если их снять — картинка «поедет», хотя компиляция пройдёт чисто.
+
+### Sprite Import: `spriteMeshType = Tight` (для всех player-fallback PNG)
+
+- **Где:** `.meta` файлы PNG в `Assets/Sprites/Entitys/Players/**` (Warrior Idle/Walk/Attack/Dead/Hurt) — строка `spriteMeshType: 1`.
+- **Зачем:** нормализация размера сущности (см. `UpdateController.UpdateObject` → `AnimationCacheService.TryGetTightRect`) читает *tight*-bounds спрайта через `Sprite.vertices`. При `Tight` Unity кладёт туда полигон вокруг непрозрачных пикселей; при `FullRect` — 4 угла всей `sprite.rect`, включая прозрачные поля PNG. Если поставить `FullRect`, персонажи с «воздухом» в PNG будут визуально мельче остальных в клетке карты.
+- **Дополнительно:** `isReadable` (`GetPixels32`) НЕ требуется — `Sprite.vertices` работает без Read/Write Enabled.
+
+Для **runtime-спрайтов** (Spriter-анимации, загружаются `AnimationCacheService.GetSprite` из PNG-байтов с диска сервера) то же самое — `Sprite.Create(..., SpriteMeshType.Tight)`.
+
+### Graphics Settings: Transparency Sort Mode = Custom Axis `(0, 1, -1)`
+
+- **Где:** `ProjectSettings/GraphicsSettings.asset` → `m_TransparencySortMode: 3` (CustomAxis), `m_TransparencySortAxis: {x: 0, y: 1, z: -1}`.
+- **Зачем:** на тайловых картах с layers (деревья/стены/мосты) нужно, чтобы сущность могла зайти «за» препятствие, когда оно визуально выше/дальше. Ось Y>0 даёт классический «нижние объекты поверх верхних», Z<0 — карты-слои с «z=-1 = передний план» (передние тайлы на фоне сортируются над задними).
+- **Связанное ограничение:** при Custom Axis каждая `SpriteRenderer` сортируется по проекции на ось **по отдельности**. Если у сущности несколько child-SR'ов (Spriter), части одной сущности могут вклиниваться между частями другой. Поэтому **каждая сущность оборачивается `UnityEngine.Rendering.SortingGroup`** (`UpdateController.UpdateObject`) — все её спрайты рендерятся как единое целое относительно других SortingGroup.
+
+### PixelsPerUnit = 100 (Spriter-спрайты)
+
+- **Где:** `AnimationCacheService.GetSprite` — `Sprite.Create(..., 100f, ...)`.
+- **Зачем:** `SpriterDotNetBehaviour.Ppu = 100` вшито в библиотеку. `UnityAnimator.ApplySpriteTransform` считает позиции частей в юнитах деленных на PPU — если PPU у разных спрайтов сущности разный, части персонажа разлетаются.
+
+### Tilemap Grid cellSize = (1, 1, 0) по умолчанию
+
+- **Где:** `MapController.HandleData` — `new GameObject(...).AddComponent<Grid>()` без явной настройки cellSize.
+- **Зачем:** 1 клетка карты = 1 мировой юнит. На это завязана `SpriterPostImportAdjuster.TARGET_HEIGHT = 1.0f` (все сущности приводятся к 1 клетке по высоте tight-bounds). Если когда-нибудь зададите `cellSize` вручную — пересчитать `TARGET_HEIGHT`.
+
+### Resources/Sprites/unknow.png — единый fallback-спрайт
+
+- **Где:** `Assets/Resources/Sprites/unknow.png` + загрузчики `Spell.Magic`, `Item.SetData`, `UpdateController` (fallback для enemy/animal/object без scml).
+- **Зачем:** одна точка истины для «неизвестного» визуала. Ранее fallback был в подпапках (`Sprites/Spells/unknow`, `Sprites/Items/unknow`) — при переносе одной копии легко получить null и пустой ActionBar/Inventory.
+
+### Flat prefabs: `Assets/Resources/Prefabs/{kind}.prefab`
+
+- **Где:** 4 префаба `player.prefab`, `enemy.prefab`, `animal.prefab`, `object.prefab` на верхнем уровне `Prefabs/`.
+- **Зачем:** `UpdateController.UpdateObject` грузит префаб через `Resources.Load("Prefabs/" + type)`, без имени и подпапок. Анимация и визуал приходят с сервера (Spriter scml), клиентский префаб — только «оболочка» (SortingGroup, Collider2D, Rigidbody2D Kinematic, модель скрипта, LifeBar). Только у `player.prefab` оставлен `Animator` с `PlayerController.controller` — как фолбэк-анимации, если сервер не прислал scml.
+
+---
+
 ## Среда разработки
 
 Unity Editor запущен на **Windows**, проект (`C:\Unity\release`) — в файловой системе Windows, доступен из WSL как `/mnt/c/Unity/release`. При работе через WSL Claude Code читает/пишет файлы через `/mnt/c/`, но Unity компилирует и запускает их на Windows-стороне.

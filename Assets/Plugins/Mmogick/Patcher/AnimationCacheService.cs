@@ -44,6 +44,31 @@ namespace Mmogick
 		private static Dictionary<int, Dictionary<int, string>> _files;              // animationId → idx → sha256.ext
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
+		/// <summary>
+		/// Tight-rect спрайта в sprite-local мировых единицах (относительно pivot=(0,0), т.е. левый-нижний угол rect).
+		/// Берётся из <see cref="Sprite.vertices"/> — при Tight-меше Unity туда кладёт вершины полигона вокруг
+		/// непрозрачных пикселей. <see cref="Sprite.bounds"/> не подходит: он считает всю sprite.rect целиком,
+		/// и PNG с прозрачными полями искажают измерения SpriterPostImportAdjuster / fallback-normalize.
+		/// Требует Tight-меша — у Spriter-спрайтов это задаётся в <see cref="Sprite.Create"/> ниже,
+		/// у ассетов Unity — через TextureImporter.spriteMeshType=Tight (см. README / raw .meta files).
+		/// </summary>
+		public static bool TryGetTightRect(Sprite s, out Rect rect)
+		{
+			if (s == null) { rect = default; return false; }
+			var verts = s.vertices;
+			if (verts == null || verts.Length == 0) { rect = default; return false; }
+			float minX = verts[0].x, maxX = verts[0].x, minY = verts[0].y, maxY = verts[0].y;
+			for (int i = 1; i < verts.Length; i++)
+			{
+				if (verts[i].x < minX) minX = verts[i].x;
+				if (verts[i].x > maxX) maxX = verts[i].x;
+				if (verts[i].y < minY) minY = verts[i].y;
+				if (verts[i].y > maxY) maxY = verts[i].y;
+			}
+			rect = new Rect(minX, minY, maxX - minX, maxY - minY);
+			return true;
+		}
+
 		[Serializable]
 		public class SyncManifest
 		{
@@ -511,7 +536,11 @@ namespace Mmogick
 			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			// PixelsPerUnit должен совпадать с SpriterDotNetBehaviour.Ppu (=100), иначе UnityAnimator.ApplySpriteTransform
 			// считает info.X/info.Y в разных масштабах для разных спрайтов — и части персонажа разлетаются.
-			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), 100f, 0, SpriteMeshType.FullRect);
+			// SpriteMeshType.Tight — чтобы Sprite.bounds (и SpriteRenderer.bounds) отсекали прозрачные поля PNG.
+			// Критично для SpriterPostImportAdjuster: без этого персонажи с «воздухом» вокруг контента в своих
+			// PNG-ах измерялись бы завышенными bounds и нормализовались бы в клетке мельче остальных.
+			// Рендеринг FullRect vs Tight отличается только числом треугольников меша — визуально идентично.
+			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), 100f, 0, SpriteMeshType.Tight);
 			s.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			_spriteCache[fileName] = s;
 			Debug.Log("AnimationCache: спрайт " + fileName + " загружен с диска");

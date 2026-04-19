@@ -136,6 +136,51 @@ namespace Mmogick
 				prefab = Instantiate(ob) as GameObject;
 				prefab.name = key;
 
+				// SortingGroup на корне сразу: сортируем все спрайты сущности как единое целое относительно
+				// других сущностей (иначе Custom Axis Z-sort перемешивает body-parts одной сущности с частями другой).
+				// Spriter при загрузке переиспользует этот же SortingGroup.
+				if (prefab.GetComponent<UnityEngine.Rendering.SortingGroup>() == null)
+					prefab.AddComponent<UnityEngine.Rendering.SortingGroup>();
+
+				// Нормализация fallback-визуала до 1 клетки по высоте.
+				// SR остаётся на корне (его Animator-клипы таргетят по пустому пути — если унести в child,
+				// player'овские fallback-анимации перестанут работать). Поэтому скейлим корень целиком,
+				// а LifeBar и CapsuleCollider2D контр-компенсируем, чтобы они остались своего префабного мира
+				// (иначе HP-полоска раздувается у enemy и сжимается у player'а).
+				// Высоту берём tight — т.е. по непрозрачным пикселям PNG'шки (Sprite.vertices при Tight-меше
+				// в импортёре). sprite.bounds не подходит: включает прозрачные поля и нормализует таких
+				// персонажей мельче остальных.
+				var fallbackSr = prefab.GetComponent<SpriteRenderer>();
+				if (fallbackSr != null && fallbackSr.sprite != null)
+				{
+					float native = AnimationCacheService.TryGetTightRect(fallbackSr.sprite, out Rect tight)
+						? tight.height
+						: fallbackSr.sprite.bounds.size.y;
+					Vector3 oldScale = prefab.transform.localScale;
+					if (native > 0.0001f && oldScale.y > 0.0001f)
+					{
+						// После root.scale *= factor мировая высота спрайта = oldScale.y * factor * native = 1.
+						float factor = 1f / (native * oldScale.y);
+						prefab.transform.localScale = new Vector3(oldScale.x * factor, oldScale.y * factor, oldScale.z);
+
+						// Дети/компоненты, чьи размеры тюнились под oldScale, компенсируем.
+						float inv = 1f / factor;
+						var lifeBar = prefab.transform.Find("LifeBar");
+						if (lifeBar != null)
+						{
+							lifeBar.localScale = new Vector3(inv, inv, 1f);
+							var p = lifeBar.localPosition;
+							lifeBar.localPosition = new Vector3(p.x * inv, p.y * inv, p.z);
+						}
+						var capsule = prefab.GetComponent<CapsuleCollider2D>();
+						if (capsule != null)
+						{
+							capsule.size *= inv;
+							capsule.offset *= inv;
+						}
+					}
+				}
+
 				model = prefab.GetComponent<EntityModel>();
 				if (model == null)
 				{
@@ -200,13 +245,9 @@ namespace Mmogick
 				{
 					int order = (int)getMaps()[map_id].spawn_sort + model.sort;
 
-					// SortingGroup на корне (ставится при загрузке Spriter'а) сортирует все child-sprite'ы
-					// как единое целое. Пока Spriter ещё не загрузился — пишем в корневой SpriteRenderer.
-					var group = prefab.GetComponent<UnityEngine.Rendering.SortingGroup>();
-					if (group != null)
-						group.sortingOrder = order;
-					else if (prefab.GetComponent<SpriteRenderer>())
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = order;
+					// SortingGroup гарантированно добавлен выше — все child-SpriteRenderer'ы (fallback или Spriter)
+					// сортируются как единое целое относительно других сущностей.
+					prefab.GetComponent<UnityEngine.Rendering.SortingGroup>().sortingOrder = order;
 
 					if (prefab.GetComponentInChildren<Canvas>())
 						// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации

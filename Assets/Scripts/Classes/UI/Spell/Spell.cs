@@ -43,7 +43,8 @@ namespace Mmogick
                 if (sprite == null)
                 {
                     Debug.LogError("не найдено изображение заклинания с сервера " + value);
-                    sprite = Resources.Load<Sprite>("Sprites/Spells/unknow");
+                    // unknow.png общий для всех «неизвестных» ассетов — лежит в Resources/Sprites/, не в Spells/
+                    sprite = Resources.Load<Sprite>("Sprites/unknow");
                 }
 
                 image.sprite = sprite;
