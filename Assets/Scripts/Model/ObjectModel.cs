@@ -9,9 +9,10 @@ using UnityEngine.UI;
 namespace Mmogick
 {
 	/// <summary>
-	/// колайдер обязателен тк мы кликаем на gameObject что бы выделить его  в область колайдера. этот клас наследуется от плагина и реулизует работу с анимацией. вы можете реализовать по своему (поэтому работа с ней не часть плагина)
+	/// Collider2D обязателен — по нему CursorController.Physics2D.Raycast определяет клик по сущности (выделение цели).
+	/// Серверная физика авторитарна, сам коллайдер физику не симулирует, он нужен только для mouse-picking.
 	/// </summary>
-	[RequireComponent(typeof(Collider))]
+	[RequireComponent(typeof(Collider2D))]
 	public class ObjectModel : EntityModel
 	{
 		[NonSerialized]

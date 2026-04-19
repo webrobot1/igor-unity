@@ -631,6 +631,7 @@ namespace Mmogick
 				Error("WebSocket: нельзя отправлять к серверу пустые строки");
 		}
 
+		// этот метод по типу exception только выбросит в следующем кадре тк добавляет errors  и выведет в UI ошибку 
 		public static new void Error(string text, Exception ex = null)
 		{
 			errors.Add(text+": "+ ex??ex.Message);

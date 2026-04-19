@@ -8,3 +8,7 @@
 2. Активная сцена на старте — `Assets/Scenes/RegisterScene.unity`. Там форма входа: `UI/login`, `UI/password`, `UI/server` и две кнопки `UI/Button` (одна из них «Войти»).
 3. Нажать «Войти» (UI `Button.onClick.Invoke()` через `script-execute` или `reflection-method-call`). После успешного логина автоматически грузится игровая сцена с enemy.
 4. Только после этого выполнять `gameobject-find`, `scene-get-data`, `screenshot-game-view` и пр. по игровым объектам — в `RegisterScene` их нет.
+
+
+код сервера лежит тут Z:\var\www\html\game  (там свои скилы есть и mcp сервер)
+Errro() - что то типа безопсного exception , что в следдующем кадре отсоединит игрока и выведет ошибку в Ui (что бы не крашить программу, но надо retur делать что бы обратно вернулся поток программы в цикл fixedUpdate  )

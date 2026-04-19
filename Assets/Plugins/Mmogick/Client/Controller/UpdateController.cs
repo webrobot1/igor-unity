@@ -122,20 +122,14 @@ namespace Mmogick
 				if (recive.action == "remove") 
 					return null;
 
-				UnityEngine.Object ob = null;
+				// Единый префаб на kind: Assets/Resources/Prefabs/{type}.prefab.
+				// Визуал (Spriter scml) подтягивается с сервера по recive.prefab, если анимация есть в кеше.
+				// Если нет — остаётся корневой fallback-SpriteRenderer с "unknow" спрайтом.
+				UnityEngine.Object ob = Resources.Load("Prefabs/" + type, typeof(GameObject));
 
-				if (recive.prefab != null)
-					ob = Resources.Load("Prefabs/" + type + "/" + recive.prefab, typeof(GameObject));
-
-				if (recive.prefab == null || ob == null)
-                {
-					Debug.LogError("Отсутвует и префаб Prefabs / " + type + " / " + recive.prefab+" у существа "+key);
-					ob = Resources.Load("Prefabs/" + type + "/Unknow", typeof(GameObject));
-				}
-					
 				if (ob == null)
 				{
-					Error("WebSocket: Отсутвует и префаб Prefabs/" + type + "/" + recive.prefab+ " и Prefabs/" + type + "/Unknow для объекта " + key);
+					Error("WebSocket: Отсутствует префаб Prefabs/" + type + " для объекта " + key);
 					return null;
 				}
 
@@ -150,9 +144,45 @@ namespace Mmogick
 				}
 				
 				model.key = key;
+				model.type = type.ToLower();
+
 				model.Log("создан с префабом " + recive.prefab);
 
-				model.type = type.ToLower();
+
+				// SCML-анимация цепляется только если такой Prefab есть в серверном списке (AnimationCacheService._library).
+				// Имя Prefab глобально уникально в пределах игры — совпадает с именем Unity-prefab в Resources/Prefabs/{type}/.
+				if (!string.IsNullOrEmpty(recive.prefab))
+				{
+					if(AnimationCacheService.HasPrefab(recive.prefab))
+					{
+						StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, recive.prefab, (AnimationPatcher patcher) =>
+						{
+							if (patcher.error != null)
+							{
+								Error("Анимации: ошибка " + patcher.error);
+								return;
+							}
+							if (patcher.spriterPacket == null)
+							{
+								Error("Анимации: пустой ответ от патчера для " + key);
+								return;
+							}
+							try
+							{
+								Debug.Log("Анимации: создаём " + recive.prefab + " для " + key);
+								NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID);
+							}
+							catch (Exception ex)
+							{
+								Error("Анимации: ошибка " + ex);
+							}
+						}));
+					}
+					else
+						model.LogError("отсутвует анимация в кеше " + recive.prefab);
+				}
+				else
+					model.LogWarning("не указан префаб");
 
 				if (key == player_key)
 				{
@@ -168,8 +198,16 @@ namespace Mmogick
 				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
 				if (getMaps().ContainsKey(map_id))
 				{
-					if (prefab.GetComponent<SpriteRenderer>())
-						prefab.GetComponent<SpriteRenderer>().sortingOrder = (int)getMaps()[map_id].spawn_sort + model.sort;
+					int order = (int)getMaps()[map_id].spawn_sort + model.sort;
+
+					// SortingGroup на корне (ставится при загрузке Spriter'а) сортирует все child-sprite'ы
+					// как единое целое. Пока Spriter ещё не загрузился — пишем в корневой SpriteRenderer.
+					var group = prefab.GetComponent<UnityEngine.Rendering.SortingGroup>();
+					if (group != null)
+						group.sortingOrder = order;
+					else if (prefab.GetComponent<SpriteRenderer>())
+						prefab.GetComponent<SpriteRenderer>().sortingOrder = order;
+
 					if (prefab.GetComponentInChildren<Canvas>())
 						// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации
 						// (Spriter создаёт N child-sprite'ов с собственным sortingOrder 0..N-1 из UnityAnimator).
@@ -186,34 +224,6 @@ namespace Mmogick
 
 			try
 			{
-				// SCML-анимация цепляется только если такой Prefab есть в серверном списке (AnimationCacheService._library).
-				// Имя Prefab глобально уникально в пределах игры — совпадает с именем Unity-prefab в Resources/Prefabs/{type}/.
-				if (!string.IsNullOrEmpty(recive.prefab) && model.prefab != recive.prefab
-					&& AnimationCacheService.HasPrefab(recive.prefab))
-				{
-					StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, recive.prefab, (AnimationPatcher patcher) =>
-					{
-						if (patcher.error != null)
-						{
-							Error("Анимации: ошибка " + patcher.error);
-							return;
-						}
-						if (patcher.spriterPacket == null)
-						{
-							Error("Анимации: пустой ответ от патчера для " + key);
-							return;
-						}
-						try
-						{
-							Debug.Log("Анимации: создаём " + recive.prefab + " для " + key);
-							NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID);
-						}
-						catch (Exception ex)
-						{
-							Error("Анимации: ошибка " + ex);
-						}
-					}));
-				}
 				model.SetData(recive);
 			}
 			catch (Exception ex)
