@@ -215,7 +215,9 @@ namespace Mmogick
 							try
 							{
 								Debug.Log("Анимации: создаём " + recive.prefab + " для " + key);
-								NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID);
+								// size (per-prefab) — серверная константа (из /prefabs library), для точной нормализации
+								// размера без замера total-bounds. null = fallback на автозамер в адаптере.
+								NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID, AnimationCacheService.GetPrefabSize(recive.prefab));
 							}
 							catch (Exception ex)
 							{

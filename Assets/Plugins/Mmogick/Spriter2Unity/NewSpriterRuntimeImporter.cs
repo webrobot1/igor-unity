@@ -32,7 +32,7 @@ namespace Mmogick
         /// (части тела не успели разложиться), а поздний кадр другой анимации — наоборот с выбросами
         /// типа огня/оружия над головой. Берём медиану у_max по выборке — устойчиво и к выбросам.
         /// </summary>
-        private const int SAMPLE_FRAMES = 12;
+        private const int SAMPLE_FRAMES = 100;
 
         private Transform lifeBar;
         private Transform spritesRoot;
@@ -40,59 +40,41 @@ namespace Mmogick
         private readonly List<float> yMinSamples = new List<float>(SAMPLE_FRAMES);
         private int framesSampled;
         private bool scaleApplied;
+        // Если задано (с сервера через EntityRecive.body_height, prop per-prefab) — используем вместо sampling'а.
+        // scml-единицы body'a: factor = TARGET_HEIGHT / serverBodyHeight. Точнее, чем автозамер bounds.
+        private float? serverBodyHeight;
 
-        public void Init(Transform lifeBar, Transform spritesRoot)
+        public void Init(Transform lifeBar, Transform spritesRoot, float? serverBodyHeight = null)
         {
             this.lifeBar = lifeBar;
             this.spritesRoot = spritesRoot;
+            this.serverBodyHeight = serverBodyHeight;
         }
 
         void LateUpdate()
         {
             if (spritesRoot == null) { Destroy(this); return; }
 
-            Bounds agg = default;
-            bool hasAny = false;
-            foreach (var sr in spritesRoot.GetComponentsInChildren<SpriteRenderer>(true))
-            {
-                if (sr == null || sr.sprite == null || !sr.enabled) continue;
-                // Используем tight-rect (опаковые пиксели) вместо sr.bounds: sr.bounds в Unity считает
-                // всю sprite.rect включая прозрачные поля PNG — персонажи с большими пустыми областями
-                // нормализовались бы в клетку мельче остальных.
-                Bounds b;
-                if (AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight))
-                {
-                    // 4 угла tight-rect в sprite-local (pivot=(0,0), низ-лево = начало координат).
-                    Vector3 w00 = sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMin, 0));
-                    Vector3 w10 = sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMin, 0));
-                    Vector3 w01 = sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMax, 0));
-                    Vector3 w11 = sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMax, 0));
-                    b = new Bounds(w00, Vector3.zero);
-                    b.Encapsulate(w10); b.Encapsulate(w01); b.Encapsulate(w11);
-                }
-                else
-                {
-                    b = sr.bounds;
-                }
-                if (!hasAny) { agg = b; hasAny = true; }
-                else agg.Encapsulate(b);
-            }
-
-            if (!hasAny || agg.size.y < 0.0001f)
-            {
-                // ещё ничего не анимировалось — подождём следующий кадр.
-                return;
-            }
-
+            // Фаза 1 — нормализация размера. Если size пришёл с сервера, применяем сразу без замеров bounds.
             if (!scaleApplied)
             {
-                yMaxSamples.Add(agg.max.y);
-                yMinSamples.Add(agg.min.y);
+                if (serverBodyHeight.HasValue && serverBodyHeight.Value > 0.0001f)
+                {
+                    float factor = TARGET_HEIGHT / serverBodyHeight.Value;
+                    Vector3 s = spritesRoot.localScale;
+                    spritesRoot.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
+                    scaleApplied = true;
+                    // Следующий кадр — LifeBar-позиционирование по bounds (уже с учётом нового scale).
+                    return;
+                }
+
+                // Fallback: замеряем bounds.y и ведём median-sampling за N кадров.
+                if (!TryComputeAggBounds(out Bounds sampleAgg)) return;
+                yMaxSamples.Add(sampleAgg.max.y);
+                yMinSamples.Add(sampleAgg.min.y);
                 framesSampled++;
                 if (framesSampled < SAMPLE_FRAMES) return;
 
-                // Медиана вместо среднего/max — режет выбросы (огненные/магические эффекты над головой,
-                // кончик оружия, выкинутый в сторону) и даёт устойчивую «высоту тела».
                 yMaxSamples.Sort();
                 yMinSamples.Sort();
                 float medMax = yMaxSamples[yMaxSamples.Count / 2];
@@ -100,24 +82,47 @@ namespace Mmogick
                 float bodyHeight = medMax - medMin;
                 if (bodyHeight < 0.0001f) { Destroy(this); return; }
 
-                float factor = TARGET_HEIGHT / bodyHeight;
-                Vector3 s = spritesRoot.localScale;
-                spritesRoot.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
+                float f = TARGET_HEIGHT / bodyHeight;
+                Vector3 sl = spritesRoot.localScale;
+                spritesRoot.localScale = new Vector3(sl.x * f, sl.y * f, sl.z);
                 scaleApplied = true;
-
-                // Подождём ещё один кадр — bounds теперь устарели, LifeBar поставим по новому верху.
                 return;
             }
 
-            // 2) размещение LifeBar над уже нормализованными спрайтами.
-            if (lifeBar != null)
+            // Фаза 2 — позиционирование LifeBar над актуальным верхом (после scale).
+            if (lifeBar != null && TryComputeAggBounds(out Bounds agg))
             {
                 Vector3 topLocal = transform.InverseTransformPoint(new Vector3(transform.position.x, agg.max.y, 0f));
                 Vector3 pos = lifeBar.localPosition;
                 pos.y = topLocal.y + 0.25f;
                 lifeBar.localPosition = pos;
             }
-            Destroy(this);
+        }
+
+        // Агрегированный world-AABB всех активных SR-детей spritesRoot по tight-rect (непрозрачные пиксели).
+        // Возвращает false, если ещё ничего не анимировалось/не отрендерилось (bounds.y ~ 0).
+        private bool TryComputeAggBounds(out Bounds agg)
+        {
+            agg = default;
+            bool hasAny = false;
+            foreach (var sr in spritesRoot.GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                if (sr == null || sr.sprite == null || !sr.enabled) continue;
+                Bounds b;
+                if (AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight))
+                {
+                    Vector3 w00 = sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMin, 0));
+                    Vector3 w10 = sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMin, 0));
+                    Vector3 w01 = sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMax, 0));
+                    Vector3 w11 = sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMax, 0));
+                    b = new Bounds(w00, Vector3.zero);
+                    b.Encapsulate(w10); b.Encapsulate(w01); b.Encapsulate(w11);
+                }
+                else b = sr.bounds;
+                if (!hasAny) { agg = b; hasAny = true; }
+                else agg.Encapsulate(b);
+            }
+            return hasAny && agg.size.y > 0.0001f;
         }
     }
 
@@ -139,7 +144,9 @@ namespace Mmogick
 
         private static readonly string ObjectNameSprites = "Sprites";
         private static readonly string ObjectNameMetadata = "Metadata";
-        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, int gameId)
+        /// <param name="bodyHeight">Высота «тела» в scml-единицах (per-prefab, с сервера через EntityRecive.body_height).
+        /// Если null — adjuster fallback'ает на автозамер bounds.y за N кадров (менее точно).</param>
+        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, int gameId, float? bodyHeight = null)
         {
             GameObject go = GameObject.Find(entityName);
             if (go == null)
@@ -176,20 +183,24 @@ namespace Mmogick
             behaviour.enabled = true;
             behaviour.ChildData = cd;
 
-            // Spriter успешно установлен — сносим резервные визуалы на корне. SortingGroup уже добавлен
-            // UpdateController'ом при спавне.
+            // Spriter успешно установлен. Legacy-Animator на корне сносим (у player.prefab он был
+            // фолбэком; при приходе scml-анимации он уже не нужен). Корневой SpriteRenderer НЕ сносим,
+            // а только выключаем: TargetController.CameraUpdate читает его spriteRender.sprite как
+            // репрезентативный fallback-спрайт для настройки face-камеры — если его убрать,
+            // target-панель начинает ловить только один body-part Spriter-mirror'а и показывает огрызок.
+            // Рендерить fallback-спрайт не нужно — это делают Spriter-дети — достаточно enabled=false.
             Animator fallbackAnimator = go.GetComponent<Animator>();
             if (fallbackAnimator != null) GameObject.DestroyImmediate(fallbackAnimator);
 
             SpriteRenderer fallbackSpriteRenderer = go.GetComponent<SpriteRenderer>();
-            if (fallbackSpriteRenderer != null) GameObject.DestroyImmediate(fallbackSpriteRenderer);
-            // Кешированные ссылки (ObjectModel.animator и т.п.) — Unity-null после DestroyImmediate, "!= null" guard'ы отработают.
+            if (fallbackSpriteRenderer != null) fallbackSpriteRenderer.enabled = false;
+            // Кешированная ObjectModel.animator — Unity-null после DestroyImmediate выше, "!= null" guard'ы отработают.
 
             // LifeBar в префабе позиционирован под fallback-sprite. У Spriter-сущности другой bounding box —
             // adjuster нормализует размер (все сущности к единой высоте) и поднимет LifeBar над фактическим верхом.
             var lifeBar = go.transform.Find("LifeBar");
             var adjuster = go.AddComponent<SpriterPostImportAdjuster>();
-            adjuster.Init(lifeBar, sprites.transform);
+            adjuster.Init(lifeBar, sprites.transform, bodyHeight);
 
             return behaviour;
         }

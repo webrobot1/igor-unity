@@ -82,6 +82,21 @@ namespace Mmogick
 		{
 			public int animation;
 			public int entity;
+			/// <summary>
+			/// Высота «тела» персонажа в scml-единицах (per-prefab константа, приходит с /prefabs
+			/// вместе с animation и entity, задаётся в админке при конфигурации prefab'а).
+			/// Клиент нормализует Spriter-сущность так, чтобы size * final_scale = 1 клетка.
+			/// Если null (поле не задано на сервере) — fallback на автозамер bounds за N кадров.
+			/// </summary>
+			public float? size;
+		}
+
+		// Возвращает per-prefab "size" (высота тела в scml-единицах) из library, если задана, иначе null.
+		// Используется SpriterPostImportAdjuster для точной нормализации размера без замера bounds.
+		public static float? GetPrefabSize(string prefab)
+		{
+			if (_library != null && _library.TryGetValue(prefab, out PrefabEntry e)) return e.size;
+			return null;
 		}
 
 		[Serializable]

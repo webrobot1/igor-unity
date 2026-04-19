@@ -115,7 +115,8 @@ namespace Mmogick
                                 // Зеркалим Spriter-анимацию в target-UI, чтобы face_camera снимала её вживую.
                                 // SpriteRenderer оставляем с последним корневым fallback-спрайтом (его bounds нужны CameraUpdate),
                                 // но рендер выключаем — показывать будут Spriter-дети.
-                                SpriteRenderer srcFallbackSr = value.GetComponent<SpriteRenderer>();
+                                // SR у сущности теперь в child "Sprites" (UpdateController заворачивает его туда при спавне).
+                                SpriteRenderer srcFallbackSr = value.GetComponentInChildren<SpriteRenderer>(true);
                                 if (localSr != null)
                                 {
                                     if (srcFallbackSr != null && srcFallbackSr.sprite != null)
@@ -128,7 +129,7 @@ namespace Mmogick
                             {
                                 // Статичный фолбэк для не-анимированных целей.
                                 if (localSr != null) localSr.enabled = true;
-                                SpriteRenderer spriteRender = value.GetComponent<SpriteRenderer>();
+                                SpriteRenderer spriteRender = value.GetComponentInChildren<SpriteRenderer>(true);
                                 if (spriteRender == null)
                                     PlayerController.Error("На выбранном объекте налюдения присутвует колайдер но отсутвует Animator и SpriteRenderer");
                                 if (localSr != null)
@@ -193,6 +194,59 @@ namespace Mmogick
         // если изображения анимации с сильно отличабщимеся pivot to возможно надо будет каждый FixedUpdate делать этот метод для пересчета положения камеры и объекта что бы он не выходил за рамки
         void CameraUpdate()
         {
+            // Spriter-цель: есть child "Sprites" с N body-part'ами mirror-анимации.
+            // Центрируем TargetAnimation по world-AABB mirror-спрайтов (иначе pivot fallback-спрайта смещает
+            // камеру и видны только ноги) и ставим fov по честной перспективной формуле, учитывающей
+            // фактическое расстояние от face-камеры до контента: fov_v = 2*atan(H / (2*D)) в градусах,
+            // с margin'ом FRAME_MARGIN. Формула `aspect * size` (из оригинала) не масштабируется под
+            // разные расстояния — здесь камера рядом с контентом, и прежняя формула давала крайности.
+            // Content занимает ~1/FRAME_MARGIN ширины/высоты рамки. 1.25 → content ~80% рамки (небольшой воздух).
+            const float FRAME_MARGIN = 1.25f;
+            var spriterSprites = transform.Find("Sprites");
+            if (spriterSprites != null)
+            {
+                Bounds agg = default;
+                bool any = false;
+                // Не фильтруем по sr.enabled / gameObject.activeInHierarchy: UnityAnimator иногда на один кадр
+                // оставляет включёнными только "активные в анимации" тел-детали, и агрегат получается пустой.
+                // sr.sprite != null — достаточная проверка что это Spriter body-part, который участвует в компоновке.
+                foreach (var sr in spriterSprites.GetComponentsInChildren<SpriteRenderer>(true))
+                {
+                    if (sr == null || sr.sprite == null) continue;
+                    // sr.bounds = AABB меша в мировых координатах с текущим transform'ом.
+                    // Если SR выключен — bounds.size=0 у некоторых версий Unity; skip, чтобы не исказить.
+                    Bounds srB = sr.bounds;
+                    if (srB.size.sqrMagnitude < 0.0001f) continue;
+                    if (!any) { agg = srB; any = true; }
+                    else agg.Encapsulate(srB);
+                }
+                if (any)
+                {
+                    // Смещаем TargetAnimation так, чтобы центр mirror-AABB стал в точке камеры (parent.position).
+                    Vector3 localCenter = transform.parent.InverseTransformPoint(agg.center);
+                    Vector3 lp = transform.localPosition;
+                    transform.localPosition = new Vector3(lp.x - localCenter.x, lp.y - localCenter.y, 1);
+
+                    // Расстояние камера→контент в WORLD-юнитах (проекция camToContent на cam.forward).
+                    // InverseTransformPoint не подходит: у face-камеры lossyScale ~(0.24, 0.25, 0.46) из-за UI canvas,
+                    // local-z не равен world-z. Unity-проекция использует world-distance.
+                    Vector3 camToContent = agg.center - face_camera.transform.position;
+                    float worldDistance = Mathf.Abs(Vector3.Dot(camToContent, face_camera.transform.forward));
+                    if (worldDistance < 0.01f) worldDistance = 0.01f;
+                    // Margin применяем к целевому видимому размеру (линейно), а не к углу (tan нелинейный).
+                    // Нужный вертикальный fov: fov = 2 * atan(H_margin / (2 * D)).
+                    float targetH = agg.size.y * FRAME_MARGIN;
+                    float targetW = agg.size.x * FRAME_MARGIN;
+                    float needV = 2f * Mathf.Atan(targetH / (2f * worldDistance)) * Mathf.Rad2Deg;
+                    // Для ширины: tan(fovH/2) = cam.aspect * tan(fovV/2) →  fovV_fromW = 2*atan( (W/aspect) / (2D) ).
+                    float camAspect = face_camera.aspect > 0.01f ? face_camera.aspect : 1f;
+                    float needVFromW = 2f * Mathf.Atan(targetW / (camAspect * 2f * worldDistance)) * Mathf.Rad2Deg;
+                    face_camera.fieldOfView = Mathf.Clamp(Mathf.Max(needV, needVFromW), 1f, 179f);
+                    return;
+                }
+            }
+
+            // Non-Spriter (статичный fallback-спрайт, warrior для player, unknow для объектов без scml):
             // формула ниже сместит изображение выделелнного предмета так что бы оно оставалось в центре (смещаться будет если pivot отличается от (0.5, 0.5) )
             Bounds bounds = spriteRender.sprite.bounds;
             Vector2 vector = new Vector2(-bounds.center.x / bounds.extents.x / 2, -bounds.center.y / bounds.extents.y / 2);
