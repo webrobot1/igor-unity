@@ -141,7 +141,7 @@ namespace Mmogick
 					_forward = vector;
 
 					// следующий код применим только к объектам - предметам, он повернет их
-					if (type == "objects")
+					if (type == "object")
 					{
 						float angle = Mathf.Atan2(Forward.x, Forward.y) * Mathf.Rad2Deg * -1;
 						transform.rotation = Quaternion.Euler(0, 0, angle);

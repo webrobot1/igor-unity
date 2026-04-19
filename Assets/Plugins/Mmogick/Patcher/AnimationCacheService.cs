@@ -277,7 +277,7 @@ namespace Mmogick
 		{
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/images";
 			Debug.Log("Запрашиваю архив картинок анимаций "+url);
-			
+
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(_manifest.archive_last_modified))
 				req.SetRequestHeader("If-Modified-Since", _manifest.archive_last_modified);
