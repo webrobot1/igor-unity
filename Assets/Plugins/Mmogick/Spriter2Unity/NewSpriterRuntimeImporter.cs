@@ -8,84 +8,50 @@ using UnityEngine;
 namespace Mmogick
 {
     /// <summary>
-    /// Пост-импорт нормализация Spriter-сущности: после нескольких кадров (пока UnityAnimator
-    /// заполнит transforms) агрегирует Bounds активных SpriteRenderer'ов и применяет:
-    ///   1) равномерный scale на "Sprites"-child — чтобы все Spriter-сущности имели одинаковую
-    ///      целевую высоту (targetHeight), независимо от размеров изображений внутри scml.
-    ///   2) позиционирование LifeBar над реальным верхом уже нормализованных спрайтов.
-    /// Самоуничтожается после одной корректировки.
+    /// Пост-импорт нормализация Spriter-сущности: применяет равномерный scale на "Sprites"-child,
+    /// чтобы все Spriter-сущности имели одинаковую целевую высоту (TARGET_HEIGHT = 1 клетка).
+    /// Источник bodyHeight (в scml world-units): либо serverSize из /prefabs library (точный, задан админом),
+    /// либо canvas-bounds scml <animation l t r b> — парсится в NewSpriterRuntimeImporter.CreateSpriter
+    /// из packet.xml. Если оба null — нормализация не применяется, Spriter рендерится в native scml scale.
+    /// После scale позиционирует LifeBar над фактическим верхом и самоуничтожается.
     /// </summary>
     internal class SpriterPostImportAdjuster : MonoBehaviour
     {
         /// <summary>
         /// Целевая высота Spriter-сущности в мировых юнитах = число клеток карты по Y.
         /// Grid, создаваемый в MapController, имеет cellSize=(1,1,0) по умолчанию — т.е. 1 клетка = 1 юнит.
-        /// step (ConnectController.step) сюда не подходит: это размер шага в юнитах, он может быть
-        /// меньше/больше клетки (полшага, спринт и т.п.), а размер персонажа должен зависеть от клетки,
-        /// а не от темпа его движения.
         /// </summary>
         public const float TARGET_HEIGHT = 1.0f;
 
-        /// <summary>
-        /// Сколько кадров сэмплируем bounds перед принятием решения о масштабе.
-        /// Нужно тк на стартовом кадре UnityAnimator может дать нерепрезентативную позу
-        /// (части тела не успели разложиться), а поздний кадр другой анимации — наоборот с выбросами
-        /// типа огня/оружия над головой. Берём медиану у_max по выборке — устойчиво и к выбросам.
-        /// </summary>
-        private const int SAMPLE_FRAMES = 60;
-
         private Transform lifeBar;
         private Transform spritesRoot;
-        private readonly List<float> yMaxSamples = new List<float>(SAMPLE_FRAMES);
-        private readonly List<float> yMinSamples = new List<float>(SAMPLE_FRAMES);
-        private int framesSampled;
         private bool scaleApplied;
-        // Если задано (с сервера через EntityRecive.body_height, prop per-prefab) — используем вместо sampling'а.
-        // scml-единицы body'a: factor = TARGET_HEIGHT / serverBodyHeight. Точнее, чем автозамер bounds.
-        private float? serverBodyHeight;
+        // scml-единицы: factor = TARGET_HEIGHT / bodyHeight. Null = данных нет (ни серверного size,
+        // ни canvas-bounds в scml) → нормализация не применяется.
+        private float? bodyHeight;
 
-        public void Init(Transform lifeBar, Transform spritesRoot, float? serverBodyHeight = null)
+        public void Init(Transform lifeBar, Transform spritesRoot, float? bodyHeight)
         {
             this.lifeBar = lifeBar;
             this.spritesRoot = spritesRoot;
-            this.serverBodyHeight = serverBodyHeight;
+            this.bodyHeight = bodyHeight;
         }
 
         void LateUpdate()
         {
             if (spritesRoot == null) { Destroy(this); return; }
 
-            // Фаза 1 — нормализация размера. Если size пришёл с сервера, применяем сразу без замеров bounds.
+            // Фаза 1 — нормализация размера (сразу при первом LateUpdate, без ожидания кадров).
             if (!scaleApplied)
             {
-                if (serverBodyHeight.HasValue && serverBodyHeight.Value > 0.0001f)
+                if (bodyHeight.HasValue && bodyHeight.Value > 0.0001f)
                 {
-                    float factor = TARGET_HEIGHT / serverBodyHeight.Value;
+                    float factor = TARGET_HEIGHT / bodyHeight.Value;
                     Vector3 s = spritesRoot.localScale;
                     spritesRoot.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
-                    scaleApplied = true;
-                    // Следующий кадр — LifeBar-позиционирование по bounds (уже с учётом нового scale).
-                    return;
                 }
-
-                // Fallback: замеряем bounds.y и ведём median-sampling за N кадров.
-                if (!TryComputeAggBounds(out Bounds sampleAgg)) return;
-                yMaxSamples.Add(sampleAgg.max.y);
-                yMinSamples.Add(sampleAgg.min.y);
-                framesSampled++;
-                if (framesSampled < SAMPLE_FRAMES) return;
-
-                yMaxSamples.Sort();
-                yMinSamples.Sort();
-                float medMax = yMaxSamples[yMaxSamples.Count / 2];
-                float medMin = yMinSamples[yMinSamples.Count / 2];
-                float bodyHeight = medMax - medMin;
-                if (bodyHeight < 0.0001f) { Destroy(this); return; }
-
-                float f = TARGET_HEIGHT / bodyHeight;
-                Vector3 sl = spritesRoot.localScale;
-                spritesRoot.localScale = new Vector3(sl.x * f, sl.y * f, sl.z);
                 scaleApplied = true;
+                // Следующий кадр — LifeBar-позиционирование по bounds (уже с учётом scale).
                 return;
             }
 
@@ -97,6 +63,7 @@ namespace Mmogick
                 pos.y = topLocal.y + 0.25f;
                 lifeBar.localPosition = pos;
             }
+            Destroy(this);
         }
 
         // Агрегированный world-AABB всех активных SR-детей spritesRoot по tight-rect (непрозрачные пиксели).
@@ -196,11 +163,18 @@ namespace Mmogick
             if (fallbackSpriteRenderer != null) fallbackSpriteRenderer.enabled = false;
             // Кешированная ObjectModel.animator — Unity-null после DestroyImmediate выше, "!= null" guard'ы отработают.
 
-            // LifeBar в префабе позиционирован под fallback-sprite. У Spriter-сущности другой bounding box —
-            // adjuster нормализует размер (все сущности к единой высоте) и поднимет LifeBar над фактическим верхом.
+            // Выбор источника bodyHeight для adjuster'а:
+            //   1) bodyHeight (параметр) — серверный size из /prefabs library, задан админом. Точнее всего.
+            //   2) ParseScmlCanvasHeight — Y-extent всех <animation l t r b> из packet.xml, делённый на PPU=100.
+            //      SpriterDotNet эти атрибуты не парсит (они только для Preview в Spriter-редакторе), поэтому
+            //      читаем прямо из scml XML. Canvas-bounds включают оружие/эффекты — немного больше body,
+            //      но мгновенно и без ожидания кадров.
+            //   3) null — у scml нет l/t/r/b (старый/сломанный формат) → adjuster не масштабирует, Spriter
+            //      рендерится в native scml scale.
+            float? finalBodyHeight = bodyHeight ?? ParseScmlCanvasHeight(packet.xml);
             var lifeBar = go.transform.Find("LifeBar");
             var adjuster = go.AddComponent<SpriterPostImportAdjuster>();
-            adjuster.Init(lifeBar, sprites.transform, bodyHeight);
+            adjuster.Init(lifeBar, sprites.transform, finalBodyHeight);
 
             return behaviour;
         }
@@ -264,6 +238,60 @@ namespace Mmogick
             root.layer = layer;
             foreach (Transform t in root.transform)
                 SetLayerRecursively(t.gameObject, layer);
+        }
+
+        /// <summary>
+        /// Парсит scml XML и возвращает ориентировочную высоту тела в scml world-units.
+        /// Приоритет источников:
+        ///   1) Y-extent canvas'а: max(<animation b>) - min(<animation t>) из всех <animation l t r b>.
+        ///      SCML Y растёт вниз: t отрицательный (верх), b положительный (низ). Атрибуты опциональны —
+        ///      не все scml-генераторы их пишут (видим пустой t/b в БД для анимаций от некоторых тулов).
+        ///   2) Fallback: max <file height> среди всех <folder>/<file> — высота самого высокого sprite'a.
+        ///      Грубо приближает «высоту тела» (тело обычно чуть меньше, но близко, т.к. tallest sprite
+        ///      часто — это корпус или крыло, которые и формируют body bounds).
+        /// SpriterDotNet библиотека оба источника игнорирует. Парсим сами XmlDocument-ом.
+        /// Null если в scml нет ни того, ни другого.
+        /// </summary>
+        private static float? ParseScmlCanvasHeight(string xml)
+        {
+            if (string.IsNullOrEmpty(xml)) return null;
+            try
+            {
+                var doc = new System.Xml.XmlDocument();
+                doc.LoadXml(xml);
+
+                // 1) Canvas bounds из <animation l t r b>.
+                float minT = float.PositiveInfinity, maxB = float.NegativeInfinity;
+                bool anyCanvas = false;
+                foreach (System.Xml.XmlNode node in doc.SelectNodes("//entity/animation"))
+                {
+                    if (!(node is System.Xml.XmlElement e)) continue;
+                    if (!e.HasAttribute("t") || !e.HasAttribute("b")) continue;
+                    if (float.TryParse(e.GetAttribute("t"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float t) &&
+                        float.TryParse(e.GetAttribute("b"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float b))
+                    {
+                        if (t < minT) minT = t;
+                        if (b > maxB) maxB = b;
+                        anyCanvas = true;
+                    }
+                }
+                if (anyCanvas && maxB > minT) return (maxB - minT) / 100f;
+
+                // 2) Fallback: max <file height> (tallest sprite). Это верхняя оценка body.
+                float maxFileH = 0;
+                foreach (System.Xml.XmlNode node in doc.SelectNodes("//folder/file"))
+                {
+                    if (!(node is System.Xml.XmlElement e) || !e.HasAttribute("height")) continue;
+                    if (float.TryParse(e.GetAttribute("height"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float h))
+                        if (h > maxFileH) maxFileH = h;
+                }
+                return maxFileH > 0 ? (float?)(maxFileH / 100f) : null;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("ParseScmlCanvasHeight: fallback к null — " + ex.Message);
+                return null;
+            }
         }
 
         private static SpriterEntity FetchOrCacheSpriterEntityDataFromFile(SpriterPacket packet, string entityName, SpriterDotNetBehaviour spriterDotNetBehaviour, int gameId)
