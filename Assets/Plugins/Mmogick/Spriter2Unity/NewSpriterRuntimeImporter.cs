@@ -32,7 +32,7 @@ namespace Mmogick
         /// (части тела не успели разложиться), а поздний кадр другой анимации — наоборот с выбросами
         /// типа огня/оружия над головой. Берём медиану у_max по выборке — устойчиво и к выбросам.
         /// </summary>
-        private const int SAMPLE_FRAMES = 100;
+        private const int SAMPLE_FRAMES = 60;
 
         private Transform lifeBar;
         private Transform spritesRoot;
