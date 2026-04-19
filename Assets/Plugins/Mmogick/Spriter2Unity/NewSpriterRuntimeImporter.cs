@@ -10,9 +10,12 @@ namespace Mmogick
     /// <summary>
     /// Пост-импорт нормализация Spriter-сущности: применяет равномерный scale на "Sprites"-child,
     /// чтобы все Spriter-сущности имели одинаковую целевую высоту (TARGET_HEIGHT = 1 клетка).
-    /// Источник bodyHeight (в scml world-units): либо serverSize из /prefabs library (точный, задан админом),
-    /// либо canvas-bounds scml <animation l t r b> — парсится в NewSpriterRuntimeImporter.CreateSpriter
-    /// из packet.xml. Если оба null — нормализация не применяется, Spriter рендерится в native scml scale.
+    /// Источник bodyHeight (по убыванию точности):
+    ///   1) serverSize — с сервера через /prefabs library (точное значение, задан админом).
+    ///   2) Измерение actual world-bounds рендеренных Spriter-детей (после 1 кадра, когда UnityAnimator
+    ///      применит transforms) + compensation по parentLossy — native scml-extent.
+    ///   3) xmlCanvasFallback — canvas-bounds из scml <animation l t r b> или max file.height,
+    ///      если bounds не готовы (сухой fallback на случай если измерение не удалось).
     /// После scale позиционирует LifeBar над фактическим верхом и самоуничтожается.
     /// </summary>
     internal class SpriterPostImportAdjuster : MonoBehaviour
@@ -23,42 +26,82 @@ namespace Mmogick
         /// </summary>
         public const float TARGET_HEIGHT = 1.0f;
 
+        /// <summary>
+        /// Количество кадров-сэмплов bounds для median-замера. Медиана устойчива к выбросам
+        /// (кадр атаки с оружием над головой, crouch) — в отличие от одного замера. 8 кадров ≈ 0.13 сек
+        /// при 60 fps, незаметно для игрока. Если за это время bounds так и не появились — fallback.
+        /// </summary>
+        private const int BOUNDS_SAMPLE_FRAMES = 8;
+
         private Transform lifeBar;
         private Transform spritesRoot;
         private bool scaleApplied;
-        // scml-единицы: factor = TARGET_HEIGHT / bodyHeight. Null = данных нет (ни серверного size,
-        // ни canvas-bounds в scml) → нормализация не применяется.
-        private float? bodyHeight;
+        private readonly List<float> sampledWorldHeights = new List<float>(BOUNDS_SAMPLE_FRAMES);
+        private int framesWaited;
+        // Точное значение с сервера. Если задано — скалим сразу без измерения bounds.
+        private float? serverSize;
+        // Fallback на случай если bounds не появились (старый/сломанный scml). scml-units, native.
+        private float? xmlCanvasFallback;
 
-        public void Init(Transform lifeBar, Transform spritesRoot, float? bodyHeight)
+        public void Init(Transform lifeBar, Transform spritesRoot, float? serverSize, float? xmlCanvasFallback)
         {
             this.lifeBar = lifeBar;
             this.spritesRoot = spritesRoot;
-            this.bodyHeight = bodyHeight;
+            this.serverSize = serverSize;
+            this.xmlCanvasFallback = xmlCanvasFallback;
         }
 
         void LateUpdate()
         {
             if (spritesRoot == null) { Destroy(this); return; }
 
-            // Фаза 1 — нормализация размера (сразу при первом LateUpdate, без ожидания кадров).
+            // Фаза 1 — нормализация размера.
             if (!scaleApplied)
             {
-                if (bodyHeight.HasValue && bodyHeight.Value > 0.0001f)
+                float parentLossy = spritesRoot.parent != null ? spritesRoot.parent.lossyScale.y : 1f;
+                if (parentLossy < 0.0001f) parentLossy = 1f;
+
+                // 1) Server size (точное значение) — применяем сразу, без замера bounds.
+                //    bodyHeight в scml world-units. world_h = parentLossy × localScale × bodyHeight = TARGET_HEIGHT
+                //    → localScale = TARGET_HEIGHT / (parentLossy × bodyHeight).
+                if (serverSize.HasValue && serverSize.Value > 0.0001f)
                 {
-                    float factor = TARGET_HEIGHT / bodyHeight.Value;
+                    float t = TARGET_HEIGHT / (parentLossy * serverSize.Value);
+                    spritesRoot.localScale = new Vector3(t, t, spritesRoot.localScale.z);
+                    scaleApplied = true;
+                    return;
+                }
+
+                // 2) Актуальные world-bounds (один sample после того как Spriter развернул transforms).
+                //    Это заменяет OLD median-sampling по 60 кадрам — точность та же, ждать меньше.
+                //    bounds здесь в WORLD координатах (parentLossy уже применён), поэтому compensate не нужен.
+                //    localScale = TARGET_HEIGHT / current_world_h.
+                if (TryComputeAggBounds(out Bounds agg) && agg.size.y > 0.0001f)
+                {
+                    float t = TARGET_HEIGHT / agg.size.y;
                     Vector3 s = spritesRoot.localScale;
-                    spritesRoot.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
+                    spritesRoot.localScale = new Vector3(s.x * t, s.y * t, s.z);
+                    scaleApplied = true;
+                    return;
+                }
+
+                // 3) Ждём ещё пару кадров на случай если Spriter просто не успел заполнить transforms.
+                if (++framesWaited < BOUNDS_WAIT_FRAMES) return;
+
+                // 4) Последний fallback — XML canvas (overestimate, но хоть что-то). scml world-units.
+                if (xmlCanvasFallback.HasValue && xmlCanvasFallback.Value > 0.0001f)
+                {
+                    float t = TARGET_HEIGHT / (parentLossy * xmlCanvasFallback.Value);
+                    spritesRoot.localScale = new Vector3(t, t, spritesRoot.localScale.z);
                 }
                 scaleApplied = true;
-                // Следующий кадр — LifeBar-позиционирование по bounds (уже с учётом scale).
                 return;
             }
 
             // Фаза 2 — позиционирование LifeBar над актуальным верхом (после scale).
-            if (lifeBar != null && TryComputeAggBounds(out Bounds agg))
+            if (lifeBar != null && TryComputeAggBounds(out Bounds aggLB))
             {
-                Vector3 topLocal = transform.InverseTransformPoint(new Vector3(transform.position.x, agg.max.y, 0f));
+                Vector3 topLocal = transform.InverseTransformPoint(new Vector3(transform.position.x, aggLB.max.y, 0f));
                 Vector3 pos = lifeBar.localPosition;
                 pos.y = topLocal.y + 0.25f;
                 lifeBar.localPosition = pos;
@@ -163,18 +206,16 @@ namespace Mmogick
             if (fallbackSpriteRenderer != null) fallbackSpriteRenderer.enabled = false;
             // Кешированная ObjectModel.animator — Unity-null после DestroyImmediate выше, "!= null" guard'ы отработают.
 
-            // Выбор источника bodyHeight для adjuster'а:
-            //   1) bodyHeight (параметр) — серверный size из /prefabs library, задан админом. Точнее всего.
-            //   2) ParseScmlCanvasHeight — Y-extent всех <animation l t r b> из packet.xml, делённый на PPU=100.
-            //      SpriterDotNet эти атрибуты не парсит (они только для Preview в Spriter-редакторе), поэтому
-            //      читаем прямо из scml XML. Canvas-bounds включают оружие/эффекты — немного больше body,
-            //      но мгновенно и без ожидания кадров.
-            //   3) null — у scml нет l/t/r/b (старый/сломанный формат) → adjuster не масштабирует, Spriter
-            //      рендерится в native scml scale.
-            float? finalBodyHeight = bodyHeight ?? ParseScmlCanvasHeight(packet.xml);
+            // Adjuster сам выбирает источник bodyHeight в порядке точности:
+            //   1) serverSize (параметр bodyHeight) — из /prefabs library, задан админом.
+            //   2) Актуальные world-bounds рендеренных Spriter-детей (один sample через 1 кадр после
+            //      инициализации) — native body extent в WORLD координатах, самый точный автозамер.
+            //   3) xmlCanvasFallback — canvas-bounds или max file.height из packet.xml (overestimate
+            //      ~1.5-2x body, fallback на случай если (2) не сработает).
+            float? xmlCanvasFallback = ParseScmlCanvasHeight(packet.xml);
             var lifeBar = go.transform.Find("LifeBar");
             var adjuster = go.AddComponent<SpriterPostImportAdjuster>();
-            adjuster.Init(lifeBar, sprites.transform, finalBodyHeight);
+            adjuster.Init(lifeBar, sprites.transform, bodyHeight, xmlCanvasFallback);
 
             return behaviour;
         }
