@@ -72,23 +72,35 @@ namespace Mmogick
                     return;
                 }
 
-                // 2) Актуальные world-bounds (один sample после того как Spriter развернул transforms).
-                //    Это заменяет OLD median-sampling по 60 кадрам — точность та же, ждать меньше.
-                //    bounds здесь в WORLD координатах (parentLossy уже применён), поэтому compensate не нужен.
-                //    localScale = TARGET_HEIGHT / current_world_h.
+                // 2) Median-замер world-bounds за N кадров (устойчив к выбросам — кадры атаки с оружием
+                //    над головой / crouch'ы игнорируются как крайние значения). bounds в WORLD координатах —
+                //    parentLossy уже внутри. Накапливаем sample'ы пока не соберём BOUNDS_SAMPLE_FRAMES.
+                //    Семплируем MAX(x, y) — чтобы широкие существа (летающие boss'ы, корабли) тоже
+                //    умещались в 1 клетку. У гуманоидов Y > X, поведение не меняется.
                 if (TryComputeAggBounds(out Bounds agg) && agg.size.y > 0.0001f)
                 {
-                    float t = TARGET_HEIGHT / agg.size.y;
+                    sampledWorldHeights.Add(Mathf.Max(agg.size.x, agg.size.y));
+                }
+                framesWaited++;
+
+                // Ждём пока не наберём достаточно сэмплов (или пока не исчерпаем таймаут в BOUNDS_SAMPLE_FRAMES*2 кадров).
+                if (sampledWorldHeights.Count < BOUNDS_SAMPLE_FRAMES && framesWaited < BOUNDS_SAMPLE_FRAMES * 2)
+                    return;
+
+                if (sampledWorldHeights.Count > 0)
+                {
+                    sampledWorldHeights.Sort();
+                    float medianWorldMax = sampledWorldHeights[sampledWorldHeights.Count / 2];
+                    float t = TARGET_HEIGHT / medianWorldMax;
                     Vector3 s = spritesRoot.localScale;
                     spritesRoot.localScale = new Vector3(s.x * t, s.y * t, s.z);
                     scaleApplied = true;
                     return;
                 }
 
-                // 3) Ждём ещё пару кадров на случай если Spriter просто не успел заполнить transforms.
-                if (++framesWaited < BOUNDS_WAIT_FRAMES) return;
-
-                // 4) Последний fallback — XML canvas (overestimate, но хоть что-то). scml world-units.
+                // 3) Последний fallback — XML canvas (overestimate, но хоть что-то). scml world-units.
+                //    Срабатывает если за весь таймаут не собрали ни одного валидного bounds-сэмпла
+                //    (Spriter сломан или sprites ещё не готовы).
                 if (xmlCanvasFallback.HasValue && xmlCanvasFallback.Value > 0.0001f)
                 {
                     float t = TARGET_HEIGHT / (parentLossy * xmlCanvasFallback.Value);
