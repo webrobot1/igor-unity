@@ -5,6 +5,7 @@
 Игровые объекты (`enemy`, карта, HP-полоски, Spriter-анимации) существуют только после входа в учётку. Поэтому перед любой диагностикой runtime-поведения:
 
 1. Убедиться, что Unity Editor в playmode — `editor-application-get-state` → `IsPlaying == true`. Если нет, запустить через `editor-application-set-state { isPlaying: true }`.
+   - **Перед включением playmode всегда сначала выходить из него** (`isPlaying: false`), даже если кажется что он уже выключен: до этого мог остаться зависший state, не подхвачены новые C# правки, WS-сессия истекла по 300-сек таймауту и т.п. Последовательность: `set-state false` → `assets-refresh` → `set-state true`. Без этого playmode может стартовать на устаревшем коде или в неконсистентном состоянии.
 2. Активная сцена на старте — `Assets/Scenes/RegisterScene.unity`. Там форма входа: `UI/login`, `UI/password`, `UI/server` и две кнопки `UI/Button` (одна из них «Войти»).
 3. **Креды уже заполнены в полях формы** (сериализованы в RegisterScene — на dev-окружении обычно `login=1, password=1, server=localhost`). **НЕ перезаписывать** поля из скриптов — просто нажать «Войти» (`Button.onClick.Invoke()`).
 4. После успешного логина автоматически грузится `MainScene` с enemy. Только после этого выполнять `gameobject-find`, `scene-get-data`, `screenshot-game-view` и пр. по игровым объектам — в `RegisterScene` их нет.
