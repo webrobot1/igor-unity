@@ -110,17 +110,28 @@ namespace Mmogick
 					SpriterDotNetBehaviour animator = GetComponent<SpriterDotNetBehaviour>();
 					if (animator != null && animator.Animator != null)
 					{
+						// Резолв action → SCML clip через серверный маппинг (per game+entity).
+						// Если маппинга нет — fallback на action как имя клипа (backward-compat).
+						string prefabName = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
+						string clipName = AnimationCacheService.GetClipName(prefabName, recive.action, ConnectController.entity_actions) ?? recive.action;
+
 						// Перезапускаем анимацию если:
 						// - action сменился → Play(новая);
-						// - action тот же, но текущая не-loop → повторный action от сервера = проиграть снова.
+						// - action тот же, но текущая не-loop → повторный action от сервера = проиграть снова;
+						// - фактически играется НЕ то, что соответствует закешированному action (state-divergence).
+						//   Баг-фикс: первый SetData прилетает СИНХРОННО при спавне, когда CreateSpriter ещё
+						//   не отработал (async через AnimationPatcher.Get callback). В тот момент `animator` == null,
+						//   `action = recive.action` успевает закешироваться без Play. Следующий same-action пакет
+						//   по прежней логике (changed=false, nonLoop=false для loop-клипов) пропускал Play — сущность
+						//   зависала в animation[0] от SpriterDotNet, не в нужном клипе.
+						//   Плюс тот же эффект после SpriterPostImportAdjuster: он принудительно играл idle в Phase 1,
+						//   оставляя Spriter на idle, пока EntityModel.action закеширован как walk/attack.
 						bool changed = action != recive.action;
 						bool nonLoop = animator.Animator.CurrentAnimation != null && !animator.Animator.CurrentAnimation.Looping;
-						if (changed || nonLoop)
+						bool animationDiverged = animator.Animator.CurrentAnimation == null
+							|| animator.Animator.CurrentAnimation.Name != clipName;
+						if (changed || nonLoop || animationDiverged)
 						{
-							// Резолв action → SCML clip через серверный маппинг (per game+entity).
-							// Если маппинга нет — fallback на action как имя клипа (backward-compat).
-							string prefabName = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
-							string clipName = AnimationCacheService.GetClipName(prefabName, recive.action, ConnectController.entity_actions) ?? recive.action;
 							if (animator.Animator.HasAnimation(clipName))
 								animator.Animator.Play(clipName);
 							else

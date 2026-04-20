@@ -149,6 +149,14 @@ namespace Mmogick
 					}
 					SceneManager.UnloadScene("RegisterScene");
 				}
+				// idle_action задаём ДО Connect, чтобы первый же спавн (SpriterPostImportAdjuster Phase 1)
+				// мог сразу резолвить idle-клип через ConnectController.idle_action. По контракту сервер
+				// ВСЕГДА шлёт непустое поле "idle" в /auth response — пустота = нарушение контракта,
+				// падаем громко (CLAUDE.md «не заплатывать»), чтобы баг серверной конфигурации не маскировался.
+				if (string.IsNullOrEmpty(data.idle_action))
+					throw new System.Exception("Сервер не отдал поле 'idle' в /auth response. По контракту оно обязательно.");
+				ConnectController.idle_action = data.idle_action;
+
 				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)
 				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps, data.entity_actions);
 

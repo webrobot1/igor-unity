@@ -33,6 +33,8 @@ namespace Mmogick
 					{
 						if (!string.IsNullOrEmpty(obj.sha256))
 						{
+							// terrain.json уже в sandbox-convention: anchor = top-left, y+ вверх.
+							// Unity tilemap тоже y+ вверх от верха карты, поэтому только делим на размер клетки.
 							obj.x = obj.x / map.tilewidth;
 							obj.y = obj.y / map.tileheight;
 						}

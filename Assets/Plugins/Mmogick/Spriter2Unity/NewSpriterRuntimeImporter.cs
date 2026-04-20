@@ -18,6 +18,11 @@ namespace Mmogick
     ///      если bounds не готовы (сухой fallback на случай если измерение не удалось).
     /// После scale позиционирует LifeBar над фактическим верхом и самоуничтожается.
     /// </summary>
+    // Запускаем гарантированно ПОСЛЕ SpriterDotNetBehaviour (default execution order = 0), чтобы
+    // TryComputeAggBounds читал уже применённые в текущем кадре bone-трансформы. Иначе Unity по
+    // документации не гарантирует порядок LateUpdate между скриптами с одинаковым execution order —
+    // median мог бы считаться по stale-позициям предыдущего кадра.
+    [DefaultExecutionOrder(100)]
     internal class SpriterPostImportAdjuster : MonoBehaviour
     {
         /// <summary>
@@ -36,88 +41,166 @@ namespace Mmogick
         private Transform lifeBar;
         private Transform spritesRoot;
         private bool scaleApplied;
-        private readonly List<float> sampledWorldHeights = new List<float>(BOUNDS_SAMPLE_FRAMES);
+        private readonly List<float> sampledWorldMax = new List<float>(BOUNDS_SAMPLE_FRAMES);
+        private readonly List<float> sampledCenterX = new List<float>(BOUNDS_SAMPLE_FRAMES);
+        private readonly List<float> sampledCenterY = new List<float>(BOUNDS_SAMPLE_FRAMES);
+        private readonly List<float> sampledMaxY = new List<float>(BOUNDS_SAMPLE_FRAMES);
         private int framesWaited;
         // Точное значение с сервера. Если задано — скалим сразу без измерения bounds.
         private float? serverSize;
         // Fallback на случай если bounds не появились (старый/сломанный scml). scml-units, native.
         private float? xmlCanvasFallback;
+        // Кешируем collider один раз — Phase 2 читает offset каждый кадр до Destroy, лишние GetComponent'ы не нужны.
+        private CapsuleCollider2D cachedCapsule;
+        // Для принудительного воспроизведения idle-клипа в Phase 1: walk/attack-позы раздувают bbox
+        // и портят median. Если idle-клип разрешён (через server entity_actions или scml animation[0]) —
+        // форсим его во время sampling'а, чтобы норма считалась по «телу в покое».
+        private SpriterDotNetBehaviour cachedBehaviour;
+        private string idleClipName;
 
-        public void Init(Transform lifeBar, Transform spritesRoot, float? serverSize, float? xmlCanvasFallback)
+        public void Init(Transform lifeBar, Transform spritesRoot, float? serverSize, float? xmlCanvasFallback, SpriterDotNetBehaviour behaviour, string idleClipName)
         {
             this.lifeBar = lifeBar;
             this.spritesRoot = spritesRoot;
             this.serverSize = serverSize;
             this.xmlCanvasFallback = xmlCanvasFallback;
+            this.cachedCapsule = GetComponent<CapsuleCollider2D>();
+            this.cachedBehaviour = behaviour;
+            this.idleClipName = idleClipName;
         }
 
+        // State machine:
+        //   PhaseSampleSize (scaleApplied=false): накапливаем N сэмплов размера, применяем scale.
+        //   PhaseSamplePos  (scaleApplied=true, sampledCenterX.Count < N): накапливаем N сэмплов центра и верха
+        //     ПОСЛЕ применённого scale, применяем shift и LifeBar и уничтожаемся.
         void LateUpdate()
         {
             if (spritesRoot == null) { Destroy(this); return; }
+            framesWaited++;
 
-            // Фаза 1 — нормализация размера.
+            // ФАЗА 1 — определение scale-фактора.
             if (!scaleApplied)
             {
+                // Форсим idle-клип каждый Phase-1-кадр: если EntityModel.SetData успел Play'нуть walk/attack,
+                // мы его перезаписываем обратно на idle. Иначе median-bounds получит выбросы от широких поз.
+                // Condition: Animator уже инициализирован (Start SpriterDotNetBehaviour отработал), клип есть
+                // в scml, и сейчас играется НЕ он (чтобы не рестартовать анимацию каждый кадр зря).
+                if (cachedBehaviour != null && cachedBehaviour.Animator != null
+                    && !string.IsNullOrEmpty(idleClipName)
+                    && cachedBehaviour.Animator.HasAnimation(idleClipName)
+                    && (cachedBehaviour.Animator.CurrentAnimation == null
+                        || cachedBehaviour.Animator.CurrentAnimation.Name != idleClipName))
+                {
+                    cachedBehaviour.Animator.Play(idleClipName);
+                }
+
                 float parentLossy = spritesRoot.parent != null ? spritesRoot.parent.lossyScale.y : 1f;
                 if (parentLossy < 0.0001f) parentLossy = 1f;
 
-                // 1) Server size (точное значение) — применяем сразу, без замера bounds.
-                //    bodyHeight в scml world-units. world_h = parentLossy × localScale × bodyHeight = TARGET_HEIGHT
-                //    → localScale = TARGET_HEIGHT / (parentLossy × bodyHeight).
+                // 1.a) Server size — применяется мгновенно, без замеров.
                 if (serverSize.HasValue && serverSize.Value > 0.0001f)
                 {
                     float t = TARGET_HEIGHT / (parentLossy * serverSize.Value);
-                    spritesRoot.localScale = new Vector3(t, t, spritesRoot.localScale.z);
-                    scaleApplied = true;
-                    return;
-                }
-
-                // 2) Median-замер world-bounds за N кадров (устойчив к выбросам — кадры атаки с оружием
-                //    над головой / crouch'ы игнорируются как крайние значения). bounds в WORLD координатах —
-                //    parentLossy уже внутри. Накапливаем sample'ы пока не соберём BOUNDS_SAMPLE_FRAMES.
-                //    Семплируем MAX(x, y) — чтобы широкие существа (летающие boss'ы, корабли) тоже
-                //    умещались в 1 клетку. У гуманоидов Y > X, поведение не меняется.
-                if (TryComputeAggBounds(out Bounds agg) && agg.size.y > 0.0001f)
-                {
-                    sampledWorldHeights.Add(Mathf.Max(agg.size.x, agg.size.y));
-                }
-                framesWaited++;
-
-                // Ждём пока не наберём достаточно сэмплов (или пока не исчерпаем таймаут в BOUNDS_SAMPLE_FRAMES*2 кадров).
-                if (sampledWorldHeights.Count < BOUNDS_SAMPLE_FRAMES && framesWaited < BOUNDS_SAMPLE_FRAMES * 2)
-                    return;
-
-                if (sampledWorldHeights.Count > 0)
-                {
-                    sampledWorldHeights.Sort();
-                    float medianWorldMax = sampledWorldHeights[sampledWorldHeights.Count / 2];
-                    float t = TARGET_HEIGHT / medianWorldMax;
                     Vector3 s = spritesRoot.localScale;
                     spritesRoot.localScale = new Vector3(s.x * t, s.y * t, s.z);
                     scaleApplied = true;
+                    framesWaited = 0; // старт Phase 2 sampling'а
                     return;
                 }
 
-                // 3) Последний fallback — XML canvas (overestimate, но хоть что-то). scml world-units.
-                //    Срабатывает если за весь таймаут не собрали ни одного валидного bounds-сэмпла
-                //    (Spriter сломан или sprites ещё не готовы).
-                if (xmlCanvasFallback.HasValue && xmlCanvasFallback.Value > 0.0001f)
+                // 1.b) Median-замер world-bounds. sampledWorldMax = max(x, y) — чтобы и вытянутые существа
+                //      (mech'и, корабли) умещались в 1 клетку. У гуманоидов Y > X — поведение не меняется.
+                if (TryComputeAggBounds(out Bounds agg) && agg.size.y > 0.0001f)
+                    sampledWorldMax.Add(Mathf.Max(agg.size.x, agg.size.y));
+
+                if (sampledWorldMax.Count < BOUNDS_SAMPLE_FRAMES && framesWaited < BOUNDS_SAMPLE_FRAMES * 2)
+                    return;
+
+                if (sampledWorldMax.Count > 0)
                 {
+                    sampledWorldMax.Sort();
+                    float medianMax = sampledWorldMax[sampledWorldMax.Count / 2];
+                    float t = TARGET_HEIGHT / medianMax;
+                    Vector3 s = spritesRoot.localScale;
+                    spritesRoot.localScale = new Vector3(s.x * t, s.y * t, s.z);
+                }
+                else if (xmlCanvasFallback.HasValue && xmlCanvasFallback.Value > 0.0001f)
+                {
+                    // Fallback: за весь таймаут ни одного валидного сэмпла (Spriter сломан) — XML canvas.
                     float t = TARGET_HEIGHT / (parentLossy * xmlCanvasFallback.Value);
-                    spritesRoot.localScale = new Vector3(t, t, spritesRoot.localScale.z);
+                    Vector3 s = spritesRoot.localScale;
+                    spritesRoot.localScale = new Vector3(s.x * t, s.y * t, s.z);
                 }
                 scaleApplied = true;
+                framesWaited = 0; // старт Phase 2 sampling'а
                 return;
             }
 
-            // Фаза 2 — позиционирование LifeBar над актуальным верхом (после scale).
-            if (lifeBar != null && TryComputeAggBounds(out Bounds aggLB))
+            // ФАЗА 2 — после scale: накапливаем медиану центра bbox'а и его верха (в root-local)
+            // для устойчивого one-shot shift'а сущности. Анимация каждый кадр двигает center на ±0.1-0.2u,
+            // один замер ловил случайный кадр — отсюда residual. Медиана по 8 кадрам гасит дрейф.
+            if (TryComputeAggBounds(out Bounds agg2) && agg2.size.y > 0.0001f)
             {
-                Vector3 topLocal = transform.InverseTransformPoint(new Vector3(transform.position.x, aggLB.max.y, 0f));
-                Vector3 pos = lifeBar.localPosition;
-                pos.y = topLocal.y + 0.25f;
-                lifeBar.localPosition = pos;
+                Vector3 centerLocal = transform.InverseTransformPoint(agg2.center);
+                Vector3 topLocal = transform.InverseTransformPoint(new Vector3(agg2.center.x, agg2.max.y, 0));
+                sampledCenterX.Add(centerLocal.x);
+                sampledCenterY.Add(centerLocal.y);
+                sampledMaxY.Add(topLocal.y);
             }
+            if (sampledCenterX.Count < BOUNDS_SAMPLE_FRAMES && framesWaited < BOUNDS_SAMPLE_FRAMES * 2)
+                return;
+
+            // Выравниваем центр силуэта на центр collider'а (где mouse-picking область).
+            // Если collider отсутствует — fallback на transform.position (root-local (0,0)).
+            Vector2 targetLocal = cachedCapsule != null ? cachedCapsule.offset : Vector2.zero;
+
+            if (sampledCenterX.Count > 0)
+            {
+                sampledCenterX.Sort(); sampledCenterY.Sort(); sampledMaxY.Sort();
+                float medCX = sampledCenterX[sampledCenterX.Count / 2];
+                float medCY = sampledCenterY[sampledCenterY.Count / 2];
+                float medTopY = sampledMaxY[sampledMaxY.Count / 2];
+
+                Vector3 sp = spritesRoot.localPosition;
+                float shiftX = targetLocal.x - medCX;
+                float shiftY = targetLocal.y - medCY;
+                spritesRoot.localPosition = new Vector3(sp.x + shiftX, sp.y + shiftY, sp.z);
+
+                if (lifeBar != null)
+                {
+                    // Верх после сдвига = medTopY + shiftY в root-local. LifeBar ставим чуть выше — margin 0.25u
+                    // задан в world-units (одинаковый визуальный зазор у всех сущностей вне зависимости от
+                    // root.lossyScale.y, который после UpdateController fallback-normalize обычно ≠ 1).
+                    float worldMargin = 0.25f;
+                    float rootLossyY = Mathf.Max(Mathf.Abs(transform.lossyScale.y), 0.0001f);
+                    float localMargin = worldMargin / rootLossyY;
+                    Vector3 pos = lifeBar.localPosition;
+                    pos.y = medTopY + shiftY + localMargin;
+                    lifeBar.localPosition = pos;
+                }
+            }
+
+            // Баг-фикс state-divergence после force-idle в Phase 1:
+            // Пока мы форсили idle, EntityModel.SetData мог получить с сервера action="walk/attack"
+            // и закешировать его в EntityModel.action, но Play ушёл нам под руки (мы перезаписали на idle).
+            // Следующий server-пакет с тем же action: `changed = action != recive.action` = false,
+            // `nonLoop` = false (idle обычно loop) → SetData пропускает Play. Сущность зависает в idle.
+            // Лечим явно: если у EntityModel закеширован action ≠ то, что сейчас играется — Play нужный клип.
+            // Делается ровно один раз, здесь (до Destroy(this)), чтобы не править EntityModel.SetData.
+            var em = GetComponent<EntityModel>();
+            if (em != null && cachedBehaviour != null && cachedBehaviour.Animator != null
+                && !string.IsNullOrEmpty(em.action) && !string.IsNullOrEmpty(em.prefab))
+            {
+                string targetClip = AnimationCacheService.GetClipName(em.prefab, em.action, ConnectController.entity_actions) ?? em.action;
+                if (!string.IsNullOrEmpty(targetClip)
+                    && cachedBehaviour.Animator.HasAnimation(targetClip)
+                    && (cachedBehaviour.Animator.CurrentAnimation == null
+                        || cachedBehaviour.Animator.CurrentAnimation.Name != targetClip))
+                {
+                    cachedBehaviour.Animator.Play(targetClip);
+                }
+            }
+
             Destroy(this);
         }
 
@@ -166,9 +249,14 @@ namespace Mmogick
 
         private static readonly string ObjectNameSprites = "Sprites";
         private static readonly string ObjectNameMetadata = "Metadata";
-        /// <param name="bodyHeight">Высота «тела» в scml-единицах (per-prefab, с сервера через EntityRecive.body_height).
-        /// Если null — adjuster fallback'ает на автозамер bounds.y за N кадров (менее точно).</param>
-        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, int gameId, float? bodyHeight = null)
+        /// <param name="prefabName">Имя Prefab (из library, соответствует EntityRecive.prefab) — используется
+        /// для резолва idle-клипа через server-маппинг entity_actions (action ConnectController.idle_action).
+        /// Если null или нет маппинга — adjuster сэмплит то, что сейчас играется (без фолбэка на animation[0],
+        /// т.к. первая scml-анимация не гарантированно idle).</param>
+        /// <param name="bodyHeight">Высота «тела» в scml-единицах (per-prefab, с сервера через Prefab.size
+        /// в library — AnimationCacheService.GetPrefabSize(prefabName)). Если null — adjuster fallback'ает
+        /// на автозамер bounds.y за N кадров (менее точно).</param>
+        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, int gameId, string prefabName = null, float? bodyHeight = null)
         {
             GameObject go = GameObject.Find(entityName);
             if (go == null)
@@ -182,6 +270,11 @@ namespace Mmogick
             if (existingSprites != null) GameObject.DestroyImmediate(existingSprites.gameObject);
             var existingMetadata = go.transform.Find(ObjectNameMetadata);
             if (existingMetadata != null) GameObject.DestroyImmediate(existingMetadata.gameObject);
+            // Старый adjuster от предыдущего CreateSpriter мог ещё жить (пере-спавн сущности) — его spritesRoot
+            // сейчас уничтожен, в следующий LateUpdate он сам себя Destroy'ит по null-guard'у, но в промежутке
+            // мог бы неожиданно стрельнуть на новом visual'е. Сносим явно.
+            var existingAdjuster = go.GetComponent<SpriterPostImportAdjuster>();
+            if (existingAdjuster != null) GameObject.DestroyImmediate(existingAdjuster);
 
             SpriterDotNetBehaviour behaviour = go.AddComponent<SpriterDotNetBehaviour>();
             SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, entityName, behaviour, gameId);
@@ -225,9 +318,21 @@ namespace Mmogick
             //   3) xmlCanvasFallback — canvas-bounds или max file.height из packet.xml (overestimate
             //      ~1.5-2x body, fallback на случай если (2) не сработает).
             float? xmlCanvasFallback = ParseScmlCanvasHeight(packet.xml);
+
+            // Резолв idle-клипа для форсирования в Phase 1 sampling через server entity_actions:
+            // action ConnectController.idle_action → имя scml-клипа для этой entity. Имя action-а для idle
+            // серверное (по умолчанию "idle"), чтобы не хардкодить литерал в клиенте — см. SigninRecive.idle_action.
+            // Если маппинг не найден (не настроено в админке или entity_actions ещё не пришли) — adjuster
+            // сэмплит то, что сейчас играется (animation[0] по умолчанию в SpriterDotNet). Fallback'а на
+            // entity.Animations[0].Name намеренно нет — первая анимация scml не гарантированно idle, а наугад
+            // форсить не-idle позу хуже чем оставить дефолт.
+            string idleClipName = null;
+            if (!string.IsNullOrEmpty(prefabName))
+                idleClipName = AnimationCacheService.GetClipName(prefabName, ConnectController.idle_action, ConnectController.entity_actions);
+
             var lifeBar = go.transform.Find("LifeBar");
             var adjuster = go.AddComponent<SpriterPostImportAdjuster>();
-            adjuster.Init(lifeBar, sprites.transform, bodyHeight, xmlCanvasFallback);
+            adjuster.Init(lifeBar, sprites.transform, bodyHeight, xmlCanvasFallback, behaviour, idleClipName);
 
             return behaviour;
         }
@@ -294,14 +399,14 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Парсит scml XML и возвращает ориентировочную высоту тела в scml world-units.
+        /// Парсит scml XML и возвращает max scml-размер сущности в world-units (не только высоту).
+        /// Используется для нормализации — клиент скалит так, чтобы max(W, H) = 1 клетка карты,
+        /// и широкие существа (mech'и, корабли) тоже умещались в клетку.
         /// Приоритет источников:
-        ///   1) Y-extent canvas'а: max(<animation b>) - min(<animation t>) из всех <animation l t r b>.
-        ///      SCML Y растёт вниз: t отрицательный (верх), b положительный (низ). Атрибуты опциональны —
-        ///      не все scml-генераторы их пишут (видим пустой t/b в БД для анимаций от некоторых тулов).
-        ///   2) Fallback: max <file height> среди всех <folder>/<file> — высота самого высокого sprite'a.
-        ///      Грубо приближает «высоту тела» (тело обычно чуть меньше, но близко, т.к. tallest sprite
-        ///      часто — это корпус или крыло, которые и формируют body bounds).
+        ///   1) Canvas bounds: max(<animation r-l>, <animation b-t>) из всех <animation l t r b>.
+        ///      Атрибуты опциональны — не все scml-генераторы их пишут.
+        ///   2) Fallback: max(<file width>, <file height>) среди всех <folder>/<file> — самый
+        ///      крупный sprite (обычно body или крыло, близкий к body extent).
         /// SpriterDotNet библиотека оба источника игнорирует. Парсим сами XmlDocument-ом.
         /// Null если в scml нет ни того, ни другого.
         /// </summary>
@@ -312,33 +417,50 @@ namespace Mmogick
             {
                 var doc = new System.Xml.XmlDocument();
                 doc.LoadXml(xml);
+                var invariant = System.Globalization.CultureInfo.InvariantCulture;
 
-                // 1) Canvas bounds из <animation l t r b>.
+                // 1) Canvas bounds: берём max(width, height) по всем animation'ам.
+                float minL = float.PositiveInfinity, maxR = float.NegativeInfinity;
                 float minT = float.PositiveInfinity, maxB = float.NegativeInfinity;
-                bool anyCanvas = false;
+                bool anyCanvasW = false, anyCanvasH = false;
                 foreach (System.Xml.XmlNode node in doc.SelectNodes("//entity/animation"))
                 {
                     if (!(node is System.Xml.XmlElement e)) continue;
-                    if (!e.HasAttribute("t") || !e.HasAttribute("b")) continue;
-                    if (float.TryParse(e.GetAttribute("t"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float t) &&
-                        float.TryParse(e.GetAttribute("b"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float b))
+                    if (e.HasAttribute("l") && e.HasAttribute("r") &&
+                        float.TryParse(e.GetAttribute("l"), System.Globalization.NumberStyles.Float, invariant, out float l) &&
+                        float.TryParse(e.GetAttribute("r"), System.Globalization.NumberStyles.Float, invariant, out float r))
+                    {
+                        if (l < minL) minL = l;
+                        if (r > maxR) maxR = r;
+                        anyCanvasW = true;
+                    }
+                    if (e.HasAttribute("t") && e.HasAttribute("b") &&
+                        float.TryParse(e.GetAttribute("t"), System.Globalization.NumberStyles.Float, invariant, out float t) &&
+                        float.TryParse(e.GetAttribute("b"), System.Globalization.NumberStyles.Float, invariant, out float b))
                     {
                         if (t < minT) minT = t;
                         if (b > maxB) maxB = b;
-                        anyCanvas = true;
+                        anyCanvasH = true;
                     }
                 }
-                if (anyCanvas && maxB > minT) return (maxB - minT) / 100f;
+                float canvasW = anyCanvasW && maxR > minL ? maxR - minL : 0f;
+                float canvasH = anyCanvasH && maxB > minT ? maxB - minT : 0f;
+                float canvasMax = Mathf.Max(canvasW, canvasH);
+                if (canvasMax > 0f) return canvasMax / 100f;
 
-                // 2) Fallback: max <file height> (tallest sprite). Это верхняя оценка body.
-                float maxFileH = 0;
+                // 2) Fallback: max(<file width>, <file height>) — самый крупный sprite.
+                float maxFileDim = 0;
                 foreach (System.Xml.XmlNode node in doc.SelectNodes("//folder/file"))
                 {
-                    if (!(node is System.Xml.XmlElement e) || !e.HasAttribute("height")) continue;
-                    if (float.TryParse(e.GetAttribute("height"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float h))
-                        if (h > maxFileH) maxFileH = h;
+                    if (!(node is System.Xml.XmlElement e)) continue;
+                    if (e.HasAttribute("width") &&
+                        float.TryParse(e.GetAttribute("width"), System.Globalization.NumberStyles.Float, invariant, out float w) &&
+                        w > maxFileDim) maxFileDim = w;
+                    if (e.HasAttribute("height") &&
+                        float.TryParse(e.GetAttribute("height"), System.Globalization.NumberStyles.Float, invariant, out float h) &&
+                        h > maxFileDim) maxFileDim = h;
                 }
-                return maxFileH > 0 ? (float?)(maxFileH / 100f) : null;
+                return maxFileDim > 0 ? (float?)(maxFileDim / 100f) : null;
             }
             catch (Exception ex)
             {

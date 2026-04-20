@@ -84,6 +84,18 @@ namespace Mmogick
 		public static Dictionary<int, Dictionary<string, string>> entity_actions;
 
 		/// <summary>
+		/// Имя server-action, обозначающее «idle»-поза (тело в покое). Приходит в /auth вместе
+		/// с entity_actions. Используется везде, где клиент ищет idle:
+		///   — SpriterPostImportAdjuster: форсит idle-клип во время Phase 1 sampling'а (стабильная поза);
+		///   — ObjectModel.Update: переводит legacy Animator на idle-layer по таймауту неактивности.
+		/// Инициализируется в SigninController.LoadMain до ConnectController.Connect — т.е. до первого спавна.
+		/// Default'а нет: обращение до /auth = нарушение контракта → null → сломается при первом использовании.
+		/// Не хардкодить буквально "idle" в коде — использовать ЭТУ переменную, чтобы можно было
+		/// переконфигурировать per-game сервером без ревизии клиента.
+		/// </summary>
+		public static string idle_action;
+
+		/// <summary>
 		/// текущий используемый хост
 		/// </summary>
 		private static string host;

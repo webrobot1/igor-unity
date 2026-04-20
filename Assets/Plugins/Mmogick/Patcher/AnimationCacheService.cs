@@ -91,12 +91,19 @@ namespace Mmogick
 			public float? size;
 		}
 
-		// Возвращает per-prefab "size" (высота тела в scml-единицах) из library, если задана, иначе null.
+		// Возвращает per-prefab "size" (max scml-размер body) из library, если задан, иначе null.
 		// Используется SpriterPostImportAdjuster для точной нормализации размера без замера bounds.
+		// Контракт: вызывать ТОЛЬКО после того как SyncAll отработал (что гарантировано
+		// SigninController.LoadMain — он awaitит SyncAll до ConnectController.Connect, поэтому
+		// любой WS-спавн приходит уже с загруженным _library). Вызов до SyncAll — это баг вызывающей стороны,
+		// поэтому бросаем exception вместо тихого null: null-возврат от «prefab без size» и null от «library
+		// не загружена» — разные вещи, и глотать второе опасно (SpriterPostImportAdjuster уйдёт в fallback
+		// median-sampling, замаскировав проблему timing'а).
 		public static float? GetPrefabSize(string prefab)
 		{
-			if (_library != null && _library.TryGetValue(prefab, out PrefabEntry e)) return e.size;
-			return null;
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabSize вызван до SyncAll (_library == null). prefab=" + prefab + ". Вызывайте только после завершения SigninController.LoadMain.");
+			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
 		}
 
 		[Serializable]

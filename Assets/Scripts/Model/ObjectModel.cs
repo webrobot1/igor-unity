@@ -93,24 +93,29 @@ namespace Mmogick
 		// Update is called once per frame
 		void Update()
 		{
-			// если текущий наш статус анимации - не стояние и давно небыло активности - включим анмацию остановки
+			// если текущий наш статус анимации - не стояние и давно небыло активности - включим анмацию остановки.
+			// Имя idle-action берётся из ConnectController.idle_action (серверное, default "idle") — не хардкодим,
+			// чтобы одна переменная управляла обеими ветками (Spriter adjuster + legacy Animator).
+			// Ограничение: layer в Animator Controller должен называться так же, как ConnectController.idle_action —
+			// обычно "idle", но если сервер переименует, .controller'ы тоже надо будет переименовать.
+			string idleAction = ConnectController.idle_action;
 			if (
-				animator != null 
-					&& 
+				animator != null
+					&&
 				action != "dead"
 					&&
 				action != ConnectController.ACTION_REMOVE
 					&&
 				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
 					&&
-				(animator.GetCurrentAnimatorStateInfo(_layerIndex).loop || animator.GetCurrentAnimatorStateInfo(_layerIndex).normalizedTime >= 1.0f) 	
+				(animator.GetCurrentAnimatorStateInfo(_layerIndex).loop || animator.GetCurrentAnimatorStateInfo(_layerIndex).normalizedTime >= 1.0f)
 			)
 			{
 				string layer_name = animator.GetLayerName(_layerIndex);
-                if (layer_name != "idle")
+                if (layer_name != idleAction)
                 {
-					Log("Анимация " + key + " с " + action + " на idle (таймаут)");
-					Animate(animator, animator.GetLayerIndex("idle"));
+					Log("Анимация " + key + " с " + action + " на " + idleAction + " (таймаут)");
+					Animate(animator, animator.GetLayerIndex(idleAction));
 				}
 			}
 		}

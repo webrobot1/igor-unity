@@ -136,6 +136,19 @@ namespace Mmogick
 				prefab = Instantiate(ob) as GameObject;
 				prefab.name = key;
 
+				// Non-uniform scale root-префаба в связке с rotated children даёт skew (Unity doc для Transform:
+				// «child rotated relative to a non-uniformly scaled parent might appear skewed»). Spriter создаёт
+				// ротированные body-parts, у них визуал поплывёт на поворотах. Мы принудительно выставляем uniform
+				// scale (|x|=y), сохраняя знак X (mirror-flip). Если разработчик умышленно задал non-uniform —
+				// пишем warning, чтобы это было видно и исправлено в префабе, а не маскировалось визуалом.
+				Vector3 initScale = prefab.transform.localScale;
+				if (Mathf.Abs(Mathf.Abs(initScale.x) - initScale.y) > 0.0001f)
+				{
+					float signX = initScale.x < 0 ? -1f : 1f;
+					prefab.transform.localScale = new Vector3(signX * initScale.y, initScale.y, initScale.z);
+					Debug.LogWarning("UpdateController: префаб '" + type + "' имеет non-uniform scale (" + initScale.x + ", " + initScale.y + ") — сброшен до uniform (" + (signX * initScale.y) + ", " + initScale.y + "). Задавайте uniform scale в префабе, иначе Spriter-дети поворотами дают skew (Transform doc).");
+				}
+
 				// SortingGroup на корне сразу: сортируем все спрайты сущности как единое целое относительно
 				// других сущностей (иначе Custom Axis Z-sort перемешивает body-parts одной сущности с частями другой).
 				// Spriter при загрузке переиспользует этот же SortingGroup.
@@ -217,7 +230,7 @@ namespace Mmogick
 								Debug.Log("Анимации: создаём " + recive.prefab + " для " + key);
 								// size (per-prefab) — серверная константа (из /prefabs library), для точной нормализации
 								// размера без замера total-bounds. null = fallback на автозамер в адаптере.
-								NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID, AnimationCacheService.GetPrefabSize(recive.prefab));
+								NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID, recive.prefab, AnimationCacheService.GetPrefabSize(recive.prefab));
 							}
 							catch (Exception ex)
 							{
