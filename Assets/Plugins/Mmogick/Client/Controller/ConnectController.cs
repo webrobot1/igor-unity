@@ -77,11 +77,12 @@ namespace Mmogick
 		protected static string player_token;
 
 		/// <summary>
-		/// Маппинг entity_id → action → clip.name, приходит инлайном в ответе /auth.
+		/// Маппинг entity_id → action → angle_str → clip.name, приходит инлайном в ответе /auth.
 		/// Сессионный state (на диск не пишется), живёт параллельно с token/key/step.
 		/// Читается резолвером AnimationCacheService.GetClipName.
+		/// Ключ angle: "0".."359" для направленных clip-ов, "" для clip без направления.
 		/// </summary>
-		public static Dictionary<int, Dictionary<string, string>> entity_actions;
+		public static Dictionary<int, Dictionary<string, Dictionary<string, string>>> entity_actions;
 
 		/// <summary>
 		/// Имя server-action, обозначающее «idle»-поза (тело в покое). Приходит в /auth вместе
@@ -297,7 +298,7 @@ namespace Mmogick
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps, Dictionary<int, Dictionary<string, string>> entity_actions)
+		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps, Dictionary<int, Dictionary<string, Dictionary<string, string>>> entity_actions)
 		{
 			ConnectController.host = host;
 			ConnectController.player_key = player_key;

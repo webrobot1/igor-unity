@@ -191,7 +191,7 @@ namespace Mmogick
             if (em != null && cachedBehaviour != null && cachedBehaviour.Animator != null
                 && !string.IsNullOrEmpty(em.action) && !string.IsNullOrEmpty(em.prefab))
             {
-                string targetClip = AnimationCacheService.GetClipName(em.prefab, em.action, ConnectController.entity_actions) ?? em.action;
+                string targetClip = AnimationCacheService.GetClipNameSimple(em.prefab, em.action, ConnectController.entity_actions) ?? em.action;
                 if (!string.IsNullOrEmpty(targetClip)
                     && cachedBehaviour.Animator.HasAnimation(targetClip)
                     && (cachedBehaviour.Animator.CurrentAnimation == null
@@ -328,7 +328,7 @@ namespace Mmogick
             // форсить не-idle позу хуже чем оставить дефолт.
             string idleClipName = null;
             if (!string.IsNullOrEmpty(prefabName))
-                idleClipName = AnimationCacheService.GetClipName(prefabName, ConnectController.idle_action, ConnectController.entity_actions);
+                idleClipName = AnimationCacheService.GetClipNameSimple(prefabName, ConnectController.idle_action, ConnectController.entity_actions);
 
             var lifeBar = go.transform.Find("LifeBar");
             var adjuster = go.AddComponent<SpriterPostImportAdjuster>();

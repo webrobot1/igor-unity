@@ -155,6 +155,12 @@ namespace Mmogick
 				// падаем громко (CLAUDE.md «не заплатывать»), чтобы баг серверной конфигурации не маскировался.
 				if (string.IsNullOrEmpty(data.idle_action))
 					throw new System.Exception("Сервер не отдал поле 'idle' в /auth response. По контракту оно обязательно.");
+
+				if (data.entity_actions != null)
+					foreach (var kv in data.entity_actions)
+						if (!kv.Value.ContainsKey(data.idle_action))
+							throw new System.Exception($"У entity {kv.Key} отсутствует action \"{data.idle_action}\" в entity_actions");
+
 				ConnectController.idle_action = data.idle_action;
 
 				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)

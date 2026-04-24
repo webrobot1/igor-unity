@@ -89,6 +89,7 @@ namespace Mmogick
 			/// Если null (поле не задано на сервере) — fallback на автозамер bounds за N кадров.
 			/// </summary>
 			public float? size;
+			public bool h_mirror;
 		}
 
 		// Возвращает per-prefab "size" (max scml-размер body) из library, если задан, иначе null.
@@ -447,17 +448,78 @@ namespace Mmogick
 			SaveLibrary(gameId);
 		}
 
-		// Резолв action → имя SCML-клипа для данного prefab.
-		// null если: library/entityActions ещё не загружены, prefab неизвестен, маппинга на action нет.
+		// Резолв action → имя SCML-клипа для данного prefab с учётом направления (angle).
+		// Возвращает (clipName, flipX). flipX=true если clip получен через h_mirror (горизонтальное зеркало).
+		// null clipName если: library/entityActions ещё не загружены, prefab неизвестен, маппинга на action нет.
 		// Вызывающий (EntityModel.SetData) делает fallback на action как имя клипа при null.
-		// entityActions — session-словарь из ConnectController.entity_actions (приходит в /auth).
-		public static string GetClipName(string prefab, string action, Dictionary<int, Dictionary<string, string>> entityActions)
+		public static (string clipName, bool flipX) GetClipName(
+			string prefab, string action, float forwardX, float forwardY,
+			Dictionary<int, Dictionary<string, Dictionary<string, string>>> entityActions)
+		{
+			if (_library == null || string.IsNullOrEmpty(prefab)) return (null, false);
+			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return (null, false);
+			if (entityActions == null) return (null, false);
+			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return (null, false);
+			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false);
+
+			// Единственный ключ "" = clip без направления (backward compat)
+			if (angleMap.Count == 1 && angleMap.ContainsKey(""))
+				return (angleMap[""], false);
+
+			float targetAngle = Mathf.Atan2(forwardY, forwardX) * Mathf.Rad2Deg;
+			if (targetAngle < 0) targetAngle += 360f;
+
+			string bestClip = null;
+			float bestDist = 360f;
+			bool bestFlip = false;
+
+			foreach (var kv in angleMap)
+			{
+				if (kv.Key == "") continue;
+				if (!int.TryParse(kv.Key, out int clipAngle)) continue;
+
+				float dist = Mathf.Abs(Mathf.DeltaAngle(targetAngle, clipAngle));
+				if (dist < bestDist)
+				{
+					bestDist = dist;
+					bestClip = kv.Value;
+					bestFlip = false;
+				}
+
+				if (p.h_mirror)
+				{
+					int mirrorAngle = (360 - clipAngle) % 360;
+					float mirrorDist = Mathf.Abs(Mathf.DeltaAngle(targetAngle, mirrorAngle));
+					if (mirrorDist < bestDist)
+					{
+						bestDist = mirrorDist;
+						bestClip = kv.Value;
+						bestFlip = true;
+					}
+				}
+			}
+
+			// Fallback на без-направления если ничего не нашли
+			if (bestClip == null && angleMap.TryGetValue("", out var fallback))
+				return (fallback, false);
+
+			return (bestClip, bestFlip);
+		}
+
+		// Простой резолв без направления (backward compat для вызовов где forward неважен, например idle в importer)
+		public static string GetClipNameSimple(
+			string prefab, string action,
+			Dictionary<int, Dictionary<string, Dictionary<string, string>>> entityActions)
 		{
 			if (_library == null || string.IsNullOrEmpty(prefab)) return null;
 			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return null;
 			if (entityActions == null) return null;
-			if (!entityActions.TryGetValue(p.entity, out var map) || map == null) return null;
-			return map.TryGetValue(action, out var clip) ? clip : null;
+			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return null;
+			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return null;
+			// Берём первый попавшийся clip (предпочитая без-направления)
+			if (angleMap.TryGetValue("", out var clip)) return clip;
+			foreach (var kv in angleMap) return kv.Value;
+			return null;
 		}
 
 		// SCML XML анимации. Ключ кеша/URL — Animation.id (шерится между Prefab-ами).

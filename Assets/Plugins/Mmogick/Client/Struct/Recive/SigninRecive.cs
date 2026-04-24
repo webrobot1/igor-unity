@@ -19,9 +19,10 @@ namespace Mmogick
 
 		public int position_precision;
 
-		// Маппинг action→clip per entity, приходит инлайном с авторизацией вместо отдельного /entity_actions.
+		// Маппинг action→angle→clip per entity, приходит инлайном с авторизацией вместо отдельного /entity_actions.
 		// Передаётся параметром в ConnectController.Connect, хранится в ConnectController.entity_actions.
-		public System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<string, string>> entity_actions;
+		// Формат: entity_id → action → angle_str → clip_name. Ключ "" = clip для любого направления.
+		public System.Collections.Generic.Dictionary<int, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, string>>> entity_actions;
 
 		// Имя action, обозначающего «idle» (сущность в покое). Клиент использует его для:
 		//   1) Normalize-sampling в SpriterPostImportAdjuster Phase 1 (стабильная поза для median-bounds).
