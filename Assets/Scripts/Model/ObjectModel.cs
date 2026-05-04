@@ -42,6 +42,7 @@ namespace Mmogick
 		/// </summary>
 		private int _layerIndex = 0;
 
+
 		public int CurrentAnimationIndex
 		{
 			get { return _layerIndex; }
@@ -116,11 +117,8 @@ namespace Mmogick
                 {
 					int idx = animator.GetLayerIndex(idleAction);
 					if (idx < 0)
-					{
-						Debug.LogWarning($"У {key} нет layer \"{idleAction}\", берём layer 0");
-						idx = 0;
-					}
-					Log("Анимация " + key + " с " + action + " на " + animator.GetLayerName(idx) + " (таймаут)");
+						return;
+					Log("Анимация " + key + " с " + action + " на " + idleAction + " (таймаут)");
 					Animate(animator, idx);
 				}
 			}
