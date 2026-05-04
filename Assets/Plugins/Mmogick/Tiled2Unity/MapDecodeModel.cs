@@ -16,6 +16,63 @@ namespace Mmogick
 		{
 			Map map = JsonConvert.DeserializeObject<Map>(json);
 
+			// Коллайдеры вычисляем ДО пересчёта координат объектов (obj.x/y ещё в пикселях)
+			HashSet<Vector2Int> colliders = new HashSet<Vector2Int>();
+			foreach (Layer layer in map.layer.Values)
+			{
+				if (layer.tiles != null)
+				{
+					foreach (var tile in layer.tiles)
+					{
+						string sha = tile.Value.sha256;
+						var tileMeta = TileCacheService.GetMeta(sha);
+						bool hasObjectgroup = tileMeta != null
+							&& tileMeta.group != null
+							&& tileMeta.group.Length > 0;
+
+						if (hasObjectgroup || layer.name.ToLower() == "collision")
+						{
+							int cx = tile.Key % map.width;
+							int cy = tile.Key / map.width;
+							if (cy != 0) cy *= -1;
+							colliders.Add(new Vector2Int(cx, cy));
+						}
+					}
+				}
+
+				if (layer.objects != null && layer.visible)
+				{
+					foreach (LayerObject obj in layer.objects)
+					{
+						if (!obj.visible || obj.polyline != null) continue;
+
+						float objX = obj.x + layer.offsetx;
+						float objY = obj.y + layer.offsety;
+
+						if (obj.polygon != null)
+						{
+							foreach (Point c in obj.polygon)
+							{
+								int tx = (int)((objX + c.x) / map.tilewidth);
+								int ty = (int)((objY + c.y) / map.tileheight);
+								colliders.Add(new Vector2Int(tx, ty));
+							}
+						}
+						else
+						{
+							float w = obj.width > 0 ? obj.width : map.tilewidth;
+							float h = obj.height > 0 ? obj.height : map.tileheight;
+							if ((int)w == map.tilewidth && (int)h == map.tileheight)
+							{
+								colliders.Add(new Vector2Int(
+									(int)(objX / map.tilewidth),
+									(int)(objY / map.tileheight)));
+							}
+						}
+					}
+				}
+			}
+
 			// Пересчёт позиционных полей из ключа словаря (pos = y*width + x)
 			foreach (Layer layer in map.layer.Values)
 			{
@@ -159,6 +216,40 @@ namespace Mmogick
 			for (int x = 0; x < map.width; x++)
 				for (int y = 0; y < map.height; y++)
 					debugTilemap.SetTile(new Vector3Int(x, -y, 0), gridTile);
+
+			// Отладочный слой непроходимых тайлов (выключен по умолчанию, включать в инспекторе)
+			if (colliders.Count > 0)
+			{
+				GameObject debugCollision = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
+				debugCollision.name = "DebugCollision";
+				debugCollision.transform.SetParent(grid, false);
+				debugCollision.GetComponent<TilemapRenderer>().sortingOrder = sort + 1;
+				debugCollision.SetActive(false);
+
+				Texture2D colTex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+				colTex.filterMode = FilterMode.Point;
+				Color32 fill = new Color32(255, 50, 50, 80);
+				Color32 edge = new Color32(255, 50, 50, 180);
+				var colPixels = new Color32[32 * 32];
+				for (int i = 0; i < colPixels.Length; i++)
+				{
+					int px = i % 32;
+					int py = i / 32;
+					colPixels[i] = (px == 0 || py == 0 || px == 31 || py == 31) ? edge : fill;
+				}
+				colTex.SetPixels32(colPixels);
+				colTex.Apply();
+
+				Sprite colSprite = Sprite.Create(colTex, new Rect(0, 0, 32, 32), Vector2.zero, 32);
+				UnityEngine.Tilemaps.Tile colTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+				colTile.sprite = colSprite;
+
+				Tilemap colTilemap = debugCollision.GetComponent<Tilemap>();
+				foreach (Vector2Int pos in colliders)
+					colTilemap.SetTile(new Vector3Int(pos.x, pos.y, 0), colTile);
+
+				Debug.Log("DebugCollision: " + colliders.Count + " непроходимых тайлов");
+			}
 
 			return new MapDecode(map);
 		}
