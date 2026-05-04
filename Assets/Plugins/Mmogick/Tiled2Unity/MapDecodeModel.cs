@@ -16,59 +16,15 @@ namespace Mmogick
 		{
 			Map map = JsonConvert.DeserializeObject<Map>(json);
 
-			// Коллайдеры вычисляем ДО пересчёта координат объектов (obj.x/y ещё в пикселях)
 			HashSet<Vector2Int> colliders = new HashSet<Vector2Int>();
-			foreach (Layer layer in map.layer.Values)
+			if (map.colliders != null)
 			{
-				if (layer.tiles != null)
+				foreach (var zLevel in map.colliders.Values)
 				{
-					foreach (var tile in layer.tiles)
+					foreach (string key in zLevel.Keys)
 					{
-						string sha = tile.Value.sha256;
-						var tileMeta = TileCacheService.GetMeta(sha);
-						bool hasObjectgroup = tileMeta != null
-							&& tileMeta.group != null
-							&& tileMeta.group.Length > 0;
-
-						if (hasObjectgroup || layer.name.ToLower() == "collision")
-						{
-							int cx = tile.Key % map.width;
-							int cy = tile.Key / map.width;
-							if (cy != 0) cy *= -1;
-							colliders.Add(new Vector2Int(cx, cy));
-						}
-					}
-				}
-
-				if (layer.objects != null && layer.visible)
-				{
-					foreach (LayerObject obj in layer.objects)
-					{
-						if (!obj.visible || obj.polyline != null) continue;
-
-						float objX = obj.x + layer.offsetx;
-						float objY = obj.y + layer.offsety;
-
-						if (obj.polygon != null)
-						{
-							foreach (Point c in obj.polygon)
-							{
-								int tx = (int)((objX + c.x) / map.tilewidth);
-								int ty = (int)((objY + c.y) / map.tileheight);
-								colliders.Add(new Vector2Int(tx, ty));
-							}
-						}
-						else
-						{
-							float w = obj.width > 0 ? obj.width : map.tilewidth;
-							float h = obj.height > 0 ? obj.height : map.tileheight;
-							if ((int)w == map.tilewidth && (int)h == map.tileheight)
-							{
-								colliders.Add(new Vector2Int(
-									(int)(objX / map.tilewidth),
-									(int)(objY / map.tileheight)));
-							}
-						}
+						string[] parts = key.Split(',');
+						colliders.Add(new Vector2Int(int.Parse(parts[0]), int.Parse(parts[1])));
 					}
 				}
 			}
