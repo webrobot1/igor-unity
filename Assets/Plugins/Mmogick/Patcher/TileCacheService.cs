@@ -58,6 +58,7 @@ namespace Mmogick
 
 		private static string TilesPath(int gameId)  => Path.Combine(GamePath(gameId), TILES_DIR);
 		private static string MapsPath(int gameId)   => Path.Combine(GamePath(gameId), MAPS_DIR);
+
 		private static string ManifestPath(int gameId) => Path.Combine(GamePath(gameId), MANIFEST_FILE);
 		private static string MetaPath(int gameId)   => Path.Combine(GamePath(gameId), META_FILE);
 
