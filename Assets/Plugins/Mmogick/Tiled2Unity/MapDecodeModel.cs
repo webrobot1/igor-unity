@@ -130,6 +130,36 @@ namespace Mmogick
 			if (map.spawn_sort == null)
 				map.spawn_sort = 1;
 
+			// Отладочный слой-сетка (выключен по умолчанию, включать в инспекторе)
+			GameObject debugGrid = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
+			debugGrid.name = "DebugGrid";
+			debugGrid.transform.SetParent(grid, false);
+			debugGrid.GetComponent<TilemapRenderer>().sortingOrder = sort;
+			debugGrid.SetActive(false);
+
+			Texture2D tex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+			tex.filterMode = FilterMode.Point;
+			Color32 transparent = new Color32(0, 0, 0, 0);
+			Color32 border = new Color32(255, 255, 255, 60);
+			var pixels = new Color32[32 * 32];
+			for (int i = 0; i < pixels.Length; i++)
+			{
+				int px = i % 32;
+				int py = i / 32;
+				pixels[i] = (px == 0 || py == 0 || px == 31 || py == 31) ? border : transparent;
+			}
+			tex.SetPixels32(pixels);
+			tex.Apply();
+
+			Sprite gridSprite = Sprite.Create(tex, new Rect(0, 0, 32, 32), Vector2.zero, 32);
+			UnityEngine.Tilemaps.Tile gridTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+			gridTile.sprite = gridSprite;
+
+			Tilemap debugTilemap = debugGrid.GetComponent<Tilemap>();
+			for (int x = 0; x < map.width; x++)
+				for (int y = 0; y < map.height; y++)
+					debugTilemap.SetTile(new Vector3Int(x, -y, 0), gridTile);
+
 			return new MapDecode(map);
 		}
 
