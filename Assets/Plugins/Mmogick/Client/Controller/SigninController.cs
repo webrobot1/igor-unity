@@ -159,7 +159,7 @@ namespace Mmogick
 				if (data.entity_actions != null)
 					foreach (var kv in data.entity_actions)
 						if (!kv.Value.ContainsKey(data.idle_action))
-							throw new System.Exception($"У entity {kv.Key} отсутствует action \"{data.idle_action}\" в entity_actions");
+							Debug.LogWarning($"У entity {kv.Key} отсутствует action \"{data.idle_action}\" в entity_actions");
 
 				ConnectController.idle_action = data.idle_action;
 
