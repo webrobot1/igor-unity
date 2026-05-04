@@ -73,3 +73,20 @@ crashlytics-build.properties
 
 *.log
 .claude/
+
+# Assets/Plugins: track only known plugins, ignore auto-generated (NuGet, etc.)
+Assets/Plugins/*
+!Assets/Plugins/Mmogick/
+!Assets/Plugins/Mmogick.meta
+!Assets/Plugins/Joystick Pack/
+!Assets/Plugins/Joystick Pack.meta
+!Assets/Plugins/SpriterDotNet.Unity/
+!Assets/Plugins/SpriterDotNet.Unity.meta
+!Assets/Plugins/WebsocketSharp/
+!Assets/Plugins/WebsocketSharp.meta
+!Assets/Plugins/WebGLSupport/
+!Assets/Plugins/WebGLSupport.meta
+!Assets/Plugins/GitIntegration/
+!Assets/Plugins/GitIntegration.meta
+!Assets/Plugins/Startup/
+!Assets/Plugins/Startup.meta

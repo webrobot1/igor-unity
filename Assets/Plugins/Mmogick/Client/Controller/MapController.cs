@@ -98,7 +98,7 @@ namespace Mmogick
 				{
 					if (!_maps.ContainsKey(side.Key))
 					{
-						StartCoroutine(MapPatcher.Get(_sides[side.Key].ip, GAME_ID, player_token, side.Key, _sides[side.Key].updated, (MapPatcher patcher) =>
+						StartCoroutine(MapPatcher.Get(SERVER, GAME_ID, player_token, side.Key, (MapPatcher patcher) =>
 						{
 							if (patcher.error != null)
 								Error("Карты: ошибка " + patcher.error);

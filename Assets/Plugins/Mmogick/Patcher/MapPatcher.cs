@@ -10,7 +10,7 @@ namespace Mmogick
 		public string result;  // JSON карты
 
 		// Кеш карты ведёт TileCacheService (If-Modified-Since, persistentDataPath/games/{gameId}/maps).
-		public static IEnumerator Get(string server, int game_id, string token, int map_id, int updated, Action<MapPatcher> callback)
+		public static IEnumerator Get(string server, int game_id, string token, int map_id, Action<MapPatcher> callback)
 		{
 			MapPatcher patcher = new MapPatcher();
 			yield return TileCacheService.GetMap(server, game_id, map_id, token, (string json, string error) =>

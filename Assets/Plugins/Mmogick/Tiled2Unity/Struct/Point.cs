@@ -10,10 +10,6 @@ namespace Mmogick
 		public float x;
 		public float y;
 
-		public string ip;
-		public int updated;
-		public int port;
-
 		new public string ToString()
         {
 			return x + "," + y;
