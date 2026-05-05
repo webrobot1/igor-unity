@@ -19,6 +19,6 @@ namespace Mmogick
 		public int? spawn_sort = null;
 
 		public Dictionary<int, Layer> layer = new Dictionary<int, Layer> {};
-		public Dictionary<int, Dictionary<string, bool>> colliders;
+		public Dictionary<int, Dictionary<string, bool>> colliders = new Dictionary<int, Dictionary<string, bool>>();
 	}
 }
