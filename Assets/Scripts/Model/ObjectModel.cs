@@ -289,8 +289,11 @@ namespace Mmogick
 				timeout += GetEventRemain(WalkResponse.GROUP);
 			}
 
-			// на сколько от шага каждый кадр сервера сдвигать существо
-			double distancePerUpdate = (Vector3.Distance(transform.localPosition, finish) / (timeout / Time.fixedDeltaTime));
+			// Постоянная скорость анимации = STEP / timeout (а не actualDistance / timeout).
+			// Иначе мелкие шаги (slide вдоль стены, corner wrap) играются медленно и видны
+			// как "замедления" между нормальными шагами. С STEP в формуле скорость стабильна:
+			// мелкий шаг доходит до finish раньше срока, дальше idle wait до нового пакета.
+			double distancePerUpdate = (ConnectController.step / (timeout / Time.fixedDeltaTime));
 			bool extrapolation = false;
 			// время начала экстраполяции для ограничения по MaxPing * 2
 			DateTime extrapolationStart = DateTime.MinValue;
@@ -315,12 +318,24 @@ namespace Mmogick
 						extrapolation = true;
 						extrapolationStart = DateTime.Now;
 
-						// полный шаг вместо половины — больше запас для ожидания пакета
-						finish += Forward * ConnectController.step;
-						// замедляемся чтобы не уйти далеко от серверной позиции
-						distancePerUpdate *= 0.7;
+						Vector3 nextFinish = finish + Forward * ConnectController.step;
+						int ntx = Mathf.RoundToInt(nextFinish.x);
+						int nty = Mathf.RoundToInt(nextFinish.y);
 
-						LogWarning("Движение - экстраполируем на полный шаг, замедление 0.7x");
+						if (MapDecodeModel.Colliders.Contains(new Vector2Int(ntx, nty)))
+						{
+							// Не экстраполируем в коллайдер. Snap к (tx±0.49) делал телепорт когда
+							// текущая позиция уже не целая (после серверного creep или диагонали).
+							// Сервер сам подводит игрока к стене через creep в walk/index.php.
+							LogWarning("Движение - следующий тайл коллайдер, останавливаемся на серверной позиции");
+							break;
+						}
+						else
+						{
+							finish = nextFinish;
+							distancePerUpdate *= 0.7;
+							LogWarning("Движение - экстраполируем на полный шаг, замедление 0.7x");
+						}
 					}
                     else
 					{

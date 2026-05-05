@@ -561,7 +561,9 @@ namespace Mmogick
 						if (player.getEvent(data.group).action == "")
 							player.getEvent(data.group).action = null;
 
-						player.Log("отправили в websocket " + json);
+#if UNITY_EDITOR
+						Debug.Log("WebSocket: Отправлен пакет " + json);
+#endif
 						Put2Send(json);	
 					}
 					else if (EntityModel.verbose)

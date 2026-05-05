@@ -12,9 +12,16 @@ namespace Mmogick
 	/// </summary>
 	abstract public class MapDecodeModel
 	{
+		public static HashSet<Vector2Int> Colliders { get; private set; }
+
 		public static MapDecode generate(string json, Transform grid, int gameId)
 		{
 			Map map = JsonConvert.DeserializeObject<Map>(json);
+
+			// Grid сдвиг -0.5 совмещает визуальные границы тайлов (pivot 0,0 → [N, N+1))
+			// с логическими (RoundToInt → [N-0.5, N+0.5)). Player pivot (0.5, 0.5) — центр.
+			// Без сдвига игрок при позиции -8.49 (логически тайл -8) визуально в тайле -9.
+			grid.localPosition = new Vector3(-0.5f, -0.5f, 0f);
 
 			HashSet<Vector2Int> colliders = new HashSet<Vector2Int>();
 			if (map.colliders != null)
@@ -28,6 +35,7 @@ namespace Mmogick
 					}
 				}
 			}
+			Colliders = colliders;
 
 			// Пересчёт позиционных полей из ключа словаря (pos = y*width + x)
 			foreach (Layer layer in map.layer.Values)
@@ -180,7 +188,7 @@ namespace Mmogick
 				debugCollision.name = "DebugCollision";
 				debugCollision.transform.SetParent(grid, false);
 				debugCollision.GetComponent<TilemapRenderer>().sortingOrder = sort + 1;
-				debugCollision.SetActive(false);
+				debugCollision.SetActive(true);
 
 				Texture2D colTex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
 				colTex.filterMode = FilterMode.Point;
