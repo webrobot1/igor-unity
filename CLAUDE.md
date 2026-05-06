@@ -2,6 +2,9 @@
 
 ## Диагностика игровых объектов (enemy, HP-полоска и т.п.)
 
+
+общение вести по русски.
+
 Игровые объекты (`enemy`, карта, HP-полоски, Spriter-анимации) существуют только после входа в учётку. Поэтому перед любой диагностикой runtime-поведения:
 
 1. Убедиться, что Unity Editor в playmode — `editor-application-get-state` → `IsPlaying == true`. Если нет, запустить через `editor-application-set-state { isPlaying: true }`.

@@ -98,7 +98,7 @@ namespace Mmogick
 
                             _items[slot.Value.id] = item;
 
-                            player.Log("Инвентарь слот " + slot.Key + ": " + slot.Value.id + " x" + slot.Value.count);
+                            player?.Log("Инвентарь слот " + slot.Key + ": " + slot.Value.id + " x" + slot.Value.count);
                         }
                         else
                         {
