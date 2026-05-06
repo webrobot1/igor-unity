@@ -158,16 +158,14 @@ namespace Mmogick
 						LogWarning("Движение - существо еще не звершило движение. Эстраполяция: " + Math.Round((Vector3.Distance(transform.localPosition, old_position) / Vector3.Distance(old_position, new_position)) * 100) + " % не дойдя с прошлого движения");
 					}
 
-					if ((recive.action == "walk" && Vector3.Distance(old_position + (Forward * ConnectController.step), new_position) < ConnectController.step * 0.5f) || (recive.map!=null && recive.map != old_map_id))
+					// Walk запускаем в двух случаях:
+					// 1) walk-шаг: новые координаты близки к продлению текущего шага (old + Forward*step);
+					// 2) смена карты: после SetParent(worldPositionStays=true) localPosition пересчитан в систему
+					//    новой карты, new_position — серверная в той же системе → Walk плавно догонит. Подменять
+					//    new_position на (old + Forward*step) НЕЛЬЗЯ: old_position был в системе СТАРОЙ карты,
+					//    подмена ломает серверные координаты и игрок ехал не туда.
+					if ((recive.action == "walk" && Vector3.Distance(old_position + (Forward * ConnectController.step), new_position) < ConnectController.step * 0.5f) || (recive.map != null && recive.map != old_map_id))
 					{
-						// до получения новых пакетов продолжим движение в старой системе координат на 1 шаг (тк пришли уже новые для новой карты)
-						if (recive.map != null)
-						{
-							recive.action = "walk";
-							position = new_position = old_position + (Forward * ConnectController.step);
-							Log("Движение - Переход между локациями, идем в "+ new_position);
-						}
-
 						// в приоритете getEvent(WalkResponse.GROUP).timeout  тк мы у него не отнимаем время пинга на получение пакета но и не прибавляем ping время на отправку с сервера нового пакета
 						coroutines["walk"] = StartCoroutine(Walk(new_position, (coroutines.ContainsKey("walk") ? coroutines["walk"] : null)));
 					}

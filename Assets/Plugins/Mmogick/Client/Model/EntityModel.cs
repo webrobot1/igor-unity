@@ -312,7 +312,7 @@ namespace Mmogick
 		/// <summary>
 		///  базовая корутина уничтожение с карты объекта при уничтожении с сервера. ее можно и скорее нужно переопределять насыщая анмиацией это действи
 		/// </summary>
-		protected virtual IEnumerator Remove(bool isChangeMap = false)
+		public virtual IEnumerator Remove(bool isChangeMap = false)
 		{
 			if (isChangeMap)
 			{

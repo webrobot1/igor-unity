@@ -71,17 +71,21 @@ namespace Mmogick
 					}
 
 					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты
+					// тем у кого action уже remove не трогаем — у них своя корутина уже работает,
+					// остальным запускаем отложенное удаление (5 сек шанс отмены при появлении на смежной карте)
 					if (map.Value.player == null && map.Value.entity == null)
 					{
 						Debug.LogWarning("WebSocket: локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
 
-						// если саму зону оставить надо
-						foreach (Transform child in map_zone.transform)
+						foreach (Transform child in map_zone.transform.Cast<Transform>().ToList())
 						{
-							DestroyImmediate(child.gameObject);
+							var model = child.GetComponent<EntityModel>();
+							if (model.action != ACTION_REMOVE)
+							{
+								model.action = ACTION_REMOVE;
+								model.StartCoroutine(model.Remove(true));
+							}
 						}
-
-						//DestroyImmediate(map_zone.gameObject);
 					}
 					else
 					{
@@ -276,7 +280,10 @@ namespace Mmogick
 			}
 
 			model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
-			prefab.transform.SetParent(worldObject.transform.Find(map_id.ToString()).transform, false);
+			// worldPositionStays=true: при смене map_zone (переход через границу карты) мировая позиция
+			// сохраняется автоматически — localPosition пересчитывается под новый map_zone. Иначе мировая
+			// прыгает (localPosition сохраняется, родитель сменился, мировая = новый_родитель + старый_local).
+			prefab.transform.SetParent(worldObject.transform.Find(map_id.ToString()).transform, true);
 
 			try
 			{
