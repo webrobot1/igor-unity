@@ -627,18 +627,19 @@ namespace Mmogick
 		}
 
 		private static void Close()
-		{	
-			if (connect!=null)
+		{
+			var c = connect;
+			if (c != null)
 			{
-				if (connect.ReadyState != WebSocketState.Closed && connect.ReadyState != WebSocketState.Closing)
+				connect = null;
+
+				if (c.ReadyState != WebSocketState.Closed && c.ReadyState != WebSocketState.Closing)
 				{
-					connect.CloseAsync();
-					Debug.LogError("WebSocket:  закрытие соедения " + connect.Url);
+					Debug.Log("WebSocket: закрытие соединения " + c.Url);
+					c.CloseAsync();
 				}
 				else
-					Debug.LogWarning("WebSocket: содинение уже закрывается " + connect.Url);
-
-				connect = null;
+					Debug.LogWarning("WebSocket: соединение уже закрывается " + c.Url);
 			}
 		}
 
