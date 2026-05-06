@@ -474,8 +474,8 @@ namespace Mmogick
 							reload = ReloadStatus.Start;
 							Close();
 							Debug.Log("WebSocket: смена карты игрока — переавторизация");
-						}	
-							
+						}
+
 						if (recive.action == ACTION_LOAD)
 						{
 							recives.Clear();

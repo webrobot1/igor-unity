@@ -84,10 +84,11 @@ namespace Mmogick
                         }
 
                         SlotScript slotUI = _slots[slot.Key - 1];
+                        slotUI.Clear();
 
                         if (slot.Value != null && !string.IsNullOrEmpty(slot.Value.id))
                         {
-                            Item item = Instantiate(itemPrefab);
+                            Item item = Instantiate(itemPrefab, slotUI.transform);
                             item.gameObject.SetActive(false);
                             item.SetData(slot.Value.id);
                             item.SetTooltip(tooltip);

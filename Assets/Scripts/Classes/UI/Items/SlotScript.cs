@@ -49,6 +49,8 @@ namespace Mmogick
 
         public void Clear()
         {
+            if (_item != null)
+                Destroy(_item.gameObject);
             _item = null;
             _components = null;
             _icon.sprite = null;
