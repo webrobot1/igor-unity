@@ -32,6 +32,7 @@ namespace Mmogick
 
             if (serverField != null && SERVER.Length > 0)
                 serverField.text = SERVER;
+
         }
 
         public void Register()
@@ -57,6 +58,9 @@ namespace Mmogick
 				Error("Заполните логин или пароль");
 				yield break;
 			}
+
+			var canvas = GetComponentInParent<Canvas>();
+			if (canvas != null) canvas.enabled = false;
 
 			if (serverField != null && serverField.text.Length > 0)
 				SERVER = serverField.text;
@@ -162,9 +166,12 @@ namespace Mmogick
 							Debug.LogWarning($"У entity {kv.Key} отсутствует action \"{data.idle_action}\" в entity_actions");
 
 				ConnectController.idle_action = data.idle_action;
+				ConnectController.step = data.step;
+				ConnectController.position_precision = data.position_precision;
+				ConnectController.server_fps = data.fps;
+				ConnectController.entity_actions = data.entity_actions;
 
-				// не забывайте этот контроллер на ConnectController который создали на сцене (в папе-контейнере может быть PlayerController)
-				ConnectController.Connect(data.host, data.key, data.token, data.step, data.position_precision, data.fps, data.entity_actions);
+				ConnectController.Connect(data.host, data.token, data.key);
 
 				// asyncLoad.allowSceneActivation = true;
 			}

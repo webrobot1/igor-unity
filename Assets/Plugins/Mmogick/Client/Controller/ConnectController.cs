@@ -72,11 +72,6 @@ namespace Mmogick
 		protected static string player_key;
 
 		/// <summary>
-		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
-		/// </summary>
-		protected static string player_token;
-
-		/// <summary>
 		/// Маппинг entity_id → action → angle_str → clip.name, приходит инлайном в ответе /auth.
 		/// Сессионный state (на диск не пишется), живёт параллельно с token/key/step.
 		/// Читается резолвером AnimationCacheService.GetClipName.
@@ -97,9 +92,14 @@ namespace Mmogick
 		public static string idle_action;
 
 		/// <summary>
-		/// текущий используемый хост
+		/// поулченный хост для нового соединения
 		/// </summary>
 		private static string host;
+
+		/// <summary>
+		/// сохраним для дальнейшего запроса карт (по токену проверка идет и он отправляется)
+		/// </summary>
+		protected static string player_token;
 
 		/// <summary>
 		/// серверный FPS. не следует ставить в клиенте такой же fps (он может быть довольно большой или наоборот малый). в клиенте жеательно 100 не больше
@@ -132,6 +132,7 @@ namespace Mmogick
 			Process,
 			None
 		};
+
 
 		/// <summary>
 		/// блокирует отправку любых запросов на сервер (тк уже идет соединение). только событие load (получения с сервера игрового мира) снимает его
@@ -274,13 +275,15 @@ namespace Mmogick
 
 					if (reload == ReloadStatus.Start)
 					{
-						// этот флаг снимем что бы повторно не загружать карту
 						reload = ReloadStatus.Process;
-
-						// поставим этот флаг что бы был таймер нашей загрузки новой карты и текущаа обработка в Update остановилась
+						errors.Clear();
 						loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
 						connect = null;
-						Connect(host, player_key, player_token, step, position_precision, server_fps, entity_actions);
+
+						if (string.IsNullOrEmpty(host))
+							coroutine = StartCoroutine(LoadRegister());
+						else
+							Connect(host);
 					}
 				}
 				else
@@ -298,15 +301,15 @@ namespace Mmogick
 		/// Звпускается после авторизации - заполяет id и token 
 		/// </summary>
 		/// <param name="data">Json сигнатура данных авторизации согласно SiginJson</param>
-		public static void Connect(string host, string player_key, string player_token, float step, int position_precision, int server_fps, Dictionary<int, Dictionary<string, Dictionary<string, string>>> entity_actions)
+		public static void Connect(string host, string player_token = null, string player_key = null)
 		{
-			ConnectController.host = host;
-			ConnectController.player_key = player_key;
-			ConnectController.player_token = player_token;
-			ConnectController.server_fps = server_fps;
-			ConnectController.step = step;                                    // максимальный размер шага. умножается тк по диагонали идет больще
-			ConnectController.position_precision = position_precision;        // длина шага
-			ConnectController.entity_actions = entity_actions;
+			ConnectController.host = null;
+
+			if (player_key != null) ConnectController.player_key = player_key;
+			if (player_token != null) ConnectController.player_token = player_token;
+
+			if (string.IsNullOrEmpty(ConnectController.player_key) || string.IsNullOrEmpty(ConnectController.player_token))
+				throw new Exception("WebSocket: Connect вызван без player_key/player_token и они не были заполнены ранее");
 
 			recives.Clear();		
 
@@ -349,7 +352,10 @@ namespace Mmogick
 								throw new Exception("WebSocket: В процессе инициализации класса произошли ошибки");
 							}							
 							else
+							{
 								connect = ws;
+								reload = ReloadStatus.None;
+							}
 						};
 						ws.OnClose += (sender, ev)  =>
 						{
@@ -399,7 +405,6 @@ namespace Mmogick
 							connect.Connect();
 						#endif
 
-						reload = ReloadStatus.None;
 					}
 					catch (Exception ex)
 					{
@@ -452,14 +457,25 @@ namespace Mmogick
 					}
 					else
 					{
-						if (recive.host != null)
+						if (recive.host != null && recive.token != null)
 						{
-							Close();
-							ConnectController.host = recive.host;
 							reload = ReloadStatus.Start;
-							player.Log("Перезаход в игру");
+							ConnectController.host = recive.host;
+							ConnectController.player_token = recive.token;
+							Close();
+							Debug.Log("WebSocket: смена карты — переподключение к " + recive.host);
 						}
-
+						else if (player != null && recive.world != null
+							&& recive.world.ContainsKey(player.map) && recive.world[player.map].player != null
+							&& recive.world[player.map].player.ContainsKey(player_key)
+							&& recive.world[player.map].player[player_key].action == ACTION_REMOVE
+							&& recive.world[player.map].player[player_key].map != null)
+						{
+							reload = ReloadStatus.Start;
+							Close();
+							Debug.Log("WebSocket: смена карты игрока — переавторизация");
+						}	
+							
 						if (recive.action == ACTION_LOAD)
 						{
 							recives.Clear();
@@ -480,7 +496,8 @@ namespace Mmogick
 							}
 						}
 
-						recives.Enqueue(text);
+						if (reload == ReloadStatus.None)
+							recives.Enqueue(text);
 					}
 				}
 			}
@@ -663,7 +680,7 @@ namespace Mmogick
 			Error("Выход из игры");
 		}
 
-		/// <summary>
+			/// <summary>
 		/// Страница ошибок - загрузка страницы входа
 		/// </summary>
 		/// <param name="error">сама ошибка</param>
@@ -684,7 +701,11 @@ namespace Mmogick
 			}
 
 			SceneManager.UnloadScene("MainScene");
-			BaseController.Error(error);
+
+			if (error != null)
+				BaseController.Error(error);
+			else
+				FindAnyObjectByType<SigninController>().Auth();
 		}
 
 		void OnApplicationQuit()

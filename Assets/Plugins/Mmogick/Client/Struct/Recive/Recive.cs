@@ -34,6 +34,11 @@ namespace Mmogick
         /// <summary>
         /// при переходе на другую карту (сервер)  всылается новый хост для подключения
         /// </summary>
-        public string host;       
+        public string host;
+
+        /// <summary>
+        /// токен для авторизации на новом сервере при смене карты (приходит вместе с host)
+        /// </summary>
+        public string token;
     }
 }

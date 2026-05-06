@@ -27,9 +27,12 @@ namespace Mmogick
 
 		public static void  Error(string error = null, Exception ex = null)
 		{
-            if (error != null) 
-			{ 
-				GameObject.Find("error").GetComponent<Text>().text = error;
+            if (error != null)
+			{
+				var errorObj = GameObject.Find("error");
+				var canvas = errorObj.GetComponentInParent<Canvas>();
+				if (canvas != null) canvas.enabled = true;
+				errorObj.GetComponent<Text>().text = error;
 				Debug.LogError(error);
 			}
 
