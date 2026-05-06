@@ -32,8 +32,8 @@ namespace Mmogick
 					case ACTION_LOAD:
 						Debug.LogWarning("WebSocket: полная перезагрузка мира");
 
-						// удаляет не сразу а на следующем кадре все карты
-						// главное не через for  от количества детей делать DestroyImmediate - тк количество детей пропорционально будет уменьшаться
+						// .Cast<Transform>().ToList() — снапшот детей: DestroyImmediate меняет коллекцию, прямой
+						// foreach по transform пропустил бы половину
 						foreach (var side in worldObject.transform.Cast<Transform>().ToList())
 						{ 
 							foreach (var child in side.transform.Cast<Transform>().ToList())
@@ -70,9 +70,9 @@ namespace Mmogick
 						Debug.LogWarning("WebSocket: Создаем область для объектов " + map.Key);
 					}
 
-					// если пришел пустой обхект (массив)  то надо все удалить с зоны карты все электменты
+					// сервер прислал пустую локацию — запрашиваем отложенное удаление по каждой сущности.
 					// тем у кого action уже remove не трогаем — у них своя корутина уже работает,
-					// остальным запускаем отложенное удаление (5 сек шанс отмены при появлении на смежной карте)
+					// остальным даём 5 сек шанс отмены при появлении на смежной карте
 					if (map.Value.player == null && map.Value.entity == null)
 					{
 						Debug.LogWarning("WebSocket: локация " + map.Key + " отправила пустое содержимое - удалим ее объекты с карты");
