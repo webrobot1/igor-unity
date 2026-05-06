@@ -333,7 +333,7 @@ namespace Mmogick
 						Debug.Log("WebSocket: новое соединение с сервером " + ws.Url);
 
 						// так в C# можно
-						ws.SetCredentials(player_key, player_token, true);
+						ws.SetCredentials(ConnectController.player_key, ConnectController.player_token, true);
 						ws.OnOpen += (object sender, System.EventArgs e) =>
 						{
 
