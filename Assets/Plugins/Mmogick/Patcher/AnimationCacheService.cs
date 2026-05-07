@@ -11,22 +11,18 @@ using UnityEngine.Networking;
 
 namespace Mmogick
 {
-	// Content-addressable кеш анимаций игры. Работает с 4 endpoint'ами сервера:
-	//   GET /animation/patch/{gameId}/{token}/structure/{animationId} — SCML XML
-	//   GET /animation/patch/{gameId}/{token}/images                  — ZIP (sha256.ext + _files.json) (If-Modified-Since)
-	//   GET /animation/patch/{gameId}/{token}/prefabs?since=<ts>      — map prefab.name → animation_id
-	//   GET /animation/patch/{gameId}/{token}/animations?since=<ts>   — map animation_id → updated_ts (delta)
-	// Маппинг action→clip (entity_actions) приходит инлайном в ответе /api/game/{gameId}/auth
-	// и хранится в ConnectController.entity_actions (session state) — сюда передаётся параметром GetClipName.
-	//
-	// Дедупликация: несколько Prefab одной игры могут ссылаться на одну Animation — качаем её один раз.
+	// Content-addressable кеш анимаций игры. Endpoint'ы:
+	//   GET /animation/patch/{gameId}/{token}/prefabs        — полный список prefab.name → {animation, entity, size, h_mirror}
+	//   GET /animation/patch/{gameId}/{token}/animations     — полный список animation_id → updated_timestamp
+	//   GET /animation/patch/{gameId}/{token}/animations/{id} — SCML XML (клиент качает только если updated отличается)
+	//   GET /animation/patch/{gameId}/{token}/images          — ZIP (sha256.ext + _files.json) (If-Modified-Since)
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/animations/
 	//   images/{sha256}.{ext}         — распакованные из ZIP /images
-	//   structures/{animationId}.xml  — кеш SCML XML от /structure
+	//   structures/{animationId}.xml  — кеш SCML XML
 	//   files.json                    — animationId → idx → sha256.ext (берётся из _files.json в ZIP)
-	//   library.json                  — prefab.name → animation_id (мержится по диффам ?since)
-	//   sync.json                     — manifest (archive_last_modified, library_since, structures_since)
+	//   library.json                  — prefab.name → PrefabEntry (полная замена при каждом sync)
+	//   sync.json                     — manifest (archive_last_modified, animation_versions: {id: ts})
 	public static class AnimationCacheService
 	{
 		[DllImport("__Internal")]
@@ -73,8 +69,7 @@ namespace Mmogick
 		public class SyncManifest
 		{
 			public string archive_last_modified;
-			public int    library_since;
-			public int    structures_since;
+			public Dictionary<int, long> animation_versions = new Dictionary<int, long>();
 		}
 
 		[Serializable]
@@ -105,20 +100,6 @@ namespace Mmogick
 			if (_library == null)
 				throw new InvalidOperationException("AnimationCacheService.GetPrefabSize вызван до SyncAll (_library == null). prefab=" + prefab + ". Вызывайте только после завершения SigninController.LoadMain.");
 			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
-		}
-
-		[Serializable]
-		private class LibraryResponse
-		{
-			public Dictionary<string, PrefabEntry> items;  // prefab.name → {animation, entity} (диффы по ?since)
-			public int                             now;
-		}
-
-		[Serializable]
-		private class AnimationsResponse
-		{
-			public List<int> items;  // список animation_id, обновлённых с ?since
-			public int       now;
 		}
 
 		[Serializable]
@@ -181,9 +162,9 @@ namespace Mmogick
 				_library = new Dictionary<string, PrefabEntry>();
 				if (File.Exists(lp))
 				{
-					// Старый формат (string→int) → на новый не парсится — catch, reset since=0 для полной пересинхронизации.
+					// Старый формат (string→int) не парсится на новый — catch, начнём с пустого; SyncLibrary всё равно перезальёт целиком.
 					try { _library = JsonConvert.DeserializeObject<Dictionary<string, PrefabEntry>>(File.ReadAllText(lp)) ?? new Dictionary<string, PrefabEntry>(); }
-					catch { _library = new Dictionary<string, PrefabEntry>(); _manifest.library_since = 0; }
+					catch { _library = new Dictionary<string, PrefabEntry>(); }
 				}
 			}
 			if (_files == null)
@@ -265,13 +246,11 @@ namespace Mmogick
 			yield return PreFetchStructures(host, gameId, token, delta, onError);
 		}
 
-		// Список анимаций игры, обновлённых с прошлого захода (Animation.updated >= structures_since).
-		// Не качает сами структуры — лишь сигнал для PreFetchStructures, какие из library надо
-		// принудительно обновить (даже если локальный structures/{id}.json уже есть).
+		// Полный список animation_id → updated. Сравниваем с локальным, определяем delta, удаляем лишние.
 		private static IEnumerator SyncAnimations(string host, int gameId, string token, HashSet<int> delta, Action<string> onError)
 		{
-			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/animations?since=" + _manifest.structures_since;
-			Debug.Log("Запрашиваю список изменившихся анимаций "+url);
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/animations";
+			Debug.Log("Запрашиваю список анимаций " + url);
 
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			yield return req.SendWebRequest();
@@ -286,22 +265,35 @@ namespace Mmogick
 			string text = req.downloadHandler.text;
 			req.Dispose();
 
-			AnimationsResponse resp;
-			try { resp = JsonConvert.DeserializeObject<AnimationsResponse>(text); }
+			Dictionary<int, long> serverVersions;
+			try { serverVersions = JsonConvert.DeserializeObject<Dictionary<int, long>>(text); }
 			catch (Exception ex) { onError?.Invoke("AnimationCache animations parse: " + ex.Message); yield break; }
 
-			if (resp.items != null)
-				foreach (var id in resp.items)
-					delta.Add(id);
+			if (serverVersions == null) serverVersions = new Dictionary<int, long>();
 
-			Debug.Log("AnimationCache: delta анимаций — " + delta.Count);
-			_manifest.structures_since = resp.now;
+			foreach (var kv in serverVersions)
+			{
+				if (!_manifest.animation_versions.TryGetValue(kv.Key, out long localTs) || localTs < kv.Value)
+					delta.Add(kv.Key);
+			}
+
+			// Удалить локальные анимации которых больше нет на сервере
+			var toRemove = new List<int>();
+			foreach (var id in _manifest.animation_versions.Keys)
+				if (!serverVersions.ContainsKey(id))
+					toRemove.Add(id);
+			foreach (var id in toRemove)
+			{
+				_manifest.animation_versions.Remove(id);
+				string structFile = Path.Combine(StructPath(gameId), id + ".xml");
+				if (File.Exists(structFile)) File.Delete(structFile);
+			}
+
+			Debug.Log("AnimationCache: delta " + delta.Count + " анимаций, удалено " + toRemove.Count);
 			SaveManifest(gameId);
 		}
 
-		// Предзагрузка SCML-структур: качаем, если animation в delta (сервер сообщил об обновлении)
-		// ИЛИ если локального кеша ещё нет (первый раз / новый prefab). Для delta — удаляем старый кеш-файл,
-		// чтобы GetStructure пошёл в сеть (иначе отдаст устаревшее из кеша). Дедупликация по animation_id.
+		// Предзагрузка SCML-структур: качаем если в delta (updated отличается) или нет локального файла.
 		private static IEnumerator PreFetchStructures(string host, int gameId, string token, HashSet<int> delta, Action<string> onError)
 		{
 			var seen = new HashSet<int>();
@@ -309,7 +301,7 @@ namespace Mmogick
 			{
 				int animationId = kv.Value.animation;
 				if (!seen.Add(animationId)) continue;
-				string structFile = Path.Combine(StructPath(gameId), animationId + ".json");
+				string structFile = Path.Combine(StructPath(gameId), animationId + ".xml");
 				bool inDelta = delta.Contains(animationId);
 				if (!inDelta && File.Exists(structFile)) continue;
 				if (inDelta && File.Exists(structFile)) File.Delete(structFile);
@@ -318,6 +310,7 @@ namespace Mmogick
 					if (err != null) onError?.Invoke(err);
 				});
 			}
+			SaveManifest(gameId);
 		}
 
 		// Архив: GET с If-Modified-Since. 304 → ничего. 200 → unzip в images/.
@@ -410,11 +403,11 @@ namespace Mmogick
 			#endif
 		}
 
-		// Library: GET ?since=<library_since>. Ответ мержится в _library по animation_id.
+		// Полный список prefab'ов — заменяет _library целиком. Клиент видит удалённые prefab'ы.
 		private static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
-			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + _manifest.library_since;
-			Debug.Log("Запрашиваю список префабов "+url);
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs";
+			Debug.Log("Запрашиваю список префабов " + url);
 
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			yield return req.SendWebRequest();
@@ -429,22 +422,12 @@ namespace Mmogick
 			string text = req.downloadHandler.text;
 			req.Dispose();
 
-			LibraryResponse resp;
-			try { resp = JsonConvert.DeserializeObject<LibraryResponse>(text); }
+			Dictionary<string, PrefabEntry> parsed;
+			try { parsed = JsonConvert.DeserializeObject<Dictionary<string, PrefabEntry>>(text); }
 			catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
 
-			int libCount = 0;
-			if (resp.items != null)
-			{
-				foreach (var kv in resp.items)
-				{
-					_library[kv.Key] = kv.Value;
-					libCount++;
-				}
-			}
-			Debug.Log("AnimationCache: библиотека обновлена, получено " + libCount + " префабов");
-			_manifest.library_since = resp.now;
-			SaveManifest(gameId);
+			_library = parsed ?? new Dictionary<string, PrefabEntry>();
+			Debug.Log("AnimationCache: библиотека загружена, " + _library.Count + " префабов");
 			SaveLibrary(gameId);
 		}
 
@@ -556,8 +539,8 @@ namespace Mmogick
 				yield break;
 			}
 
-			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/structure/" + animationId;
-			Debug.Log("Запрашиваю анимацию "+animationId+" (prefab "+prefab+") "+url);
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/animations/" + animationId;
+			Debug.Log("Запрашиваю анимацию " + animationId + " (prefab " + prefab + ") " + url);
 
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			yield return req.SendWebRequest();
@@ -591,6 +574,7 @@ namespace Mmogick
 			catch (Exception ex) { callback(null, null, "AnimationCache structure decode: " + ex.Message); yield break; }
 
 			File.WriteAllText(structFile, xml);
+			_manifest.animation_versions[animationId] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
 			#endif

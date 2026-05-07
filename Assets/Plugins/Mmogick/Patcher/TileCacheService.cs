@@ -10,26 +10,28 @@ using System.Runtime.InteropServices;
 
 namespace Mmogick
 {
-	// Content-addressable кеш тайлов игры. Работает с 3 endpoint'ами сервера:
-	//   GET /map/patch/{game}/{token}/archive     — ZIP со всеми PNG графики (If-Modified-Since)
-	//   GET /map/patch/{game}/{token}/map/{mapId} — terrain.json карты (If-Modified-Since)
-	//   GET /map/patch/{game}/{token}/tile        — tile meta игры (If-Modified-Since)
+	// Content-addressable кеш тайлов игры. Работает с endpoint'ами сервера:
+	//   GET /map/patch/{game}/{token}/archive           — ZIP со всеми PNG графики (If-Modified-Since)
+	//   GET /map/patch/{game}/{token}/map/{mapId}       — terrain.json карты (If-Modified-Since)
+	//   GET /map/patch/{game}/{token}/tileset           — список тайлсетов с timestamp'ами
+	//   GET /map/patch/{game}/{token}/tileset/{id}      — per-tileset meta (name, property, tile meta, wangsets)
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/
 	//   tiles/{sha256}.png
-	//   meta.json    — { sha256: Tile } (только для тайлов у которых реально есть мета)
-	//   sync.json    — { archive_last_modified, last_meta_updated, map_versions: {mapId: ts} }
+	//   tileset/{tilesetId}.json  — per-tileset кэш {name, property, tile: {sha → meta}, wangset[]}
+	//   sync.json                 — { archive_last_modified, tileset_versions: {id: ts}, map_versions: {mapId: ts} }
 	public static class TileCacheService
 	{
 		[DllImport("__Internal")]
 		private static extern void JsSync();
 
 		private const string MANIFEST_FILE = "sync.json";
-		private const string META_FILE = "meta.json";
 		private const string TILES_DIR = "tiles";
+		private const string TILESET_DIR = "tileset";
 		private const string MAPS_DIR = "maps";
 
 		private static SyncManifest _manifest;
+		private static Dictionary<string, TilesetMeta> _tilesets;
 		private static Dictionary<string, Tile> _meta;
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
@@ -37,7 +39,7 @@ namespace Mmogick
 		public class SyncManifest
 		{
 			public string archive_last_modified;
-			public string last_meta_updated;
+			public Dictionary<string, long> tileset_versions = new Dictionary<string, long>();
 			public Dictionary<int, string> map_versions = new Dictionary<int, string>();
 		}
 
@@ -60,7 +62,8 @@ namespace Mmogick
 		private static string MapsPath(int gameId)   => Path.Combine(GamePath(gameId), MAPS_DIR);
 
 		private static string ManifestPath(int gameId) => Path.Combine(GamePath(gameId), MANIFEST_FILE);
-		private static string MetaPath(int gameId)   => Path.Combine(GamePath(gameId), META_FILE);
+		private static string TilesetPath(int gameId) => Path.Combine(GamePath(gameId), TILESET_DIR);
+		private static string TilesetFilePath(int gameId, string tilesetId) => Path.Combine(TilesetPath(gameId), tilesetId + ".json");
 
 		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx/5xx).
 		// Fallback — код+generic error от UnityWebRequest.
@@ -80,7 +83,6 @@ namespace Mmogick
 			return req.responseCode + " " + req.error;
 		}
 
-		// Загружает manifest + meta с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
 			if (_manifest == null)
@@ -90,14 +92,29 @@ namespace Mmogick
 					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
 					: new SyncManifest();
 			}
-			if (_meta == null)
+			if (_tilesets == null)
 			{
-				string mp = MetaPath(gameId);
-				_meta = File.Exists(mp)
-					? JsonConvert.DeserializeObject<Dictionary<string, Tile>>(File.ReadAllText(mp))
-					: new Dictionary<string, Tile>();
+				_tilesets = new Dictionary<string, TilesetMeta>();
+				_meta = new Dictionary<string, Tile>();
+				string dir = TilesetPath(gameId);
+				if (Directory.Exists(dir))
+				{
+					foreach (string file in Directory.GetFiles(dir, "*.json"))
+					{
+						string id = Path.GetFileNameWithoutExtension(file);
+						var ts = JsonConvert.DeserializeObject<TilesetMeta>(File.ReadAllText(file));
+						if (ts != null)
+						{
+							_tilesets[id] = ts;
+							if (ts.tile != null)
+								foreach (var kv in ts.tile)
+									_meta[kv.Key] = kv.Value;
+						}
+					}
+				}
 			}
 			if (!Directory.Exists(TilesPath(gameId))) Directory.CreateDirectory(TilesPath(gameId));
+			if (!Directory.Exists(TilesetPath(gameId))) Directory.CreateDirectory(TilesetPath(gameId));
 			if (!Directory.Exists(MapsPath(gameId))) Directory.CreateDirectory(MapsPath(gameId));
 		}
 
@@ -109,33 +126,25 @@ namespace Mmogick
 			#endif
 		}
 
-		private static void SaveMeta(int gameId)
-		{
-			File.WriteAllText(MetaPath(gameId), JsonConvert.SerializeObject(_meta));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-		}
-
-		// Полный сброс локального кеша тайлов/карт игры: manifest, meta, tiles/, maps/.
-		// Вызывается из SigninController при ошибке SyncAll — следующий заход пересоберёт всё с нуля.
 		public static void ResetCache(int gameId)
 		{
 			Debug.LogWarning("TileCache: сброс кеша игры " + gameId);
 			_manifest = new SyncManifest();
+			_tilesets = new Dictionary<string, TilesetMeta>();
 			_meta = new Dictionary<string, Tile>();
 			_spriteCache.Clear();
 
 			try
 			{
 				if (File.Exists(ManifestPath(gameId))) File.Delete(ManifestPath(gameId));
-				if (File.Exists(MetaPath(gameId)))     File.Delete(MetaPath(gameId));
-				if (Directory.Exists(TilesPath(gameId))) Directory.Delete(TilesPath(gameId), true);
-				if (Directory.Exists(MapsPath(gameId)))  Directory.Delete(MapsPath(gameId), true);
+				if (Directory.Exists(TilesPath(gameId)))   Directory.Delete(TilesPath(gameId), true);
+				if (Directory.Exists(TilesetPath(gameId))) Directory.Delete(TilesetPath(gameId), true);
+				if (Directory.Exists(MapsPath(gameId)))    Directory.Delete(MapsPath(gameId), true);
 			}
 			catch (Exception ex) { Debug.LogWarning("TileCache: ошибка при сбросе кеша: " + ex.Message); }
 
 			Directory.CreateDirectory(TilesPath(gameId));
+			Directory.CreateDirectory(TilesetPath(gameId));
 			Directory.CreateDirectory(MapsPath(gameId));
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
@@ -216,45 +225,106 @@ namespace Mmogick
 			#endif
 		}
 
-		// Tile meta игры: GET с If-Modified-Since. 304 → ничего. 200 → полный дамп заменяет _meta.
+		// Tileset meta: 1) GET /tileset → список {id: timestamp}  2) GET /tileset/{id} для изменившихся
 		public static IEnumerator SyncMeta(string host, int gameId, string token, Action<string> onError)
 		{
-			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/tile";
-			Debug.Log("Запрашиваю анимации карт "+url);
-			
-			UnityWebRequest req = UnityWebRequest.Get(url);
-			if (!string.IsNullOrEmpty(_manifest.last_meta_updated))
-				req.SetRequestHeader("If-Modified-Since", _manifest.last_meta_updated);
-			req.downloadHandler = new DownloadHandlerBuffer();
+			string listUrl = "http://" + host + "/map/patch/" + gameId + "/" + token + "/tileset";
+			Debug.Log("Запрашиваю список тайлсетов " + listUrl);
 
-			yield return req.SendWebRequest();
+			UnityWebRequest listReq = UnityWebRequest.Get(listUrl);
+			listReq.downloadHandler = new DownloadHandlerBuffer();
+			yield return listReq.SendWebRequest();
 
-			if (req.responseCode == 304)
+			if (listReq.result != UnityWebRequest.Result.Success)
 			{
-				Debug.Log("TileCache: мета тайлов актуальна (кеш)");
-				req.Dispose();
-				yield break;
-			}
-			if (req.result != UnityWebRequest.Result.Success)
-			{
-				onError?.Invoke("TileCache meta: " + ExtractError(req));
-				req.Dispose();
+				onError?.Invoke("TileCache tileset list: " + ExtractError(listReq));
+				listReq.Dispose();
 				yield break;
 			}
 
-			string lastMod = req.GetResponseHeader("Last-Modified");
-			string text = req.downloadHandler.text;
-			req.Dispose();
+			Dictionary<string, long> serverVersions;
+			try { serverVersions = JsonConvert.DeserializeObject<Dictionary<string, long>>(listReq.downloadHandler.text); }
+			catch (Exception ex) { onError?.Invoke("TileCache tileset list parse: " + ex.Message); listReq.Dispose(); yield break; }
+			listReq.Dispose();
 
-			Dictionary<string, Tile> parsed;
-			try { parsed = JsonConvert.DeserializeObject<Dictionary<string, Tile>>(text); }
-			catch (Exception ex) { onError?.Invoke("TileCache meta parse: " + ex.Message); yield break; }
+			if (serverVersions == null || serverVersions.Count == 0)
+			{
+				Debug.Log("TileCache: тайлсетов нет");
+				yield break;
+			}
 
-			_meta = parsed ?? new Dictionary<string, Tile>();
-			Debug.Log("TileCache: мета обновлена, получено " + _meta.Count + " записей");
-			_manifest.last_meta_updated = lastMod;
-			SaveManifest(gameId);
-			SaveMeta(gameId);
+			int updated = 0;
+			foreach (var kv in serverVersions)
+			{
+				string tilesetId = kv.Key;
+				long serverTs = kv.Value;
+
+				if (_manifest.tileset_versions.TryGetValue(tilesetId, out long localTs) && localTs >= serverTs)
+					continue;
+
+				string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/tileset/" + tilesetId;
+				UnityWebRequest req = UnityWebRequest.Get(url);
+				req.downloadHandler = new DownloadHandlerBuffer();
+				yield return req.SendWebRequest();
+
+				if (req.result != UnityWebRequest.Result.Success)
+				{
+					Debug.LogWarning("TileCache: ошибка загрузки тайлсета " + tilesetId + ": " + ExtractError(req));
+					req.Dispose();
+					continue;
+				}
+
+				string json = req.downloadHandler.text;
+				req.Dispose();
+
+				File.WriteAllText(TilesetFilePath(gameId, tilesetId), json);
+				_manifest.tileset_versions[tilesetId] = serverTs;
+
+				var ts = JsonConvert.DeserializeObject<TilesetMeta>(json);
+				if (ts != null)
+				{
+					_tilesets[tilesetId] = ts;
+					if (ts.tile != null)
+						foreach (var tile in ts.tile)
+							_meta[tile.Key] = tile.Value;
+				}
+
+				updated++;
+			}
+
+			// Удалить локальные тайлсеты которых больше нет на сервере
+			var toRemove = new List<string>();
+			foreach (var id in _manifest.tileset_versions.Keys)
+				if (!serverVersions.ContainsKey(id))
+					toRemove.Add(id);
+			foreach (var id in toRemove)
+			{
+				_manifest.tileset_versions.Remove(id);
+				_tilesets.Remove(id);
+				string fp = TilesetFilePath(gameId, id);
+				if (File.Exists(fp)) File.Delete(fp);
+			}
+
+			if (updated > 0 || toRemove.Count > 0)
+			{
+				// Пересобрать плоский _meta из всех тайлсетов
+				_meta = new Dictionary<string, Tile>();
+				foreach (var ts in _tilesets.Values)
+					if (ts.tile != null)
+						foreach (var kv in ts.tile)
+							_meta[kv.Key] = kv.Value;
+
+				SaveManifest(gameId);
+				Debug.Log("TileCache: обновлено " + updated + " тайлсетов, удалено " + toRemove.Count);
+			}
+			else
+			{
+				Debug.Log("TileCache: все тайлсеты актуальны");
+			}
+
+			#if UNITY_WEBGL && !UNITY_EDITOR
+				JsSync();
+			#endif
 		}
 
 		// terrain.json + tile meta карты: If-Modified-Since → 304 из кеша, иначе скачать и сохранить.
