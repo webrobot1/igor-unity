@@ -136,7 +136,7 @@ namespace Mmogick
 					}
 				}
 
-				if (layer.isSpawn == 1)
+				if (layer.property != null && layer.property.ContainsKey("spawn"))
 				{
 					Debug.Log(layer.name + "- слой Земля");
 					map.spawn_sort = sort;

@@ -12,7 +12,6 @@ namespace Mmogick
 		public string name;
 		public bool visible = true;
 		public float opacity = 1;
-		public int isSpawn = 0;
 
 		public float offsetx;
 		public float offsety;
@@ -27,5 +26,7 @@ namespace Mmogick
 		public Dictionary<int, LayerTile> tiles;
 
 		public LayerObject[] objects;
+
+		public Dictionary<string, LayerProperty> property;
 	}
 }
