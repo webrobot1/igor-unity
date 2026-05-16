@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Mmogick
 {
 	/// <summary>
@@ -9,6 +11,7 @@ namespace Mmogick
 		public TileObjectGroup[] group;
 		public TileAnimation[] frame;
 
-		public TileProperty[] property;
+		// Сервер хранит property с indexBy='name' → JSON-объект {name: TileProperty}.
+		public Dictionary<string, TileProperty> property;
 	}
 }

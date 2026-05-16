@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Mmogick
 {
 		[System.Serializable]
@@ -5,6 +7,7 @@ namespace Mmogick
 		{
 			public string name;
 			public TileObject[] @object;
-			public TileProperty[] property;
+			// Сервер хранит property с indexBy='name' → JSON-объект {name: TileProperty}.
+			public Dictionary<string, TileProperty> property;
 		}
 }

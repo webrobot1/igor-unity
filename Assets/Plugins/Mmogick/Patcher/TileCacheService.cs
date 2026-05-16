@@ -102,13 +102,21 @@ namespace Mmogick
 					foreach (string file in Directory.GetFiles(dir, "*.json"))
 					{
 						string id = Path.GetFileNameWithoutExtension(file);
-						var ts = JsonConvert.DeserializeObject<TilesetMeta>(File.ReadAllText(file));
-						if (ts != null)
+						try
 						{
-							_tilesets[id] = ts;
-							if (ts.tile != null)
-								foreach (var kv in ts.tile)
-									_meta[kv.Key] = kv.Value;
+							var ts = JsonConvert.DeserializeObject<TilesetMeta>(File.ReadAllText(file));
+							if (ts != null)
+							{
+								_tilesets[id] = ts;
+								if (ts.tile != null)
+									foreach (var kv in ts.tile)
+										_meta[kv.Key] = kv.Value;
+							}
+						}
+						catch (System.Exception ex)
+						{
+							Debug.LogError("TileCache: битый кеш тайлсета " + id + ", удаляем: " + ex.Message);
+							File.Delete(file);
 						}
 					}
 				}
@@ -277,19 +285,29 @@ namespace Mmogick
 				string json = req.downloadHandler.text;
 				req.Dispose();
 
-				File.WriteAllText(TilesetFilePath(gameId, tilesetId), json);
-				_manifest.tileset_versions[tilesetId] = serverTs;
-
-				var ts = JsonConvert.DeserializeObject<TilesetMeta>(json);
-				if (ts != null)
+				try
 				{
-					_tilesets[tilesetId] = ts;
-					if (ts.tile != null)
-						foreach (var tile in ts.tile)
-							_meta[tile.Key] = tile.Value;
-				}
+					var ts = JsonConvert.DeserializeObject<TilesetMeta>(json);
+					File.WriteAllText(TilesetFilePath(gameId, tilesetId), json);
+					_manifest.tileset_versions[tilesetId] = serverTs;
 
-				updated++;
+					if (ts != null)
+					{
+						_tilesets[tilesetId] = ts;
+						if (ts.tile != null)
+							foreach (var tile in ts.tile)
+								_meta[tile.Key] = tile.Value;
+					}
+
+					updated++;
+				}
+				catch (System.Exception ex)
+				{
+					string path = TilesetFilePath(gameId, tilesetId);
+					if (File.Exists(path)) File.Delete(path);
+					onError?.Invoke("TileCache: ошибка разбора тайлсета " + tilesetId + ": " + ex.Message);
+					yield break;
+				}
 			}
 
 			// Удалить локальные тайлсеты которых больше нет на сервере
