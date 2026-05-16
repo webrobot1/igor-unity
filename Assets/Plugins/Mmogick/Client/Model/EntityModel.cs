@@ -151,7 +151,11 @@ namespace Mmogick
 
 					if (type == "object")
 					{
-						float angle = Mathf.Atan2(Forward.x, Forward.y) * Mathf.Rad2Deg * -1;
+						// Серверный дефолт нового object — forward=(0,-1) («лежит/смотрит вниз»). Поэтому
+						// нейтральная ось у Atan2 — это -Forward.y: при (0,-1) angle=0 (rotation не применяется),
+						// и спрайт остаётся в той ориентации, в которой нарисован. Стрелы/снаряды,
+						// нарисованные «наконечником вниз», крутятся корректно для остальных направлений.
+						float angle = Mathf.Atan2(Forward.x, -Forward.y) * Mathf.Rad2Deg * -1;
 						transform.rotation = Quaternion.Euler(0, 0, angle);
 					}
 					else if (action != null && recive.action == null)
