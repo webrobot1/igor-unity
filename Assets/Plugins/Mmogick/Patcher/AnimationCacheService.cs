@@ -595,6 +595,9 @@ namespace Mmogick
 		}
 
 		// Sprite по имени файла ("sha256.ext"): грузится из локального кеша, кешируется в памяти.
+		// pivot=(0.5, 0.5) — центр. Image-only items так центруются на клетке entity, а Spriter-части
+		// корректны: UnityAnimator.ApplySpriteTransform компенсирует sprite.pivot формулой
+		// (spritePivotX - info.PivotX) * size — то есть работает с любым pivot спрайта.
 		public static Sprite GetSprite(int gameId, string fileName)
 		{
 			if (string.IsNullOrEmpty(fileName)) return null;
@@ -619,7 +622,7 @@ namespace Mmogick
 			// Критично для SpriterPostImportAdjuster: без этого персонажи с «воздухом» вокруг контента в своих
 			// PNG-ах измерялись бы завышенными bounds и нормализовались бы в клетке мельче остальных.
 			// Рендеринг FullRect vs Tight отличается только числом треугольников меша — визуально идентично.
-			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), 100f, 0, SpriteMeshType.Tight);
+			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.Tight);
 			s.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			_spriteCache[fileName] = s;
 			Debug.Log("AnimationCache: спрайт " + fileName + " загружен с диска");
