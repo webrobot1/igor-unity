@@ -273,30 +273,15 @@ namespace Mmogick
 				if (key == player_key)
 				{
 					player = model;
-					if (!getSides().ContainsKey(map_id)) 
+					if (!getSides().ContainsKey(map_id))
 						Error("Запись о карте "+ map_id + " игрока не пришла вместе с доступными сторонами");
 
 					#if UNITY_WEBGL && !UNITY_EDITOR
 						WebGLSupport.WebGLDebug.DebugCheck(map_id);
 					#endif
 				}
-
-				// мы сортировку устанавливаем в двух местах - здесь и при загрузке карты. тк объекты могут быть загружены раньше карты и наоборот
-				if (getMaps().ContainsKey(map_id))
-				{
-					int order = (int)getMaps()[map_id].spawn_sort + model.sort;
-
-					// SortingGroup гарантированно добавлен выше — все child-SpriteRenderer'ы (fallback или Spriter)
-					// сортируются как единое целое относительно других сущностей.
-					prefab.GetComponent<UnityEngine.Rendering.SortingGroup>().sortingOrder = order;
-
-					if (prefab.GetComponentInChildren<Canvas>())
-						// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации
-						// (Spriter создаёт N child-sprite'ов с собственным sortingOrder 0..N-1 из UnityAnimator).
-						prefab.GetComponentInChildren<Canvas>().sortingOrder = (int)getMaps()[map_id].spawn_sort + 100 + model.sort;
-				}
 			}
-            else 
+            else
 			{
 				model = prefab.GetComponent<EntityModel>();
 			}
@@ -315,6 +300,25 @@ namespace Mmogick
 			{
 				Error("WebSocket: Не удалось загрузить " + key, ex);
 				return null;
+			}
+
+			// Сортировку выставляем ПОСЛЕ SetData: иначе model.sort ещё равен 0 (default),
+			// и SortingGroup получает spawn_sort вместо spawn_sort + sort — у объектов с ненулевым
+			// серверным sort это визуально выглядело как «на чужом слое».
+			// Второе место — MapController.SortMap (при загрузке карты), на случай когда сущность
+			// пришла раньше карты.
+			if (getMaps().ContainsKey(map_id))
+			{
+				int order = getMaps()[map_id].spawn_sort + model.sort;
+
+				// SortingGroup гарантированно добавлен выше — все child-SpriteRenderer'ы (fallback или Spriter)
+				// сортируются как единое целое относительно других сущностей.
+				prefab.GetComponent<UnityEngine.Rendering.SortingGroup>().sortingOrder = order;
+
+				if (prefab.GetComponentInChildren<Canvas>())
+					// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации
+					// (Spriter создаёт N child-sprite'ов с собственным sortingOrder 0..N-1 из UnityAnimator).
+					prefab.GetComponentInChildren<Canvas>().sortingOrder = getMaps()[map_id].spawn_sort + 100 + model.sort;
 			}
 
 			return prefab;
