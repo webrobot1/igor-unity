@@ -75,6 +75,7 @@ namespace Mmogick
 		[Serializable]
 		public class PrefabEntry
 		{
+			public string prefab;
 			public int animation;
 			public int entity;
 			/// <summary>
@@ -85,6 +86,9 @@ namespace Mmogick
 			/// </summary>
 			public float? size;
 			public bool h_mirror;
+			public string image;
+
+			public bool IsImage => !string.IsNullOrEmpty(image);
 		}
 
 		// Возвращает per-prefab "size" (max scml-размер body) из library, если задан, иначе null.
@@ -441,6 +445,7 @@ namespace Mmogick
 		{
 			if (_library == null || string.IsNullOrEmpty(prefab)) return (null, false);
 			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return (null, false);
+			if (p.IsImage) return (null, false);
 			if (entityActions == null) return (null, false);
 			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return (null, false);
 			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false);
@@ -496,6 +501,7 @@ namespace Mmogick
 		{
 			if (_library == null || string.IsNullOrEmpty(prefab)) return null;
 			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return null;
+			if (p.IsImage) return null;
 			if (entityActions == null) return null;
 			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return null;
 			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return null;
@@ -515,6 +521,11 @@ namespace Mmogick
 			if (!_library.TryGetValue(prefab, out PrefabEntry entry))
 			{
 				callback(null, null, "AnimationCache structure: Prefab '" + prefab + "' отсутствует в library");
+				yield break;
+			}
+			if (entry.IsImage)
+			{
+				callback(null, null, null);
 				yield break;
 			}
 			int animationId = entry.animation;
@@ -622,5 +633,9 @@ namespace Mmogick
 		// true если Prefab с таким именем существует в серверном списке.
 		public static bool HasPrefab(string name)
 			=> _library != null && _library.ContainsKey(name);
+
+		// Имя файла картинки (sha256.ext) если prefab — image-only, иначе null.
+		public static string GetPrefabImage(string name)
+			=> _library != null && _library.TryGetValue(name, out PrefabEntry e) && e.IsImage ? e.image : null;
 	}
 }

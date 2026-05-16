@@ -211,11 +211,33 @@ namespace Mmogick
 				model.Log("создан с префабом " + recive.prefab);
 
 
-				// SCML-анимация цепляется только если такой Prefab есть в серверном списке (AnimationCacheService._library).
-				// Имя Prefab глобально уникально в пределах игры — совпадает с именем Unity-prefab в Resources/Prefabs/{type}/.
+				// SCML-анимация или image-only спрайт из серверного списка (AnimationCacheService._library).
 				if (!string.IsNullOrEmpty(recive.prefab))
 				{
-					if(AnimationCacheService.HasPrefab(recive.prefab))
+					string imageFile = AnimationCacheService.GetPrefabImage(recive.prefab);
+					if (imageFile != null)
+					{
+						var sr = prefab.GetComponent<SpriteRenderer>();
+						if (sr == null)
+							sr = prefab.AddComponent<SpriteRenderer>();
+						try
+						{
+							sr.sprite = AnimationCacheService.GetSprite(GAME_ID, imageFile);
+							float? size = AnimationCacheService.GetPrefabSize(recive.prefab);
+							if (size.HasValue && size.Value > 0.0001f)
+							{
+								float factor = 1f / (size.Value * prefab.transform.localScale.y);
+								Vector3 s = prefab.transform.localScale;
+								prefab.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
+							}
+							model.Log("image-sprite " + recive.prefab + " применён");
+						}
+						catch (Exception ex)
+						{
+							model.LogError("image-sprite: " + ex.Message);
+						}
+					}
+					else if (AnimationCacheService.HasPrefab(recive.prefab))
 					{
 						StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, recive.prefab, (AnimationPatcher patcher) =>
 						{
@@ -232,8 +254,6 @@ namespace Mmogick
 							try
 							{
 								Debug.Log("Анимации: создаём " + recive.prefab + " для " + key);
-								// size (per-prefab) — серверная константа (из /prefabs library), для точной нормализации
-								// размера без замера total-bounds. null = fallback на автозамер в адаптере.
 								NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID, recive.prefab, AnimationCacheService.GetPrefabSize(recive.prefab));
 							}
 							catch (Exception ex)

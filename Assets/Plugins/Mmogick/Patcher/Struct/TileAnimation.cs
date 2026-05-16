@@ -8,7 +8,7 @@ namespace Mmogick
 	[System.Serializable]
 	public class TileAnimation
 	{
-		public string sha256;
+		public string frame;
 		public int duration;
 
 		// заполняется в процесса персинга

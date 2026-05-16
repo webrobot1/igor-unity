@@ -4,7 +4,7 @@ namespace Mmogick
 		public class TileObjectGroup
 		{
 			public string name;
-			public TileObject[] objects;
+			public TileObject[] @object;
 			public TileProperty[] property;
 		}
 }
