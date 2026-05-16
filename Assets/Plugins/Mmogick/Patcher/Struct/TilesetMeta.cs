@@ -5,7 +5,8 @@ namespace Mmogick
     [System.Serializable]
     public class TilesetMeta
     {
-        public Dictionary<string, TileProperty[]> tileMeta;
+        public Dictionary<string, Tile> tile;
+        public Dictionary<string, Dictionary<string, TileProperty>> tileMeta;
         public Dictionary<string, TilesetMetaEntry> tilesetMeta;
     }
 
@@ -13,6 +14,6 @@ namespace Mmogick
     public class TilesetMetaEntry
     {
         public string name;
-        public TileProperty[] property;
+        public Dictionary<string, TileProperty> property;
     }
 }

@@ -229,7 +229,7 @@ namespace Mmogick
 				{
 					frames[i] = new TileAnimation
 					{
-						sha256   = meta.frame[i].frame,
+						frame    = meta.frame[i].frame,
 						duration = meta.frame[i].duration,
 						sprite   = TileCacheService.GetSprite(gameId, meta.frame[i].frame),
 					};
