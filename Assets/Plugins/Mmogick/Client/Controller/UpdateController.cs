@@ -220,25 +220,24 @@ namespace Mmogick
 						var sr = prefab.GetComponent<SpriteRenderer>();
 						if (sr == null)
 							sr = prefab.AddComponent<SpriteRenderer>();
-						try
-						{
-							sr.sprite = AnimationCacheService.GetSprite(GAME_ID, imageFile);
-							float? size = AnimationCacheService.GetPrefabSize(recive.prefab);
-							if (size.HasValue && size.Value > 0.0001f)
-							{
-								float factor = 1f / (size.Value * prefab.transform.localScale.y);
-								Vector3 s = prefab.transform.localScale;
-								prefab.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
-							}
-							model.Log("image-sprite " + recive.prefab + " применён");
+						// TryGetSprite инвалидирует битый кеш и бросает exception — ловим, выходим
+						// (создание префаба отменяется, на следующем sync файл перекачается).
+						try { 
+							sr.sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); 
 						}
-						catch (Exception ex)
-						{
-							// Error() (а не model.LogError) — битый PNG / повреждённый кеш будет виден
-							// игроку UI-ошибкой, как остальные runtime-сбои; см. CLAUDE.md «не глушить контракт».
-							Error("image-sprite '" + recive.prefab + "': " + ex.Message);
-							return null;
+						catch (Exception ex) 
+						{ 
+							Error(ex.Message); 
+							return null; 
 						}
+						float? size = AnimationCacheService.GetPrefabSize(recive.prefab);
+						if (size.HasValue && size.Value > 0.0001f)
+						{
+							float factor = 1f / (size.Value * prefab.transform.localScale.y);
+							Vector3 s = prefab.transform.localScale;
+							prefab.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
+						}
+						model.Log("image-sprite " + recive.prefab + " применён");
 					}
 					else if (AnimationCacheService.HasPrefab(recive.prefab))
 					{

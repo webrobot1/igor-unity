@@ -153,9 +153,15 @@ namespace Mmogick
 		// Загружает manifest + library + files с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
+			string mp = ManifestPath(gameId);
+			// Рассинхрон disk↔RAM (sync.json удалён внешним кодом / ручной очисткой кэша, но _manifest
+			// в RAM держит timestamp прошлого архива) — нарушение контракта: AnimationCacheService —
+			// единственный владелец этих файлов. По CLAUDE.md политике падаем громко, чтобы виновный
+			// код был починен у источника, а не маскировался силент-ресетом.
+			if (_manifest != null && !File.Exists(mp))
+				throw new InvalidOperationException("AnimationCache: sync.json отсутствует на диске, но _manifest загружен в RAM. Кто-то очистил кэш мимо ResetCache() — почините источник.");
 			if (_manifest == null)
 			{
-				string mp = ManifestPath(gameId);
 				_manifest = File.Exists(mp)
 					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
 					: new SyncManifest();
@@ -594,6 +600,30 @@ namespace Mmogick
 			callback(xml, filesForAnim, null);
 		}
 
+		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш
+		// (удаляет PNG и сбрасывает archive_last_modified — иначе следующий sync получит 304 и файл
+		// не перекачается) и бросает Exception с контекстом. Вызыватель оборачивает в try/catch и
+		// сам решает что делать (обычно — ConnectController.Error + оставить sprite=null).
+		public static Sprite TryGetSprite(int gameId, string fileName)
+		{
+			try { return GetSprite(gameId, fileName); }
+			catch (Exception ex)
+			{
+				if (!string.IsNullOrEmpty(fileName))
+				{
+					string path = Path.Combine(ImagesPath(gameId), fileName);
+					try { if (File.Exists(path)) File.Delete(path); } catch { /* нет прав / уже удалён */ }
+					_spriteCache.Remove(fileName);
+					if (_manifest != null)
+					{
+						_manifest.archive_last_modified = null;
+						SaveManifest(gameId);
+					}
+				}
+				throw new Exception("AnimationCache: битый image '" + fileName + "' удалён из кеша, перекачается на следующем sync — " + ex.Message, ex);
+			}
+		}
+
 		// Sprite по имени файла ("sha256.ext"): грузится из локального кеша, кешируется в памяти.
 		// pivot=(0.5, 0.5) — центр. Image-only items так центруются на клетке entity, а Spriter-части
 		// корректны: UnityAnimator.ApplySpriteTransform компенсирует sprite.pivot формулой
@@ -613,16 +643,11 @@ namespace Mmogick
 
 			byte[] bytes = File.ReadAllBytes(path);
 			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-			// Битые PNG (повреждённая распаковка ZIP, неполный download) — Unity вернёт false, текстура
-			// останется в fallback-состоянии и без видимой ошибки тихо отрендерится мусором. Сразу
-			// вызываем ConnectController.Error: UI покажет сообщение, игрок отсоединится в след. кадре.
-			// Файл удаляем — следующий sync перекачает с сервера.
+			// LoadImage возвращает false на битых PNG или PNG, которые Unity не умеет парсить
+			// (наблюдалось на валидных файлах с большими iTXt-чанками XMP-метаданных от Photoshop).
+			// Кидаем — вызыватель решит, удалить файл из кеша / сбросить manifest / показать Error.
 			if (!tex.LoadImage(bytes))
-			{
-				try { File.Delete(path); } catch { /* нет прав / уже удалён — следующий заход всё равно перекачает */ }
-				ConnectController.Error("AnimationCache: повреждённый PNG " + fileName + " (" + bytes.Length + " байт), удалён из кеша");
-				return null;
-			}
+				throw new Exception("AnimationCache: Unity.Texture2D.LoadImage не справился с " + fileName + " (" + bytes.Length + " байт)");
 			tex.filterMode = FilterMode.Point;
 			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			// PixelsPerUnit должен совпадать с SpriterDotNetBehaviour.Ppu (=100), иначе UnityAnimator.ApplySpriteTransform

@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -219,6 +218,8 @@ namespace Mmogick
 		}
 
 		// Назначает TilemapModel либо одиночный Sprite (нет анимации), либо массив фреймов (есть).
+		// Битый тайл-PNG: TryGetSprite инвалидирует свой кеш и бросает exception — здесь не ловим,
+		// всплывёт до MapController.LoadMap (он сделает ResetCache и Error).
 		private static void applySprite(TilemapModel newTile, int gameId, string sha256)
 		{
 			var meta = TileCacheService.GetMeta(sha256);
@@ -226,19 +227,17 @@ namespace Mmogick
 			{
 				var frames = new TileAnimation[meta.frame.Length];
 				for (int i = 0; i < meta.frame.Length; i++)
-				{
 					frames[i] = new TileAnimation
 					{
 						frame    = meta.frame[i].frame,
 						duration = meta.frame[i].duration,
-						sprite   = TileCacheService.GetSprite(gameId, meta.frame[i].frame),
+						sprite   = TileCacheService.TryGetSprite(gameId, meta.frame[i].frame),
 					};
-				}
 				newTile.addSprites(frames);
 			}
 			else
 			{
-				newTile.sprite = TileCacheService.GetSprite(gameId, sha256);
+				newTile.sprite = TileCacheService.TryGetSprite(gameId, sha256);
 			}
 		}
 

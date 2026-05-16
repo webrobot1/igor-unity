@@ -85,9 +85,15 @@ namespace Mmogick
 
 		private static void EnsureLoaded(int gameId)
 		{
+			string mp = ManifestPath(gameId);
+			// Рассинхрон disk↔RAM (sync.json удалён внешним кодом / ручной очисткой кэша, но _manifest
+			// в RAM держит timestamp прошлого архива) — нарушение контракта: TileCacheService —
+			// единственный владелец этих файлов. По CLAUDE.md политике падаем громко, чтобы виновный
+			// код был починен у источника, а не маскировался силент-ресетом.
+			if (_manifest != null && !File.Exists(mp))
+				throw new InvalidOperationException("TileCache: sync.json отсутствует на диске, но _manifest загружен в RAM. Кто-то очистил кэш мимо ResetCache() — почините источник.");
 			if (_manifest == null)
 			{
-				string mp = ManifestPath(gameId);
 				_manifest = File.Exists(mp)
 					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
 					: new SyncManifest();
@@ -393,6 +399,30 @@ namespace Mmogick
 			callback(json, null);
 		}
 
+		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш
+		// (удаляет PNG и сбрасывает archive_last_modified — иначе следующий sync получит 304 и файл
+		// не перекачается) и бросает Exception с контекстом. Вызыватель оборачивает в try/catch и
+		// сам решает что делать (обычно — ConnectController.Error + оставить sprite=null).
+		public static Sprite TryGetSprite(int gameId, string sha256)
+		{
+			try { return GetSprite(gameId, sha256); }
+			catch (Exception ex)
+			{
+				if (!string.IsNullOrEmpty(sha256))
+				{
+					string path = Path.Combine(TilesPath(gameId), sha256 + ".png");
+					try { if (File.Exists(path)) File.Delete(path); } catch { /* нет прав / уже удалён */ }
+					_spriteCache.Remove(sha256);
+					if (_manifest != null)
+					{
+						_manifest.archive_last_modified = null;
+						SaveManifest(gameId);
+					}
+				}
+				throw new Exception("TileCache: битый тайл '" + sha256 + "' удалён из кеша, перекачается на следующем sync — " + ex.Message, ex);
+			}
+		}
+
 		// Sprite по sha256: грузится из PNG-файла локального кеша, кешируется в памяти.
 		public static Sprite GetSprite(int gameId, string sha256)
 		{
@@ -413,11 +443,7 @@ namespace Mmogick
 			// файл удаляем — следующий sync перекачает с сервера. Вызыватель получит null sprite,
 			// клетка карты останется пустой вместо мусора.
 			if (!tex.LoadImage(bytes))
-			{
-				try { File.Delete(path); } catch { /* нет прав / уже удалён — следующий заход всё равно перекачает */ }
-				ConnectController.Error("TileCache: повреждённый PNG " + sha256 + " (" + bytes.Length + " байт), удалён из кеша");
-				return null;
-			}
+				throw new Exception("TileCache: Unity.Texture2D.LoadImage не справился с " + sha256 + " (" + bytes.Length + " байт)");
 			tex.filterMode = FilterMode.Point;
 			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), tex.width, 0, SpriteMeshType.FullRect);
