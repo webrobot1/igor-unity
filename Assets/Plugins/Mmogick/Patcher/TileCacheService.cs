@@ -408,7 +408,16 @@ namespace Mmogick
 
 			byte[] bytes = File.ReadAllBytes(path);
 			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-			tex.LoadImage(bytes);
+			// Битые PNG — Unity вернёт false, текстура останется в fallback-состоянии и тайл тихо
+			// отрисуется мусором. Сразу вызываем ConnectController.Error (UI-ошибка + отсоединение),
+			// файл удаляем — следующий sync перекачает с сервера. Вызыватель получит null sprite,
+			// клетка карты останется пустой вместо мусора.
+			if (!tex.LoadImage(bytes))
+			{
+				try { File.Delete(path); } catch { /* нет прав / уже удалён — следующий заход всё равно перекачает */ }
+				ConnectController.Error("TileCache: повреждённый PNG " + sha256 + " (" + bytes.Length + " байт), удалён из кеша");
+				return null;
+			}
 			tex.filterMode = FilterMode.Point;
 			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), tex.width, 0, SpriteMeshType.FullRect);

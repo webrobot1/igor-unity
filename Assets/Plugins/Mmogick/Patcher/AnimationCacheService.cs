@@ -613,7 +613,16 @@ namespace Mmogick
 
 			byte[] bytes = File.ReadAllBytes(path);
 			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-			tex.LoadImage(bytes);
+			// Битые PNG (повреждённая распаковка ZIP, неполный download) — Unity вернёт false, текстура
+			// останется в fallback-состоянии и без видимой ошибки тихо отрендерится мусором. Сразу
+			// вызываем ConnectController.Error: UI покажет сообщение, игрок отсоединится в след. кадре.
+			// Файл удаляем — следующий sync перекачает с сервера.
+			if (!tex.LoadImage(bytes))
+			{
+				try { File.Delete(path); } catch { /* нет прав / уже удалён — следующий заход всё равно перекачает */ }
+				ConnectController.Error("AnimationCache: повреждённый PNG " + fileName + " (" + bytes.Length + " байт), удалён из кеша");
+				return null;
+			}
 			tex.filterMode = FilterMode.Point;
 			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			// PixelsPerUnit должен совпадать с SpriterDotNetBehaviour.Ppu (=100), иначе UnityAnimator.ApplySpriteTransform

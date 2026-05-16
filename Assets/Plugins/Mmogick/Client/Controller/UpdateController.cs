@@ -234,7 +234,10 @@ namespace Mmogick
 						}
 						catch (Exception ex)
 						{
-							model.LogError("image-sprite: " + ex.Message);
+							// Error() (а не model.LogError) — битый PNG / повреждённый кеш будет виден
+							// игроку UI-ошибкой, как остальные runtime-сбои; см. CLAUDE.md «не глушить контракт».
+							Error("image-sprite '" + recive.prefab + "': " + ex.Message);
+							return null;
 						}
 					}
 					else if (AnimationCacheService.HasPrefab(recive.prefab))
