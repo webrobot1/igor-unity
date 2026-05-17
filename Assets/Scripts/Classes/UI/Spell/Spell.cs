@@ -137,7 +137,7 @@ namespace Mmogick
                     {
                         case "fight/bolt":
                             BoltResponse response = new BoltResponse();
-                            response.magic = Magic;
+                            response.spell = Magic;
 
                             if (obj != null && obj.GetComponent<ObjectModel>()!=null)
                             {

@@ -12,6 +12,6 @@ namespace Mmogick
             get { return GROUP; }
         }
 
-        public string magic;
+        public string spell;
     }
 }

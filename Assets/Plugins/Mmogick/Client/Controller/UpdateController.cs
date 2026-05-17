@@ -132,10 +132,12 @@ namespace Mmogick
 				// Если нет — остаётся корневой fallback-SpriteRenderer с "unknow" спрайтом.
 				UnityEngine.Object ob = Resources.Load("Prefabs/" + type, typeof(GameObject));
 
+				// все новые  kind = prefab.object
 				if (ob == null)
 				{
-					Error("WebSocket: Отсутствует префаб Prefabs/" + type + " для объекта " + key);
-					return null;
+					ob = Resources.Load("Prefabs/object", typeof(GameObject));
+					//Error("WebSocket: Отсутствует префаб Prefabs/" + type + " для объекта " + key);
+					//return null;
 				}
 
 				prefab = Instantiate(ob) as GameObject;
