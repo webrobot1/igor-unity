@@ -5,7 +5,7 @@ namespace Mmogick
 {
     public class Item : MoveableObject, IPointerClickHandler
     {
-        private string _itemId;
+        private string _prefab;
 
         /// <summary>
         /// Номер слота инвентаря (1-based). 0 = предмет в руке (не в слоте)
@@ -17,15 +17,14 @@ namespace Mmogick
         /// </summary>
         public int Count { get; set; }
 
-        public string ItemId { get { return _itemId; } }
+        public string Prefab { get { return _prefab; } }
 
-        public void SetData(string id)
+        public void SetData(string prefab)
         {
-            _itemId = id;
+            _prefab = prefab;
 
-            Sprite sprite = Resources.Load<Sprite>("Sprites/Items/" + id);
+            Sprite sprite = Resources.Load<Sprite>("Sprites/Items/" + prefab);
             if (sprite == null)
-                // unknow.png общий для всех «неизвестных» ассетов — лежит в Resources/Sprites/, не в Items/
                 sprite = Resources.Load<Sprite>("Sprites/unknow");
 
             if (image != null && sprite != null)
@@ -39,7 +38,7 @@ namespace Mmogick
 
         public override string GetTooltipText()
         {
-            return _itemId;
+            return _prefab;
         }
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
@@ -107,7 +106,6 @@ namespace Mmogick
             {
                 if (SlotNum > 0)
                     InventoryController.LocalDrop(SlotNum);
-                // предмет из руки (SlotNum==0) просто исчезает — dirty уже стоит
                 InventoryController.SendIfDirty();
             }
         }

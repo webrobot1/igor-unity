@@ -86,20 +86,20 @@ namespace Mmogick
                         SlotScript slotUI = _slots[slot.Key - 1];
                         slotUI.Clear();
 
-                        if (slot.Value != null && !string.IsNullOrEmpty(slot.Value.id))
+                        if (slot.Value != null && !string.IsNullOrEmpty(slot.Value.prefab))
                         {
                             Item item = Instantiate(itemPrefab, slotUI.transform);
                             item.gameObject.SetActive(false);
-                            item.SetData(slot.Value.id);
+                            item.SetData(slot.Value.prefab);
                             item.SetTooltip(tooltip);
                             item.SlotNum = slot.Key;
                             item.Count = slot.Value.count;
 
                             slotUI.SetItem(item, slot.Value.count, slot.Value.components);
 
-                            _items[slot.Value.id] = item;
+                            _items[slot.Value.prefab] = item;
 
-                            player?.Log("Инвентарь слот " + slot.Key + ": " + slot.Value.id + " x" + slot.Value.count);
+                            player?.Log("Инвентарь слот " + slot.Key + ": " + slot.Value.prefab + " x" + slot.Value.count);
                         }
                         else
                         {
@@ -235,7 +235,7 @@ namespace Mmogick
                 SlotScript slot = _slots[i];
 
                 response.inventory[slotNum] = slot.Item != null
-                    ? new InventorySlotRecive(slot.Item.ItemId, slot.Item.Count, slot.Components)
+                    ? new InventorySlotRecive(slot.Item.Prefab, slot.Item.Count, slot.Components)
                     : null;
             }
 

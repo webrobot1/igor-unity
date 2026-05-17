@@ -5,13 +5,13 @@ namespace Mmogick
 	[System.Serializable]
 	public class InventorySlotRecive
 	{
-		public string id;
+		public string prefab;
 		public int count;
 		public Dictionary<string, string> components;
 
-		public InventorySlotRecive(string id, int count, Dictionary<string, string> components = null)
+		public InventorySlotRecive(string prefab, int count, Dictionary<string, string> components = null)
 		{
-			this.id = id;
+			this.prefab = prefab;
 			this.count = count;
 			this.components = components;
 		}

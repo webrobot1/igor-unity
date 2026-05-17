@@ -4,7 +4,7 @@ namespace Mmogick
 	{
 		public string name;
 		public string description;
-		public string group;
+		public string @event;
 
 		public int mp;
     }

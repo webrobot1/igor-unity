@@ -119,7 +119,7 @@ namespace Mmogick
 
                         else
                         {
-                            switch (action.Value.type)
+                            switch (action.Value.kind)
                             {
                                 case "":
                                     _actionBars[action.Key - 1].Item = null;
@@ -149,7 +149,7 @@ namespace Mmogick
                                     }
                                 break;
                                 default:
-                                    Error("Неизвестный тип быстрой клавиши '" + action.Value.type + "' под номером " + action.Key);
+                                    Error("Неизвестный тип быстрой клавиши '" + action.Value.kind + "' под номером " + action.Key);
                                 return null;
                             }
                         }

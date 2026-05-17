@@ -15,7 +15,7 @@ namespace Mmogick
     public class Spell: MoveableObject, IPointerClickHandler
     {
         public Text title;
-        public string group;
+        public string @event;
         public Text description;
 
         [SerializeField] private Text mp;
@@ -75,15 +75,15 @@ namespace Mmogick
 
         public override bool IsOnCooldown()
         {
-            return PlayerController.Player != null && PlayerController.Player.GetEventRemain(group) > 0;
+            return PlayerController.Player != null && PlayerController.Player.GetEventRemain(@event) > 0;
         }
 
         public override (float fillAmount, float remainSeconds) GetCooldownProgress()
         {
             if (PlayerController.Player == null) return (0f, 0f);
-            double remainTime = PlayerController.Player.GetEventRemain(group);
+            double remainTime = PlayerController.Player.GetEventRemain(@event);
             if (remainTime <= 0) return (0f, 0f);
-            double timeout = (double)PlayerController.Player.getEvent(group).timeout;
+            double timeout = (double)PlayerController.Player.getEvent(@event).timeout;
             float fill = timeout > 0 ? (float)(remainTime / timeout) : 0f;
             return (fill, (float)remainTime);
         }
@@ -95,7 +95,7 @@ namespace Mmogick
                 bool onCooldown = IsOnCooldown();
                 bool unavailable = PlayerController.Player.hp <= 0 || ManaCost > PlayerController.Player.mp;
 
-                remain.text = onCooldown ? PlayerController.Player.GetEventRemain(group) + " сек." : "0 сек.";
+                remain.text = onCooldown ? PlayerController.Player.GetEventRemain(@event) + " сек." : "0 сек.";
                 image.color = new Color(image.color.r, image.color.g, image.color.b, unavailable ? 0.5f : 1f);
                 image.raycastTarget = true;
             } 
@@ -103,7 +103,7 @@ namespace Mmogick
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
-            if (ManaCost <= PlayerController.Player.mp && PlayerController.Player.GetEventRemain(group)<=0)
+            if (ManaCost <= PlayerController.Player.mp && PlayerController.Player.GetEventRemain(@event)<=0)
             {
                 CursorController.TakeMoveable(this);
             }
@@ -133,7 +133,7 @@ namespace Mmogick
                 if(ManaCost <= PlayerController.Player.mp)
                 {
                     Debug.Log("Используем заклинание "+ Magic);
-                    switch (group)
+                    switch (@event)
                     {
                         case "fight/bolt":
                             BoltResponse response = new BoltResponse();
@@ -166,7 +166,7 @@ namespace Mmogick
                             response.Send();
                         break;
                         default:
-                            ConnectController.Error("неизвестный тип группы "+ group+" у заклинания "+Magic);
+                            ConnectController.Error("неизвестный тип группы "+ @event+" у заклинания "+Magic);
                         break;
                     }
                 }

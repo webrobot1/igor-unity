@@ -78,7 +78,7 @@ namespace Mmogick
                     Spell prefab = Instantiate(spellPrefab, spellGroupArea) as Spell;
 
                     prefab.Magic = spell.Key;
-                    prefab.group = spell.Value.group;
+                    prefab.@event = spell.Value.@event;
 
                     prefab.title.text = spell.Value.name;
                     prefab.description.text = spell.Value.description;

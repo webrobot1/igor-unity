@@ -2,12 +2,12 @@ namespace Mmogick
 {
 	public class ActionBarsRecive
 	{
-		public string type;
+		public string kind;
 		public string id;
 
-		public ActionBarsRecive(string type, string id)
+		public ActionBarsRecive(string kind, string id)
         {
-			this.type = type;
+			this.kind = kind;
 			this.id = id;
 		}
 	}
