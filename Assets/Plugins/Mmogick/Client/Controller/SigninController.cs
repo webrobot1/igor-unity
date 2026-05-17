@@ -108,13 +108,13 @@ namespace Mmogick
 		{
 			Debug.Log("Загрузка игровой сцены");
 
-			if (data.key.Length == 0)
+			if (string.IsNullOrEmpty(data.key))
 				Error("Не указан key игрока");
 
-			else if (data.host == null)
+			else if (string.IsNullOrEmpty(data.host))
 				Error("Не указан хост сервера");
 
-			else if (data.token == null)
+			else if (string.IsNullOrEmpty(data.token))
 				Error("Не указан token");
 
 			else

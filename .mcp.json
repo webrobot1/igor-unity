@@ -3,6 +3,10 @@
     "ai-game-developer": {
       "type": "http",
       "url": "http://localhost:22475"
+    },
+    "mmogick-websocket": {
+      "type": "http",
+      "url": "http://localhost/mcp"
     }
   }
 }
