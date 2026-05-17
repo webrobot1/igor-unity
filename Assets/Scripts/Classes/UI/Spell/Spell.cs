@@ -39,15 +39,10 @@ namespace Mmogick
             {
                 _magic = value;
 
-                Sprite sprite = Resources.Load<Sprite>("Sprites/Spells/" + value);
-                if (sprite == null)
-                {
-                    Debug.LogError("не найдено изображение заклинания с сервера " + value);
-                    // unknow.png общий для всех «неизвестных» ассетов — лежит в Resources/Sprites/, не в Spells/
-                    sprite = Resources.Load<Sprite>("Sprites/unknow");
-                }
-
-                image.sprite = sprite;
+                // Иконка из серверной library (image-prefab). Для animation-prefab
+                // GetPrefabSprite вернёт null — UI пока показывает unknow (Spriter-вариант
+                // через World-Space мини-Canvas — отдельный TODO).
+                image.sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, value) ?? Resources.Load<Sprite>("Sprites/unknow");
             }
         }
 

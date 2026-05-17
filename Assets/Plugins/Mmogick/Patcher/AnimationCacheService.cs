@@ -674,5 +674,20 @@ namespace Mmogick
 		// Имя файла картинки (sha256.ext) если prefab — image-only, иначе null.
 		public static string GetPrefabImage(string name)
 			=> _library != null && _library.TryGetValue(name, out PrefabEntry e) && e.IsImage ? e.image : null;
+
+		// Готовый Sprite иконки для image-prefab. null — если prefab не image (animation
+		// или отсутствует в library) или картинка битая (битый кеш чистится TryGetSprite,
+		// перекачается на следующем sync). Используется UI-кодом (Spell, Item) — они передают
+		// BaseController.GAME_ID (public static, глобальный конфиг проекта).
+		// Контракт: вызывать только после SigninController.LoadMain (т.е. _library != null).
+		public static Sprite GetPrefabSprite(int gameId, string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabSprite вызван до SyncAll (_library == null). prefab=" + prefab);
+			string imageFile = GetPrefabImage(prefab);
+			if (imageFile == null) return null;
+			try { return TryGetSprite(gameId, imageFile); }
+			catch (Exception ex) { Debug.LogWarning("GetPrefabSprite '" + prefab + "': " + ex.Message); return null; }
+		}
 	}
 }
