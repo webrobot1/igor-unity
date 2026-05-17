@@ -133,7 +133,7 @@ namespace Mmogick
 
                                     _actionBars[action.Key - 1].Item = Spells[action.Value.id];
 
-                                    player.Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
+                                    Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
                                 break;
                                 case "item":
                                     int slotNum = int.Parse(action.Value.id);
@@ -141,7 +141,7 @@ namespace Mmogick
                                     if (item != null)
                                     {
                                         _actionBars[action.Key - 1].Item = item;
-                                        player.Log("Быстрая клавиша " + action.Key + ": обновили данные предметом из слота " + slotNum);
+                                        Log("Быстрая клавиша " + action.Key + ": обновили данные предметом из слота " + slotNum);
                                     }
                                     else
                                     {

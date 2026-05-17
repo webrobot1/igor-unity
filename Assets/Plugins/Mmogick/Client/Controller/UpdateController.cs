@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using SpriterDotNetUnity;
 using System;
 using System.IO;
 using System.IO.Compression;
@@ -210,66 +211,6 @@ namespace Mmogick
 
 				model.Log("создан с префабом " + recive.prefab);
 
-
-				// SCML-анимация или image-only спрайт из серверного списка (AnimationCacheService._library).
-				if (!string.IsNullOrEmpty(recive.prefab))
-				{
-					string imageFile = AnimationCacheService.GetPrefabImage(recive.prefab);
-					if (imageFile != null)
-					{
-						var sr = prefab.GetComponent<SpriteRenderer>();
-						if (sr == null)
-							sr = prefab.AddComponent<SpriteRenderer>();
-						// TryGetSprite инвалидирует битый кеш и бросает exception — ловим, выходим
-						// (создание префаба отменяется, на следующем sync файл перекачается).
-						try { 
-							sr.sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); 
-						}
-						catch (Exception ex) 
-						{ 
-							Error(ex.Message); 
-							return null; 
-						}
-						float? size = AnimationCacheService.GetPrefabSize(recive.prefab);
-						if (size.HasValue && size.Value > 0.0001f)
-						{
-							float factor = 1f / (size.Value * prefab.transform.localScale.y);
-							Vector3 s = prefab.transform.localScale;
-							prefab.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
-						}
-						model.Log("image-sprite " + recive.prefab + " применён");
-					}
-					else if (AnimationCacheService.HasPrefab(recive.prefab))
-					{
-						StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, recive.prefab, (AnimationPatcher patcher) =>
-						{
-							if (patcher.error != null)
-							{
-								Error("Анимации: ошибка " + patcher.error);
-								return;
-							}
-							if (patcher.spriterPacket == null)
-							{
-								Error("Анимации: пустой ответ от патчера для " + key);
-								return;
-							}
-							try
-							{
-								Debug.Log("Анимации: создаём " + recive.prefab + " для " + key);
-								NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID, recive.prefab, AnimationCacheService.GetPrefabSize(recive.prefab));
-							}
-							catch (Exception ex)
-							{
-								Error("Анимации: ошибка " + ex);
-							}
-						}));
-					}
-					else
-						model.LogError("отсутвует анимация в кеше " + recive.prefab);
-				}
-				else
-					model.LogWarning("не указан префаб");
-
 				if (key == player_key)
 				{
 					player = model;
@@ -285,6 +226,19 @@ namespace Mmogick
 			{
 				model = prefab.GetComponent<EntityModel>();
 			}
+
+			// Визуал из серверной library: единая точка для первого спавна и для смены prefab на лету.
+			// SetData ниже перезапишет model.prefab из recive — поэтому сверяем и применяем именно ДО SetData.
+			// При первом спавне model.prefab пуст (default) → отличается от recive.prefab → ApplyVisualPrefab сработает.
+			// При update без prefab в пакете или с тем же prefab — no-op (визуал не пересоздаём).
+			if (!string.IsNullOrEmpty(recive.prefab) && recive.prefab != model.prefab)
+			{
+				if (!string.IsNullOrEmpty(model.prefab))
+					model.Log("смена визуала с '" + model.prefab + "' на '" + recive.prefab + "'");
+				ApplyVisualPrefab(prefab, model, recive.prefab, key);
+			}
+			else if (string.IsNullOrEmpty(recive.prefab) && string.IsNullOrEmpty(model.prefab))
+				model.LogWarning("не указан префаб");
 
 			model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
 			// worldPositionStays=true: при смене map_zone (переход через границу карты) мировая позиция
@@ -322,6 +276,115 @@ namespace Mmogick
 			}
 
 			return prefab;
-		}	
+		}
+
+		/// <summary>
+		/// Применяет к существующему GameObject визуал из серверной library:
+		///   - image-prefab → ставит sprite в корневой SpriteRenderer + нормализует scale по серверному size;
+		///   - animation-prefab → асинхронно (AnimationPatcher) собирает Spriter-сущность через
+		///     NewSpriterRuntimeImporter.CreateSpriter (он сам чистит предыдущий Spriter).
+		/// Для image-варианта явно сносит fallback-Animator (легаси из Unity-префаба) и Spriter-компоненты
+		/// (на случай перехода animation→image), включает корневой SR и компенсирует мировой размер
+		/// LifeBar/CapsuleCollider2D под применённый scale.
+		/// </summary>
+		private void ApplyVisualPrefab(GameObject go, EntityModel model, string newPrefab, string key)
+		{
+			string imageFile = AnimationCacheService.GetPrefabImage(newPrefab);
+			if (imageFile != null)
+			{
+				// переход animation→image: сносим Spriter-компоненты (включая child Sprites/Metadata).
+				// Для первого спавна работает как no-op (компонентов ещё нет).
+				ClearSpriterVisualComponents(go);
+
+				// П1: фолбэк-Animator для image не нужен — это статичный sprite. Иначе ObjectModel.Awake его
+				// кеширует и SetData будет логировать «нет слоя» на каждый action.
+				// Если приходим из animation-варианта, Animator уже снесён CreateSpriter'ом.
+				// Кеш ObjectModel.animator не чистим вручную: после DestroyImmediate Unity-null'ит ссылку,
+				// и все "animator != null" guard'ы в ObjectModel.Update/SetData отработают корректно.
+				var legacyAnimator = go.GetComponent<Animator>();
+				if (legacyAnimator != null) GameObject.DestroyImmediate(legacyAnimator);
+
+				var sr = go.GetComponent<SpriteRenderer>();
+				if (sr == null) sr = go.AddComponent<SpriteRenderer>();
+				// после перехода animation→image корневой SR был enabled=false — включаем обратно.
+				sr.enabled = true;
+				// TryGetSprite инвалидирует битый кеш и бросает exception — ловим, выходим
+				// (визуал отменяется, на следующем sync файл перекачается).
+				try { sr.sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); }
+				catch (Exception ex) { Error(ex.Message); return; }
+
+				float? size = AnimationCacheService.GetPrefabSize(newPrefab);
+				if (size.HasValue && size.Value > 0.0001f)
+				{
+					// scale.y * factor = 1/size → итоговая мировая высота image-sprite = 1/size клеток.
+					// Формула идемпотентна: повторное применение на уже отнормализованном scale даёт тот же 1/size.
+					float factor = 1f / (size.Value * go.transform.localScale.y);
+					Vector3 s = go.transform.localScale;
+					go.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
+
+					// П2: компенсируем LifeBar/CapsuleCollider2D, чтобы их МИРОВОЙ размер не плыл при scale корня.
+					// Аналогично fallback-нормализации выше (LifeBar.localScale *= 1/factor + позиция, capsule.size/offset).
+					float inv = 1f / factor;
+					var lifeBar = go.transform.Find("LifeBar");
+					if (lifeBar != null)
+					{
+						lifeBar.localScale = new Vector3(lifeBar.localScale.x * inv, lifeBar.localScale.y * inv, lifeBar.localScale.z);
+						var p = lifeBar.localPosition;
+						lifeBar.localPosition = new Vector3(p.x * inv, p.y * inv, p.z);
+					}
+					var capsule = go.GetComponent<CapsuleCollider2D>();
+					if (capsule != null)
+					{
+						capsule.size *= inv;
+						capsule.offset *= inv;
+					}
+				}
+				model.Log("image-sprite " + newPrefab + " применён");
+			}
+			else if (AnimationCacheService.HasPrefab(newPrefab))
+			{
+				StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, newPrefab, (AnimationPatcher patcher) =>
+				{
+					if (patcher.error != null)
+					{
+						Error("Анимации: ошибка " + patcher.error);
+						return;
+					}
+					if (patcher.spriterPacket == null)
+					{
+						Error("Анимации: пустой ответ от патчера для " + key);
+						return;
+					}
+					try
+					{
+						Debug.Log("Анимации: создаём " + newPrefab + " для " + key);
+						NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID, newPrefab, AnimationCacheService.GetPrefabSize(newPrefab));
+					}
+					catch (Exception ex)
+					{
+						Error("Анимации: ошибка " + ex);
+					}
+				}));
+			}
+			else
+				model.LogError("префаб '" + newPrefab + "' не определён в library (нет ни image-привязки, ни animation-привязки на сервере)");
+		}
+
+		/// <summary>
+		/// Сносит все компоненты, которые ставит NewSpriterRuntimeImporter.CreateSpriter:
+		/// SpriterDotNetBehaviour, SpriterPostImportAdjuster и child-объекты "Sprites"/"Metadata".
+		/// Для первого спавна и для перехода image→image — no-op.
+		/// </summary>
+		private static void ClearSpriterVisualComponents(GameObject go)
+		{
+			var sb = go.GetComponent<SpriterDotNetBehaviour>();
+			if (sb != null) GameObject.DestroyImmediate(sb);
+			var adj = go.GetComponent<SpriterPostImportAdjuster>();
+			if (adj != null) GameObject.DestroyImmediate(adj);
+			var sprites = go.transform.Find("Sprites");
+			if (sprites != null) GameObject.DestroyImmediate(sprites.gameObject);
+			var metadata = go.transform.Find("Metadata");
+			if (metadata != null) GameObject.DestroyImmediate(metadata.gameObject);
+		}
 	}
 }
