@@ -221,9 +221,12 @@ namespace Mmogick
 		public static void ResetCache(int gameId)
 		{
 			Debug.LogWarning("AnimationCache: сброс кеша игры " + gameId);
-			_manifest = new SyncManifest();
-			_library = new Dictionary<string, PrefabEntry>();
-			_files = new Dictionary<int, Dictionary<int, string>>();
+			// null, а не пустые объекты: EnsureLoaded проверяет «_manifest != null && !File.Exists(mp)»
+			// и бросает исключение. Если оставить здесь new SyncManifest() — следующий SyncAll в той же
+			// сессии (повторный логин после Error) упадёт на этом guard'е.
+			_manifest = null;
+			_library = null;
+			_files = null;
 			_spriteCache.Clear();
 
 			string root = AnimationsPath(gameId);

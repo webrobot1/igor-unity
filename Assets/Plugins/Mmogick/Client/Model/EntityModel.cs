@@ -148,22 +148,13 @@ namespace Mmogick
 				{
 					Forward = vector;
 					_forward = vector;
-
-					if (type == "object")
-					{
-						// Серверный дефолт нового object — forward=(0,-1) («лежит/смотрит вниз»). Поэтому
-						// нейтральная ось у Atan2 — это -Forward.y: при (0,-1) angle=0 (rotation не применяется),
-						// и спрайт остаётся в той ориентации, в которой нарисован. Стрелы/снаряды,
-						// нарисованные «наконечником вниз», крутятся корректно для остальных направлений.
-						float angle = Mathf.Atan2(Forward.x, -Forward.y) * Mathf.Rad2Deg * -1;
-						transform.rotation = Quaternion.Euler(0, 0, angle);
-					}
-					else if (action != null && recive.action == null)
-					{
-						// Forward сменился без смены action — ре-резолв направленного clip
-						string pn = this.prefab;
-						SpriterDotNetBehaviour anim = GetComponent<SpriterDotNetBehaviour>();
-						if (anim?.Animator != null && !string.IsNullOrEmpty(pn))
+					SpriterDotNetBehaviour anim = GetComponent<SpriterDotNetBehaviour>();
+						
+				// Forward сменился без смены action — ре-резолв направленного clip
+					string pn = this.prefab;
+					if (anim?.Animator != null && !string.IsNullOrEmpty(pn))
+					{	
+						if (anim && action != null && recive.action == null)
 						{
 							var (newClip, newFlip) = AnimationCacheService.GetClipName(
 								pn, action, Forward.x, Forward.y, ConnectController.entity_actions);
@@ -179,6 +170,16 @@ namespace Mmogick
 								}
 							}
 						}
+					}
+					// Поворот transform применяем только сущностям без Spriter (стрелы/spell/projectile).
+					// У player/enemy/animal направление передаётся сменой clip + flip по X —
+					// им крутить transform нельзя, иначе у Spriter body-parts поплывут.
+					// Конвенция: спрайт нарисован вправо (→). Atan2(y,x) — стандартный угол от оси X+.
+					// Серверный дефолт forward=(0,-1) → angle=-90° → спрайт смотрит вниз.
+					else if (GetComponent<Animator>() == null)
+					{
+						float angle = Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg;
+						transform.rotation = Quaternion.Euler(0, 0, angle);
 					}
 				}
 			}

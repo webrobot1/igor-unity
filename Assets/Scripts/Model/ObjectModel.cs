@@ -70,7 +70,7 @@ namespace Mmogick
 						if (animator.GetFloat("y") != value.y)
 							animator.SetFloat("y", value.y);
 					}
-					base.Forward = value; 
+					base.Forward = value;
 				}
 			}
 		}

@@ -143,9 +143,12 @@ namespace Mmogick
 		public static void ResetCache(int gameId)
 		{
 			Debug.LogWarning("TileCache: сброс кеша игры " + gameId);
-			_manifest = new SyncManifest();
-			_tilesets = new Dictionary<string, TilesetMeta>();
-			_meta = new Dictionary<string, Tile>();
+			// null, а не пустые объекты: EnsureLoaded проверяет «_manifest != null && !File.Exists(mp)»
+			// и бросает исключение. Если оставить здесь new SyncManifest() — следующий SyncAll в той же
+			// сессии (повторный логин после Error) упадёт на этом guard'е.
+			_manifest = null;
+			_tilesets = null;
+			_meta = null;
 			_spriteCache.Clear();
 
 			try
