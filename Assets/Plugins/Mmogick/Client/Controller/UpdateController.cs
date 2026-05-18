@@ -316,11 +316,26 @@ namespace Mmogick
 				catch (Exception ex) { Error(ex.Message); return; }
 
 				float? size = AnimationCacheService.GetPrefabSize(newPrefab);
+				float effectiveSize = 0f;
 				if (size.HasValue && size.Value > 0.0001f)
 				{
-					// scale.y * factor = 1/size → итоговая мировая высота image-sprite = 1/size клеток.
-					// Формула идемпотентна: повторное применение на уже отнормализованном scale даёт тот же 1/size.
-					float factor = 1f / (size.Value * go.transform.localScale.y);
+					effectiveSize = size.Value;
+				}
+				else if (sr.sprite != null && AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight) && tight.size.y > 0.0001f)
+				{
+					// Сервер не задал size для image-prefab → fallback на tight-bounds спрайта (симметрично Spriter-варианту,
+					// где SpriterPostImportAdjuster замеряет world-bounds, если PrefabEntry.size==null). Подстановка
+					// effectiveSize = tight.size.y делает new_scale.y = 1/tight.size.y и мировую высоту = 1 клетка.
+					// Используется TryGetTightRect (а не sprite.bounds), чтобы прозрачные поля PNG не раздували размер.
+					effectiveSize = tight.size.y;
+					Debug.LogWarning("image-sprite " + newPrefab + ": server size не задан, fallback на tight-bounds height=" + effectiveSize);
+				}
+
+				if (effectiveSize > 0.0001f)
+				{
+					// scale.y * factor = 1/effectiveSize → итоговая мировая высота image-sprite = 1/effectiveSize клеток.
+					// Формула идемпотентна: повторное применение на уже отнормализованном scale даёт тот же 1/effectiveSize.
+					float factor = 1f / (effectiveSize * go.transform.localScale.y);
 					Vector3 s = go.transform.localScale;
 					go.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
 
