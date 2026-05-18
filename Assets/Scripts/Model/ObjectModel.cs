@@ -42,6 +42,13 @@ namespace Mmogick
 		/// </summary>
 		private int _layerIndex = 0;
 
+		// Кешированное наличие параметров x/y в текущем animator.runtimeAnimatorController.
+		// Forward setter ниже использует SetFloat("x"/"y") — это валидно только для blend-tree
+		// контроллеров (старый PlayerController). Universal.controller на enemy/object этих параметров
+		// не имеет; обращение без guard'а спамит "Parameter 'x' does not exist" каждый кадр.
+		private bool _hasParamX;
+		private bool _hasParamY;
+
 
 		public int CurrentAnimationIndex
 		{
@@ -62,12 +69,14 @@ namespace Mmogick
 				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
 				if (value.x != base.Forward.x || value.y != base.Forward.y)
 				{
-					//это Blend tree аниматора (в игре Игорья решил так вопрос с анимацией движения в разных направлениях. рекомендую и Вам)
+					// Blend-tree аниматора (legacy PlayerController использует параметры x/y для смешивания
+					// направлений). Универсальный Animator с Universal.controller их не имеет —
+					// guard через закешированный _hasParamX/Y (заполняется в RebuildTriggersCache).
 					if (animator)
 					{
-						if (animator.GetFloat("x") != value.x)
+						if (_hasParamX && animator.GetFloat("x") != value.x)
 							animator.SetFloat("x", value.x);
-						if (animator.GetFloat("y") != value.y)
+						if (_hasParamY && animator.GetFloat("y") != value.y)
 							animator.SetFloat("y", value.y);
 					}
 					base.Forward = value;
@@ -78,16 +87,31 @@ namespace Mmogick
 		protected virtual void Awake()
 		{
 			if (animator = GetComponent<Animator>())
+				RebuildTriggersCache();
+		}
+
+		/// <summary>
+		/// Spriter-init / image-init навешивают Animator на GO после Awake — кеш этого момента ещё null.
+		/// Hook обновляет ObjectModel.animator и пересобирает trigers под новый controller.
+		/// </summary>
+		protected override void OnAnimatorAttached(Animator anim)
+		{
+			animator = anim;
+			RebuildTriggersCache();
+		}
+
+		private void RebuildTriggersCache()
+		{
+			_hasParamX = false;
+			_hasParamY = false;
+			if (animator == null) return;
+			trigers ??= new Dictionary<string, bool>();
+			foreach (var parameter in animator.parameters)
 			{
-				// сохраним все возможные Тригеры анимаций и, если нам пришел action как тигер - обновим анимацию
-				if (trigers == null)
-				{
-					trigers = new Dictionary<string, bool>();
-					foreach (var parameter in animator.parameters.Where(parameter => parameter.type == AnimatorControllerParameterType.Trigger))
-					{
-						trigers.Add(parameter.name, true);
-					}
-				}
+				if (parameter.type == AnimatorControllerParameterType.Trigger && !trigers.ContainsKey(parameter.name))
+					trigers.Add(parameter.name, true);
+				if (parameter.name == "x") _hasParamX = true;
+				else if (parameter.name == "y") _hasParamY = true;
 			}
 		}
 
@@ -371,16 +395,33 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// анимированное удаление объекта с карты (например когда снаряд попал в цель или игрок уходит с карты и др у кого есть анимация ACTION_REMOVE)
+		/// анимированное удаление объекта с карты (когда снаряд попал в цель или игрок уходит с карты).
+		/// Пытается проиграть ACTION_REMOVE через PlayAction (Spriter→Universal Animator fallback).
+		/// Если ни в SCML, ни в Universal.controller нет данных — удаление мгновенное.
 		/// </summary>
 		protected override IEnumerator Destroy()
 		{
-			if (animator != null)
+			if (PlayAction(ConnectController.ACTION_REMOVE))
 			{
 				Log("Удаление - Запуск анимации удаления с карты");
 
-				Animate(animator, animator.GetLayerIndex(ConnectController.ACTION_REMOVE));
-				yield return new WaitForSeconds(animator.GetCurrentAnimatorStateInfo(0).length - 0.01f);
+				// Ждём один кадр чтобы Animator/Spriter переключились на нужный state,
+				// затем берём длину текущего state'а.
+				yield return null;
+
+				var anim = GetComponent<Animator>();
+				if (anim != null && anim.runtimeAnimatorController != null)
+				{
+					var info = anim.GetCurrentAnimatorStateInfo(0);
+					if (info.length > 0.01f)
+						yield return new WaitForSeconds(info.length - 0.01f);
+				}
+				else
+				{
+					var spriter = GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
+					if (spriter?.Animator?.CurrentAnimation != null)
+						yield return new WaitForSeconds(spriter.Animator.CurrentAnimation.Length / 1000f - 0.01f);
+				}
 			}
 
 			Log("Удаление - немедленное удаления с карты");

@@ -298,18 +298,21 @@ namespace Mmogick
             behaviour.enabled = true;
             behaviour.ChildData = cd;
 
-            // Spriter успешно установлен. Legacy-Animator на корне сносим (у player.prefab он был
-            // фолбэком; при приходе scml-анимации он уже не нужен). Корневой SpriteRenderer НЕ сносим,
-            // а только выключаем: TargetController.CameraUpdate читает его spriteRender.sprite как
-            // репрезентативный fallback-спрайт для настройки face-камеры — если его убрать,
-            // target-панель начинает ловить только один body-part Spriter-mirror'а и показывает огрызок.
-            // Рендерить fallback-спрайт не нужно — это делают Spriter-дети — достаточно enabled=false.
-            Animator fallbackAnimator = go.GetComponent<Animator>();
-            if (fallbackAnimator != null) GameObject.DestroyImmediate(fallbackAnimator);
+            // Spriter успешно установлен. Animator на корне НЕ сносим — переключаем его на Universal.controller
+            // (одиночный слой remove с Puff-эффектом, см. Resources/Animations/Universal.controller). Animator
+            // сосуществует со Spriter: Spriter играет per-prefab анимации (idle/walk/attack/hurt/dead из SCML),
+            // Universal Animator служит fallback'ом для action'ов, которых нет в SCML конкретной сущности
+            // (см. EntityModel.PlayAction). Подробнее — CLAUDE.md «Архитектура анимаций».
+            //
+            // Корневой SpriteRenderer НЕ сносим, а только выключаем: TargetController.CameraUpdate читает
+            // его spriteRender.sprite как репрезентативный fallback-спрайт для настройки face-камеры — если
+            // его убрать, target-панель начинает ловить только один body-part Spriter-mirror'а и показывает
+            // огрызок. Рендерить fallback-спрайт не нужно — это делают Spriter-дети — достаточно enabled=false.
+            var entityModel = go.GetComponent<Mmogick.EntityModel>();
+            if (entityModel != null) entityModel.EnsureUniversalAnimator();
 
             SpriteRenderer fallbackSpriteRenderer = go.GetComponent<SpriteRenderer>();
             if (fallbackSpriteRenderer != null) fallbackSpriteRenderer.enabled = false;
-            // Кешированная ObjectModel.animator — Unity-null после DestroyImmediate выше, "!= null" guard'ы отработают.
 
             // Adjuster сам выбирает источник bodyHeight в порядке точности:
             //   1) serverSize (параметр bodyHeight) — из /prefabs library, задан админом.

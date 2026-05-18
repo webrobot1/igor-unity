@@ -298,13 +298,13 @@ namespace Mmogick
 				// Для первого спавна работает как no-op (компонентов ещё нет).
 				ClearSpriterVisualComponents(go);
 
-				// П1: фолбэк-Animator для image не нужен — это статичный sprite. Иначе ObjectModel.Awake его
-				// кеширует и SetData будет логировать «нет слоя» на каждый action.
-				// Если приходим из animation-варианта, Animator уже снесён CreateSpriter'ом.
-				// Кеш ObjectModel.animator не чистим вручную: после DestroyImmediate Unity-null'ит ссылку,
-				// и все "animator != null" guard'ы в ObjectModel.Update/SetData отработают корректно.
-				var legacyAnimator = go.GetComponent<Animator>();
-				if (legacyAnimator != null) GameObject.DestroyImmediate(legacyAnimator);
+				// Image-prefab статичен (только один спрайт через TryGetSprite ниже), но мы оставляем
+				// Universal Animator для эффекта remove (Puff при попадании firebolt'а или выбрасывании
+				// item'а). Параметр startDisabled=true критически важен: без него Animator перехватывает
+				// SR.sprite и item рендерится пустым (apple, firebolt без иконки). PlayAction включит
+				// Animator в момент проигрывания эффекта.
+				var entityModel = go.GetComponent<Mmogick.EntityModel>();
+				if (entityModel != null) entityModel.EnsureUniversalAnimator(startDisabled: true);
 
 				var sr = go.GetComponent<SpriteRenderer>();
 				if (sr == null) sr = go.AddComponent<SpriteRenderer>();

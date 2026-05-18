@@ -2,7 +2,6 @@ using SpriterDotNetUnity;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 namespace Mmogick
@@ -171,15 +170,28 @@ namespace Mmogick
 							}
 						}
 					}
-					// Поворот transform применяем только сущностям без Spriter (стрелы/spell/projectile).
-					// У player/enemy/animal направление передаётся сменой clip + flip по X —
-					// им крутить transform нельзя, иначе у Spriter body-parts поплывут.
-					// Конвенция: спрайт нарисован вправо (→). Atan2(y,x) — стандартный угол от оси X+.
-					// Серверный дефолт forward=(0,-1) → angle=-90° → спрайт смотрит вниз.
-					else if (GetComponent<Animator>() == null)
+					// Поворот transform применяем только сущностям без Spriter и без legacy blend-tree Animator'а.
+					// У player/enemy/animal направление передаётся сменой clip + flip по X (Spriter), либо
+					// SetFloat("x"/"y") в blend-tree (legacy PlayerController.controller) — им крутить
+					// transform нельзя.
+					// Universal.controller (overlay для remove-эффектов) не имеет параметров x/y — для image-
+					// projectile'ов с ним крутить ВСЁ ЕЩЁ можно.
+					// Критерий «нельзя крутить»: есть Spriter, или есть Animator с параметрами x/y.
+					// Конвенция: спрайт нарисован вправо (→). Atan2(y,x) — угол от оси X+. Server default
+					// forward=(0,-1) → angle=-90° → спрайт смотрит вниз.
+					else if (GetComponent<SpriterDotNetBehaviour>() == null)
 					{
-						float angle = Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg;
-						transform.rotation = Quaternion.Euler(0, 0, angle);
+						// «Можно крутить» = нет legacy Animator с blend-tree параметрами x/y.
+						// Universal.controller имеет только direction/remove — projectile'и с ним крутить можно.
+						bool blendTree = false;
+						var rotAnim = GetComponent<Animator>();
+						if (rotAnim != null && rotAnim.runtimeAnimatorController != null)
+						{
+							foreach (var p in rotAnim.parameters)
+								if (p.name == "x" || p.name == "y") { blendTree = true; break; }
+						}
+						if (!blendTree)
+							transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg);
 					}
 				}
 			}
@@ -313,7 +325,105 @@ namespace Mmogick
 			Debug.LogError(name + ": "+ message);
 		}
 
-	
+		// Universal Animator с одиночным слоем remove (4 state по направлениям) — fallback-эффекты
+		// для action'ов, которых нет в SCML конкретного prefab'а. Lazy-load один раз, шарится между сущностями.
+		// Подробнее — CLAUDE.md «Архитектура анимаций».
+		private static RuntimeAnimatorController _universalController;
+		private static bool _universalControllerMissing = false;
+
+		/// <summary>
+		/// Навешивает на сущность Universal Animator (или меняет controller существующего на Universal).
+		/// Вызывается из Spriter-init и image-init.
+		///
+		/// Параметр <paramref name="startDisabled"/>: если true — сразу выключает Animator (anim.enabled=false).
+		/// Это нужно для image-prefab'ов: у них SpriteRenderer.sprite присваивается через TryGetSprite после
+		/// этого вызова, и активный Animator перехватывал бы контроль и сбрасывал спрайт (item рендерился
+		/// бы как пустой). PlayAction перед запуском Universal-ветки включает Animator обратно.
+		/// После привязки вызывает <see cref="OnAnimatorAttached"/>, чтобы наследники обновили кеши.
+		/// </summary>
+		public void EnsureUniversalAnimator(bool startDisabled = false)
+		{
+			if (_universalControllerMissing) return;
+			if (_universalController == null)
+			{
+				_universalController = Resources.Load<RuntimeAnimatorController>("Animations/Universal");
+				if (_universalController == null)
+				{
+					_universalControllerMissing = true;
+					LogWarning("EnsureUniversalAnimator: Resources/Animations/Universal не найден — fallback-эффекты отключены");
+					return;
+				}
+			}
+
+			var anim = GetComponent<Animator>();
+			if (anim == null) anim = gameObject.AddComponent<Animator>();
+			if (anim.runtimeAnimatorController != _universalController)
+				anim.runtimeAnimatorController = _universalController;
+			if (startDisabled) anim.enabled = false;
+
+			OnAnimatorAttached(anim);
+		}
+
+		/// <summary>
+		/// Hook для подкласса — позволяет обновить локальные кеши (например, ObjectModel.animator) после
+		/// того как сторонний код (Spriter-init / image-init) навесил Animator на GO уже после Awake.
+		/// </summary>
+		protected virtual void OnAnimatorAttached(Animator anim) { }
+
+		/// <summary>
+		/// Универсальное проигрывание action-анимации: сначала пробует Spriter (SCML с сервера), если
+		/// для текущего prefab+action нет SCML-клипа — fallback на Universal Animator (одиночный слой
+		/// remove + параметры direction:Int и trigger:remove/&lt;action&gt;).
+		///
+		/// Возвращает true если анимация запущена (Spriter или Universal); false если ни там, ни там
+		/// нет данных под этот action (вызывающая сторона должна выполнить действие без эффекта).
+		/// </summary>
+		public bool PlayAction(string actionName)
+		{
+			// 1) Spriter — приоритет
+			var spriter = GetComponent<SpriterDotNetBehaviour>();
+			if (spriter != null && spriter.Animator != null && !string.IsNullOrEmpty(prefab))
+			{
+				var (clip, _) = AnimationCacheService.GetClipName(
+					prefab, actionName, Forward.x, Forward.y, ConnectController.entity_actions);
+				if (!string.IsNullOrEmpty(clip) && spriter.Animator.HasAnimation(clip))
+				{
+					spriter.Animator.Play(clip);
+					return true;
+				}
+			}
+
+			// 2) Universal Animator — fallback
+			var unityAnim = GetComponent<Animator>();
+			if (unityAnim != null && unityAnim.runtimeAnimatorController != null)
+			{
+				// Image-prefab'ы держат Animator выключенным после init — иначе он перехватывает SR.sprite
+				// и item-объекты рендерятся пустыми. Включаем здесь, перед SetTrigger.
+				if (!unityAnim.enabled) unityAnim.enabled = true;
+
+				// Universal.anim бьёт PPtrCurve по m_Sprite корневого SpriteRenderer — после Spriter-init
+				// корневой SR выключен (см. NewSpriterRuntimeImporter). Включаем на время эффекта.
+				// Spriter-children (если есть) глушим — иначе Puff-кадры перекрываются телом Spriter.
+				// На детях Spriter'а живут SpriteRenderer'ы body-parts — выключаем их, корневой SR
+				// пропускаем (там Universal рисует Puff). SpriterDotNetBehaviour не трогаем — без
+				// активных дочерних SR его scheduling кадров не отрендерится.
+				var sr = GetComponent<SpriteRenderer>();
+				if (sr != null) sr.enabled = true;
+				if (spriter != null)
+					foreach (var r in spriter.GetComponentsInChildren<SpriteRenderer>(includeInactive: false))
+						if (r.gameObject != spriter.gameObject) r.enabled = false;
+
+				// direction по Forward: 0=down, 1=left, 2=right, 3=up
+				int direction = Mathf.Abs(Forward.y) > Mathf.Abs(Forward.x) ? (Forward.y < 0 ? 0 : 3) : (Forward.x < 0 ? 1 : 2);
+				unityAnim.SetInteger("direction", direction);
+				unityAnim.ResetTrigger(actionName);
+				unityAnim.SetTrigger(actionName);
+				return true;
+			}
+
+			return false;
+		}
+
 		/// <summary>
 		///  базовая корутина уничтожение с карты объекта при уничтожении с сервера. ее можно и скорее нужно переопределять насыщая анмиацией это действи
 		/// </summary>

@@ -38,6 +38,35 @@ Errro() - что то типа безопсного exception , что в сле
 Есть mcp unity для самостоятельной проверки клиента (пакеты приходящие логируются , на сервере тоже есть лог)
 Все настройки проекта Unity что делаются должны быть описаны в readme (какие и зачем)
 
+## Архитектура анимаций: Spriter (per-prefab) + Unity-Animator (универсальные эффекты)
+
+Анимации сущностей идут двумя слоями, сосуществующими на одном GameObject:
+
+- **Per-prefab Spriter (SCML с сервера)** — индивидуальные анимации (`idle`, `walk`, `attack`, `hurt`, `dead`). Компонент `SpriterDotNetBehaviour`, кеш — [AnimationCacheService](Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs).
+- **Универсальные эффекты в Unity-Animator** — общие декораторы поверх любой сущности. Сейчас покрыт только `remove` (Puff-кадры при удалении). Файлы: [Universal.controller](Assets/Resources/Animations/Universal.controller), [Universal/Remove/*.anim](Assets/Animations/Universal/Remove/), кадры — [Sprites/Entitys/Objects/Spells/Effects/Puff*.png](Assets/Sprites/Entitys/Objects/Spells/Effects/).
+
+**Universal.controller**: 1 слой, параметры `direction` (Int 0..3, 0=down, 1=left, 2=right, 3=up) и `remove` (Trigger). AnyState→`remove_{down,left,right,up}` по `remove If 0` + `direction Equals N`. Возврат в `Idle` (motion=null) по `hasExitTime=true,exitTime=1`. **`writeDefaults=false` обязательно** на всех state'ах — иначе при transition в Idle Animator сбрасывает `SpriteRenderer.m_Sprite` в default и сущность мелькает «пустым» спрайтом перед уничтожением.
+
+**Единая точка проигрывания — `EntityModel.PlayAction(action)`**:
+1. Spriter-приоритет: если `SpriterDotNetBehaviour.Animator.HasAnimation(GetClipName(prefab, action, forward))` → `Play(clip)`.
+2. Иначе Universal Animator: включает `anim.enabled=true`, корневой `SpriteRenderer.enabled=true`, выключает SR детей Spriter'а (Puff не должен перекрываться телом), `SetInteger("direction", N)` + `SetTrigger(action)`.
+3. Возвращает `false`, если ни Spriter, ни Universal не отвечают — вызывающий код выполняет действие без визуала.
+
+**Привязка Universal Animator'а** — `EntityModel.EnsureUniversalAnimator(startDisabled)`:
+- Spriter-init ([NewSpriterRuntimeImporter](Assets/Plugins/Mmogick/Spriter2Unity/NewSpriterRuntimeImporter.cs)) зовёт с `false` — Animator-overlay живёт поверх Spriter'а.
+- Image-init ([UpdateController](Assets/Plugins/Mmogick/Client/Controller/UpdateController.cs)) зовёт с `true` — иначе свежий Animator перехватывает SR.sprite до того как `TryGetSprite` поставит правильную картинку, и item'ы (apple, firebolt) рендерятся пустыми. PlayAction сам включает Animator перед эффектом.
+- Подкласс перехватывает привязку через `protected virtual OnAnimatorAttached(Animator)`. [ObjectModel](Assets/Scripts/Model/ObjectModel.cs) обновляет в нём кеш `animator` (Awake может срабатывать до Spriter-init).
+
+**Direction projectile'ов**: `EntityModel.SetData` поворачивает `transform.rotation = Atan2(forward.y, forward.x)` только если **нет Spriter** И **нет Animator с параметрами `x`/`y`** (последнее отсекает legacy `PlayerController.controller` с blend-tree). Universal.controller имеет только `direction`/`remove` — projectile'и с ним крутятся.
+
+**ObjectModel.Forward setter**: `Animator.SetFloat("x"/"y")` только под guard'ом `_hasParamX`/`_hasParamY` (заполняется в `RebuildTriggersCache`). Без guard'а Universal.controller спамил бы `Parameter 'x' does not exist`.
+
+**Чего НЕ делать**:
+- Не удалять Puff'и в [Sprites/Entitys/Objects/Spells/Effects/](Assets/Sprites/Entitys/Objects/Spells/Effects/) — Universal/Remove/*.anim ссылается на них по GUID.
+- Не возвращать `DestroyImmediate(Animator)` в Spriter/image-init — это убьёт Universal-overlay.
+- Не выключать `writeDefaults=false` в Universal.controller state'ах.
+- Если расширяешь Universal-fallback на НЕ-удаляющие action'ы (hurt-flash и т.п.) — нужно дописать восстановление SR детей Spriter'а после эффекта; сейчас они выключаются безвозвратно, потому что после remove GameObject всё равно уничтожается.
+
 ## Логирование
 
 Два уровня логов:
