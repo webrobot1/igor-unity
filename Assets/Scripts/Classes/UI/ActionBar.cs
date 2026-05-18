@@ -13,8 +13,12 @@ namespace Mmogick
         private MoveableObject _item;
         private Tooltip _tooltip;
 
-        private Image _image;
-
+        // Видимая иконка слота. Мирорит _item.Icon.sprite/color/preserveAspect/localScale.
+        // Раньше в ActionBar был ещё корневой _image (=GetComponent<Image>()) для рендера
+        // иконки/фона — после Icon-pattern (см. TASK_ui_icon_size.md) он не нужен и убран,
+        // вместе с Image-компонентом на GameObject "Image" prefab'а. Raycast обрабатывает
+        // ActionButton.Button (родительский GO), фон рисуется тем же ActionButton.Image (рамка слота).
+        [SerializeField] private Image _icon;
         [SerializeField] private Image _cooldownOverlay;
         [SerializeField] private Text _cooldownText;
 
@@ -29,7 +33,13 @@ namespace Mmogick
                 _item = value;
                 if (value == null)
                 {
-                    _image.sprite = null;
+                    // _image.sprite/color НЕ трогаем — это статичная фоновая плашка из prefab'а
+                    if (_icon != null)
+                    {
+                        _icon.sprite = null;
+                        _icon.enabled = false; // иначе sprite=null → Unity рисует default white quad и затирает плашку
+                        _icon.transform.localScale = Vector3.one;
+                    }
                 }
                 else
                 {
@@ -44,9 +54,15 @@ namespace Mmogick
             {
                 if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
                 {
-                    _image.sprite = _item.Image.sprite;
-                    _image.color = _item.Image.color;
-                    _image.raycastTarget = true;
+                    // Мирорим видимую иконку с server-size scale (1/size). Cooldown-alpha идёт через _icon.color.
+                    if (_icon != null && _item.Icon != null)
+                    {
+                        _icon.sprite = _item.Icon.sprite;
+                        _icon.enabled = _icon.sprite != null;
+                        _icon.color = _item.Icon.color;
+                        _icon.preserveAspect = _item.Icon.preserveAspect;
+                        _icon.transform.localScale = _item.Icon.transform.localScale;
+                    }
 
                     // Cooldown overlay + mana cost
                     if (_cooldownOverlay != null)
@@ -86,21 +102,17 @@ namespace Mmogick
             }
             else
             {
-                _image.color = new Color(_image.color.r, _image.color.g, _image.color.b, 0f);
-                _image.raycastTarget = true;
-
+                if (_icon != null)
+                {
+                    _icon.sprite = null;
+                    _icon.enabled = false;
+                    _icon.transform.localScale = Vector3.one;
+                }
                 if (_cooldownOverlay != null)
                     _cooldownOverlay.enabled = false;
                 if (_cooldownText != null)
                     _cooldownText.text = "";
             }
-        }
-
-        protected void Awake()
-        {
-            _image = GetComponent<Image>();
-            if (_image == null)
-                ConnectController.Error("не указан gameObject для быстрох клавиш отвечающий за отображение картинок");
         }
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)

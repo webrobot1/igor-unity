@@ -39,10 +39,10 @@ namespace Mmogick
             {
                 _magic = value;
 
-                // Иконка из серверной library (image-prefab). Для animation-prefab
-                // GetPrefabSprite вернёт null — UI пока показывает unknow (Spriter-вариант
-                // через World-Space мини-Canvas — отдельный TODO).
-                image.sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, value) ?? Resources.Load<Sprite>("unknow");
+                // Иконка из серверной library + server-size scale (см. MoveableObject.ApplyPrefabImage).
+                // Корневой image получает sprite (нужен для LayoutGroup), видимый icon-child
+                // получает sprite + localScale = 1/serverSize.
+                ApplyPrefabImage(value);
             }
         }
 
@@ -91,7 +91,12 @@ namespace Mmogick
                 bool unavailable = PlayerController.Player.hp <= 0 || ManaCost > PlayerController.Player.mp;
 
                 remain.text = onCooldown ? PlayerController.Player.GetEventRemain(@event) + " сек." : "0 сек.";
-                image.color = new Color(image.color.r, image.color.g, image.color.b, unavailable ? 0.5f : 1f);
+
+                // Cooldown alpha — на видимый icon (если есть), иначе fallback на корневой image.
+                // Корневой image держит alpha=0 (prefab), мигрировать её на icon — единственный
+                // способ показать затемнение пользователю; ActionBar мирорит icon.color (см. ActionBar.FixedUpdate).
+                Image alphaTarget = icon != null ? icon : image;
+                alphaTarget.color = new Color(alphaTarget.color.r, alphaTarget.color.g, alphaTarget.color.b, unavailable ? 0.5f : 1f);
                 image.raycastTarget = true;
             } 
         }

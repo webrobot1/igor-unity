@@ -237,8 +237,14 @@ namespace Mmogick
         public static void TakeMoveable(MoveableObject moveable)
         {
             MyMoveable = moveable;
+            // Sprite берём из image (корневой). Для visual-slot'а Icon-child имеет тот же sprite,
+            // но если в каком-то префабе icon=null — image остаётся источником.
             MainController.Instance.cursor.sprite = moveable.Image.sprite;
             MainController.Instance.cursor.color = Color.white;
+            MainController.Instance.cursor.preserveAspect = true;
+            // Scale курсора = scale видимой иконки (1/serverSize). Если Icon=null — scale=1 от image.
+            Image scaleSrc = moveable.Icon != null ? moveable.Icon : moveable.Image;
+            MainController.Instance.cursor.transform.localScale = scaleSrc.transform.localScale;
         }
     }
 }

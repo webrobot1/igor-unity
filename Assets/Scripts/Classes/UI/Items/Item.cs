@@ -23,13 +23,8 @@ namespace Mmogick
         {
             _prefab = prefab;
 
-            // Иконка из серверной library (image-prefab). Для animation-prefab
-            // GetPrefabSprite вернёт null — UI пока показывает unknow (Spriter-вариант
-            // через World-Space мини-Canvas — отдельный TODO).
-            Sprite sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, prefab) ?? Resources.Load<Sprite>("unknow");
-
-            if (image != null && sprite != null)
-                image.sprite = sprite;
+            // Иконка из серверной library + server-size scale (см. MoveableObject.ApplyPrefabImage).
+            ApplyPrefabImage(prefab);
         }
 
         public void SetTooltip(Tooltip t)
