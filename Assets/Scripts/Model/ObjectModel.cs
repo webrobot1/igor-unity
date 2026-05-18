@@ -215,21 +215,16 @@ namespace Mmogick
 
 			// сгенерируем тригер - название анимации исходя из положения нашего персонажа и его действия
 			// todo некоторые анимации не нужно запускать если существо только добавлено (например смерти тк умерло оно может уже давно а карта только загрузилась)
-			if (recive.action != null)
+			if (recive.action != null && recive.action != ConnectController.ACTION_REMOVE)
 			{
-				if (animator != null && recive.action != ConnectController.ACTION_REMOVE)
-				{
-					int layerIndex = animator.GetLayerIndex(recive.action);
-					if (layerIndex == -1)
-					{
-						LogWarning("Положение без группы-слоя анимации ");
-					}
-					else
-					{
-					//	LogWarning(DateTime.Now.Millisecond + " " + key + ": " + recive.action + " с " + action);
-						Animate(animator, layerIndex);
-					}
-				}
+				// 1) legacy multi-layer controller (PlayerController.controller): слой по имени action.
+				// 2) Universal-overlay (1 слой + триггеры): нет одноимённого layer'а → PlayAction
+				//    сам решит Spriter→Universal trigger по имени action.
+				int layerIndex = animator != null ? animator.GetLayerIndex(recive.action) : -1;
+				if (layerIndex >= 0)
+					Animate(animator, layerIndex);
+				else
+					PlayAction(recive.action);
 			}
 		}
 

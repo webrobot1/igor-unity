@@ -393,10 +393,17 @@ namespace Mmogick
 				}
 			}
 
-			// 2) Universal Animator — fallback
+			// 2) Universal Animator — fallback. Только если controller имеет одноимённый Trigger-параметр
+			// (иначе SetTrigger спамит "Parameter does not exist"). Список параметров Universal —
+			// remove, dead, ... (расширяется по мере добавления универсальных эффектов).
 			var unityAnim = GetComponent<Animator>();
 			if (unityAnim != null && unityAnim.runtimeAnimatorController != null)
 			{
+				bool hasTrigger = false;
+				foreach (var p in unityAnim.parameters)
+					if (p.type == AnimatorControllerParameterType.Trigger && p.name == actionName) { hasTrigger = true; break; }
+				if (!hasTrigger) return false;
+
 				// Image-prefab'ы держат Animator выключенным после init — иначе он перехватывает SR.sprite
 				// и item-объекты рендерятся пустыми. Включаем здесь, перед SetTrigger.
 				if (!unityAnim.enabled) unityAnim.enabled = true;

@@ -42,7 +42,7 @@ namespace Mmogick
                 // Иконка из серверной library (image-prefab). Для animation-prefab
                 // GetPrefabSprite вернёт null — UI пока показывает unknow (Spriter-вариант
                 // через World-Space мини-Canvas — отдельный TODO).
-                image.sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, value) ?? Resources.Load<Sprite>("Sprites/unknow");
+                image.sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, value) ?? Resources.Load<Sprite>("unknow");
             }
         }
 

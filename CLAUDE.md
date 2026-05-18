@@ -43,7 +43,7 @@ Errro() - что то типа безопсного exception , что в сле
 Анимации сущностей идут двумя слоями, сосуществующими на одном GameObject:
 
 - **Per-prefab Spriter (SCML с сервера)** — индивидуальные анимации (`idle`, `walk`, `attack`, `hurt`, `dead`). Компонент `SpriterDotNetBehaviour`, кеш — [AnimationCacheService](Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs).
-- **Универсальные эффекты в Unity-Animator** — общие декораторы поверх любой сущности. Сейчас покрыт только `remove` (Puff-кадры при удалении). Файлы: [Universal.controller](Assets/Resources/Animations/Universal.controller), [Universal/Remove/*.anim](Assets/Animations/Universal/Remove/), кадры — [Sprites/Entitys/Objects/Spells/Effects/Puff*.png](Assets/Sprites/Entitys/Objects/Spells/Effects/).
+- **Универсальные эффекты в Unity-Animator** — общие декораторы поверх любой сущности. Сейчас покрыты `remove` (Puff-кадры) и `dead` (силуэты тела). Файлы: [Universal.controller](Assets/Resources/Animations/Universal.controller), [Universal/Remove/*.anim](Assets/Animations/Universal/Remove/) + [Universal/Dead/*.anim](Assets/Animations/Universal/Dead/), кадры — [Sprites/Entitys/Remove/Puff*.png](Assets/Sprites/Entitys/Remove/) и [Sprites/Entitys/Dead/dead*.png](Assets/Sprites/Entitys/Dead/). Спрайты универсальных эффектов кладутся в `Sprites/Entitys/<ActionName>/` симметрично .anim-файлам.
 
 **Universal.controller**: 1 слой, параметры `direction` (Int 0..3, 0=down, 1=left, 2=right, 3=up) и `remove` (Trigger). AnyState→`remove_{down,left,right,up}` по `remove If 0` + `direction Equals N`. Возврат в `Idle` (motion=null) по `hasExitTime=true,exitTime=1`. **`writeDefaults=false` обязательно** на всех state'ах — иначе при transition в Idle Animator сбрасывает `SpriteRenderer.m_Sprite` в default и сущность мелькает «пустым» спрайтом перед уничтожением.
 
@@ -62,7 +62,7 @@ Errro() - что то типа безопсного exception , что в сле
 **ObjectModel.Forward setter**: `Animator.SetFloat("x"/"y")` только под guard'ом `_hasParamX`/`_hasParamY` (заполняется в `RebuildTriggersCache`). Без guard'а Universal.controller спамил бы `Parameter 'x' does not exist`.
 
 **Чего НЕ делать**:
-- Не удалять Puff'и в [Sprites/Entitys/Objects/Spells/Effects/](Assets/Sprites/Entitys/Objects/Spells/Effects/) — Universal/Remove/*.anim ссылается на них по GUID.
+- Не удалять [Sprites/Entitys/Remove/Puff*.png](Assets/Sprites/Entitys/Remove/) и [Sprites/Entitys/Dead/dead*.png](Assets/Sprites/Entitys/Dead/) — Universal/{Remove,Dead}/*.anim ссылается на них по GUID.
 - Не возвращать `DestroyImmediate(Animator)` в Spriter/image-init — это убьёт Universal-overlay.
 - Не выключать `writeDefaults=false` в Universal.controller state'ах.
 - Если расширяешь Universal-fallback на НЕ-удаляющие action'ы (hurt-flash и т.п.) — нужно дописать восстановление SR детей Spriter'а после эффекта; сейчас они выключаются безвозвратно, потому что после remove GameObject всё равно уничтожается.
