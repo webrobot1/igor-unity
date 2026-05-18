@@ -35,6 +35,13 @@ namespace Mmogick
 		[Newtonsoft.Json.JsonProperty("idle")]
 		public string idle_action;
 
+		// Game-level справочник всех slot-slug-ов экипировки разрешённых в этой игре (head/chest/hand_r/...).
+		// Подмножество User.equipmentSlot, выбранное в админке. Значение Dictionary всегда true — формат
+		// (slug → true) выбран чтобы Newtonsoft не путал с массивом при сериализации.
+		// Применение: рисование ячеек инвентаря; валидация что prefab.equipable_slot (из /prefabs)
+		// и AEOS.slot (из /animations/{id}.object_slot) лежат в этом наборе.
+		public System.Collections.Generic.Dictionary<string, bool> equipment_slot;
+
 		/// <summary>
 		/// возможные ошибки (если не пусто - произойдет разъединение, но где быстрее - в клиенте или на сервере сказать сложно)
 		/// </summary>

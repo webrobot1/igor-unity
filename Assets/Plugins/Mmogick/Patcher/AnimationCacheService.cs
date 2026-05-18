@@ -88,6 +88,15 @@ namespace Mmogick
 			public bool h_mirror;
 			public string image;
 
+			/// <summary>
+			/// Slot-slug-и из Game.equipmentSlot куда этот prefab может быть надет (item-prefab → [hand_r, hand_l] и т.п.).
+			/// Пустой список = не экипируемый prefab. Применение: при экипировке клиент пересекает этот список
+			/// с object_slot носителя (из /animations/{id}) → находит anchor для отрисовки.
+			/// Item может быть с анимацией или со статичной картинкой (поле image), но всегда с какой-то графикой —
+			/// prefab без графики экипируемым быть не должен (иначе клиент рисует unknown-спрайт).
+			/// </summary>
+			public System.Collections.Generic.List<string> equipable_slot;
+
 			public bool IsImage => !string.IsNullOrEmpty(image);
 		}
 
@@ -110,6 +119,27 @@ namespace Mmogick
 		private class StructureResponse
 		{
 			public string data;  // base64(gzip(xml))
+
+			// Anchor-карта slot-slug-ов экипировки на каждом скелете этой Animation:
+			//   entity_name → slot_slug → {object, slot, offsetX, offsetY, angle, scale}
+			// где object — id кости/спрайта в SCML куда крепить, остальные поля — позиционирование относительно неё.
+			// Per-AnimationEntity (один и тот же slug, напр. hand_r, на разных скелетах сидит в разных object-координатах).
+			// Кеш-инвалидация на сервере: AnimationEntityObjectSlot бампает Animation.updated
+			// через #[ORM\HasLifecycleCallbacks]::bumpAnimationUpdated → /animations listing показывает свежий updated.
+			// Применение: prefab.equipable_slot (из /prefabs) ∩ object_slot носителя → anchor для рендера экипированного prefab.
+			public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>> object_slot;
+		}
+
+		[Serializable]
+		public class ObjectSlotEntry
+		{
+			[Newtonsoft.Json.JsonProperty("object")]
+			public int objectId;  // id кости/спрайта в SCML — anchor на скелете
+			public string slot;
+			public float offsetX;
+			public float offsetY;
+			public float angle;
+			public float scale;
 		}
 
 		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx)
@@ -146,6 +176,10 @@ namespace Mmogick
 
 		private static string ImagesPath(int gameId)          => Path.Combine(AnimationsPath(gameId), IMAGES_DIR);
 		private static string StructPath(int gameId)          => Path.Combine(AnimationsPath(gameId), STRUCT_DIR);
+		// Sidecar к {animationId}.xml: object_slot из /animations/{id} (per-AnimationEntity anchor-карта).
+		// Лежит в той же папке STRUCT_DIR — инвалидируется ResetCache (Directory.Delete) и удаляется
+		// синхронно с .xml при serverVersions delta (см. SyncAll).
+		private static string SlotsFile(int gameId, int animationId) => Path.Combine(StructPath(gameId), animationId + ".slots.json");
 		private static string ManifestPath(int gameId)        => Path.Combine(AnimationsPath(gameId), MANIFEST_FILE);
 		private static string LibraryPath(int gameId)         => Path.Combine(AnimationsPath(gameId), LIBRARY_FILE);
 		private static string FilesPath(int gameId)           => Path.Combine(AnimationsPath(gameId), FILES_FILE);
@@ -300,6 +334,8 @@ namespace Mmogick
 				_manifest.animation_versions.Remove(id);
 				string structFile = Path.Combine(StructPath(gameId), id + ".xml");
 				if (File.Exists(structFile)) File.Delete(structFile);
+				string slotsFile = SlotsFile(gameId, id);
+				if (File.Exists(slotsFile)) File.Delete(slotsFile);
 			}
 
 			Debug.Log("AnimationCache: delta " + delta.Count + " анимаций, удалено " + toRemove.Count);
@@ -318,6 +354,11 @@ namespace Mmogick
 				bool inDelta = delta.Contains(animationId);
 				if (!inDelta && File.Exists(structFile)) continue;
 				if (inDelta && File.Exists(structFile)) File.Delete(structFile);
+				if (inDelta)
+				{
+					string slotsFile = SlotsFile(gameId, animationId);
+					if (File.Exists(slotsFile)) File.Delete(slotsFile);
+				}
 				yield return GetStructure(host, gameId, kv.Key, token, (xml, files, err) =>
 				{
 					if (err != null) onError?.Invoke(err);
@@ -594,6 +635,10 @@ namespace Mmogick
 			catch (Exception ex) { callback(null, null, "AnimationCache structure decode: " + ex.Message); yield break; }
 
 			File.WriteAllText(structFile, xml);
+			// Sidecar для object_slot — обновляется/удаляется синхронно со structFile (см. SyncAll/SlotsFile).
+			// Пишем всегда, даже если object_slot пустой/null, чтобы кеш-хит был детерминирован:
+			// «.xml есть → .slots.json тоже должен быть на диске».
+			File.WriteAllText(SlotsFile(gameId, animationId), JsonConvert.SerializeObject(wrapper.object_slot ?? new System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>()));
 			_manifest.animation_versions[animationId] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
@@ -601,6 +646,20 @@ namespace Mmogick
 
 			Debug.Log("AnimationCache: структура " + animationId + " скачана с сервера");
 			callback(xml, filesForAnim, null);
+		}
+
+		/// <summary>
+		/// Anchor-карта slot-slug-ов на скелете указанной Animation: entity_name → slot_slug → {objectId, offsetX, ...}.
+		/// Лежит в кеше sidecar-файлом рядом с {animationId}.xml. Возвращает null если кеша нет (анимация ещё не загружена
+		/// через GetStructure — клиент должен сначала закачать структуру). Пустой Dictionary = у скелета нет AEOS-привязок.
+		/// Применение (будущее): для экипировки prefab.equipable_slot ∩ object_slot носителя → anchor для рендера.
+		/// </summary>
+		public static System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>> GetObjectSlots(int gameId, int animationId)
+		{
+			string path = SlotsFile(gameId, animationId);
+			if (!File.Exists(path)) return null;
+			try { return JsonConvert.DeserializeObject<System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>(File.ReadAllText(path)); }
+			catch (Exception ex) { Debug.LogError("AnimationCache: чтение " + path + ": " + ex.Message); return null; }
 		}
 
 		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш
