@@ -171,6 +171,12 @@ namespace Mmogick
 				ConnectController.server_fps = data.fps;
 				ConnectController.entity_actions = data.entity_actions;
 
+				// equipment_slot — справочник slug-ов слотов экипировки игры. По контракту приходит непустой
+				// (см. SigninRecive.equipment_slot). UI рисует ровно эти ячейки.
+				if (data.equipment_slot == null || data.equipment_slot.Count == 0)
+					throw new System.Exception("Сервер не отдал поле 'equipment_slot' в /auth response (или оно пусто). По контракту обязательно.");
+				ConnectController.equipment_slot = data.equipment_slot;
+
 				ConnectController.Connect(data.host, data.token, data.key);
 
 				// asyncLoad.allowSceneActivation = true;

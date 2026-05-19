@@ -115,6 +115,19 @@ namespace Mmogick
 			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
 		}
 
+		// Список slot-slug-ов в которые prefab может быть экипирован (item-prefab → [hand_r, hand_l] и т.п.).
+		// Возвращает пустой список если prefab не экипируемый (или не в библиотеке). Контракт по _library
+		// тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception (для UX-greying-out
+		// тихий fallback опасен: пометит экипируемый item как «нельзя надеть» из-за гонки загрузки).
+		public static System.Collections.Generic.List<string> GetEquipableSlots(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetEquipableSlots вызван до SyncAll (_library == null). prefab=" + prefab);
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.equipable_slot == null)
+				return new System.Collections.Generic.List<string>();
+			return e.equipable_slot;
+		}
+
 		[Serializable]
 		private class StructureResponse
 		{

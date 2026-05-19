@@ -34,99 +34,102 @@ Lesson #15 Equipment UI, #16 Gear visuals, #17 Interactables/Chests, #14 Loot wi
 
 ## Этапы
 
-### Этап 1 — Player Equipment UI (Lesson #15.0–15.4) ← **СЕЙЧАС** [MEDIUM]
+### Этап 1 — Player Equipment UI (Lesson #15.0–15.4 + #16 ArmorType) ← **СЕЙЧАС** [MEDIUM]
 
-Параллель с **ActionBar** (Lesson #3.4) и **Inventory** (Lesson #11): UI на готовых серверных данных, отправка через стандартный WS-event mechanism. Серверная сторона уже частично готова (event-mechanism `ui/inventory/index` и `ui/actionbars/index` есть, аналогичный `ui/equip/index` добавляется как третий публичный event с той же структурой).
+Параллель с **ActionBar** (Lesson #3.4) и **Inventory** (Lesson #11): UI на готовых серверных данных, отправка через стандартный WS-event mechanism. Третий публичный event `ui/equip/index` добавляется по тому же паттерну что `ui/inventory/index` и `ui/actionbars/index`.
 
-**Зафиксировано — 11 слотов (Lesson #15):**
+#### Зафиксировано: 8 слотов (Lesson #16 `ArmorType` + Character panel из Lesson #15)
 
-`head`, `chest`, `legs`, `feet`, `hand_r`, `hand_l`, `gloves`, `belt`, `cloak`, `neck`, `ring`.
+В уроке `CharacterPanel.cs` ([Z:\var\www\html\lessons\RPG_16\RPG_16_3\RPG\Assets\Scripts\UIRelated\CharacterPanel.cs:13](Z:\var\www\html\lessons\RPG_16\RPG_16_3\RPG\Assets\Scripts\UIRelated\CharacterPanel.cs#L13)) ровно 8 `CharButton`: `head, shoulders, chest, hands, legs, feet, main, off`. Спрайты-плейсхолдеры лежат в [Z:\var\www\html\lessons\RPG_15\RPG_Part15_0\RPG\Assets\Sprites\Character panel\](Z:\var\www\html\lessons\RPG_15\RPG_Part15_0\RPG\Assets\Sprites\Character panel\) — берём оттуда `character_panel.png` (фон), `*_slot.png` (плейсхолдеры).
 
-Сервер должен ужать `Game.equipmentSlot` в админке до этих 11 — всё что не в этом списке убрать (выбрать чекбоксы в форме игры после готовности `shiny-enchanting-hamming.md`). UI-разметка окна Character panel — копируем из Lesson #15 (`RPG_15.rar` → Character.prefab), там уже есть позиции слотов вокруг силуэта.
+**Сопоставление: ячейка урока ↔ серверный slot-slug:**
 
-**Точки входа клиента (контракт — на стороне сервера зафиксирован):**
-
-Initial-load (HTTP, один раз перед коннектом WS):
-
-| Endpoint | Что отдаёт |
-|---|---|
-| `/auth` (SigninController.php) | `equipment_slot: Dictionary<slug, true>` — какие slug-и рисует UI |
-| `/animation/patch/{game}/{token}/prefabs` | per-prefab `equipable_slot: List<slug>` — в какие slot-ы можно надеть item |
-| `/animation/patch/{game}/{token}/animations/{id}` | `object_slot` — anchor-карта скелета (нужна только для Этапа 18) |
-
-Клиент → сервер (WS, public events):
-
-| Event | Payload | Назначение |
+| `ArmorType` (Lesson #16) | Спрайт-плейсхолдер (Lesson #15) | Серверный slug (`SigninRecive.equipment_slot`) |
 |---|---|---|
-| `ui/inventory/index` | `{inventory: {idx: {prefab, count, components?}, ...}}` | перестановка/добавление/удаление (партиал) |
-| **`ui/equip/index`** | `{items: {hand_l: 1, head: 3, ...}}` | надеть/снять (slug → inv_idx; `null` = снять) |
-| `ui/actionbars/index` | `{actionbars: {1: {kind, id}, ...}}` | хоткей-бар |
+| `Head` | `helmet_slot.png` | `head` |
+| `Shoulders` | `shoulder_slot.png` | `shoulder` |
+| `Chest` | `chest_slot.png` | `chest` |
+| `Hands` | `gloves_slot.png` | `gloves` |
+| `Legs` | `pants_slot.png` | `legs` |
+| `Feet` | `boots_slot.png` | `feet` |
+| `MainHand` | `staff_slot.png` | `hand_r` |
+| `Offhand` | `orb_slot.png` | `hand_l` |
 
-Сервер → клиент (WS, изменение компонентов через стандартный publish с `maxCompareLevel=2`, полная карта на каждое изменение):
+**Сервер ужимает `Game.equipmentSlot` в админке до этих 8 slug-ов** — всё что не в списке убирает чекбоксами после `shiny-enchanting-hamming.md`. UI рисует ячейки строго по `SigninRecive.equipment_slot`; если сервер пришлёт лишний slug — это нарушение контракта (падаем с `Error()`, см. CLAUDE.md).
 
-| Компонент | Когда меняется |
-|---|---|
-| `inventory` | подбор/дроп/перестановка |
-| `equip` | прямой `ui/equip/index` от клиента ИЛИ cascade из `inventory.php` ($slotMap → переставленный idx, drop → unequip) |
-| `actionbars` | прямой `ui/actionbars/index` ИЛИ cascade из inventory |
+UI-разметка окна (силуэт + 8 ячеек) — копируется из `RPG_16_3/RPG/Assets/Prefabs/UIPrefabs/CharacterPanel.prefab` (позиции `CharButton`-ов вокруг `character_panel.png`).
 
-Cascade-обновления приходят как обычная мутация компонента — клиенту **не нужно различать** «прямой апдейт» и «cascade от inventory», обработка одинаковая.
+#### Точки входа клиента (конкретно по коду release)
 
-**Что делаем на клиенте:**
+**1. Список slug-ов слотов для рисования ячеек** — `SigninRecive.equipment_slot` ([Assets/Plugins/Mmogick/Client/Struct/Recive/SigninRecive.cs:43](../Assets/Plugins/Mmogick/Client/Struct/Recive/SigninRecive.cs#L43)).
+- Приходит в `/auth` (HTTP) при логине, доставляется до клиента через `ConnectController` (там же где `idle_action`, `entity_actions` инжектятся в синглтоны).
+- `EquipmentController.Awake()` — подписаться на готовность `SigninRecive` (по образцу `InventoryController.Awake` ([Assets/Scripts/Controller/InventoryController.cs:32](../Assets/Scripts/Controller/InventoryController.cs#L32)) → ждать `inventorySlotArea`, `slotPrefab`, `itemPrefab` валидности). Достать `SigninRecive.equipment_slot`, проверить ровно 8 slug-ов = ожидаемому набору; иначе `Error("получено N слотов экипировки, ожидалось 8")`.
+- Инстанцировать 8 `EquipmentSlot` в фиксированный `equipmentSlotArea` префаба окна (позиции расставлены вручную в префабе, не через layout).
 
-1. **`EquipmentResponse`** ([Assets/Scripts/Struct/Response/EquipmentResponse.cs](../Assets/Scripts/Struct/Response/EquipmentResponse.cs)) — по образцу [InventoryResponse.cs](../Assets/Scripts/Struct/Response/InventoryResponse.cs):
+**2. Текущее состояние экипировки игрока** — компонент `equip` от сервера.
+- Новое поле в [Assets/Scripts/Struct/Recive/PlayerComponentsRecive.cs](../Assets/Scripts/Struct/Recive/PlayerComponentsRecive.cs):
+  ```csharp
+  public Dictionary<string, int?>? equip = null;  // slug → inventory_idx; null = слот пуст
+  ```
+- Обрабатывается в `EquipmentController.UpdateObject(map_id, key, recive, type)` — override от `InventoryController`-pattern ([Assets/Scripts/Controller/InventoryController.cs:65](../Assets/Scripts/Controller/InventoryController.cs#L65)). Если `key == player_key && recive.components.equip != null`:
+  - Для каждой пары `(slug, inv_idx)`:
+    - `inv_idx == null` → `_equipSlots[slug].Clear()`.
+    - `inv_idx != null` → достать item из `InventoryController.GetItemBySlot(inv_idx)` (уже есть static helper в [InventoryController.cs:150](../Assets/Scripts/Controller/InventoryController.cs#L150)) и установить иконку в `_equipSlots[slug]`. Не дублировать `Item`-объект — храним только sprite/count, потому что сам item остаётся в inventory (по контракту `inventory[N]` = тот же предмет, который "висит" в equip-slot).
+
+**3. Allowed-slot для item-prefab** — `prefab.equipable_slot` для UX-подсказки (greying-out при drag).
+- Источник: `AnimationCacheService._library[prefab].equipable_slot: List<string>` ([Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs:98](../Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs#L98)). Загружается в `/animation/patch/.../prefabs`.
+- Доступ из UI: добавить статический геттер `AnimationCacheService.GetEquipableSlots(int gameId, string prefab) → List<string>` (рядом с уже существующим `GetObjectSlots` на [строке 657](../Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs#L657)). gameId доступен через `Player.MyInstance.GameId` / синглтон с авторизацией.
+
+**4. Отправка изменений** — `EquipmentResponse` (новый), по образцу [InventoryResponse.cs:7-15](../Assets/Scripts/Struct/Response/InventoryResponse.cs):
    ```csharp
    public class EquipmentResponse : Response {
-       public Dictionary<string, int?> items = new();  // slug → inv_idx; null = снять
+       public Dictionary<string, int?> items = new();   // slug → inv_idx; null = снять
        public override string group => "ui/equip";
    }
    ```
+- Шлётся через тот же send-pipeline что `InventoryResponse` (метод `.Send()`, унаследованный от `Response`).
+- Партиально — только изменённые слоты в `items`; если drop sword из inv[1] в hand_r, payload = `{items: {hand_r: 1}}`. Сервер каскадом обнулит `inventory[1]` и пришлёт обновлённые `equip` + `inventory` компоненты.
 
-2. **`EquipmentRecive`** — структура для приёма компонента `equip` от сервера (slug → inv_idx). Регистрация в pipeline component-change для player.
+#### Тип компонента и точки вызова `EquipmentResponse.Send()`
 
-3. **`EquipmentController`** ([Assets/Scripts/Controller/EquipmentController.cs](../Assets/Scripts/Controller/EquipmentController.cs)) — аналог `InventoryController`:
-   - На авторизации читает `SigninRecive.equipment_slot` → инстанцирует 11 `EquipmentSlot` по фиксированным позициям префаба окна.
-   - Хранит маппинг `slug → EquipmentSlot`.
-   - На приём `equip`-компонента — синхронизирует слоты с инвентарём (показывает иконку item-а по `inv_idx`).
-   - На drop / click-to-equip — собирает `EquipmentResponse.items` (партиально, только изменения) и шлёт через стандартный send-pipeline.
+| Действие | Что собирается в `items` |
+|---|---|
+| Drop item из инвентаря в `EquipmentSlot` | `{slotSlug: source.SlotNum}` |
+| Drop экипированного предмета обратно в `SlotScript` инвентаря | `{slotSlug: null}` (сервер каскадом положит item в inventory) |
+| Click-to-equip из инвентаря (Lesson #15.2) | `{first_matching_empty_slug: this.SlotNum}` (matching = `slug ∈ prefab.equipable_slot`) |
+| Click-to-unequip (клик по предмету в `EquipmentSlot`) | `{slotSlug: null}` |
 
-4. **`EquipmentSlot : SlotScript`** ([Assets/Scripts/Classes/UI/Items/EquipmentSlot.cs](../Assets/Scripts/Classes/UI/Items/EquipmentSlot.cs)):
-   - Поле `string slotSlug` (`head`, `chest`, `hand_r`, …).
-   - Override drop-handler / `OnPointerClick`: при drop `MoveableObject` — отправить `ui/equip/index` с `{slotSlug: source_inv_idx}` (если drop из инвентаря) или `{slotSlug: null}` (если drag в инвентарь = снять).
-   - Текст-заглушка / иконка-плейсхолдер в пустом слоте (слаг или иконка категории — sprites из Lesson #15).
-   - **Greying-out**: при drag предмета над неподходящим слотом (`slotSlug ∉ item.prefab.equipable_slot`) — показать красную обводку. **НЕ блокируем отправку** — финальная валидация на сервере, локальная только для UX.
+#### Что НЕ делаем (по контракту сервера)
 
-5. **Окно `Equipment.prefab`** ([Assets/Resources/Prefabs/UI/Equipment.prefab](../Assets/Resources/Prefabs/UI/Equipment.prefab)):
-   - Силуэт персонажа в центре, 11 слотов вокруг по позициям из Lesson #15 Character panel.
-   - Toggle-кнопка hotkey `C` (как в lesson #15.0).
-   - CanvasGroup для open/close, BagButton в UI-баре.
+- ❌ Не валидировать `slot/equipable_slot/inventory_idx` локально перед отправкой — сервер сам режет невалидное (UI допустимо подсветить greying-out для UX, но **отправку не блокировать**).
+- ❌ Не различать «прямой апдейт» и «cascade от inventory» — обработка `equip`-component одинаковая (просто перерисовать слоты).
+- ❌ Не отправлять `ui/equip/index` в ответ на серверный update компонента `equip` (петля) — слушать только локальный drag/click.
+- ❌ Не делать render-overlay на скелете персонажа — это Этап 18 ([equipment-overlay.md](equipment-overlay.md)).
+- ❌ Не реализовывать локальный кеш экипированных Item-объектов — `inventory[N]` остаётся source-of-truth для предмета, equip-slot держит только ссылку (slot → inv_idx).
 
-6. **Click-to-equip** (Lesson #15.2) — на `SlotScript.OnPointerClick` инвентаря: если `CursorController.MyMoveable == null`, `_item != null`, `item.prefab.equipable_slot.Count > 0` — шлём `ui/equip/index` с `{first_matching_empty_slug: this.SlotNum}`. Иначе обычный drag.
+#### Зависимые серверные планы
 
-**Что НЕ нужно делать на клиенте (по контракту сервера):**
+- `Z:\root\.claude\plans\shiny-enchanting-hamming.md` (in-progress) — `equipableSlot` в форме админки + валидация slug-а в `Prefab`-сущности. **Через эту форму ужимаем `Game.equipmentSlot` до 8 slug-ов выше.**
+- `Z:\root\.claude\plans\sandbox-partitioned-hartmanis.md` (in-progress) — `Game.equipmentSlot` и `Prefab.equipableSlot` в sandbox-payload (нужно чтобы серверный триггер `equip`-компонента мог валидировать).
+- Серверный public event `ui/equip/index` + триггер компонента `equip` со slotMap-cascade в `inventory.php` — формулировка контракта дана пользователем, отдельного плана пока нет.
 
-- ❌ Не валидировать `slot/equipable_slot/inventory_idx` локально перед отправкой — сервер сам режет невалидное и пишет `Error()` (отключение клиента при баге). Можно только greying-out для UX.
-- ❌ Не различать «прямой апдейт» и «cascade от inventory» — обработка `equip`-component одинаковая.
-- ❌ Не отправлять `ui/equip/index` в ответ на cascade-апдейт от сервера (избежать infinity loop) — слушать только локальные drag/click.
-- ❌ Не реализовывать render-overlay на скелете персонажа — это Этап 18.
+#### Верификация
 
-**Зависимые серверные планы:**
-- `Z:\root\.claude\plans\shiny-enchanting-hamming.md` (in-progress) — `equipableSlot` в форме админки + унифицированная валидация slot-slug-а в `Prefab`-сущности. **Нужен чтобы ужать `Game.equipmentSlot` до 11 slug-ов через UI админки.**
-- `Z:\root\.claude\plans\sandbox-partitioned-hartmanis.md` (in-progress) — передача `Game.equipmentSlot` и `Prefab.equipableSlot` в sandbox-payload.
-- Серверный публичный event `ui/equip/index` + триггер компонента `equip` со slotMap-cascade в `inventory.php` — формулировка контракта зафиксирована, обсуждается отдельно.
+- `ws-command` → `ui/equip/index {items: {hand_r: 1}}` → в `ws-inbox` увидеть обновлённые компоненты `equip.hand_r=1` и `inventory[1]=null` (cascade).
+- Unity Play Mode: drag sword из инвентаря в слот hand_r → иконка sword в hand_r, слот 1 инвентаря пуст; обратный drag → sword возвращается.
+- Drag sword в неподходящий слот (head): локально подсветить красным, отправка идёт, сервер шлёт `Error()` → отключение клиента (это контракт — UI greying-out предотвращает в нормальном flow, но если игрок упорно тащит, сервер прав).
+- Через MCP Playwright админки убедиться, что `Game.equipmentSlot` ужат до 8 slug-ов и `prefab.equipable_slot` у item'ов соответствует.
 
-**Верификация:**
-- Через `ws-command` отправить `ui/equip/index {items: {hand_r: 1}}` — увидеть в `ws-inbox` обновлённый компонент `equip`.
-- Drag-drop sword из инвентаря в слот hand_r → сервер возвращает `equip.hand_r=N` и `inventory[N]=null`.
-- Drag-drop sword в неподходящий слот (head) → отправка идёт, сервер шлёт `Error()` → отключение (это ожидаемо в режиме «UI без локальной валидации»; finalize greying-out отменяет drag до отправки в продакшене).
+#### Файлы (создаются / правятся)
 
-**Файлы:**
-- `Assets/Scripts/Controller/EquipmentController.cs`
-- `Assets/Scripts/Classes/UI/Items/EquipmentSlot.cs`
-- `Assets/Scripts/Struct/Response/EquipmentResponse.cs`
-- `Assets/Scripts/Struct/Recive/EquipmentRecive.cs`
-- `Assets/Resources/Prefabs/UI/Equipment.prefab` (новый, разметка из `Z:\var\www\html\lessons\RPG_15.rar`)
-- `Assets/Scripts/Controller/InventoryController.cs` (click-to-equip)
+- `Assets/Scripts/Controller/EquipmentController.cs` *(новый, наследник от родителя `InventoryController` если удобно — общий `UpdateObject` pipeline; иначе самостоятельный класс)*
+- `Assets/Scripts/Classes/UI/Items/EquipmentSlot.cs` *(новый, наследник `SlotScript`)*
+- `Assets/Scripts/Struct/Response/EquipmentResponse.cs` *(новый)*
+- `Assets/Scripts/Struct/Recive/PlayerComponentsRecive.cs` *(добавить поле `equip`)*
+- `Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs` *(добавить статический геттер `GetEquipableSlots`)*
+- `Assets/Resources/Prefabs/UI/CharacterPanel.prefab` *(новый, разметка скопирована из `Z:\var\www\html\lessons\RPG_16\RPG_16_3\RPG\Assets\Prefabs\UIPrefabs\CharacterPanel.prefab`, спрайты — из RPG_15)*
+- `Assets/Resources/Sprites/UI/CharacterPanel/*.png` *(импортировать `character_panel.png`, `helmet_slot.png`, `shoulder_slot.png`, `chest_slot.png`, `gloves_slot.png`, `pants_slot.png`, `boots_slot.png`, `staff_slot.png`, `orb_slot.png` из урока)*
+- `Assets/Scripts/Controller/InventoryController.cs` *(click-to-equip в `SlotScript.OnPointerClick` либо отдельный handler)*
 
 ---
 

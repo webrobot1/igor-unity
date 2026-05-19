@@ -60,6 +60,14 @@ namespace Mmogick
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
+            HandlePointerClick(eventData);
+        }
+
+        // Точка переопределения для наследников (EquipmentSlot). Базовое поведение —
+        // взять предмет в курсор, если он не пуст и курсор пуст. Override может полностью
+        // изменить логику (например, сразу отправить equip-запрос для EquipmentSlot).
+        protected virtual void HandlePointerClick(PointerEventData eventData)
+        {
             if (CursorController.MyMoveable == null && _item != null)
                 CursorController.TakeMoveable(_item);
         }

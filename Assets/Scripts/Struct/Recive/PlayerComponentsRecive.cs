@@ -14,5 +14,9 @@ namespace Mmogick
 		public Dictionary<string, bool>? spellBook = null;
 		public Dictionary<int, ActionBarsRecive?>? actionbars = null;
 		public Dictionary<int, InventorySlotRecive>? inventory = null;
+
+		// Текущая экипировка игрока: slot_slug → inventory_idx. null-значение в map = слот пуст.
+		// Сервер шлёт null (а не пустой объект) когда никакой экипировки нет — см. components/equip.php.
+		public Dictionary<string, int?>? equip = null;
 	}
 }

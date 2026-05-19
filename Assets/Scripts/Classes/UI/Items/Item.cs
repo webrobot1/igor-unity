@@ -70,6 +70,18 @@ namespace Mmogick
 
                 InventoryController.SendIfDirty();
             }
+            // Дроп на equipment-слот: отправляем ui/equip/index, не двигаем item локально
+            // (item остаётся в inventory[SlotNum], серверный cascade обновит equip-компонент).
+            else if (obj != null && obj.GetComponentInParent<EquipmentSlot>())
+            {
+                EquipmentSlot equipSlot = obj.GetComponentInParent<EquipmentSlot>();
+                if (SlotNum > 0)
+                {
+                    EquipmentResponse response = new EquipmentResponse();
+                    response.items[equipSlot.SlotSlug] = SlotNum;
+                    response.Send();
+                }
+            }
             // Дроп на слот инвентаря
             else if (obj != null && obj.GetComponentInParent<SlotScript>())
             {

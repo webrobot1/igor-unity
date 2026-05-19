@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Mmogick
 {
-    abstract public class ActionBarsController : InventoryController
+    abstract public class ActionBarsController : EquipmentController
     {
         [Header("Для работы с меню быстрого доступа")]
 

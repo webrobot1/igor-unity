@@ -92,6 +92,12 @@ namespace Mmogick
 		public static string idle_action;
 
 		/// <summary>
+		/// Game-level список slug-ов слотов экипировки, приходит в /auth. Используется UI экипировки
+		/// для рисования ровно этих ячеек. Контракт: непустое (хотя бы один slug). Установка — в SigninController.LoadMain.
+		/// </summary>
+		public static Dictionary<string, bool> equipment_slot;
+
+		/// <summary>
 		/// поулченный хост для нового соединения
 		/// </summary>
 		private static string host;
