@@ -46,11 +46,10 @@ namespace Mmogick
             }
             else if (CursorController.MyMoveable == null && Item != null)
             {
-                // Unequip: явно шлём {slotSlug: null}. Item остаётся в inventory[idx] — exclude
-                // только привязку к equip-слоту. Cascade от сервера обнулит UI этого слота.
-                EquipmentResponse response = new EquipmentResponse();
-                response.items[slotSlug] = null;
-                response.Send();
+                // Берём экипированный item в курсор для перетаскивания. Реальный unequip пойдёт
+                // когда положат куда-то: drop в инвентарь → серверный cascade из inventory.php
+                // обнулит equip.<slot>; drop в другой equip-slot → ui/equip/index с новым slug.
+                CursorController.TakeMoveable(Item);
             }
         }
     }

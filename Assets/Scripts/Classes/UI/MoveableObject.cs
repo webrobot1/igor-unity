@@ -82,6 +82,11 @@ namespace Mmogick
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
+            // Защита от двойного взятия: если в курсоре уже что-то — игнорируем, иначе старый
+            // moveable теряется без места (был баг "при взятии apple пропадал меч").
+            // Перенос предыдущего в этот слот делает CursorController.Update через Use().
+            if (CursorController.MyMoveable != null)
+                return;
             CursorController.TakeMoveable(this);
         }
 

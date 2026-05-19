@@ -28,6 +28,10 @@ namespace Mmogick
 
         private Dictionary<string, EquipmentSlot> _equipSlots;
 
+        // Сверку UI vs ConnectController.equipment_slot делаем не в Awake (он срабатывает при LoadSceneAsync
+        // ДО того как SigninController.LoadMain установит equipment_slot), а на первом UpdateObject с компонентом equip.
+        private bool _serverChecked;
+
         protected override void Awake()
         {
             base.Awake();
@@ -35,15 +39,6 @@ namespace Mmogick
             if (equipmentSlotArea == null)
             {
                 Error("не указан Transform контейнер для слотов экипировки");
-                return;
-            }
-
-            // ConnectController.equipment_slot устанавливается в SigninController.LoadMain ДО загрузки
-            // MainScene и Awake любых UI-контроллеров. Если здесь null — значит загрузка пошла мимо
-            // signin (например, ручной запуск MainScene в редакторе) — падаем явно.
-            if (ConnectController.equipment_slot == null)
-            {
-                Error("ConnectController.equipment_slot не инициализирован — пройдите авторизацию через RegisterScene");
                 return;
             }
 
@@ -70,23 +65,6 @@ namespace Mmogick
 
                 _equipSlots[slot.SlotSlug] = slot;
             }
-
-            // Сверка с серверным списком: UI должен покрывать ровно те slug-и что разрешены в игре.
-            // Если расходится — это рассинхрон конфигурации (config.yaml vs Equipment.prefab) и UI
-            // экипировки гарантированно сломается. Падаем громко, чтобы это нашли при первом запуске.
-            foreach (var kv in ConnectController.equipment_slot)
-                if (!_equipSlots.ContainsKey(kv.Key))
-                {
-                    Error("В UI экипировки нет слота для slug '" + kv.Key + "' (есть на сервере, нет в Equipment.prefab)");
-                    return;
-                }
-
-            foreach (var slug in _equipSlots.Keys)
-                if (!ConnectController.equipment_slot.ContainsKey(slug))
-                {
-                    Error("В UI экипировки есть слот '" + slug + "' который сервер не присылает в equipment_slot");
-                    return;
-                }
         }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
@@ -101,6 +79,30 @@ namespace Mmogick
 
                 if (equip != null)
                 {
+                    // Первая сверка UI vs server. Делаем здесь (а не в Awake), потому что Awake срабатывает
+                    // при LoadSceneAsync ДО того как SigninController.LoadMain установит equipment_slot.
+                    if (!_serverChecked)
+                    {
+                        if (ConnectController.equipment_slot == null)
+                        {
+                            Error("ConnectController.equipment_slot не инициализирован к моменту первого equip-компонента");
+                            return null;
+                        }
+                        foreach (var kv in ConnectController.equipment_slot)
+                            if (!_equipSlots.ContainsKey(kv.Key))
+                            {
+                                Error("В UI экипировки нет слота для slug '" + kv.Key + "' (есть на сервере, нет в Equipment-prefab)");
+                                return null;
+                            }
+                        foreach (var slug in _equipSlots.Keys)
+                            if (!ConnectController.equipment_slot.ContainsKey(slug))
+                            {
+                                Error("В UI экипировки есть слот '" + slug + "' которого нет в server equipment_slot");
+                                return null;
+                            }
+                        _serverChecked = true;
+                    }
+
                     foreach (var pair in equip)
                     {
                         if (!_equipSlots.TryGetValue(pair.Key, out EquipmentSlot slotUI))

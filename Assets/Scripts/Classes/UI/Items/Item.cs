@@ -39,6 +39,9 @@ namespace Mmogick
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
+            // Защита от двойного взятия (см. MoveableObject).
+            if (CursorController.MyMoveable != null)
+                return;
             CursorController.TakeMoveable(this);
         }
 
