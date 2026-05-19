@@ -94,47 +94,47 @@ namespace Mmogick
                     if (value != null)
                     {
                         var localSr = GetComponent<SpriteRenderer>();
+                        var srcSpriter = value.GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
 
-                        // value.animator.enabled == false когда цель использует Spriter
-                        // (NewSpriterRuntimeImporter.CreateSpriter выключает legacy Animator и корневой SpriteRenderer).
-                        if (value.animator != null && value.animator.enabled)
+                        // Spriter имеет приоритет над Animator: у Spriter-сущностей теперь параллельно
+                        // живёт Universal Animator (для overlay-эффектов remove/dead), и его animator.enabled==true.
+                        // Раньше код полагал «Spriter ⇒ animator.enabled==false» и попадал в Animator-ветку
+                        // с пустой Idle-state → TargetFrame оставался чёрным (Universal.controller idle = null motion).
+                        if (srcSpriter != null && srcSpriter.SpriterData != null)
                         {
+                            animator.runtimeAnimatorController = null;
+                            _layerIndex = value.CurrentAnimationIndex;
+
+                            // Зеркалим Spriter-анимацию в target-UI, чтобы face_camera снимала её вживую.
+                            // SpriteRenderer оставляем с корневым fallback-спрайтом (его bounds нужны CameraUpdate),
+                            // но рендер выключаем — показывать будут Spriter-дети.
+                            SpriteRenderer srcFallbackSr = value.GetComponentInChildren<SpriteRenderer>(true);
+                            if (localSr != null)
+                            {
+                                if (srcFallbackSr != null && srcFallbackSr.sprite != null)
+                                    localSr.sprite = srcFallbackSr.sprite;
+                                localSr.enabled = false;
+                            }
+                            NewSpriterRuntimeImporter.MirrorFromSource(srcSpriter, gameObject);
+                        }
+                        else if (value.animator != null && value.animator.enabled)
+                        {
+                            // Animator без Spriter — legacy путь (PlayerController.controller с blend-tree и т.п.).
                             if (localSr != null) localSr.enabled = true;
                             animator.runtimeAnimatorController = value.animator.runtimeAnimatorController;
                             Animate();
                         }
                         else
                         {
+                            // Статичный фолбэк для не-анимированных целей.
                             animator.runtimeAnimatorController = null;
-                            // чтобы FixedUpdate не кинул Animate() из-за рассинхрона слоя
                             _layerIndex = value.CurrentAnimationIndex;
-
-                            var srcSpriter = value.GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
-                            if (srcSpriter != null && srcSpriter.SpriterData != null)
-                            {
-                                // Зеркалим Spriter-анимацию в target-UI, чтобы face_camera снимала её вживую.
-                                // SpriteRenderer оставляем с последним корневым fallback-спрайтом (его bounds нужны CameraUpdate),
-                                // но рендер выключаем — показывать будут Spriter-дети.
-                                // SR у сущности теперь в child "Sprites" (UpdateController заворачивает его туда при спавне).
-                                SpriteRenderer srcFallbackSr = value.GetComponentInChildren<SpriteRenderer>(true);
-                                if (localSr != null)
-                                {
-                                    if (srcFallbackSr != null && srcFallbackSr.sprite != null)
-                                        localSr.sprite = srcFallbackSr.sprite;
-                                    localSr.enabled = false;
-                                }
-                                NewSpriterRuntimeImporter.MirrorFromSource(srcSpriter, gameObject);
-                            }
-                            else
-                            {
-                                // Статичный фолбэк для не-анимированных целей.
-                                if (localSr != null) localSr.enabled = true;
-                                SpriteRenderer spriteRender = value.GetComponentInChildren<SpriteRenderer>(true);
-                                if (spriteRender == null)
-                                    PlayerController.Error("На выбранном объекте налюдения присутвует колайдер но отсутвует Animator и SpriteRenderer");
-                                if (localSr != null)
-                                    localSr.sprite = spriteRender != null ? spriteRender.sprite : null;
-                            }
+                            if (localSr != null) localSr.enabled = true;
+                            SpriteRenderer spriteRender = value.GetComponentInChildren<SpriteRenderer>(true);
+                            if (spriteRender == null)
+                                PlayerController.Error("На выбранном объекте налюдения присутвует колайдер но отсутвует Animator и SpriteRenderer");
+                            if (localSr != null)
+                                localSr.sprite = spriteRender != null ? spriteRender.sprite : null;
                         }
 
                         EnemyModel enemyValue = value as EnemyModel;
@@ -248,6 +248,12 @@ namespace Mmogick
 
             // Non-Spriter (статичный fallback-спрайт, warrior для player, unknow для объектов без scml):
             // формула ниже сместит изображение выделелнного предмета так что бы оно оставалось в центре (смещаться будет если pivot отличается от (0.5, 0.5) )
+            // Guard: у Target может вообще не быть SpriteRenderer (например когда server-side prefab не
+            // определён в library — visual не создан). NRE в FixedUpdate каждый кадр блокирует HP-update
+            // ниже по методу, выглядит как "HP не двигается". Молча выходим — frame пустой, HP не обновится
+            // в этом кадре (по дизайну: рендерить нечего), но цепочка не валится.
+            if (spriteRender == null || spriteRender.sprite == null)
+                return;
             Bounds bounds = spriteRender.sprite.bounds;
             Vector2 vector = new Vector2(-bounds.center.x / bounds.extents.x / 2, -bounds.center.y / bounds.extents.y / 2);
             transform.localPosition = new Vector3(vector.x * (spriteRender.sprite.rect.size.x / spriteRender.sprite.pixelsPerUnit) * transform.localScale.y, vector.y * (spriteRender.sprite.rect.size.y / spriteRender.sprite.pixelsPerUnit) * transform.localScale.y, 1);
