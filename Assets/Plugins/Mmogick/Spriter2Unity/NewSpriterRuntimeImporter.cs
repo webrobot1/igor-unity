@@ -279,6 +279,13 @@ namespace Mmogick
             SpriterDotNetBehaviour behaviour = go.AddComponent<SpriterDotNetBehaviour>();
             SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, entityName, behaviour, gameId);
 
+            // Spriter управляет направлением через смену clip + flip по X, а не через transform.rotation.
+            // Но если первый forward-пакет от сервера пришёл ДО завершения асинхронной загрузки SCML
+            // (AnimationPatcher.Get), EntityModel.SetData попадает в ветку «нет Spriter → крутим transform»
+            // и накручивает rotation. После этого Spriter привязался, future forward'ы поворот уже не
+            // трогают — он залипает (визуально enemy лежит на боку). Сбрасываем здесь явно.
+            go.transform.rotation = Quaternion.identity;
+
             GameObject sprites = new GameObject(ObjectNameSprites);
             GameObject metadata = new GameObject(ObjectNameMetadata);
 

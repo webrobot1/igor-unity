@@ -80,6 +80,13 @@ namespace Mmogick
                 EquipmentSlot equipSlot = obj.GetComponentInParent<EquipmentSlot>();
                 if (SlotNum > 0)
                 {
+                    // Клиентская валидация: prefab.equipable_slot должен содержать целевой slug.
+                    // Иначе сервер throws Error и отключает клиента (контракт компонента equip).
+                    // Это не локальная валидация в обход сервера, а UX-защита от disconnect'а.
+                    var allowed = AnimationCacheService.GetEquipableSlots(Prefab);
+                    if (allowed == null || !allowed.Contains(equipSlot.SlotSlug))
+                        return;
+
                     EquipmentResponse response = new EquipmentResponse();
                     response.items[equipSlot.SlotSlug] = SlotNum;
                     response.Send();

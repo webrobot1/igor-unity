@@ -36,6 +36,12 @@ namespace Mmogick
                 // Контракт ui/equip/index требует inventory_idx > 0 (item должен лежать в инвентаре).
                 if (dragging.SlotNum > 0)
                 {
+                    // Клиентская валидация: prefab.equipable_slot должен содержать этот slug.
+                    // Иначе сервер throws Error и дисконнектит клиента — защищаем UX.
+                    var allowed = AnimationCacheService.GetEquipableSlots(dragging.Prefab);
+                    if (allowed == null || !allowed.Contains(slotSlug))
+                        return;
+
                     EquipmentResponse response = new EquipmentResponse();
                     response.items[slotSlug] = dragging.SlotNum;
                     response.Send();
