@@ -77,6 +77,10 @@ namespace Mmogick
             {
                 Dictionary<string, int?> equip = ((PlayerRecive)recive).components.equip;
 
+                // Контракт сервера (см. base/components/equip.yaml):
+                //   equip == null         — поля equip нет в delta = no-op (экипировку не трогать);
+                //   equip.Count == 0      — full-clear (сервер прислал JSON `[]`, конвертер дал пустой Dictionary);
+                //   equip.Count > 0       — per-key delta (null значение = unequip slot, int = equip slot).
                 if (equip != null)
                 {
                     // Первая сверка UI vs server. Делаем здесь (а не в Awake), потому что Awake срабатывает
@@ -103,41 +107,42 @@ namespace Mmogick
                         _serverChecked = true;
                     }
 
-                    foreach (var pair in equip)
+                    if (equip.Count == 0)
                     {
-                        if (!_equipSlots.TryGetValue(pair.Key, out EquipmentSlot slotUI))
+                        // full-clear: снимаем все слоты разом
+                        foreach (var slotUI in _equipSlots.Values)
+                            slotUI.Clear();
+                    }
+                    else
+                    {
+                        foreach (var pair in equip)
                         {
-                            Error("Сервер прислал equip для slot '" + pair.Key + "' которого нет в UI");
-                            return null;
-                        }
-
-                        slotUI.Clear();
-
-                        if (pair.Value.HasValue)
-                        {
-                            Item item = GetItemBySlot(pair.Value.Value);
-                            if (item == null)
+                            if (!_equipSlots.TryGetValue(pair.Key, out EquipmentSlot slotUI))
                             {
-                                // По контракту сервер не должен слать equip[slot]=idx если inventory[idx] пуст.
-                                // Если такое пришло — рассинхрон, лог ошибки чтобы выловить серверный баг.
-                                Error("equip[" + pair.Key + "] = " + pair.Value.Value + ", но в inventory этого слота нет item");
+                                Error("Сервер прислал equip для slot '" + pair.Key + "' которого нет в UI");
                                 return null;
                             }
 
-                            // Передаём в SlotScript.SetItem ссылку на тот же Item (не дублируем).
-                            // count для экипировки всегда 1 (нельзя надеть стак); components прокидываем
-                            // те же что у источника в inventory — но у нас нет прямого доступа к ним
-                            // через GetItemBySlot. Для MVP передаём null — components на equip-слоте
-                            // не используются (нет drop'а в actionbar и т.п. с эконо-слота).
-                            slotUI.SetItem(item, 1, null);
+                            slotUI.Clear();
+
+                            if (pair.Value.HasValue)
+                            {
+                                Item item = GetItemBySlot(pair.Value.Value);
+                                if (item == null)
+                                {
+                                    // По контракту сервер не должен слать equip[slot]=idx если inventory[idx] пуст.
+                                    // Если такое пришло — рассинхрон, лог ошибки чтобы выловить серверный баг.
+                                    Error("equip[" + pair.Key + "] = " + pair.Value.Value + ", но в inventory этого слота нет item");
+                                    return null;
+                                }
+
+                                // Передаём в SlotScript.SetItem ссылку на тот же Item (не дублируем).
+                                // count и components опускаем — для экипировки default count=1 (без stack-текста),
+                                // а components на equip-слоте не используются (нет drop'а в actionbar с эконо-слота).
+                                slotUI.SetItem(item);
+                            }
                         }
                     }
-                }
-                else
-                {
-                    // equip = null → все слоты пустые
-                    foreach (var slot in _equipSlots.Values)
-                        slot.Clear();
                 }
             }
 

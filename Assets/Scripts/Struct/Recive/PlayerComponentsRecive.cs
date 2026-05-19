@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 #nullable enable
 
@@ -15,8 +16,13 @@ namespace Mmogick
 		public Dictionary<int, ActionBarsRecive?>? actionbars = null;
 		public Dictionary<int, InventorySlotRecive>? inventory = null;
 
-		// Текущая экипировка игрока: slot_slug → inventory_idx. null-значение в map = слот пуст.
-		// Сервер шлёт null (а не пустой объект) когда никакой экипировки нет — см. components/equip.php.
+		// Контракт сервера (см. base/components/equip.yaml):
+		//   null            — поле отсутствует в пакете, no-op (экипировку не трогать);
+		//   Count==0        — full-clear (сервер прислал JSON `[]`, конвертер маппит в пустой Dictionary);
+		//   Count>0         — per-key delta (null значение = unequip slot, int = inventory_idx).
+		// EmptyArrayAsDictionaryConverter нужен потому что стандартный Newtonsoft на `[]` для
+		// Dictionary падает с JsonSerializationException.
+		[JsonConverter(typeof(EmptyArrayAsDictionaryConverter<string, int?>))]
 		public Dictionary<string, int?>? equip = null;
 	}
 }

@@ -30,7 +30,9 @@ namespace Mmogick
             get { return _components; }
         }
 
-        public void SetItem(Item item, int count, Dictionary<string, string> components = null)
+        // count=1 по умолчанию — для экипировки на теле всегда «один экземпляр», stack-текст
+        // не показывается (count > 1 == false). В инвентаре вызываем с явным item.Count из сервера.
+        public void SetItem(Item item, int count = 1, Dictionary<string, string> components = null)
         {
             _item = item;
             _components = components;
@@ -51,6 +53,20 @@ namespace Mmogick
         {
             if (_item != null)
                 Destroy(_item.gameObject);
+            _item = null;
+            _components = null;
+            _icon.sprite = null;
+            _icon.color = new Color(1, 1, 1, 0);
+            _stackText.text = "";
+        }
+
+        // Отвязать слот от Item, НЕ уничтожая Item.gameObject. Нужно при локальном swap'е:
+        // Item переезжает в другой слот, старый Clear() в этой ситуации бы Destroy'ил _item.gameObject
+        // (т.к. _item ещё указывает на тот же Item), и новый слот оставался бы с ссылкой на destroyed-object —
+        // клики бы не работали до прихода ответа от сервера (см. Item.OnPointerClick — там _item == null
+        // для destroyed Unity object возвращает true и TakeMoveable не вызывается).
+        public void Detach()
+        {
             _item = null;
             _components = null;
             _icon.sprite = null;

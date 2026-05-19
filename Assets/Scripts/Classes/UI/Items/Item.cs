@@ -108,8 +108,10 @@ namespace Mmogick
 
                     if (displaced != null)
                     {
+                        // Detach (а не Drop) — displaced уезжает в курсор, его gameObject нужен живым.
+                        // LocalDrop бы Destroy'ил его, и TakeMoveable получил бы destroyed Unity object.
                         if (originalSlot > 0)
-                            InventoryController.LocalDrop(displaced.SlotNum);
+                            InventoryController.LocalDetach(displaced.SlotNum);
                         displaced.SlotNum = 0;
                         CursorController.TakeMoveable(displaced);
                     }

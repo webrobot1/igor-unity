@@ -154,7 +154,10 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Локальный swap двух слотов (без отправки на сервер)
+        /// Локальный swap двух слотов (без отправки на сервер).
+        /// Item.gameObject НЕ уничтожаются — они просто переходят к другому слоту.
+        /// (Destroy'ить нельзя: тот же Item-объект используется как ссылка из EquipmentSlot,
+        /// а ответ сервера сам пересоздаст все Item'ы через UpdateObject.)
         /// </summary>
         public static void LocalSwap(int fromSlot, int toSlot)
         {
@@ -171,22 +174,33 @@ namespace Mmogick
 
             _dirty = true;
 
-            // swap
+            // detach обоих, чтобы Clear не сработал в Destroy и не убил Item, который мы переносим
+            from.Detach();
+            to.Detach();
+
             if (fromItem != null)
             {
                 fromItem.SlotNum = toSlot;
                 to.SetItem(fromItem, fromItem.Count, fromComp);
             }
-            else
-                to.Clear();
 
             if (toItem != null)
             {
                 toItem.SlotNum = fromSlot;
                 from.SetItem(toItem, toItem.Count, toComp);
             }
-            else
-                from.Clear();
+        }
+
+        /// <summary>
+        /// Отвязать слот от Item без уничтожения Item.gameObject. Нужно когда предмет уезжает в курсор
+        /// (swap-with-displaced) — обычный LocalDrop в этом случае уничтожает Item ещё до того как
+        /// CursorController успеет взять его в TakeMoveable.
+        /// </summary>
+        public static void LocalDetach(int slotNum)
+        {
+            if (_slots == null) return;
+            _slots[slotNum - 1].Detach();
+            _dirty = true;
         }
 
         /// <summary>
