@@ -13,9 +13,11 @@ namespace Mmogick
     //     null/отсутствие = слот пуст. inventory_idx ссылается на тот же предмет что и в inventory[idx].
     //   - Отправка: EquipmentResponse {items: slot → idx; null = снять} → event "ui/equip/index".
     //
-    // Иконка экипированного item-а — копия из инвентаря (тот же sprite). НЕ создаём дублирующий
-    // Item-объект — это нарушит контракт «inventory остаётся source-of-truth». EquipmentSlot.SetItem
-    // принимает ссылку на тот же Item.
+    // Контракт «inventory остаётся source-of-truth» реализован через ярлык-pattern:
+    // EquipmentSlot хранит ТОЛЬКО inventory_idx (см. EquipmentSlot.SetInventorySlotNum), а sprite
+    // миррорится из inventory_slots[idx].Item в EquipmentSlot.Update каждый кадр (по аналогии
+    // с ActionBar). Это устраняет stale-ссылки на destroyed Item, когда InventoryController
+    // пересоздаёт slot-Item'ы через Clear+Instantiate в UpdateObject.
     abstract public class EquipmentController : InventoryController
     {
         [Header("Для работы с UI экипировки")]
@@ -123,23 +125,21 @@ namespace Mmogick
                                 return null;
                             }
 
-                            slotUI.Clear();
-
                             if (pair.Value.HasValue)
                             {
-                                Item item = GetItemBySlot(pair.Value.Value);
-                                if (item == null)
+                                // Валидация: сервер не должен слать equip[slot]=idx если inventory[idx] пуст.
+                                if (GetItemBySlot(pair.Value.Value) == null)
                                 {
-                                    // По контракту сервер не должен слать equip[slot]=idx если inventory[idx] пуст.
-                                    // Если такое пришло — рассинхрон, лог ошибки чтобы выловить серверный баг.
                                     Error("equip[" + pair.Key + "] = " + pair.Value.Value + ", но в inventory этого слота нет item");
                                     return null;
                                 }
 
-                                // Передаём в SlotScript.SetItem ссылку на тот же Item (не дублируем).
-                                // count и components опускаем — для экипировки default count=1 (без stack-текста),
-                                // а components на equip-слоте не используются (нет drop'а в actionbar с эконо-слота).
-                                slotUI.SetItem(item);
+                                // Ярлык на inventory_idx — sprite миррорится в EquipmentSlot.Update.
+                                slotUI.SetInventorySlotNum(pair.Value.Value);
+                            }
+                            else
+                            {
+                                slotUI.SetInventorySlotNum(0);
                             }
                         }
                     }

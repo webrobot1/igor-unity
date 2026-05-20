@@ -7,7 +7,9 @@ namespace Mmogick
 {
     public class SlotScript : MonoBehaviour, IPointerClickHandler
     {
-        [SerializeField] private Image _icon;
+        // protected — EquipmentSlot переиспользует тот же binding из Inspector
+        // (свой _icon-биндинг в prefab'е equipment-слота уже привязан к этому полю).
+        [SerializeField] protected Image _icon;
         [SerializeField] private Text _stackText;
 
         private Item _item;
@@ -20,7 +22,9 @@ namespace Mmogick
             set { _slotNum = value; }
         }
 
-        public Item Item
+        // virtual — EquipmentSlot переопределяет на чтение через InventoryController.GetItemBySlot,
+        // не храня собственную ссылку (ярлык-pattern: source-of-truth = inventory).
+        public virtual Item Item
         {
             get { return _item; }
         }
@@ -49,7 +53,9 @@ namespace Mmogick
             }
         }
 
-        public void Clear()
+        // virtual — EquipmentSlot переопределяет: там Item не свой, а ссылка на inventory,
+        // поэтому Destroy неуместен.
+        public virtual void Clear()
         {
             if (_item != null)
                 Destroy(_item.gameObject);
