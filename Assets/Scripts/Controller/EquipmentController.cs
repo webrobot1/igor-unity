@@ -28,7 +28,9 @@ namespace Mmogick
         [SerializeField]
         private Transform equipmentSlotArea;
 
-        private Dictionary<string, EquipmentSlot> _equipSlots;
+        // static — мирорит паттерн InventoryController._slots, чтобы CursorController.TakeMoveable
+        // мог из любого места включить подсветку совместимых слотов без поиска инстанса контроллера.
+        private static Dictionary<string, EquipmentSlot> _equipSlots;
 
         // Сверку UI vs ConnectController.equipment_slot делаем не в Awake (он срабатывает при LoadSceneAsync
         // ДО того как SigninController.LoadMain установит equipment_slot), а на первом UpdateObject с компонентом equip.
@@ -147,6 +149,30 @@ namespace Mmogick
             }
 
             return ret;
+        }
+
+        // Подсветить equipment-слоты, в которые можно положить этот item (по prefab.equipable_slot).
+        // Невалидные/несовместимые слоты гасятся (восстанавливают original-цвет рамки) — это позволяет
+        // безопасно звать метод с любым Item при «перехвате» курсора через chain-swap, не накапливая
+        // подсветку с предыдущего предмета.
+        public static void HighlightForItem(Item item)
+        {
+            if (_equipSlots == null)
+                return;
+
+            var allowed = item != null ? AnimationCacheService.GetEquipableSlots(item.Prefab) : null;
+
+            foreach (var kv in _equipSlots)
+                kv.Value.SetHighlighted(allowed != null && allowed.Contains(kv.Key));
+        }
+
+        public static void ClearHighlight()
+        {
+            if (_equipSlots == null)
+                return;
+
+            foreach (var slotUI in _equipSlots.Values)
+                slotUI.SetHighlighted(false);
         }
     }
 }

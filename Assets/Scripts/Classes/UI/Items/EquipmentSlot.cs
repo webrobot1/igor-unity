@@ -28,6 +28,15 @@ namespace Mmogick
         // 0 = пусто. Иначе индекс слота инвентаря (1-based).
         private int _inventorySlotNum;
 
+        // Подсветка совместимости с предметом в курсоре. Если _highlightImage не задан в Inspector —
+        // берём корневой Image (фон-рамка слота, см. CharacterSlot.prefab). Original-цвет лениво
+        // запоминаем в первый SetHighlighted чтобы не зависеть от порядка Awake'ов.
+        [SerializeField] private Image _highlightImage;
+        [SerializeField] private Color _highlightColor = new Color(1f, 0.92f, 0.4f, 1f);
+        private Image _resolvedHighlightImage;
+        private Color _originalHighlightColor;
+        private bool _hasOriginalHighlightColor;
+
         public string SlotSlug
         {
             get { return slotSlug; }
@@ -65,6 +74,25 @@ namespace Mmogick
             // Миррор каждый кадр — Item.gameObject может быть пересоздан inventory'ем и нам нужен
             // свежий sprite. По cost'у это копирование одного sprite-ref'а, дёшево.
             UpdateIcon();
+        }
+
+        // Включает/выключает подсветку рамки слота. Вызывается из EquipmentController при
+        // взятии/отпускании item'а в курсор. Идемпотентно — повторный SetHighlighted(true)
+        // не теряет original-цвет (запоминается один раз при первом вызове).
+        public void SetHighlighted(bool on)
+        {
+            if (_resolvedHighlightImage == null)
+                _resolvedHighlightImage = _highlightImage != null ? _highlightImage : GetComponent<Image>();
+            if (_resolvedHighlightImage == null)
+                return;
+
+            if (!_hasOriginalHighlightColor)
+            {
+                _originalHighlightColor = _resolvedHighlightImage.color;
+                _hasOriginalHighlightColor = true;
+            }
+
+            _resolvedHighlightImage.color = on ? _highlightColor : _originalHighlightColor;
         }
 
         private void UpdateIcon()
@@ -111,6 +139,7 @@ namespace Mmogick
 
                     // Отпускаем курсор — серверный cascade пришлёт обновления equip/inventory.
                     CursorController.MyMoveable = null;
+                    EquipmentController.ClearHighlight();
                 }
             }
             else if (CursorController.MyMoveable == null && Item != null)

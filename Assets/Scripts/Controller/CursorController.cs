@@ -134,6 +134,7 @@ namespace Mmogick
                     {
                         MyMoveable = null;
                         SourceEquipmentSlot = null;
+                        EquipmentController.ClearHighlight();
                         cursor.color = new Color(0, 0, 0, 0);
 
                         bool droppedOnInventorySlot = gameObject != null && gameObject.GetComponentInParent<SlotScript>() != null;
@@ -255,6 +256,11 @@ namespace Mmogick
             // Scale курсора = scale видимой иконки (1/serverSize). Если Icon=null — scale=1 от image.
             Image scaleSrc = moveable.Icon != null ? moveable.Icon : moveable.Image;
             MainController.Instance.cursor.transform.localScale = scaleSrc.transform.localScale;
+
+            // Подсветить совместимые equipment-слоты. Для не-Item moveable'ов очищаем подсветку,
+            // чтобы chain-swap с предмета на не-предмет (если когда-нибудь появится) не оставлял
+            // старую подсветку висящей.
+            EquipmentController.HighlightForItem(moveable as Item);
         }
     }
 }
