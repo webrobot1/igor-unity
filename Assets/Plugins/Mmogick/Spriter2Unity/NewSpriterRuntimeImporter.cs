@@ -191,13 +191,38 @@ namespace Mmogick
             if (em != null && cachedBehaviour != null && cachedBehaviour.Animator != null
                 && !string.IsNullOrEmpty(em.action) && !string.IsNullOrEmpty(em.prefab))
             {
-                string targetClip = AnimationCacheService.GetClipNameSimple(em.prefab, em.action, ConnectController.entity_actions) ?? em.action;
-                if (!string.IsNullOrEmpty(targetClip)
-                    && cachedBehaviour.Animator.HasAnimation(targetClip)
-                    && (cachedBehaviour.Animator.CurrentAnimation == null
-                        || cachedBehaviour.Animator.CurrentAnimation.Name != targetClip))
+                // GetClipName с учётом forward — иначе для action с направленными клипами берётся
+                // случайный угол из словаря (например walk→walk_right при Forward.x<0).
+                var (targetClip, flipX) = AnimationCacheService.GetClipName(
+                    em.prefab, em.action, em.Forward.x, em.Forward.y, ConnectController.entity_actions);
+                if (string.IsNullOrEmpty(targetClip) || !cachedBehaviour.Animator.HasAnimation(targetClip))
                 {
-                    cachedBehaviour.Animator.Play(targetClip);
+                    // action не настроен в entity_actions (ACTION_LOAD и т.п.) или clip отсутствует
+                    // в SCML — fallback на idle, иначе Spriter оставит первую анимацию SCML.
+                    var (idleClip, idleFlip) = AnimationCacheService.GetClipName(
+                        em.prefab, ConnectController.idle_action, em.Forward.x, em.Forward.y, ConnectController.entity_actions);
+                    if (!string.IsNullOrEmpty(idleClip) && cachedBehaviour.Animator.HasAnimation(idleClip))
+                    {
+                        targetClip = idleClip;
+                        flipX = idleFlip;
+                    }
+                    else targetClip = null;
+                }
+
+                if (!string.IsNullOrEmpty(targetClip))
+                {
+                    // localScale.x: симметрично EntityModel.SetData (object — без flip).
+                    if (em.type != "object")
+                    {
+                        Vector3 s = transform.localScale;
+                        transform.localScale = new Vector3(
+                            flipX ? -Mathf.Abs(s.x) : Mathf.Abs(s.x), s.y, s.z);
+                    }
+                    if (cachedBehaviour.Animator.CurrentAnimation == null
+                        || cachedBehaviour.Animator.CurrentAnimation.Name != targetClip)
+                    {
+                        cachedBehaviour.Animator.Play(targetClip);
+                    }
                 }
             }
 

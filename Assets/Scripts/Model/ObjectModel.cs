@@ -124,27 +124,39 @@ namespace Mmogick
 			// Ограничение: layer в Animator Controller должен называться так же, как ConnectController.idle_action —
 			// обычно "idle", но если сервер переименует, .controller'ы тоже надо будет переименовать.
 			string idleAction = ConnectController.idle_action;
-			if (
-				animator != null
-					&&
-				action != "dead"
-					&&
-				action != ConnectController.ACTION_REMOVE
-					&&
-				DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) < 1
-					&&
-				(animator.GetCurrentAnimatorStateInfo(_layerIndex).loop || animator.GetCurrentAnimatorStateInfo(_layerIndex).normalizedTime >= 1.0f)
-			)
+			if (action == "dead" || action == ConnectController.ACTION_REMOVE) return;
+			if (DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) >= 1) return;
+
+			// 1) Legacy multi-layer Animator (например PlayerController.controller со слоями по action).
+			if (animator != null
+				&& (animator.GetCurrentAnimatorStateInfo(_layerIndex).loop
+					|| animator.GetCurrentAnimatorStateInfo(_layerIndex).normalizedTime >= 1.0f))
 			{
 				string layer_name = animator.GetLayerName(_layerIndex);
-                if (layer_name != idleAction)
-                {
+				if (layer_name != idleAction)
+				{
 					int idx = animator.GetLayerIndex(idleAction);
-					if (idx < 0)
-						return;
-					Log("Анимация " + key + " с " + action + " на " + idleAction + " (таймаут)");
-					Animate(animator, idx);
+					if (idx >= 0)
+					{
+						Log("Анимация " + key + " с " + action + " на " + idleAction + " (таймаут)");
+						Animate(animator, idx);
+					}
 				}
+			}
+
+			// 2) Spriter (SCML): таймаут с последнего action-пакета от сервера — переключаем на idle.
+			// Проверку cur.Looping/Progress намеренно не делаем: SCML-контент часто помечает action'ы
+			// (Attack, Hurt) как Looping=true, и они зацикливаются вечно. Триггер для возврата в idle
+			// — только activeLast timeout (как у legacy multi-layer Animator выше).
+			var spriter = GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
+			var cur = spriter?.Animator?.CurrentAnimation;
+			if (cur != null && !string.IsNullOrEmpty(prefab)
+				&& AnimationCacheService.GetClipNameSimple(prefab, idleAction, ConnectController.entity_actions) is string idleClip
+				&& spriter.Animator.HasAnimation(idleClip)
+				&& cur.Name != idleClip)
+			{
+				Log("Spriter: " + key + " с " + cur.Name + " на " + idleClip + " (таймаут)");
+				PlayAction(idleAction);
 			}
 		}
 

@@ -116,6 +116,20 @@ namespace Mmogick
 							prefabName, recive.action, fwdX, fwdY, ConnectController.entity_actions);
 						if (clipName == null) { clipName = recive.action; flipX = false; }
 
+						// Action не имеет клипа в SCML (ACTION_LOAD, не настроенный action и т.п.) —
+						// fallback на idle_action, иначе SpriterDotNet оставит первую анимацию SCML
+						// (которая может быть какой угодно — у player'а это Attack).
+						if (!animator.Animator.HasAnimation(clipName))
+						{
+							var (idleClip, idleFlip) = AnimationCacheService.GetClipName(
+								prefabName, ConnectController.idle_action, fwdX, fwdY, ConnectController.entity_actions);
+							if (idleClip != null && animator.Animator.HasAnimation(idleClip))
+							{
+								clipName = idleClip;
+								flipX = idleFlip;
+							}
+						}
+
 						if (type != "object")
 						{
 							Vector3 s = transform.localScale;

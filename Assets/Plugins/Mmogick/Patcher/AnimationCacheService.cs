@@ -513,9 +513,10 @@ namespace Mmogick
 			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return (null, false);
 			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false);
 
-			// Единственный ключ "" = clip без направления (backward compat)
+			// Единственный ключ "" = clip без направления. Если h_mirror разрешён —
+			// зеркалим по X при взгляде влево; иначе клип статичен.
 			if (angleMap.Count == 1 && angleMap.ContainsKey(""))
-				return (angleMap[""], false);
+				return (angleMap[""], p.h_mirror && forwardX < 0);
 
 			float targetAngle = Mathf.Atan2(forwardY, forwardX) * Mathf.Rad2Deg;
 			if (targetAngle < 0) targetAngle += 360f;

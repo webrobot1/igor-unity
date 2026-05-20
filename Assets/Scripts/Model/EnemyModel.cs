@@ -105,12 +105,37 @@ namespace Mmogick
 
 		protected virtual void Dead()
         {
-			
-        }		
-		
+
+        }
+
 		protected virtual void Resurrect()
         {
-			
+
+		}
+
+		// Применяет альфу ко ВСЕМ SpriteRenderer'ам под сущностью (включая Spriter-детей).
+		// Кеш в Awake недопустим: wrap/Spriter могут пересоздать структуру в любой момент.
+		private void SetSpritesAlpha(float alpha)
+		{
+			foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true))
+			{
+				var c = sr.color;
+				sr.color = new Color(c.r, c.g, c.b, alpha);
+			}
+		}
+
+		// «Призрачный» режим: hp=0 и action != dead (труп лежит при action=dead с полной альфой,
+		// а двигается призраком — полупрозрачно). Условие пересчитывается каждый кадр в LateUpdate,
+		// поэтому переключения action ↔ dead/walk/idle подхватываются автоматически без отдельных
+		// триггеров от SetData. SpriterDotNet.UnityAnimator каждый кадр в ApplySpriteTransform
+		// перезаписывает SpriteRenderer.color по info.Alpha из SCML — поэтому однократный SetAlpha
+		// затирается на следующем Update. LateUpdate идёт после всех Update в кадре и держит alpha.
+		// Живёт в EnemyModel (а не в PlayerModel), чтобы enemy/animal тоже становились призраками
+		// при hp=0 — поле hp объявлено здесь.
+		void LateUpdate()
+		{
+			if (hp == 0 && action != "dead")
+				SetSpritesAlpha(0.5f);
 		}
 	}
 }
