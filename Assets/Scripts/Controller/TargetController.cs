@@ -269,6 +269,19 @@ namespace Mmogick
         {
             if (_target != null)
             {
+                // Spriter мог привязаться к цели уже ПОСЛЕ нашего Target=set (асинхронная SCML-загрузка
+                // через AnimationPatcher.Get). При первом set Spriter был null → ушли в Animator-ветку,
+                // и frame застрял с legacy controller'ом. Ловим появление Spriter и переинициализируем
+                // Target — сетер выберет Spriter-ветку и навешает mirror.
+                var srcSpriter = _target.GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
+                if (srcSpriter != null && srcSpriter.SpriterData != null && transform.Find("Sprites") == null)
+                {
+                    var t = _target;
+                    _target = null; // сбросить guard `_target != value` в сетере
+                    Target = t;
+                    return;
+                }
+
                 CameraUpdate();
 
                 // если ушли слишком далеко от существа уберем его как цель
