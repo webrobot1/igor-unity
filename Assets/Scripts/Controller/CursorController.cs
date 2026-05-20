@@ -44,6 +44,15 @@ namespace Mmogick
         /// если не null - то объект который двигаем
         /// </summary>
         public static MoveableObject MyMoveable;
+
+        /// <summary>
+        /// Источник Moveable'а — выставляется EquipmentSlot.HandlePointerClick когда игрок берёт
+        /// экипированный item в курсор. Используется в Item.Use чтобы drop поверх инвентарного слота
+        /// трактовался как unequip (отправка ui/equip/index {slug: null}), а не как простое движение
+        /// предмета по инвентарю.
+        /// Сбрасывается одновременно с MyMoveable.
+        /// </summary>
+        public static EquipmentSlot SourceEquipmentSlot;
         protected override void Awake()
         {
             base.Awake();
@@ -124,6 +133,7 @@ namespace Mmogick
                     if (MyMoveable == held)
                     {
                         MyMoveable = null;
+                        SourceEquipmentSlot = null;
                         cursor.color = new Color(0, 0, 0, 0);
 
                         bool droppedOnInventorySlot = gameObject != null && gameObject.GetComponentInParent<SlotScript>() != null;

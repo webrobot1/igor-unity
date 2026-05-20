@@ -115,10 +115,10 @@ namespace Mmogick
             }
             else if (CursorController.MyMoveable == null && Item != null)
             {
-                // Берём экипированный item в курсор для перетаскивания. Реальный unequip пойдёт
-                // когда положат куда-то: drop в инвентарь → серверный cascade из inventory.php
-                // обнулит equip.<slot>; drop в другой equip-slot → ui/equip/index с новым slug.
+                // Берём экипированный item в курсор для перетаскивания и помечаем источник —
+                // Item.Use потом по этому маркеру отправит unequip при drop'е в инвентарь.
                 CursorController.TakeMoveable(Item);
+                CursorController.SourceEquipmentSlot = this;
             }
         }
     }

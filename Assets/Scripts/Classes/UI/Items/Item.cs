@@ -96,6 +96,18 @@ namespace Mmogick
             else if (obj != null && obj.GetComponentInParent<SlotScript>())
             {
                 SlotScript targetSlot = obj.GetComponentInParent<SlotScript>();
+
+                // Если предмет взят из equip-slot — drop в любой инвентарный слот = unequip.
+                // Отправляем явный ui/equip/index {slug: null}, и дальше идёт обычная логика swap/place,
+                // если целевой slot отличается от текущего (чтобы можно было одновременно снять и переложить).
+                if (CursorController.SourceEquipmentSlot != null)
+                {
+                    var slug = CursorController.SourceEquipmentSlot.SlotSlug;
+                    var equipResponse = new EquipmentResponse();
+                    equipResponse.items[slug] = null;
+                    equipResponse.Send();
+                }
+
                 if (targetSlot.SlotNum != SlotNum)
                 {
                     Item displaced = targetSlot.Item;
