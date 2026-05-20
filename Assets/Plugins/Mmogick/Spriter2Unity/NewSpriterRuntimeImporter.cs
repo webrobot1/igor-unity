@@ -408,6 +408,15 @@ namespace Mmogick
             behaviour.EntityIndex = entity.Id;
             behaviour.enabled = true;
             behaviour.ChildData = cd;
+
+            // Синхронизируем стартовый clip с source — иначе SpriterDotNet берёт первую анимацию SCML
+            // (для player'а это "Attack"). Дальнейшую sync держит TargetController.FixedUpdate.
+            if (source.Animator != null && source.Animator.CurrentAnimation != null
+                && behaviour.Animator != null
+                && behaviour.Animator.HasAnimation(source.Animator.CurrentAnimation.Name))
+            {
+                behaviour.Animator.Play(source.Animator.CurrentAnimation.Name);
+            }
             return behaviour;
         }
 

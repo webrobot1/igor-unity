@@ -28,6 +28,11 @@ namespace Mmogick
         private SpriteRenderer spriteRender;
         private Camera face_camera;
 
+        // Spriter-behaviour'ы исходный (на сущности) и зеркало (на этом UI-GO). Используется в FixedUpdate
+        // для синхронизации текущего clip — иначе mirror играет первую анимацию SCML вечно.
+        private SpriterDotNetUnity.SpriterDotNetBehaviour _sourceSpriter;
+        private SpriterDotNetUnity.SpriterDotNetBehaviour _mirrorSpriter;
+
         /// <summary>
         ///  последняя воспроизведенная анимация
         /// </summary>
@@ -89,6 +94,8 @@ namespace Mmogick
 
                     // снимаем любой ранее собранный Spriter-mirror с target-UI, прежде чем настраивать новую цель
                     NewSpriterRuntimeImporter.ClearMirror(gameObject);
+                    _sourceSpriter = null;
+                    _mirrorSpriter = null;
 
                     _target = value;
                     if (value != null)
@@ -115,7 +122,8 @@ namespace Mmogick
                                     localSr.sprite = srcFallbackSr.sprite;
                                 localSr.enabled = false;
                             }
-                            NewSpriterRuntimeImporter.MirrorFromSource(srcSpriter, gameObject);
+                            _mirrorSpriter = NewSpriterRuntimeImporter.MirrorFromSource(srcSpriter, gameObject);
+                            _sourceSpriter = srcSpriter;
                         }
                         else if (value.animator != null && value.animator.enabled)
                         {
@@ -200,8 +208,8 @@ namespace Mmogick
             // фактическое расстояние от face-камеры до контента: fov_v = 2*atan(H / (2*D)) в градусах,
             // с margin'ом FRAME_MARGIN. Формула `aspect * size` (из оригинала) не масштабируется под
             // разные расстояния — здесь камера рядом с контентом, и прежняя формула давала крайности.
-            // Content занимает ~1/FRAME_MARGIN ширины/высоты рамки. 1.25 → content ~80% рамки (небольшой воздух).
-            const float FRAME_MARGIN = 1.25f;
+            // Content занимает ~1/FRAME_MARGIN ширины/высоты рамки. 1.111 → content ~90% рамки.
+            const float FRAME_MARGIN = 1.111f;
             var spriterSprites = transform.Find("Sprites");
             if (spriterSprites != null)
             {
@@ -280,6 +288,21 @@ namespace Mmogick
                     _target = null; // сбросить guard `_target != value` в сетере
                     Target = t;
                     return;
+                }
+
+                // Синхронизируем текущий clip mirror'а с source. Без этого mirror живёт со своей
+                // дефолтной анимацией (первая в SCML, обычно "Attack") и расходится с источником.
+                if (_sourceSpriter != null && _sourceSpriter.Animator != null
+                    && _mirrorSpriter != null && _mirrorSpriter.Animator != null
+                    && _sourceSpriter.Animator.CurrentAnimation != null)
+                {
+                    string srcName = _sourceSpriter.Animator.CurrentAnimation.Name;
+                    if (_mirrorSpriter.Animator.CurrentAnimation == null
+                        || _mirrorSpriter.Animator.CurrentAnimation.Name != srcName)
+                    {
+                        if (_mirrorSpriter.Animator.HasAnimation(srcName))
+                            _mirrorSpriter.Animator.Play(srcName);
+                    }
                 }
 
                 CameraUpdate();
