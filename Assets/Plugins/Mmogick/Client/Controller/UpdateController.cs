@@ -173,9 +173,12 @@ namespace Mmogick
 				var fallbackSr = prefab.GetComponent<SpriteRenderer>();
 				if (fallbackSr != null && fallbackSr.sprite != null)
 				{
+					// Нормализуем по max(width, height) — иначе вытянутые горизонтально спрайты
+					// (молния 3:1) после нормализации по Y становятся 3 клетки в ширину.
+					// Симметрично SpriterPostImportAdjuster.cs (sampledWorldMax = Max(x, y)).
 					float native = AnimationCacheService.TryGetTightRect(fallbackSr.sprite, out Rect tight)
-						? tight.height
-						: fallbackSr.sprite.bounds.size.y;
+						? Mathf.Max(tight.width, tight.height)
+						: Mathf.Max(fallbackSr.sprite.bounds.size.x, fallbackSr.sprite.bounds.size.y);
 					Vector3 oldScale = prefab.transform.localScale;
 					if (native > 0.0001f && oldScale.y > 0.0001f)
 					{
@@ -321,14 +324,14 @@ namespace Mmogick
 				{
 					effectiveSize = size.Value;
 				}
-				else if (sr.sprite != null && AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight) && tight.size.y > 0.0001f)
+				else if (sr.sprite != null && AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight) && Mathf.Max(tight.size.x, tight.size.y) > 0.0001f)
 				{
-					// Сервер не задал size для image-prefab → fallback на tight-bounds спрайта (симметрично Spriter-варианту,
-					// где SpriterPostImportAdjuster замеряет world-bounds, если PrefabEntry.size==null). Подстановка
-					// effectiveSize = tight.size.y делает new_scale.y = 1/tight.size.y и мировую высоту = 1 клетка.
+					// Сервер не задал size для image-prefab → fallback на tight-bounds спрайта.
+					// Берём max(width, height) (как SpriterPostImportAdjuster для вытянутых сущностей) — иначе
+					// горизонтальная молния 3:1 нормализуется по Y в 3 клетки в ширину.
 					// Используется TryGetTightRect (а не sprite.bounds), чтобы прозрачные поля PNG не раздували размер.
-					effectiveSize = tight.size.y;
-					Debug.LogWarning("image-sprite " + newPrefab + ": server size не задан, fallback на tight-bounds height=" + effectiveSize);
+					effectiveSize = Mathf.Max(tight.size.x, tight.size.y);
+					Debug.LogWarning("image-sprite " + newPrefab + ": server size не задан, fallback на tight-bounds max(w,h)=" + effectiveSize);
 				}
 
 				if (effectiveSize > 0.0001f)
