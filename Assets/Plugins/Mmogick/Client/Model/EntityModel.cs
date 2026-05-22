@@ -193,7 +193,11 @@ namespace Mmogick
 					// Критерий «нельзя крутить»: есть Spriter, или есть Animator с параметрами x/y.
 					// Конвенция: спрайт нарисован вправо (→). Atan2(y,x) — угол от оси X+. Server default
 					// forward=(0,-1) → angle=-90° → спрайт смотрит вниз.
-					else if (GetComponent<SpriterDotNetBehaviour>() == null)
+					// Дополнительный gate: PrefabEntry.rotatable (админка → GameImage.rotatable). Без него
+					// все статичные image-prefab'ы (apple, sword) крутились вслед за forward, что выглядит
+					// неестественно для предметов. Default rotatable=false → крутятся только явно отмеченные
+					// в админке (фаерболы, стрелы).
+					else if (GetComponent<SpriterDotNetBehaviour>() == null && AnimationCacheService.GetPrefabRotatable(this.prefab))
 					{
 						// «Можно крутить» = нет legacy Animator с blend-tree параметрами x/y.
 						// Universal.controller имеет только direction/remove — projectile'и с ним крутить можно.

@@ -86,18 +86,44 @@ namespace Mmogick
 			/// </summary>
 			public float? size;
 			public bool h_mirror;
-			public string image;
+
+			/// <summary>
+			/// SHA256 изображения для статичных image-prefab'ов (без анимации). Null/пусто — у prefab'а есть SCML-анимация.
+			/// Полное имя файла в clientArchive = sha256 + "." + extension.
+			/// </summary>
+			public string sha256;
+
+			/// <summary>
+			/// Расширение файла (png/jpg/jpeg/gif). Приходит только если sha256 не пуст.
+			/// </summary>
+			public string extension;
+
+			/// <summary>
+			/// Имя-лейбл картинки в игре (filename из админки). Для UI/отладки. Не используется для построения путей.
+			/// </summary>
+			public string name;
+
+			/// <summary>
+			/// Поворачивать спрайт по forward сущности (стрелы/фаерболы — true, статичные предметы вроде яблока — false).
+			/// Default false. Задаётся в админке per-GameImage (Animation/admin/image), приходит для статичных
+			/// image-prefab'ов через /animation/patch/{game}/{token}/prefabs.
+			/// </summary>
+			public bool rotatable;
 
 			/// <summary>
 			/// Slot-slug-и из Game.equipmentSlot куда этот prefab может быть надет (item-prefab → [hand_r, hand_l] и т.п.).
 			/// Пустой список = не экипируемый prefab. Применение: при экипировке клиент пересекает этот список
 			/// с object_slot носителя (из /animations/{id}) → находит anchor для отрисовки.
-			/// Item может быть с анимацией или со статичной картинкой (поле image), но всегда с какой-то графикой —
+			/// Item может быть с анимацией или со статичной картинкой (sha256+extension), но всегда с какой-то графикой —
 			/// prefab без графики экипируемым быть не должен (иначе клиент рисует unknown-спрайт).
 			/// </summary>
 			public System.Collections.Generic.List<string> equipable_slot;
 
-			public bool IsImage => !string.IsNullOrEmpty(image);
+			public bool IsImage => !string.IsNullOrEmpty(sha256);
+
+			/// <summary>Полное имя файла спрайта (sha256.extension) или null если у prefab'а SCML-анимация.</summary>
+			[Newtonsoft.Json.JsonIgnore]
+			public string ImageFile => IsImage ? sha256 + "." + extension : null;
 		}
 
 		// Возвращает per-prefab "size" (max scml-размер body) из library, если задан, иначе null.
@@ -113,6 +139,16 @@ namespace Mmogick
 			if (_library == null)
 				throw new InvalidOperationException("AnimationCacheService.GetPrefabSize вызван до SyncAll (_library == null). prefab=" + prefab + ". Вызывайте только после завершения SigninController.LoadMain.");
 			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
+		}
+
+		// Поворачивать ли спрайт по forward сущности. Default false — fallback при отсутствии prefab в библиотеке
+		// (например, для player/enemy этот флаг не приходит вовсе, и без него мы не должны крутить transform).
+		// Используется в EntityModel при ре-резолве forward для статичных image-prefab'ов.
+		public static bool GetPrefabRotatable(string prefab)
+		{
+			if (_library == null || string.IsNullOrEmpty(prefab))
+				return false;
+			return _library.TryGetValue(prefab, out PrefabEntry e) && e.rotatable;
 		}
 
 		// Список slot-slug-ов в которые prefab может быть экипирован (item-prefab → [hand_r, hand_l] и т.п.).
@@ -749,7 +785,7 @@ namespace Mmogick
 
 		// Имя файла картинки (sha256.ext) если prefab — image-only, иначе null.
 		public static string GetPrefabImage(string name)
-			=> _library != null && _library.TryGetValue(name, out PrefabEntry e) && e.IsImage ? e.image : null;
+			=> _library != null && _library.TryGetValue(name, out PrefabEntry e) ? e.ImageFile : null;
 
 		// Готовый Sprite иконки для image-prefab. null — если prefab не image (animation
 		// или отсутствует в library) или картинка битая (битый кеш чистится TryGetSprite,
