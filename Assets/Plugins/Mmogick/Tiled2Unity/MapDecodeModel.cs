@@ -39,19 +39,19 @@ namespace Mmogick
 			// Пересчёт позиционных полей из ключа словаря (pos = y*width + x)
 			foreach (Layer layer in map.layer.Values)
 			{
-				if (layer.tiles != null)
+				if (layer.tile != null)
 				{
-					foreach (var tile in layer.tiles)
+					foreach (var tile in layer.tile)
 					{
 						tile.Value.x = tile.Key % map.width;
 						tile.Value.y = (tile.Key / map.width) * -1;
 					}
 				}
-				if (layer.objects != null)
+				if (layer.@object != null)
 				{
-					foreach (LayerObject obj in layer.objects)
+					foreach (LayerObject obj in layer.@object)
 					{
-						if (!string.IsNullOrEmpty(obj.sha256))
+						if (!string.IsNullOrEmpty(obj.tile))
 						{
 							// terrain.json уже в sandbox-convention: anchor = top-left, y+ вверх.
 							// Unity tilemap тоже y+ вверх от верха карты, поэтому только делим на размер клетки.
@@ -79,27 +79,26 @@ namespace Mmogick
 
 				Tilemap tilemap = newLayer.GetComponent<Tilemap>();
 
-				if (layer.tiles != null)
+				if (layer.tile != null)
 				{
-					foreach (KeyValuePair<int, LayerTile> tile in layer.tiles)
+					foreach (KeyValuePair<int, LayerTile> tile in layer.tile)
 					{
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 						newTile.transform = BuildTileMatrix(tile.Value.flipH, tile.Value.flipV, tile.Value.flipD, tile.Value.rotHex120);
 
-						applySprite(newTile, gameId, tile.Value.sha256);
+						applySprite(newTile, gameId, tile.Value.tile);
 						tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
 					}
-					Debug.Log("Карта: у слоя " + newLayer.name + " раставлены " + layer.tiles.Count + " тайлов");
+					Debug.Log("Карта: у слоя " + newLayer.name + " раставлены " + layer.tile.Count + " тайлов");
 				}
 
-				if (layer.objects != null)
+				if (layer.@object != null)
 				{
-					foreach (LayerObject obj in layer.objects)
+					foreach (LayerObject obj in layer.@object)
 					{
-						if (string.IsNullOrEmpty(obj.sha256)) continue;
+						if (string.IsNullOrEmpty(obj.tile)) continue;
 
-						// Сервер кодирует flip-маску в суффиксе "sha:hex" — формат идентичен LayerTile.
-						// См. AbstractObject::jsonSerialize в PHP и TileFlagParser.
+						// Сервер шлёт sha256 в поле tile + flip-флаги отдельными bool. Формат идентичен LayerTile.
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
 						Matrix4x4 trs = BuildTileMatrix(obj.flipH, obj.flipV, obj.flipD, obj.rotHex120);
 
@@ -116,7 +115,7 @@ namespace Mmogick
 
 						newTile.transform = trs;
 
-						applySprite(newTile, gameId, obj.sha256);
+						applySprite(newTile, gameId, obj.tile);
 						tilemap.SetTile(new Vector3Int((int)obj.x, (int)obj.y, 0), newTile);
 					}
 				}

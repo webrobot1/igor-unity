@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Newtonsoft.Json;
 
 namespace Mmogick
 {
@@ -20,12 +19,10 @@ namespace Mmogick
 		public string resource;
 
 		// Sparse-словарь: ключ — порядковый индекс ячейки на карте (y*width + x),
-		// значение — сырая строка вида "sha256" или "sha256:f". Парсится через
-		// LayerTileDictionaryConverter в LayerTile с ленивым извлечением полей.
-		[JsonConverter(typeof(LayerTileDictionaryConverter))]
-		public Dictionary<int, LayerTile> tiles;
+		// значение — LayerTile с tile (sha256) и flip-флагами (отсутствующее поле = false).
+		public Dictionary<int, LayerTile> tile;
 
-		public LayerObject[] objects;
+		public LayerObject[] @object;
 
 		public Dictionary<string, LayerProperty> property;
 	}
