@@ -163,8 +163,13 @@ namespace Mmogick
 					_forward = vector;
 					SpriterDotNetBehaviour anim = GetComponent<SpriterDotNetBehaviour>();
 						
-				// Forward сменился без смены action — ре-резолв направленного clip
-					string pn = this.prefab;
+				// Forward сменился без смены action — ре-резолв направленного clip.
+					// На первом спавн-пакете this.prefab ещё НЕ присвоен (присваивается ниже из recive.prefab),
+					// а recive.prefab уже есть — берём его приоритетно (как в action-блоке выше). Иначе и
+					// Spriter-re-resolve, и rotatable-gate на спавне работают по пустому prefab: снаряд получает
+					// forward один раз при спавне, _forward сразу записывается, а поворот по пустому prefab
+					// пропускается → последующие пакеты с тем же forward ветку не триггерят → снаряд не крутится.
+					string pn = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
 					if (anim?.Animator != null && !string.IsNullOrEmpty(pn))
 					{	
 						if (anim && action != null && recive.action == null)
@@ -197,7 +202,7 @@ namespace Mmogick
 					// все статичные image-prefab'ы (apple, sword) крутились вслед за forward, что выглядит
 					// неестественно для предметов. Default rotatable=false → крутятся только явно отмеченные
 					// в админке (фаерболы, стрелы).
-					else if (GetComponent<SpriterDotNetBehaviour>() == null && AnimationCacheService.GetPrefabRotatable(this.prefab))
+					else if (GetComponent<SpriterDotNetBehaviour>() == null && AnimationCacheService.GetPrefabRotatable(pn))
 					{
 						// «Можно крутить» = нет legacy Animator с blend-tree параметрами x/y.
 						// Universal.controller имеет только direction/remove — projectile'и с ним крутить можно.
