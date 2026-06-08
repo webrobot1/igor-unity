@@ -576,7 +576,12 @@ namespace Mmogick
 
 				if (p.h_mirror)
 				{
-					int mirrorAngle = (360 - clipAngle) % 360;
+					// h_mirror = горизонтальное зеркало (flipX, лево↔право). Клип, снятый под facing-углом
+					// clipAngle, после flipX смотрит под (180 - clipAngle): право(0)↔лево(180), а верх(90)/низ(270)
+					// остаются на месте. НЕЛЬЗЯ (360-clipAngle) — это вертикальное зеркало, оно меняет верх↔низ:
+					// тогда «Front - Walking» (270) ложно подходил бы под взгляд вверх (90) и побеждал реальный
+					// «Back - Walking» (90) при равной дистанции 0 → существо шло вверх лицом к камере.
+					int mirrorAngle = (180 - clipAngle + 360) % 360;
 					float mirrorDist = Mathf.Abs(Mathf.DeltaAngle(targetAngle, mirrorAngle));
 					if (mirrorDist < bestDist)
 					{
