@@ -146,7 +146,7 @@ namespace Mmogick
 				if (ob == null)
 				{
 					ob = Resources.Load("Prefabs/object", typeof(GameObject));
-					//Error("WebSocket: Отсутствует префаб Prefabs/" + type + " для объекта " + key);
+					//Error("WebSocket: Отсутствует префаб Prefabs/" + kind + " для объекта " + key);
 					//return null;
 				}
 
