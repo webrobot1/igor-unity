@@ -405,7 +405,7 @@ namespace Mmogick
 
 			foreach (var kv in serverVersions)
 			{
-				if (!_manifest.animation_versions.TryGetValue(kv.Key, out long localTs) || localTs < kv.Value)
+				if (!_manifest.animation_versions.TryGetValue(kv.Key, out long localTs) || localTs != kv.Value)
 					delta.Add(kv.Key);
 			}
 
