@@ -62,7 +62,7 @@ namespace Mmogick
             }
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
             {
@@ -109,7 +109,7 @@ namespace Mmogick
                 }
             }
 
-            return base.UpdateObject(map_id, key, recive, type);
+            return base.UpdateObject(map_id, key, recive);
         }
 
         // создает пустые ячейки инвентаря в количестве count

@@ -172,7 +172,7 @@ namespace Mmogick
             base.HandleData(recive);
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
             {
@@ -218,7 +218,7 @@ namespace Mmogick
                 }
             }
 
-            return base.UpdateObject(map_id, key, recive, type);
+            return base.UpdateObject(map_id, key, recive);
         }
 
         private void ScrollOnChange(string key, Slider slider, Text text)

@@ -236,10 +236,10 @@ namespace Mmogick
             }
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
 
-            return base.UpdateObject(map_id, key, recive, type);
+            return base.UpdateObject(map_id, key, recive);
         }
         /// <summary>
         /// Метод вызываемый при перетаскивании

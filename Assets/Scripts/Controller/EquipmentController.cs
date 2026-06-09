@@ -71,11 +71,11 @@ namespace Mmogick
             }
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
             // base сначала: чтобы InventoryController обновил _slots ДО того как мы будем брать оттуда
             // иконки для экипировки через GetItemBySlot.
-            GameObject ret = base.UpdateObject(map_id, key, recive, type);
+            GameObject ret = base.UpdateObject(map_id, key, recive);
 
             if (key == player_key && ((PlayerRecive)recive).components != null && _equipSlots != null)
             {

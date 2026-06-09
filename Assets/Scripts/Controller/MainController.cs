@@ -83,7 +83,7 @@ namespace Mmogick
                 ping.text = "PING: " + Ping() * 1000 + "/" + MaxPing() * 1000 + " ms.";
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
             if (key == player_key)
             {
@@ -91,7 +91,7 @@ namespace Mmogick
                     map.text = "Карта: " + recive.map;
             }
 
-            return base.UpdateObject(map_id, key, recive, type);
+            return base.UpdateObject(map_id, key, recive);
         }
     }
 }

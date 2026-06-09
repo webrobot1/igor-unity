@@ -104,6 +104,14 @@ namespace Mmogick
 			public string name;
 
 			/// <summary>
+			/// Slug вида сущности (kind), к которому относится этот prefab. Выводится на сервере из самого
+			/// prefab'а (slug→kind однозначен) и приходит в каждом entry /prefabs (и для Spriter-, и для
+			/// image-формата). Клиент использует его как имя Resources-префаба (Prefabs/{kind}), потому что
+			/// в пакетах сущностей kind больше не шлётся.
+			/// </summary>
+			public string kind;
+
+			/// <summary>
 			/// Поворачивать спрайт по forward сущности (стрелы/фаерболы — true, статичные предметы вроде яблока — false).
 			/// Default false. Задаётся в админке per-GameImage (Animation/admin/image), приходит для статичных
 			/// image-prefab'ов через /animation/patch/{game}/{token}/prefabs.
@@ -120,9 +128,13 @@ namespace Mmogick
 
 			/// <summary>
 			/// Slot-slug-и из Game.equipmentSlot куда этот prefab может быть надет (item-prefab → [hand_r, hand_l] и т.п.).
-			/// Пустой список = не экипируемый prefab. Применение: при экипировке клиент пересекает этот список
-			/// с object_slot носителя (из /animations/{id}) → находит anchor для отрисовки.
-			/// Item может быть с анимацией или со статичной картинкой (sha256+extension), но всегда с какой-то графикой —
+			/// Контракт по экипируемости (сервер кодирует именно так, см. Animation/PatchController):
+			///   null                       — kind НЕ экипируемый: предмет нельзя надеть в принципе;
+			///   список (в т.ч. пустой [])  — kind экипируемый; пустой [] = «слоты ещё не заданы», но предмет
+			///                                экипируемый. Т.е. экипируемость = (equipable_slot != null), НЕ (Count > 0):
+			///                                null и пустой список — РАЗНЫЕ вещи, не путать (в C# различимы).
+			/// Применение: при экипировке клиент пересекает этот список с object_slot носителя (из /animations/{id})
+			/// → находит anchor для отрисовки. Item всегда с какой-то графикой (анимация или статичная картинка) —
 			/// prefab без графики экипируемым быть не должен (иначе клиент рисует unknown-спрайт).
 			/// </summary>
 			public System.Collections.Generic.List<string> equipable_slot;
@@ -179,9 +191,11 @@ namespace Mmogick
 		}
 
 		// Список slot-slug-ов в которые prefab может быть экипирован (item-prefab → [hand_r, hand_l] и т.п.).
-		// Возвращает пустой список если prefab не экипируемый (или не в библиотеке). Контракт по _library
-		// тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception (для UX-greying-out
-		// тихий fallback опасен: пометит экипируемый item как «нельзя надеть» из-за гонки загрузки).
+		// Это «куда можно надеть», НЕ «экипируем ли вообще»: и null (не экипируемый), и пустой список
+		// (экипируемый, но слоты не заданы) → возвращаем пустой список, тк droppable-слотов нет в обоих случаях.
+		// Саму экипируемость отличают по equipable_slot != null (см. doc поля), не по этому методу.
+		// Контракт по _library тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception
+		// (для UX-greying-out тихий fallback опасен: пометит экипируемый item как «нельзя надеть» из-за гонки загрузки).
 		public static System.Collections.Generic.List<string> GetEquipableSlots(string prefab)
 		{
 			if (_library == null)
@@ -838,16 +852,54 @@ namespace Mmogick
 		}
 
 		// Все имена префабов игры (из /prefabs). Используется для создания GameObject'ов по префабам.
+		// Контракт по _library тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception:
+		// пустая коллекция замаскировала бы гонку загрузки как «сервер не прислал префабы».
 		public static IEnumerable<string> GetPrefabs()
-			=> _library != null ? _library.Keys : System.Linq.Enumerable.Empty<string>();
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabs вызван до SyncAll (_library == null). Вызывайте только после завершения SigninController.LoadMain.");
+			return _library.Keys;
+		}
 
 		// true если Prefab с таким именем существует в серверном списке.
+		// Контракт по _library тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception
+		// (тихий false замаскировал бы гонку загрузки как «prefab неизвестен» → сущность без визуала).
+		// false для реально отсутствующего prefab'а — это и есть назначение метода (не нарушение).
 		public static bool HasPrefab(string name)
-			=> _library != null && _library.ContainsKey(name);
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.HasPrefab вызван до SyncAll (_library == null). prefab=" + name + ". Вызывайте только после завершения SigninController.LoadMain.");
+			return _library.ContainsKey(name);
+		}
 
 		// Имя файла картинки (sha256.ext) если prefab — image-only, иначе null.
+		// Контракт по _library тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception.
+		// Зовётся из ApplyVisualPrefab (путь применения world-визуала, строго после SyncAll); тихий null
+		// замаскировал бы timing-баг как «сущность без визуала» (соседняя ветка HasPrefab тоже вернула бы false).
+		// null для prefab'а с SCML-анимацией (не image) — легитимный ответ, вызывающий идёт в ветку HasPrefab.
 		public static string GetPrefabImage(string name)
-			=> _library != null && _library.TryGetValue(name, out PrefabEntry e) ? e.ImageFile : null;
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabImage вызван до SyncAll (_library == null). prefab=" + name + ". Вызывайте только после завершения SigninController.LoadMain.");
+			return _library.TryGetValue(name, out PrefabEntry e) ? e.ImageFile : null;
+		}
+
+		// Slug вида (kind) для prefab'а из library. Сервер выводит kind из prefab'а и кладёт в каждый entry
+		// /prefabs (kind больше не шлётся в пакетах сущностей). Используется UpdateController как имя
+		// Resources-префаба (Prefabs/{kind}) при спавне сущности.
+		// Строгий контракт (как GetPrefabSize): kind резолвится только из реального prefab'а полного пакета,
+		// поэтому любое отсутствие — это баг, а не «значение не задано», и мы падаем громко:
+		//   - _library == null → вызов до SyncAll (баг тайминга, тот же что у GetPrefabSize);
+		//   - prefab пуст / отсутствует в _library / kind у entry пуст → нарушение целостности данных
+		//     (сервер обязан класть kind в каждый entry /prefabs). Тихий fallback замаскировал бы это.
+		public static string GetPrefabKind(string prefabSlug)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabKind вызван до SyncAll (_library == null). prefab=" + prefabSlug + ". Вызывайте только после завершения SigninController.LoadMain.");
+			if (string.IsNullOrEmpty(prefabSlug) || !_library.TryGetValue(prefabSlug, out PrefabEntry e) || string.IsNullOrEmpty(e.kind))
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabKind: kind не резолвится для prefab='" + prefabSlug + "' (prefab пуст, отсутствует в library, или у entry пустой kind). Сервер обязан класть kind в каждый entry /prefabs.");
+			return e.kind;
+		}
 
 		// Готовый Sprite иконки для image-prefab. null — если prefab не image (animation
 		// или отсутствует в library) или картинка битая (битый кеш чистится TryGetSprite,

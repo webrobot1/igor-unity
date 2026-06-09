@@ -19,11 +19,6 @@ namespace Mmogick
 		public string login;
 		public string action;
 
-		/// <summary>
-		/// Имя вида сущности (kind) из справочника игры
-		/// </summary>
-		public string kind;
-
 		public float? forwardX = null;
 		public float? forwardY = null;
 	

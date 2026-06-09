@@ -90,21 +90,25 @@ namespace Mmogick
 					}
 					else
 					{
+						// kind игрока резолвится из recive.prefab так же, как у entity (манифест /prefabs
+						// содержит player → kind 'player' → Resources/Prefabs/player). Хардкод "player" больше не нужен.
 						if (map.Value.player != null)
 						{
 							foreach (var player in map.Value.player)
 							{
-								UpdateObject(map.Key, player.Key, player.Value, "player");
+								UpdateObject(map.Key, player.Key, player.Value);
 							}
 						}
 
-						// Унифицированная группа entity — различаем по kind-полю внутри каждой сущности.
-						// Папка префабов в Resources/Prefabs/ совпадает с именем kind один-в-один.
+						// Унифицированная группа entity — kind больше не шлётся в пакете. Резолв kind из prefab'а
+						// (через library /prefabs) нужен ТОЛЬКО на спавне (Resources.Load в UpdateObject), а recive.prefab
+						// присутствует лишь в полном пакете спавна — на дельтах сущность уже на сцене и prefab==null
+						// (в спавн-ветку UpdateObject там не заходим, GameObject.Find нашёл бы сущность).
 						if (map.Value.entity != null)
 						{
 							foreach (var ent in map.Value.entity)
 							{
-								UpdateObject(map.Key, ent.Key, ent.Value, ent.Value.kind);
+								UpdateObject(map.Key, ent.Key, ent.Value);
 							}
 						}
 					}
@@ -115,7 +119,7 @@ namespace Mmogick
 		/// <summary>
 		/// обработка кокнретной сущности (создание и обновлелние)
 		/// </summary>
-		protected virtual GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+		protected virtual GameObject UpdateObject(int map_id, string key, EntityRecive recive)
 		{
 			GameObject prefab = GameObject.Find(key);
 			EntityModel model;
@@ -123,14 +127,20 @@ namespace Mmogick
 			// если игрока нет на сцене
 			if (prefab == null)
 			{
-				// те что удалились как только мы пришли тех не создаем тк нет пакета с чего их создавать 
-				if (recive.action == "remove") 
+				// те что удалились как только мы пришли тех не создаем тк нет пакета с чего их создавать
+				if (recive.action == "remove")
 					return null;
 
-				// Единый префаб на kind: Assets/Resources/Prefabs/{type}.prefab.
+				// Имя Resources-префаба = kind. Резолвим строго из recive.prefab — он в полном пакете
+				// спавна гарантированно присутствует и у игрока, и у entity (на дельтах эта ветка не выполняется —
+				// GameObject.Find выше нашёл бы). Манифест /prefabs содержит ВСЕ prefab'ы, включая player.
+				// GetPrefabKind строгий: бросит, если prefab'а нет в library — это нарушение целостности данных.
+				string kind = AnimationCacheService.GetPrefabKind(recive.prefab);
+
+				// Единый префаб на kind: Assets/Resources/Prefabs/{kind}.prefab.
 				// Визуал (Spriter scml) подтягивается с сервера по recive.prefab, если анимация есть в кеше.
 				// Если нет — остаётся корневой fallback-SpriteRenderer с "unknow" спрайтом.
-				UnityEngine.Object ob = Resources.Load("Prefabs/" + type, typeof(GameObject));
+				UnityEngine.Object ob = Resources.Load("Prefabs/" + kind, typeof(GameObject));
 
 				// все новые  kind = prefab.object
 				if (ob == null)
@@ -153,7 +163,7 @@ namespace Mmogick
 				{
 					float signX = initScale.x < 0 ? -1f : 1f;
 					prefab.transform.localScale = new Vector3(signX * initScale.y, initScale.y, initScale.z);
-					Debug.LogWarning("UpdateController: префаб '" + type + "' имеет non-uniform scale (" + initScale.x + ", " + initScale.y + ") — сброшен до uniform (" + (signX * initScale.y) + ", " + initScale.y + "). Задавайте uniform scale в префабе, иначе Spriter-дети поворотами дают skew (Transform doc).");
+					Debug.LogWarning("UpdateController: префаб '" + kind + "' имеет non-uniform scale (" + initScale.x + ", " + initScale.y + ") — сброшен до uniform (" + (signX * initScale.y) + ", " + initScale.y + "). Задавайте uniform scale в префабе, иначе Spriter-дети поворотами дают skew (Transform doc).");
 				}
 
 				// SortingGroup на корне сразу: сортируем все спрайты сущности как единое целое относительно
@@ -212,7 +222,7 @@ namespace Mmogick
 				}
 				
 				model.key = key;
-				model.type = type.ToLower();
+				model.type = kind.ToLower();
 
 				model.Log("создан с префабом " + recive.prefab);
 

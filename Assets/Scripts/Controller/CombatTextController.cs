@@ -29,7 +29,7 @@ namespace Mmogick
             }
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive, string type)
+        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
             EnemyModel enemy = null;
             int? hpBefore = null;
@@ -45,7 +45,7 @@ namespace Mmogick
                 }
             }
 
-            GameObject result = base.UpdateObject(map_id, key, recive, type);
+            GameObject result = base.UpdateObject(map_id, key, recive);
 
             if (enemy != null)
             {
