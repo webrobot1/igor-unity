@@ -456,10 +456,15 @@ namespace Mmogick
 			return s;
 		}
 
-		// Мета по sha256 (или null если её нет).
+		// Мета по sha256. Контракт по _meta тот же что у _library в AnimationCacheService — вызывать
+		// только после EnsureLoaded/sync (applySprite зовётся при декодировании карты, когда тайлсеты
+		// уже загружены). _meta==null — это вызов до загрузки тайлсетов (баг), а не «у тайла нет меты»;
+		// тихий null замаскировал бы его (карта молча отрисовалась бы статикой без frame-анимаций).
+		// null — только для «у тайла нет frame-меты» (TryGetValue==false).
 		public static Tile GetMeta(string sha256)
 		{
-			if (_meta == null) return null;
+			if (_meta == null)
+				throw new InvalidOperationException("TileCache.GetMeta вызван до загрузки тайлсетов (_meta == null). sha256=" + sha256);
 			_meta.TryGetValue(sha256, out Tile m);
 			return m;
 		}

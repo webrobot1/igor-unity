@@ -111,6 +111,14 @@ namespace Mmogick
 			public bool rotatable;
 
 			/// <summary>
+			/// Pivot хвата (0..1, Unity-конвенция: 0=низ/лево, 1=верх/право) для надетого оружия —
+			/// точка крепления к якорю скелета и центр вращения. Приходит для image-prefab'ов из
+			/// /prefabs (GameImage.pivotX/Y). Default 0.5/0.5 (центр) — для не-оружейных картинок.
+			/// </summary>
+			public float pivotX = 0.5f;
+			public float pivotY = 0.5f;
+
+			/// <summary>
 			/// Slot-slug-и из Game.equipmentSlot куда этот prefab может быть надет (item-prefab → [hand_r, hand_l] и т.п.).
 			/// Пустой список = не экипируемый prefab. Применение: при экипировке клиент пересекает этот список
 			/// с object_slot носителя (из /animations/{id}) → находит anchor для отрисовки.
@@ -141,14 +149,33 @@ namespace Mmogick
 			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
 		}
 
-		// Поворачивать ли спрайт по forward сущности. Default false — fallback при отсутствии prefab в библиотеке
-		// (например, для player/enemy этот флаг не приходит вовсе, и без него мы не должны крутить transform).
+		// Поворачивать ли спрайт по forward сущности. Контракт по _library тот же что у GetPrefabSize —
+		// вызывать только после SyncAll, иначе exception (вызов с _library==null — это баг: ре-резолв
+		// forward до загрузки библиотеки, а не «флаг не пришёл»; тихий false замаскировал бы timing-баг).
+		// Default false — только для «prefab не в библиотеке / флаг не задан» (например, для player/enemy
+		// этот флаг не приходит вовсе, и без него мы не должны крутить transform).
 		// Используется в EntityModel при ре-резолве forward для статичных image-prefab'ов.
 		public static bool GetPrefabRotatable(string prefab)
 		{
-			if (_library == null || string.IsNullOrEmpty(prefab))
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabRotatable вызван до SyncAll (_library == null). prefab=" + prefab);
+			if (string.IsNullOrEmpty(prefab))
 				return false;
 			return _library.TryGetValue(prefab, out PrefabEntry e) && e.rotatable;
+		}
+
+		// Pivot хвата картинки prefab'а (0..1). Для надетого оружия — точка крепления к якорю
+		// и центр вращения. Контракт по _library тот же что у GetPrefabSize/GetEquipableSlots —
+		// вызывать только после SyncAll, иначе exception (тихий дефолт замаскировал бы timing-баг:
+		// оружие прикрепилось бы с неверным центром вращения вместо громкого падения).
+		// Default (0.5, 0.5) — центр — только для «prefab не в library / pivot не задан».
+		public static UnityEngine.Vector2 GetPrefabPivot(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabPivot вызван до SyncAll (_library == null). prefab=" + prefab);
+			if (!string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e))
+				return new UnityEngine.Vector2(e.pivotX, e.pivotY);
+			return new UnityEngine.Vector2(0.5f, 0.5f);
 		}
 
 		// Список slot-slug-ов в которые prefab может быть экипирован (item-prefab → [hand_r, hand_l] и т.п.).
@@ -183,12 +210,21 @@ namespace Mmogick
 		public class ObjectSlotEntry
 		{
 			[Newtonsoft.Json.JsonProperty("object")]
-			public int objectId;  // id кости/спрайта в SCML — anchor на скелете
+			public AnchorObject anchor;  // {name, type, ...} — рантайм ищет Spriter-PointTransform по anchor.name
 			public string slot;
 			public float offsetX;
 			public float offsetY;
 			public float angle;
 			public float scale;
+		}
+
+		// Якорь слота = AnimationEntityObject (сериализуется его jsonSerialize: name/type/w/h/frame).
+		// Нужны только name (ключ поиска точки в рантайме) и type (point — единственный с трансформом).
+		[Serializable]
+		public class AnchorObject
+		{
+			public string name;
+			public string type;  // bone|sprite|box|point
 		}
 
 		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx)
@@ -715,6 +751,27 @@ namespace Mmogick
 			if (!File.Exists(path)) return null;
 			try { return JsonConvert.DeserializeObject<System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>(File.ReadAllText(path)); }
 			catch (Exception ex) { Debug.LogError("AnimationCache: чтение " + path + ": " + ex.Message); return null; }
+		}
+
+		// ObjectSlotEntry для (prefab, slotSlug): резолвит animationId prefab'а из library,
+		// читает object_slot-кеш и ищет слот по всем entity скелета (у одновидовых — одна entity).
+		// Контракт по _library тот же что у GetPrefabSize/GetEquipableSlots — вызывать только после
+		// SyncAll, иначе exception (тихий null замаскировал бы гонку загрузки как «нет якоря →
+		// оружие не надевается», см. EquipmentController.SyncWeapon).
+		// null — только для «prefab не в library / нет кеша / слота нет». Используется при экипировке
+		// для поиска точки крепления (entry.anchor.name) и её offset/angle/scale.
+		public static ObjectSlotEntry GetSlotEntry(int gameId, string prefab, string slotSlug)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetSlotEntry вызван до SyncAll (_library == null). prefab=" + prefab);
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e))
+				return null;
+			var slots = GetObjectSlots(gameId, e.animation);
+			if (slots == null) return null;
+			foreach (var entityMap in slots.Values)
+				if (entityMap != null && entityMap.TryGetValue(slotSlug, out ObjectSlotEntry entry))
+					return entry;
+			return null;
 		}
 
 		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш

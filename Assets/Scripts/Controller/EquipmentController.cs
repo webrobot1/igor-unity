@@ -116,6 +116,8 @@ namespace Mmogick
                         // full-clear: снимаем все слоты разом
                         foreach (var slotUI in _equipSlots.Values)
                             slotUI.Clear();
+                        foreach (var slug in _equipSlots.Keys)
+                            SyncWeapon(slug, null);
                     }
                     else
                     {
@@ -138,10 +140,12 @@ namespace Mmogick
 
                                 // Ярлык на inventory_idx — sprite миррорится в EquipmentSlot.Update.
                                 slotUI.SetInventorySlotNum(pair.Value.Value);
+                                SyncWeapon(pair.Key, pair.Value.Value);
                             }
                             else
                             {
                                 slotUI.SetInventorySlotNum(0);
+                                SyncWeapon(pair.Key, null);
                             }
                         }
                     }
@@ -149,6 +153,37 @@ namespace Mmogick
             }
 
             return ret;
+        }
+
+        // Наложение экипированного предмета на скелет игрока (Этап 1: оружие в руке).
+        // slot — slug экипировки, invIdx — индекс инвентаря (null = снять). Рисуется только если
+        // у скелета игрока есть Spriter-точка-якорь для этого слота (object_slot, type=point) и
+        // предмет — статичная картинка (image-prefab). SCML-оружие/прочие случаи — позже.
+        private void SyncWeapon(string slot, int? invIdx)
+        {
+            if (player == null) return;
+            WeaponMount mount = player.GetComponent<WeaponMount>();
+
+            if (!invIdx.HasValue)
+            {
+                if (mount != null) mount.Detach(slot);
+                return;
+            }
+
+            Item item = GetItemBySlot(invIdx.Value);
+            if (item == null) return;
+
+            AnimationCacheService.ObjectSlotEntry entry =
+                AnimationCacheService.GetSlotEntry(BaseController.GAME_ID, player.prefab, slot);
+            if (entry == null || entry.anchor == null || entry.anchor.type != "point")
+                return;   // нет точки-якоря на скелете для этого слота
+
+            Sprite sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, item.Prefab);
+            if (sprite == null) return;   // не image-prefab — SCML-оружие вне Этапа 1
+
+            Vector2 pivot = AnimationCacheService.GetPrefabPivot(item.Prefab);
+            if (mount == null) mount = player.gameObject.AddComponent<WeaponMount>();
+            mount.Apply(slot, entry.anchor.name, sprite, pivot.x, pivot.y, entry.offsetX, entry.offsetY, entry.angle, entry.scale);
         }
 
         // Подсветить equipment-слоты, в которые можно положить этот item (по prefab.equipable_slot).

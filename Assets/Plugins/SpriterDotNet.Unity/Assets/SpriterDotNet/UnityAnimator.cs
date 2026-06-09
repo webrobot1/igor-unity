@@ -137,6 +137,9 @@ namespace SpriterDotNetUnity
             float y = info.Y / ppu;
 
             pointTransform.localPosition = new Vector3(x, y, pointTransform.localPosition.z);
+            // Угол точки (= разрешённый угол родительской кости) — чтобы прицепленный к точке
+            // предмет (оружие) поворачивался вместе с кистью. По образцу box (ApplyBoxTransform).
+            pointTransform.localEulerAngles = new Vector3(0, 0, info.Angle);
 
             ++pointIndex;
         }
