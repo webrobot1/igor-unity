@@ -371,7 +371,7 @@ namespace Mmogick
 				}
 				model.Log("image-sprite " + newPrefab + " применён");
 			}
-			else if (AnimationCacheService.HasPrefab(newPrefab))
+			else if (AnimationCacheService.HasAnimation(newPrefab))
 			{
 				StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, newPrefab, (AnimationPatcher patcher) =>
 				{
@@ -395,6 +395,13 @@ namespace Mmogick
 						Error("Анимации: ошибка " + ex);
 					}
 				}));
+			}
+			else if (AnimationCacheService.HasPrefab(newPrefab))
+			{
+				// prefab есть в library, но без image и без SCML-анимации — он существует только чтобы
+				// донести kind (GetPrefabKind → Resources/Prefabs/{kind}). Визуала-оверлея нет: остаёмся
+				// на fallback-SpriteRenderer Resources-префаба. Легитимно (см. PrefabEntry), это НЕ ошибка.
+				model.LogWarning("prefab '" + newPrefab + "' без image/animation — остаётся fallback-визуал kind");
 			}
 			else
 				model.LogError("префаб '" + newPrefab + "' не определён в library (нет ни image-привязки, ни animation-привязки на сервере)");

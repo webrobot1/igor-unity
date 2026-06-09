@@ -448,6 +448,8 @@ namespace Mmogick
 			foreach (var kv in _library)
 			{
 				int animationId = kv.Value.animation;
+				// animation == 0 → нет SCML-структуры (image-prefab или kind-only prefab): предзагружать нечего.
+				if (animationId == 0) continue;
 				if (!seen.Add(animationId)) continue;
 				string structFile = Path.Combine(StructPath(gameId), animationId + ".xml");
 				bool inDelta = delta.Contains(animationId);
@@ -683,6 +685,15 @@ namespace Mmogick
 				callback(null, null, null);
 				yield break;
 			}
+			// animation == 0 → у prefab'а нет привязанной SCML-анимации (и он не image): такой entry
+			// существует только чтобы донести kind (см. PrefabEntry / серверный PatchController).
+			// SCML-структуры для него нет — это легитимное отсутствие, а НЕ «архив устарел». Возвращаем
+			// no-op как у image-ветки; клиент остаётся на fallback-визуале Resources-префаба (kind).
+			if (entry.animation == 0)
+			{
+				callback(null, null, null);
+				yield break;
+			}
 			int animationId = entry.animation;
 			string structFile = Path.Combine(StructPath(gameId), animationId + ".xml");
 
@@ -882,6 +893,18 @@ namespace Mmogick
 			if (_library == null)
 				throw new InvalidOperationException("AnimationCacheService.GetPrefabImage вызван до SyncAll (_library == null). prefab=" + name + ". Вызывайте только после завершения SigninController.LoadMain.");
 			return _library.TryGetValue(name, out PrefabEntry e) ? e.ImageFile : null;
+		}
+
+		// true если у prefab'а есть привязанная SCML-анимация (не image и animation != 0).
+		// false и для image-prefab'а, и для kind-only prefab'а (без графики, существует только чтобы
+		// донести kind): у обоих нет SCML-структуры — клиент не строит Spriter-оверлей, остаётся
+		// на fallback-визуале Resources-префаба (Prefabs/{kind}).
+		// Контракт по _library тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception.
+		public static bool HasAnimation(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.HasAnimation вызван до SyncAll (_library == null). prefab=" + prefab + ". Вызывайте только после завершения SigninController.LoadMain.");
+			return !string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e) && !e.IsImage && e.animation != 0;
 		}
 
 		// Slug вида (kind) для prefab'а из library. Сервер выводит kind из prefab'а и кладёт в каждый entry
