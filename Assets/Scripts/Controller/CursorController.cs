@@ -93,13 +93,27 @@ namespace Mmogick
                 cursor.raycastTarget = false;
                 GameObject gameObject = null;
 
-                RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
-
-                // кликнули на какой то объект. GetComponentInParent (а не GetComponent) — чтобы клик по
-                // дочернему коллайдеру сущности (например по кликабельной надписи EquipableGroundMarker
-                // над предметом на земле) считался кликом по самой сущности-корню, а не проваливался
-                // в ветку "клик по пустой клетке" (движение). Корневой collider тела находит себя же.
-                EntityModel hitEntity = hit.transform != null ? hit.transform.GetComponentInParent<EntityModel>() : null;
+                // RaycastAll, а не одиночный Raycast: когда игрок СТОИТ на подбираемом предмете, его
+                // собственный коллайдер (тело отрисовано поверх) перекрывает предмет, и одиночный raycast
+                // вернул бы самого игрока — клик «по себе» не доходил до предмета, move_to/walk/to не
+                // отправлялись, и серверный подбор (walk/to → item/pickup при совпадении тайла) не запускался.
+                // Перебираем все попадания в порядке возрастания дистанции и берём первую сущность, КРОМЕ
+                // своего игрока: предмет под ногами оказывается следующим хитом и становится целью клика.
+                // Для врагов/NPC порядок тот же, что давал одиночный raycast (ближайший хит) — поведение
+                // по ним не меняется. GetComponentInParent (а не GetComponent) — чтобы клик по дочернему
+                // коллайдеру сущности (например по кликабельной надписи EquipableGroundMarker над предметом
+                // на земле) считался кликом по самой сущности-корню. Корневой collider тела находит себя же.
+                RaycastHit2D[] hits = Physics2D.RaycastAll(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
+                EntityModel hitEntity = null;
+                foreach (RaycastHit2D h in hits)
+                {
+                    if (h.transform == null) continue;
+                    EntityModel e = h.transform.GetComponentInParent<EntityModel>();
+                    if (e == null) continue;
+                    if (PlayerController.Player != null && e == PlayerController.Player) continue;   // клик «сквозь себя» к предмету под ногами
+                    hitEntity = e;
+                    break;
+                }
                 if (hitEntity != null)
                 {
                     gameObject = hitEntity.gameObject;
