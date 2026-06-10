@@ -40,6 +40,12 @@ namespace Mmogick
 
         private Transform lifeBar;
         private Transform spritesRoot;
+        // Ветка "Metadata" (Point/Box-якоря). Нормализуется синхронно со spritesRoot: Point-якоря
+        // экипировки (WeaponMount цепляет к ним overlay-предмет) живут здесь, и без той же scale+shift,
+        // что у тела, предмет рендерится в native scml-масштабе — висит «в воздухе» рядом с ужатым телом
+        // (резко заметно на крупных prefab'ах: giant). Sprites и Metadata стартуют идентично (оба local
+        // identity под корнем), поэтому достаточно копировать итоговые localScale/localPosition.
+        private Transform metadataRoot;
         private bool scaleApplied;
         private readonly List<float> sampledWorldMax = new List<float>(BOUNDS_SAMPLE_FRAMES);
         private readonly List<float> sampledCenterX = new List<float>(BOUNDS_SAMPLE_FRAMES);
@@ -58,10 +64,11 @@ namespace Mmogick
         private SpriterDotNetBehaviour cachedBehaviour;
         private string idleClipName;
 
-        public void Init(Transform lifeBar, Transform spritesRoot, float? serverSize, float? xmlCanvasFallback, SpriterDotNetBehaviour behaviour, string idleClipName)
+        public void Init(Transform lifeBar, Transform spritesRoot, Transform metadataRoot, float? serverSize, float? xmlCanvasFallback, SpriterDotNetBehaviour behaviour, string idleClipName)
         {
             this.lifeBar = lifeBar;
             this.spritesRoot = spritesRoot;
+            this.metadataRoot = metadataRoot;
             this.serverSize = serverSize;
             this.xmlCanvasFallback = xmlCanvasFallback;
             this.cachedCapsule = GetComponent<CapsuleCollider2D>();
@@ -103,6 +110,7 @@ namespace Mmogick
                     float t = TARGET_HEIGHT / (parentLossy * serverSize.Value);
                     Vector3 s = spritesRoot.localScale;
                     spritesRoot.localScale = new Vector3(s.x * t, s.y * t, s.z);
+                    SyncMetadataToSprites();
                     scaleApplied = true;
                     framesWaited = 0; // старт Phase 2 sampling'а
                     return;
@@ -131,6 +139,7 @@ namespace Mmogick
                     Vector3 s = spritesRoot.localScale;
                     spritesRoot.localScale = new Vector3(s.x * t, s.y * t, s.z);
                 }
+                SyncMetadataToSprites();
                 scaleApplied = true;
                 framesWaited = 0; // старт Phase 2 sampling'а
                 return;
@@ -165,6 +174,7 @@ namespace Mmogick
                 float shiftX = targetLocal.x - medCX;
                 float shiftY = targetLocal.y - medCY;
                 spritesRoot.localPosition = new Vector3(sp.x + shiftX, sp.y + shiftY, sp.z);
+                SyncMetadataToSprites(); // centering-сдвиг тела → тот же сдвиг Point-якорям экипировки
 
                 if (lifeBar != null)
                 {
@@ -227,6 +237,18 @@ namespace Mmogick
             }
 
             Destroy(this);
+        }
+
+        // Зеркалит итоговую трансформацию тела ("Sprites") на ветку "Metadata" (Point/Box-якоря).
+        // Без этого overlay-предмет экипировки (WeaponMount цепляет к Point-якорю) остаётся в native
+        // scml-масштабе и не следует за нормализацией/центровкой тела — висит «в воздухе» и не реагирует
+        // на смену prefab.size. Обе ветки стартуют из local identity под одним корнем, поэтому копии
+        // localScale/localPosition достаточно (вращения adjuster не трогает — flip по X идёт на корне).
+        private void SyncMetadataToSprites()
+        {
+            if (metadataRoot == null || spritesRoot == null) return;
+            metadataRoot.localScale = spritesRoot.localScale;
+            metadataRoot.localPosition = spritesRoot.localPosition;
         }
 
         // Агрегированный world-AABB всех активных SR-детей spritesRoot по tight-rect (непрозрачные пиксели).
@@ -367,7 +389,7 @@ namespace Mmogick
 
             var lifeBar = go.transform.Find("LifeBar");
             var adjuster = go.AddComponent<SpriterPostImportAdjuster>();
-            adjuster.Init(lifeBar, sprites.transform, bodyHeight, xmlCanvasFallback, behaviour, idleClipName);
+            adjuster.Init(lifeBar, sprites.transform, metadata.transform, bodyHeight, xmlCanvasFallback, behaviour, idleClipName);
 
             return behaviour;
         }

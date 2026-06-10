@@ -30,6 +30,8 @@ namespace Mmogick
 
         // Надеть/обновить предмет в слоте: pointName — имя Spriter-точки (object.name из object_slot),
         // pivotX/pivotY — точка хвата на картинке (0..1, центр вращения), к ней крепится якорь.
+        // scale — ИТОГОВЫЙ множитель (слот.scale × size-фактор предмета): size несёт основное
+        // уменьшение, scale слота — тонкая подгонка поверх. Композицию делает EquipmentController.SyncWeapon.
         public void Apply(string slot, string pointName, Sprite sprite, float pivotX, float pivotY, float ox, float oy, float angle, float scale)
         {
             if (sprite == null || string.IsNullOrEmpty(pointName)) { Detach(slot); return; }

@@ -182,8 +182,16 @@ namespace Mmogick
             if (sprite == null) return;   // не image-prefab — SCML-оружие вне Этапа 1
 
             Vector2 pivot = AnimationCacheService.GetPrefabPivot(item.Prefab);
+
+            // size несёт ОСНОВНОЕ уменьшение предмета (как на земле/в инвентаре: тот же фактор k=1/size,
+            // см. MoveableObject.ApplyPrefabImage / UpdateController image-path). Слот.scale композируется
+            // ПОВЕРХ него и остаётся тонкой подгонкой (default 1, для большинства слотов не нужен) —
+            // без этого надетый предмет игнорировал бы своё size и scale пришлось бы зашивать на каждый слот.
+            float? size = AnimationCacheService.GetPrefabSize(item.Prefab);
+            float sizeFactor = (size.HasValue && size.Value > 0.0001f) ? 1f / size.Value : 1f;
+
             if (mount == null) mount = player.gameObject.AddComponent<WeaponMount>();
-            mount.Apply(slot, entry.anchor.name, sprite, pivot.x, pivot.y, entry.offsetX, entry.offsetY, entry.angle, entry.scale);
+            mount.Apply(slot, entry.anchor.name, sprite, pivot.x, pivot.y, entry.offsetX, entry.offsetY, entry.angle, entry.scale * sizeFactor);
         }
 
         // Подсветить equipment-слоты, в которые можно положить этот item (по prefab.equipable_slot).
