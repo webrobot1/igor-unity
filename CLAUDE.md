@@ -5,6 +5,8 @@
 
 общение вести по русски.
 
+**Проверки в Unity делать самому через MCP `ai-game-developer` — НЕ спрашивать разрешения и НЕ просить пользователя проверить вручную.** Если нужно посмотреть состояние игры/объектов/UI, запустить playmode, сделать скриншот (`screenshot-game-view`), выполнить `script-execute`, `gameobject-find`, `scene-get-data` и т.п. — выполнять самостоятельно по процедуре ниже. Аналогично для серверного контента есть MCP `mmogick-websocket` — тоже работать самому.
+
 Игровые объекты (`enemy`, карта, HP-полоски, Spriter-анимации) существуют только после входа в учётку. Поэтому перед любой диагностикой runtime-поведения:
 
 1. Убедиться, что Unity Editor в playmode — `editor-application-get-state` → `IsPlaying == true`. Если нет, запустить через `editor-application-set-state { isPlaying: true }`.
@@ -33,7 +35,7 @@ Errro() - что то типа безопсного exception , что в сле
 
 ## DebugGrid
 
-Каждая карта содержит выключенный Tilemap-слой `Map/<id>/DebugGrid` (создаётся в `MapDecodeModel.generate()`). Визуализирует границы тайловых клеток — для проверки позиционирования сущностей, выравнивания спрайтов и координат на карте. Включить через `script-execute` → `SetActive(true)`. Отображается в Scene View и Game View.
+Каждая карта содержит выключенный Tilemap-слой `Map/<id>/DebugGrid` (создаётся в [MapDecodeModel.cs](Assets/Plugins/Mmogick/Tiled2Unity/MapDecodeModel.cs), визуализирует границы тайловых клеток для проверки позиционирования/выравнивания). Включить через `script-execute` → `SetActive(true)` — видно в Scene и Game View.
 
 ## Админка (dev-креды) , но для работы сокнтентом и серерами есть mcp сервер mmogick-websocket (код его в коде сервера)
 - URL: http://localhost/admin/
@@ -46,41 +48,28 @@ Errro() - что то типа безопсного exception , что в сле
 
 ## Архитектура анимаций: Spriter (per-prefab) + Unity-Animator (универсальные эффекты)
 
-Анимации сущностей идут двумя слоями, сосуществующими на одном GameObject:
+Механизм подробно задокументирован XML-doc'ами в коде — здесь только обзор, карта файлов и cross-file инварианты (их ни один отдельный файл не покрывает). За деталями — в код:
+- `EntityModel.PlayAction` (единая точка: Spriter-приоритет → Universal-fallback), `EnsureUniversalAnimator`/`OnAnimatorAttached` (привязка overlay-Animator'а, startDisabled для image-init), rotation projectile'ов в `SetData` — [EntityModel.cs](Assets/Plugins/Mmogick/Client/Model/EntityModel.cs).
+- guard `_hasParamX/_hasParamY` для `Forward` setter (Universal.controller не имеет `x/y`, без guard'а спам `Parameter 'x' does not exist`) — [ObjectModel.cs](Assets/Scripts/Model/ObjectModel.cs).
+- семантика полей prefab'а (size/sha256/equipable_slot…), throw vs null политика кеша — [AnimationCacheService.cs](Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs).
 
-- **Per-prefab Spriter (SCML с сервера)** — индивидуальные анимации (`idle`, `walk`, `attack`, `hurt`, `dead`). Компонент `SpriterDotNetBehaviour`, кеш — [AnimationCacheService](Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs).
-- **Универсальные эффекты в Unity-Animator** — общие декораторы поверх любой сущности. Сейчас покрыты `remove` (Puff-кадры) и `dead` (силуэты тела). Файлы: [Universal.controller](Assets/Resources/Animations/Universal.controller), [Universal/Remove/*.anim](Assets/Animations/Universal/Remove/) + [Universal/Dead/*.anim](Assets/Animations/Universal/Dead/), кадры — [Sprites/Entitys/Remove/Puff*.png](Assets/Sprites/Entitys/Remove/) и [Sprites/Entitys/Dead/dead*.png](Assets/Sprites/Entitys/Dead/). Спрайты универсальных эффектов кладутся в `Sprites/Entitys/<ActionName>/` симметрично .anim-файлам.
+Два слоя на одном GameObject:
+- **Per-prefab Spriter (SCML с сервера)** — индивидуальные `idle/walk/attack/hurt/dead`. Компонент `SpriterDotNetBehaviour`, кеш — `AnimationCacheService`.
+- **Универсальные эффекты в Unity-Animator** — декораторы поверх любой сущности (сейчас `remove`=Puff, `dead`=силуэты тела). Файлы: [Universal.controller](Assets/Resources/Animations/Universal.controller), [Universal/Remove/*.anim](Assets/Animations/Universal/Remove/) + [Universal/Dead/*.anim](Assets/Animations/Universal/Dead/), кадры — [Sprites/Entitys/Remove/Puff*.png](Assets/Sprites/Entitys/Remove/) и [Sprites/Entitys/Dead/dead*.png](Assets/Sprites/Entitys/Dead/). Спрайты эффектов кладутся в `Sprites/Entitys/<ActionName>/` симметрично .anim-файлам.
 
-**Universal.controller**: 1 слой, параметры `direction` (Int 0..3, 0=down, 1=left, 2=right, 3=up) и `remove` (Trigger). AnyState→`remove_{down,left,right,up}` по `remove If 0` + `direction Equals N`. Возврат в `Idle` (motion=null) по `hasExitTime=true,exitTime=1`. **`writeDefaults=false` обязательно** на всех state'ах — иначе при transition в Idle Animator сбрасывает `SpriteRenderer.m_Sprite` в default и сущность мелькает «пустым» спрайтом перед уничтожением.
+**Структура Universal.controller** (это asset — описание только здесь, в коде нет): 1 слой, параметры `direction` (Int 0..3: 0=down, 1=left, 2=right, 3=up) и `remove` (Trigger). AnyState→`remove_{down,left,right,up}` по `remove If 0` + `direction Equals N`. Возврат в `Idle` (motion=null) по `hasExitTime=true, exitTime=1`.
 
-**Единая точка проигрывания — `EntityModel.PlayAction(action)`**:
-1. Spriter-приоритет: если `SpriterDotNetBehaviour.Animator.HasAnimation(GetClipName(prefab, action, forward))` → `Play(clip)`.
-2. Иначе Universal Animator: включает `anim.enabled=true`, корневой `SpriteRenderer.enabled=true`, выключает SR детей Spriter'а (Puff не должен перекрываться телом), `SetInteger("direction", N)` + `SetTrigger(action)`.
-3. Возвращает `false`, если ни Spriter, ни Universal не отвечают — вызывающий код выполняет действие без визуала.
-
-**Привязка Universal Animator'а** — `EntityModel.EnsureUniversalAnimator(startDisabled)`:
-- Spriter-init ([NewSpriterRuntimeImporter](Assets/Plugins/Mmogick/Spriter2Unity/NewSpriterRuntimeImporter.cs)) зовёт с `false` — Animator-overlay живёт поверх Spriter'а.
-- Image-init ([UpdateController](Assets/Plugins/Mmogick/Client/Controller/UpdateController.cs)) зовёт с `true` — иначе свежий Animator перехватывает SR.sprite до того как `TryGetSprite` поставит правильную картинку, и item'ы (apple, firebolt) рендерятся пустыми. PlayAction сам включает Animator перед эффектом.
-- Подкласс перехватывает привязку через `protected virtual OnAnimatorAttached(Animator)`. [ObjectModel](Assets/Scripts/Model/ObjectModel.cs) обновляет в нём кеш `animator` (Awake может срабатывать до Spriter-init).
-
-**Direction projectile'ов**: `EntityModel.SetData` поворачивает `transform.rotation = Atan2(forward.y, forward.x)` только если **нет Spriter** И **нет Animator с параметрами `x`/`y`** (последнее отсекает legacy `PlayerController.controller` с blend-tree). Universal.controller имеет только `direction`/`remove` — projectile'и с ним крутятся.
-
-**ObjectModel.Forward setter**: `Animator.SetFloat("x"/"y")` только под guard'ом `_hasParamX`/`_hasParamY` (заполняется в `RebuildTriggersCache`). Без guard'а Universal.controller спамил бы `Parameter 'x' does not exist`.
-
-**Чего НЕ делать**:
+**Инварианты — чего НЕ делать:**
+- Не выключать `writeDefaults=false` в state'ах Universal.controller — иначе при transition в Idle Animator сбрасывает `SpriteRenderer.m_Sprite` в default и сущность мелькает «пустым» спрайтом перед уничтожением.
 - Не удалять [Sprites/Entitys/Remove/Puff*.png](Assets/Sprites/Entitys/Remove/) и [Sprites/Entitys/Dead/dead*.png](Assets/Sprites/Entitys/Dead/) — Universal/{Remove,Dead}/*.anim ссылается на них по GUID.
 - Не возвращать `DestroyImmediate(Animator)` в Spriter/image-init — это убьёт Universal-overlay.
-- Не выключать `writeDefaults=false` в Universal.controller state'ах.
-- Если расширяешь Universal-fallback на НЕ-удаляющие action'ы (hurt-flash и т.п.) — нужно дописать восстановление SR детей Spriter'а после эффекта; сейчас они выключаются безвозвратно, потому что после remove GameObject всё равно уничтожается.
+- Расширяя Universal-fallback на НЕ-удаляющие action'ы (hurt-flash и т.п.) — дописать восстановление SR детей Spriter'а после эффекта: сейчас они выключаются безвозвратно (после remove GameObject всё равно уничтожается).
 
 ## Логирование
 
-Два уровня логов:
-
-- **`#if UNITY_EDITOR`** — событийные логи (приём/отправка пакетов). Выводятся всегда в редакторе, не отключаются. Используются для нечастых, но важных событий.
-- **`EntityModel.verbose`** (`false` по умолчанию) — высокочастотные логи (каждый FixedUpdate, каждый клик, тайминги событий). Включать вручную в рантайме (`EntityModel.verbose = true`) только при отладке конкретной проблемы, иначе консоль забивается на 100 сообщений/сек.
-
-Новые логи добавлять по тому же принципу: если может спамить каждый кадр — через `verbose`/`player.Log()`. Если событийный (раз в N пакетов) — через `#if UNITY_EDITOR`.
+Куда писать НОВЫЕ логи (механизм флага — в XML-doc на `EntityModel.verbose`):
+- может спамить каждый кадр (FixedUpdate, клик, тайминги событий) → через `verbose`/`player.Log()`. `false` по умолчанию, включать вручную в рантайме (`EntityModel.verbose = true`) только при отладке — иначе консоль забивается на 100 сообщений/сек.
+- событийный (приём/отправка пакетов, раз в N) → через `#if UNITY_EDITOR`: в редакторе выводится всегда, не отключается.
 
 ## Политика по коллизиям/нарушениям контракта
 
