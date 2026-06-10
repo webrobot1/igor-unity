@@ -95,10 +95,14 @@ namespace Mmogick
 
                 RaycastHit2D hit = Physics2D.Raycast(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
 
-                // кликнули на какой то объект
-                if (hit.transform != null && hit.transform.gameObject != null && hit.transform.gameObject.GetComponent<EntityModel>())
+                // кликнули на какой то объект. GetComponentInParent (а не GetComponent) — чтобы клик по
+                // дочернему коллайдеру сущности (например по кликабельной надписи EquipableGroundMarker
+                // над предметом на земле) считался кликом по самой сущности-корню, а не проваливался
+                // в ветку "клик по пустой клетке" (движение). Корневой collider тела находит себя же.
+                EntityModel hitEntity = hit.transform != null ? hit.transform.GetComponentInParent<EntityModel>() : null;
+                if (hitEntity != null)
                 {
-                    gameObject = hit.transform.gameObject;
+                    gameObject = hitEntity.gameObject;
                     player.Log("Кликнули на объект " + gameObject.name);
                 }
 
@@ -163,8 +167,29 @@ namespace Mmogick
                         ObjectModel new_target = gameObject.GetComponent<ObjectModel>();
                         if (new_target != null)
                         {
-                            Target = new_target;
-                            persist_target = true;
+                            // КАК ПОДБИРАЮТСЯ ПРЕДМЕТЫ (kind=item / экипируемые):
+                            // Отдельной клиентской команды "подобрать" НЕТ. Подбор серверный — сервер кладёт
+                            // предмет в инвентарь, когда игрок касается клетки предмета (item/pickup на стороне
+                            // сервера). Задача клиента — лишь ДОВЕСТИ игрока до предмета. Поэтому клик по
+                            // предмету (или по его кликабельной надписи EquipableGroundMarker, чей collider
+                            // через GetComponentInParent резолвится в этот же ObjectModel) трактуем как
+                            // "идти к нему": ставим move_to в позицию предмета — дальше FixedUpdate шлёт
+                            // WalkResponse "to", игрок подходит, сервер подбирает. Цель атаки (Target) для
+                            // предмета не выставляем — UI-рамка цели предназначена врагам (см. TargetController).
+                            if (!string.IsNullOrEmpty(new_target.prefab)
+                                && AnimationCacheService.IsGroundItem(new_target.prefab))
+                            {
+                                Target = null;
+                                persist_target = false;
+                                if (player != null)
+                                    move_to = gameObject.transform.position;
+                            }
+                            else
+                            {
+                                // Враг/NPC: выбираем как цель (UI-рамка + цель для заклинаний/атак по Target).
+                                Target = new_target;
+                                persist_target = true;
+                            }
                         }
                     }
                 }

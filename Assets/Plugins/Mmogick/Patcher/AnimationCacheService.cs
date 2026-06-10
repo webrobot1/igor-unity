@@ -12,7 +12,7 @@ using UnityEngine.Networking;
 namespace Mmogick
 {
 	// Content-addressable кеш анимаций игры. Endpoint'ы:
-	//   GET /animation/patch/{gameId}/{token}/prefabs        — полный список prefab.name → {animation, entity, size, h_mirror}
+	//   GET /animation/patch/{gameId}/{token}/prefabs?since=  — дельта prefab'ов: {items: slug→entry, all: [slug], version}
 	//   GET /animation/patch/{gameId}/{token}/animations     — полный список animation_id → updated_timestamp
 	//   GET /animation/patch/{gameId}/{token}/animations/{id} — SCML XML (клиент качает только если updated отличается)
 	//   GET /animation/patch/{gameId}/{token}/images          — ZIP (sha256.ext + _files.json) (If-Modified-Since)
@@ -21,7 +21,7 @@ namespace Mmogick
 	//   images/{sha256}.{ext}         — распакованные из ZIP /images
 	//   structures/{animationId}.xml  — кеш SCML XML
 	//   files.json                    — animationId → idx → sha256.ext (берётся из _files.json в ZIP)
-	//   library.json                  — prefab.name → PrefabEntry (полная замена при каждом sync)
+	//   library.json                  — prefab.slug → PrefabEntry (дельта-мёрж по ?since, removal по списку all)
 	//   sync.json                     — manifest (archive_last_modified, animation_versions: {id: ts})
 	public static class AnimationCacheService
 	{
@@ -70,6 +70,10 @@ namespace Mmogick
 		{
 			public string archive_last_modified;
 			public Dictionary<int, long> animation_versions = new Dictionary<int, long>();
+			// Версия последней дельта-синхронизации /prefabs (unix-сек, max updated отданных entry).
+			// Шлётся как ?since в следующий заход — сервер вернёт только изменившиеся с этого момента prefab'ы.
+			// 0 (дефолт, в т.ч. для старых sync.json без поля) → холодный старт: полный каталог.
+			public long prefab_version;
 		}
 
 		[Serializable]
@@ -99,9 +103,17 @@ namespace Mmogick
 			public string extension;
 
 			/// <summary>
-			/// Имя-лейбл картинки в игре (filename из админки). Для UI/отладки. Не используется для построения путей.
+			/// Читаемое имя prefab'а для UI (Prefab.name из админки). Приоритетнее лейбла картинки: сервер
+			/// шлёт сюда Prefab.name, а при его отсутствии — GameImage.name (лейбл картинки) для image-prefab'ов.
+			/// Null — имя не задано (клиент показывает сам prefab-slug). Не используется для построения путей.
 			/// </summary>
 			public string name;
+
+			/// <summary>
+			/// Описание prefab'а (Prefab.description из админки) для UI-тултипов/деталей предмета.
+			/// Null — описание не задано. Приходит в /prefabs вместе с name (дельтой по ?since).
+			/// </summary>
+			public string description;
 
 			/// <summary>
 			/// Slug вида сущности (kind), к которому относится этот prefab. Выводится на сервере из самого
@@ -203,6 +215,44 @@ namespace Mmogick
 			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.equipable_slot == null)
 				return new System.Collections.Generic.List<string>();
 			return e.equipable_slot;
+		}
+
+		// Подбираемый ли это «предмет на земле» (для подсветки/надписи лежащих вещей в мире).
+		// Критерий (геймдизайн): kind == "item" (предмет-вещь, в т.ч. расходник) ЛИБО экипируемый.
+		// Экипируемость = (equipable_slot != null), а НЕ (Count > 0): пустой [] — тоже экипируемый
+		// предмет (слоты ещё не заданы), его игрок может подобрать и кликнуть — см. doc поля equipable_slot.
+		// Контракт по _library: throw на _library==null (timing-баг — вызов до SyncAll, как у прочих геттеров).
+		// Но «prefab нет в library / kind не item / не экипируем» → false: это легитимное «не предмет»,
+		// у вызывающего корректная реакция (не подсвечивать). В отличие от GetPrefabKind, где kind обязан
+		// резолвиться для рендера, здесь отсутствие — норма, поэтому дефолт false, а не throw.
+		public static bool IsGroundItem(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.IsGroundItem вызван до SyncAll (_library == null). prefab=" + prefab);
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e))
+				return false;
+			return e.kind == "item" || e.equipable_slot != null;
+		}
+
+		// Человекочитаемое имя prefab'а (PrefabEntry.name — Prefab.name из админки) для UI-надписей над
+		// предметами на земле. Имя опционально: сервер кладёт name только если задан, иначе ключа нет → e.name
+		// == null. Пустое/отсутствующее → возвращаем null, чтобы вызывающий сделал фолбэк на сам prefab-slug
+		// (он у него уже есть: `GetPrefabName(p) ?? p`). Контракт по _library тот же (throw на _library==null).
+		public static string GetPrefabName(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabName вызван до SyncAll (_library == null). prefab=" + prefab);
+			return !string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e) && !string.IsNullOrEmpty(e.name) ? e.name : null;
+		}
+
+		// Описание prefab'а (PrefabEntry.description — Prefab.description из админки) для UI-тултипов/деталей
+		// предмета. Контракт по _library тот же (throw на _library==null — вызов до SyncAll). null — описание
+		// не задано (легитимно: вызывающий просто не показывает блок описания).
+		public static string GetPrefabDescription(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabDescription вызван до SyncAll (_library == null). prefab=" + prefab);
+			return !string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e) ? e.description : null;
 		}
 
 		[Serializable]
@@ -558,10 +608,23 @@ namespace Mmogick
 			#endif
 		}
 
-		// Полный список prefab'ов — заменяет _library целиком. Клиент видит удалённые prefab'ы.
+		// Конверт дельта-ответа /prefabs?since= (см. серверный Animation/PatchController::prefabs).
+		[Serializable]
+		private class PrefabSyncResponse
+		{
+			public Dictionary<string, PrefabEntry> items;  // только изменившиеся с since (slug → entry)
+			public List<string> all;                       // все текущие slug игры (для детекции удалений)
+			public long version;                            // max updated отданных items — клиент шлёт как since далее
+		}
+
+		// Дельта-синхронизация библиотеки prefab'ов. Мёржит изменившиеся entry в _library и удаляет slug'и,
+		// которых больше нет в all. since = prefab_version из манифеста, НО только если _library не пуста:
+		// при потере кэша (library.json удалён мимо ResetCache, манифест уцелел) since=0 форсит полный ресинк,
+		// иначе дельта прислала бы только изменившиеся, а неизменные prefab'ы остались бы потеряны.
 		private static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
-			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs";
+			long since = (_library != null && _library.Count > 0) ? _manifest.prefab_version : 0;
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + since;
 			Debug.Log("Запрашиваю список префабов " + url);
 
 			UnityWebRequest req = UnityWebRequest.Get(url);
@@ -577,13 +640,33 @@ namespace Mmogick
 			string text = req.downloadHandler.text;
 			req.Dispose();
 
-			Dictionary<string, PrefabEntry> parsed;
-			try { parsed = JsonConvert.DeserializeObject<Dictionary<string, PrefabEntry>>(text); }
+			PrefabSyncResponse parsed;
+			try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text); }
 			catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
 
-			_library = parsed ?? new Dictionary<string, PrefabEntry>();
-			Debug.Log("AnimationCache: библиотека загружена, " + _library.Count + " префабов");
+			if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
+
+			if (_library == null) _library = new Dictionary<string, PrefabEntry>();
+
+			// Мёрж изменившихся entry (replace по slug).
+			int changed = 0;
+			if (parsed.items != null)
+				foreach (var kv in parsed.items) { _library[kv.Key] = kv.Value; changed++; }
+
+			// Удаление: всё, чего нет в all (full-pack семантика removal). all шлётся всегда.
+			if (parsed.all != null)
+			{
+				var keep = new HashSet<string>(parsed.all);
+				var toRemove = new List<string>();
+				foreach (var slug in _library.Keys)
+					if (!keep.Contains(slug)) toRemove.Add(slug);
+				foreach (var slug in toRemove) _library.Remove(slug);
+			}
+
+			_manifest.prefab_version = parsed.version;
+			Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed + ", всего " + _library.Count);
 			SaveLibrary(gameId);
+			SaveManifest(gameId);
 		}
 
 		// Резолв action → имя SCML-клипа для данного prefab с учётом направления (angle).

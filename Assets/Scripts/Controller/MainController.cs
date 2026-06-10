@@ -91,7 +91,19 @@ namespace Mmogick
                     map.text = "Карта: " + recive.map;
             }
 
-            return base.UpdateObject(map_id, key, recive);
+            GameObject go = base.UpdateObject(map_id, key, recive);
+
+            // Маяк-подсветка на подбираемых предметах, лежащих в мире (kind=item / экипируемые). Решаем
+            // ЗДЕСЬ, в вызывающем: подходит ли сущность под подсветку — ответственность места, где она
+            // обрабатывается, а не самого маркера (маркер вешается только когда уже решено, что он нужен).
+            // recive.prefab непуст только в полном пакете спавна и при смене prefab (на дельтах == null),
+            // поэтому IsGroundItem не считается каждый кадр. EquipableGroundMarker — игровой слой
+            // (Assembly-CSharp), поэтому триггерим здесь, а не во фреймворчном UpdateController (firstpass его не видит).
+            if (go != null && !string.IsNullOrEmpty(recive.prefab)
+                && AnimationCacheService.IsGroundItem(recive.prefab))
+                EquipableGroundMarker.Apply(go, recive.prefab);
+
+            return go;
         }
     }
 }

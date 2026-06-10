@@ -408,6 +408,11 @@ namespace Mmogick
 		/// </summary>
 		protected override IEnumerator Destroy()
 		{
+			// Предмет уходит с карты — сразу снять подсветку-маяк (Destroy компонента → его OnDestroy
+			// сносит обводку+надпись), не дожидаясь конца remove-анимации (Puff висит пару секунд).
+			// Destroy(null) безвреден: маркер есть только на подбираемых предметах (item/экипировка).
+			Destroy(GetComponent<EquipableGroundMarker>());
+
 			if (PlayAction(ConnectController.ACTION_REMOVE))
 			{
 				Log("Удаление - Запуск анимации удаления с карты");
