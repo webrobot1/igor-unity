@@ -9,10 +9,10 @@ namespace Mmogick
         [SerializeField]
         protected Image image;
 
-        // Видимая иконка (child корня). На неё ложится sprite + localScale = 1/serverSize.
+        // Видимая иконка (child корня). На неё ложится sprite; localScale=1 (вариант 2 — size в UI не влияет).
         // Корневой image остаётся для layout preferred-size (LayoutGroup spellbook'а читает
         // image.sprite.rect) и color-cascade в ActionBar; делается невидимым через color.a=0
-        // в prefab'е. Если icon==null — fallback на старое поведение (sprite/scale на корне).
+        // в prefab'е. Если icon==null — fallback на старое поведение (sprite на корне).
         [SerializeField]
         protected Image icon;
 
@@ -40,17 +40,20 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Унифицированная привязка sprite'а и server size к UI-элементу. Используется Spell.Magic и Item.SetData.
+        /// Унифицированная привязка sprite'а к UI-элементу. Используется Spell.Magic и Item.SetData.
         /// Корневой image получает sprite (нужен для LayoutGroup preferred-size + ActionBar mirror),
-        /// но остаётся невидимым (color.a=0 в prefab'е). Видимый icon-child получает тот же sprite
-        /// и localScale = 1/serverSize (вариант 1 из TASK_ui_icon_size.md).
+        /// но остаётся невидимым (color.a=0 в prefab'е). Видимый icon-child получает тот же sprite.
+        ///
+        /// Вариант 2 из TASK_ui_icon_size.md: server size в UI НЕ применяется — иконка всегда занимает
+        /// слот целиком (preserveAspect для вытянутых картинок), размер не зависит от мирового size.
+        /// Причина: в инвентаре/спеллбуке/курсоре предметы должны быть читаемыми и одинаковыми, а size
+        /// (например меч size=5) делил бы иконку в 1/size → микроскопический предмет. Мировой/рука-размер
+        /// (он зависит от size) живут отдельно (UpdateController image-path, WeaponMount). icon.localScale=1.
         /// </summary>
         protected void ApplyPrefabImage(string prefab)
         {
             Sprite sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, prefab)
                 ?? Resources.Load<Sprite>("unknow");
-            float? size = AnimationCacheService.GetPrefabSize(prefab);
-            float k = (size.HasValue && size.Value > 0.0001f) ? 1f / size.Value : 1f;
 
             if (image != null)
             {
@@ -62,7 +65,7 @@ namespace Mmogick
             {
                 icon.sprite = sprite;
                 icon.preserveAspect = true;
-                icon.transform.localScale = new Vector3(k, k, 1f);
+                icon.transform.localScale = Vector3.one;   // вариант 2: фикс размер слота, size игнорируется
             }
         }
 

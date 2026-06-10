@@ -292,7 +292,9 @@ namespace Mmogick
             MainController.Instance.cursor.sprite = moveable.Image.sprite;
             MainController.Instance.cursor.color = Color.white;
             MainController.Instance.cursor.preserveAspect = true;
-            // Scale курсора = scale видимой иконки (1/serverSize). Если Icon=null — scale=1 от image.
+            // Scale курсора = scale видимой иконки. По варианту 2 (TASK_ui_icon_size.md) icon.localScale=1,
+            // т.е. курсор берёт размер из собственного rect (size в UI не влияет) — не «микроскопический»
+            // у предметов с большим server size. Если Icon=null — scale от image (тоже 1).
             Image scaleSrc = moveable.Icon != null ? moveable.Icon : moveable.Image;
             MainController.Instance.cursor.transform.localScale = scaleSrc.transform.localScale;
 

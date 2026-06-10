@@ -183,15 +183,25 @@ namespace Mmogick
 
             Vector2 pivot = AnimationCacheService.GetPrefabPivot(item.Prefab);
 
-            // size несёт ОСНОВНОЕ уменьшение предмета (как на земле/в инвентаре: тот же фактор k=1/size,
-            // см. MoveableObject.ApplyPrefabImage / UpdateController image-path). Слот.scale композируется
-            // ПОВЕРХ него и остаётся тонкой подгонкой (default 1, для большинства слотов не нужен) —
-            // без этого надетый предмет игнорировал бы своё size и scale пришлось бы зашивать на каждый слот.
+            // ЦЕЛЕВОЙ МИРОВОЙ масштаб предмета = ровно тот же, что у этого же prefab'а, выброшенного на землю
+            // (UpdateController.ApplyVisualPrefab image-path): нормализация max(w,h) к 1/effectiveSize клетки,
+            // где effectiveSize = server size, а при его отсутствии — tight-bounds max(w,h) самого спрайта.
+            // Дублируем здесь ту же effectiveSize-логику (иначе при сброшенном size рука и земля разъезжались бы:
+            // земля fallback'ит на tight-bounds, а старый код брал sizeFactor=1 → предмет native-размера).
+            // bodyScale носителя компенсируется уже в WeaponMount.LateUpdate (overlay живёт под нормализованной
+            // Metadata-веткой), чтобы рука совпадала с землёй на скелете любого размера.
             float? size = AnimationCacheService.GetPrefabSize(item.Prefab);
-            float sizeFactor = (size.HasValue && size.Value > 0.0001f) ? 1f / size.Value : 1f;
+            float effectiveSize;
+            if (size.HasValue && size.Value > 0.0001f)
+                effectiveSize = size.Value;
+            else if (AnimationCacheService.TryGetTightRect(sprite, out Rect tr) && Mathf.Max(tr.width, tr.height) > 0.0001f)
+                effectiveSize = Mathf.Max(tr.width, tr.height);
+            else
+                effectiveSize = 1f;
+            float groundScale = 1f / effectiveSize;
 
             if (mount == null) mount = player.gameObject.AddComponent<WeaponMount>();
-            mount.Apply(slot, entry.anchor.name, sprite, pivot.x, pivot.y, entry.offsetX, entry.offsetY, entry.angle, entry.scale * sizeFactor);
+            mount.Apply(slot, entry.anchor.name, sprite, pivot.x, pivot.y, entry.offsetX, entry.offsetY, entry.angle, entry.scale * groundScale);
         }
 
         // Подсветить equipment-слоты, в которые можно положить этот item (по prefab.equipable_slot).

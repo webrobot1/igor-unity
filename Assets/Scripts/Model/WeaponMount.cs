@@ -30,8 +30,9 @@ namespace Mmogick
 
         // Надеть/обновить предмет в слоте: pointName — имя Spriter-точки (object.name из object_slot),
         // pivotX/pivotY — точка хвата на картинке (0..1, центр вращения), к ней крепится якорь.
-        // scale — ИТОГОВЫЙ множитель (слот.scale × size-фактор предмета): size несёт основное
-        // уменьшение, scale слота — тонкая подгонка поверх. Композицию делает EquipmentController.SyncWeapon.
+        // scale — ЦЕЛЕВОЙ МИРОВОЙ масштаб предмета (слот.scale × ground-нормализация): тот же размер,
+        // что у prefab'а на земле. Композицию делает EquipmentController.SyncWeapon; bodyScale носителя
+        // компенсируется в LateUpdate (предмет — внук нормализованной Metadata-ветки скелета).
         public void Apply(string slot, string pointName, Sprite sprite, float pivotX, float pivotY, float ox, float oy, float angle, float scale)
         {
             if (sprite == null || string.IsNullOrEmpty(pointName)) { Detach(slot); return; }
@@ -82,7 +83,14 @@ namespace Mmogick
                 if (m.go.transform.parent != pt) m.go.transform.SetParent(pt, false);
                 m.go.transform.localPosition = new Vector3(m.ox / Ppu, m.oy / Ppu, 0f);
                 m.go.transform.localEulerAngles = new Vector3(0f, 0f, m.angle);
-                m.go.transform.localScale = new Vector3(m.scale, m.scale, 1f);
+                // m.scale — целевой МИРОВОЙ масштаб (как на земле). Точка (pt) живёт под нормализованной
+                // Metadata-веткой скелета, её lossyScale.y = bodyScale носителя. Делим на него, иначе предмет
+                // унаследовал бы это сжатие и в руке был бы в bodyScale раз мельче того же prefab'а на земле
+                // (на giant — ещё мельче). Якорь не масштабируется (Point.localScale=1), root.y=1 → lossyScale.y чист.
+                float body = Mathf.Abs(pt.lossyScale.y);
+                if (body < 0.0001f) body = 1f;
+                float s = m.scale / body;
+                m.go.transform.localScale = new Vector3(s, s, 1f);
             }
         }
 
