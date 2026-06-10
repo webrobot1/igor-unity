@@ -173,15 +173,32 @@ namespace Mmogick
             Item item = GetItemBySlot(invIdx.Value);
             if (item == null) return;
 
-            AnimationCacheService.ObjectSlotEntry entry =
-                AnimationCacheService.GetSlotEntry(BaseController.GAME_ID, player.prefab, slot);
-            if (entry == null || entry.anchor == null || entry.anchor.type != "point")
-                return;   // нет точки-якоря на скелете для этого слота
+            List<AnimationCacheService.ObjectSlotEntry> entries =
+                AnimationCacheService.GetSlotEntries(BaseController.GAME_ID, player.prefab, slot);
+            if (entries == null)
+                return;   // нет якорей на скелете для этого слота
 
-            Sprite sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, item.Prefab);
-            if (sprite == null) return;   // не image-prefab — SCML-оружие вне Этапа 1
+            List<AnimationCacheService.ImageVariant> variants =
+                AnimationCacheService.GetPrefabImageVariants(item.Prefab);
+            if (variants == null) return;   // не image-prefab — SCML-оружие вне Этапа 1
 
-            Vector2 pivot = AnimationCacheService.GetPrefabPivot(item.Prefab);
+            // Спрайты всех вариантов из локального кеша (битый файл — пропуск с warning, не валим экип).
+            // canonical — вариант с angle ближайшим к 0 (вправо): по нему ниже считается effectiveSize,
+            // масштаб у всех вариантов общий (size предмета один на prefab).
+            var sources = new List<WeaponMount.VariantSource>();
+            Sprite canonical = null;
+            int canonDist = int.MaxValue;
+            foreach (AnimationCacheService.ImageVariant v in variants)
+            {
+                Sprite s;
+                try { s = AnimationCacheService.TryGetSprite(BaseController.GAME_ID, v.File); }
+                catch (System.Exception ex) { Debug.LogWarning("SyncWeapon " + item.Prefab + " вариант " + v.angle + "°: " + ex.Message); continue; }
+                if (s == null) continue;
+                sources.Add(new WeaponMount.VariantSource { angle = v.angle, sprite = s, pivotX = v.pivotX, pivotY = v.pivotY });
+                int d = Mathf.Min(v.angle, 360 - v.angle);
+                if (d < canonDist) { canonDist = d; canonical = s; }
+            }
+            if (sources.Count == 0) return;   // ни один вариант не загрузился
 
             // ЦЕЛЕВОЙ МИРОВОЙ масштаб предмета = ровно тот же, что у этого же prefab'а, выброшенного на землю
             // (UpdateController.ApplyVisualPrefab image-path): нормализация max(w,h) к 1/effectiveSize клетки,
@@ -194,14 +211,36 @@ namespace Mmogick
             float effectiveSize;
             if (size.HasValue && size.Value > 0.0001f)
                 effectiveSize = size.Value;
-            else if (AnimationCacheService.TryGetTightRect(sprite, out Rect tr) && Mathf.Max(tr.width, tr.height) > 0.0001f)
+            else if (AnimationCacheService.TryGetTightRect(canonical, out Rect tr) && Mathf.Max(tr.width, tr.height) > 0.0001f)
                 effectiveSize = Mathf.Max(tr.width, tr.height);
             else
                 effectiveSize = 1f;
             float groundScale = 1f / effectiveSize;
 
+            // Все якоря слота (per-direction: своя кость на ракурс) — активный по кадру выбирает
+            // WeaponMount. scale якоря композится с groundScale здесь (целевой мировой масштаб, см. выше);
+            // z — draw-rank кожи кости якоря, на нём WeaponMount строит sortingOrder предмета.
+            var anchors = new List<WeaponMount.Anchor>();
+            foreach (AnimationCacheService.ObjectSlotEntry entry in entries)
+            {
+                if (entry == null || entry.anchor == null || entry.anchor.type != "point")
+                    continue;   // якорь без точки (кость сервер подменяет на «<bone>_point» сам)
+                anchors.Add(new WeaponMount.Anchor
+                {
+                    pointName = entry.anchor.name,
+                    ox        = entry.offsetX,
+                    oy        = entry.offsetY,
+                    angle     = entry.angle,
+                    scale     = entry.scale * groundScale,
+                    z         = entry.z,
+                });
+            }
+            if (anchors.Count == 0)
+                return;   // нет точек-якорей на скелете для этого слота
+
             if (mount == null) mount = player.gameObject.AddComponent<WeaponMount>();
-            mount.Apply(slot, entry.anchor.name, sprite, pivot.x, pivot.y, entry.offsetX, entry.offsetY, entry.angle, entry.scale * groundScale);
+            mount.Apply(slot, anchors.ToArray(), sources.ToArray(),
+                AnimationCacheService.GetPrefabRotationMode(item.Prefab));
         }
 
         // Подсветить equipment-слоты, в которые можно положить этот item (по prefab.equipable_slot).

@@ -196,13 +196,14 @@ namespace Mmogick
 					// Universal.controller (overlay для remove-эффектов) не имеет параметров x/y — для image-
 					// projectile'ов с ним крутить ВСЁ ЕЩЁ можно.
 					// Критерий «нельзя крутить»: есть Spriter, или есть Animator с параметрами x/y.
-					// Конвенция: спрайт нарисован вправо (→). Atan2(y,x) — угол от оси X+. Server default
-					// forward=(0,-1) → angle=-90° → спрайт смотрит вниз.
-					// Дополнительный gate: PrefabEntry.rotatable (админка → GameImage.rotatable). Без него
-					// все статичные image-prefab'ы (apple, sword) крутились вслед за forward, что выглядит
-					// неестественно для предметов. Default rotatable=false → крутятся только явно отмеченные
-					// в админке (фаерболы, стрелы).
-					else if (GetComponent<SpriterDotNetBehaviour>() == null && AnimationCacheService.GetPrefabRotatable(pn))
+					// Конвенция: канонический спрайт нарисован под PrefabEntry.angle (обычно вправо, 0).
+					// Atan2(y,x) — угол от оси X+; вычитаем опорный angle, чтобы спрайт любого ракурса
+					// смотрел остриём по курсу. Server default forward=(0,-1) → спрайт смотрит вниз.
+					// Gate: rotationMode == Free (админка → GameImage.rotationMode, бывший rotatable=true).
+					// Без него все статичные image-prefab'ы (apple, sword) крутились бы вслед за forward,
+					// что выглядит неестественно — крутятся только явно отмеченные (фаерболы, стрелы).
+					else if (GetComponent<SpriterDotNetBehaviour>() == null
+						&& AnimationCacheService.GetPrefabRotationMode(pn) == AnimationCacheService.RotationMode.Free)
 					{
 						// «Можно крутить» = нет legacy Animator с blend-tree параметрами x/y.
 						// Universal.controller имеет только direction/remove — projectile'и с ним крутить можно.
@@ -214,7 +215,8 @@ namespace Mmogick
 								if (p.name == "x" || p.name == "y") { blendTree = true; break; }
 						}
 						if (!blendTree)
-							transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg);
+							transform.rotation = Quaternion.Euler(0, 0,
+								Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg - AnimationCacheService.GetPrefabAngle(pn));
 					}
 				}
 			}

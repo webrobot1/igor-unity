@@ -77,6 +77,27 @@ namespace Mmogick
 		}
 
 		[Serializable]
+		// Значения GameImage.rotationMode (wire /prefabs). Должны совпадать с PHP-enum ImageRotationMode.
+		public static class RotationMode
+		{
+			public const string None    = "none";     // каждое направление — свой загруженный вариант
+			public const string MirrorX = "mirror_x"; // лево из права зеркалом по X, верх/низ — свои варианты
+			public const string Free    = "free";     // один вариант, спрайт крутится по forward (снаряды)
+		}
+
+		// Один вариант картинки prefab'а по направлению (images[] из /prefabs).
+		[Serializable]
+		public class ImageVariant
+		{
+			public int angle;            // 0=вправо, 90=вверх, 180=влево, 270=вниз (atan2(fwdY,fwdX))
+			public string sha256;
+			public string extension;
+			public float pivotX = 0.5f;  // хват per-вариант (рукоять на разных ракурсах в разных местах)
+			public float pivotY = 0.5f;
+			[Newtonsoft.Json.JsonIgnore]
+			public string File => sha256 + "." + extension;
+		}
+
 		public class PrefabEntry
 		{
 			public string prefab;
@@ -124,11 +145,26 @@ namespace Mmogick
 			public string kind;
 
 			/// <summary>
-			/// Поворачивать спрайт по forward сущности (стрелы/фаерболы — true, статичные предметы вроде яблока — false).
-			/// Default false. Задаётся в админке per-GameImage (Animation/admin/image), приходит для статичных
-			/// image-prefab'ов через /animation/patch/{game}/{token}/prefabs.
+			/// Режим достройки недостающих направлений (GameImage.rotationMode): RotationMode.None —
+			/// каждое направление свой вариант; MirrorX — лево из права зеркалом по X (default);
+			/// Free — один вариант, спрайт крутится по forward (снаряды/фаерболы; бывший rotatable=true).
+			/// Общий для всех вариантов prefab'а, приходит в плоских полях /prefabs.
 			/// </summary>
-			public bool rotatable;
+			public string rotationMode = RotationMode.MirrorX;
+
+			/// <summary>
+			/// Направление, под которое нарисован канонический спрайт (плоские sha256/extension/pivot):
+			/// 0=вправо (default). Канон = вариант с angle ближайшим к 0 — инвентарь/земля рисуют его
+			/// БЕЗ поворота; Free-поворот по forward считается как forward − angle.
+			/// </summary>
+			public int angle;
+
+			/// <summary>
+			/// Все варианты картинки по направлениям (images[] из /prefabs, angle ASC, включая канон).
+			/// Null/пусто — не image-prefab; для экипировки см. GetPrefabImageVariants (синтез из плоских
+			/// полей канона при отсутствии). На персонаже WeaponMount берёт ближайший к forward.
+			/// </summary>
+			public System.Collections.Generic.List<ImageVariant> images;
 
 			/// <summary>
 			/// Pivot хвата (0..1, Unity-конвенция: 0=низ/лево, 1=верх/право) для надетого оружия —
@@ -173,19 +209,46 @@ namespace Mmogick
 			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
 		}
 
-		// Поворачивать ли спрайт по forward сущности. Контракт по _library тот же что у GetPrefabSize —
-		// вызывать только после SyncAll, иначе exception (вызов с _library==null — это баг: ре-резолв
-		// forward до загрузки библиотеки, а не «флаг не пришёл»; тихий false замаскировал бы timing-баг).
-		// Default false — только для «prefab не в библиотеке / флаг не задан» (например, для player/enemy
-		// этот флаг не приходит вовсе, и без него мы не должны крутить transform).
-		// Используется в EntityModel при ре-резолве forward для статичных image-prefab'ов.
-		public static bool GetPrefabRotatable(string prefab)
+		// Режим достройки направлений картинки (RotationMode.*). Контракт по _library тот же что у
+		// GetPrefabSize — вызывать только после SyncAll, иначе exception (вызов с _library==null — баг:
+		// ре-резолв forward до загрузки библиотеки; тихий default замаскировал бы timing-баг).
+		// Default MirrorX — для «prefab не в библиотеке / поле не пришло» (Spriter-prefab'ы, player/enemy).
+		// Free используется в EntityModel при ре-резолве forward статичных image-prefab'ов (бывш. rotatable).
+		public static string GetPrefabRotationMode(string prefab)
 		{
 			if (_library == null)
-				throw new InvalidOperationException("AnimationCacheService.GetPrefabRotatable вызван до SyncAll (_library == null). prefab=" + prefab);
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabRotationMode вызван до SyncAll (_library == null). prefab=" + prefab);
 			if (string.IsNullOrEmpty(prefab))
-				return false;
-			return _library.TryGetValue(prefab, out PrefabEntry e) && e.rotatable;
+				return RotationMode.MirrorX;
+			return _library.TryGetValue(prefab, out PrefabEntry e) && !string.IsNullOrEmpty(e.rotationMode)
+				? e.rotationMode : RotationMode.MirrorX;
+		}
+
+		// Опорное направление канонического спрайта (PrefabEntry.angle, 0=вправо). Free-поворот по
+		// forward считается как forward − этот угол: спрайт, нарисованный «вверх» (angle=90), тоже
+		// полетит остриём по курсу. Контракт по _library как у GetPrefabRotationMode.
+		public static int GetPrefabAngle(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabAngle вызван до SyncAll (_library == null). prefab=" + prefab);
+			return !string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e) ? e.angle : 0;
+		}
+
+		// Варианты картинки prefab'а по направлениям — для экипировки (WeaponMount подменяет спрайт по
+		// forward носителя). Для image-prefab'а всегда ≥1 элемента: при пустом images[] синтезируется
+		// один вариант из плоских полей канона. Null — prefab не image (SCML) или не в библиотеке.
+		// Контракт по _library как у GetPrefabRotationMode.
+		public static System.Collections.Generic.List<ImageVariant> GetPrefabImageVariants(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabImageVariants вызван до SyncAll (_library == null). prefab=" + prefab);
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || !e.IsImage)
+				return null;
+			if (e.images != null && e.images.Count > 0)
+				return e.images;
+			return new System.Collections.Generic.List<ImageVariant> {
+				new ImageVariant { angle = e.angle, sha256 = e.sha256, extension = e.extension, pivotX = e.pivotX, pivotY = e.pivotY },
+			};
 		}
 
 		// Pivot хвата картинки prefab'а (0..1). Для надетого оружия — точка крепления к якорю
@@ -261,13 +324,15 @@ namespace Mmogick
 			public string data;  // base64(gzip(xml))
 
 			// Anchor-карта slot-slug-ов экипировки на каждом скелете этой Animation:
-			//   entity_name → slot_slug → {object, slot, offsetX, offsetY, angle, scale}
-			// где object — id кости/спрайта в SCML куда крепить, остальные поля — позиционирование относительно неё.
+			//   entity_name → slot_slug → {индекс → {object, slot, offsetX, offsetY, angle, scale, z}}
+			// где object — точка в SCML куда крепить, остальные поля — позиционирование относительно неё.
+			// Один slug несёт НЕСКОЛЬКО якорей (per-direction: своя кость на ракурс); сервер отдаёт список
+			// как объект {"0":…,"1":…} (JSON_FORCE_OBJECT) — активный якорь выбирается по кадру (WeaponMount).
 			// Per-AnimationEntity (один и тот же slug, напр. hand_r, на разных скелетах сидит в разных object-координатах).
 			// Кеш-инвалидация на сервере: AnimationEntityObjectSlot бампает Animation.updated
 			// через #[ORM\HasLifecycleCallbacks]::bumpAnimationUpdated → /animations listing показывает свежий updated.
 			// Применение: prefab.equipable_slot (из /prefabs) ∩ object_slot носителя → anchor для рендера экипированного prefab.
-			public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>> object_slot;
+			public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>> object_slot;
 		}
 
 		[Serializable]
@@ -280,6 +345,11 @@ namespace Mmogick
 			public float offsetY;
 			public float? angle;   // null = «как загружено»: предмет не доворачивается к кости (мировой upright)
 			public float scale;
+			// 0-based draw-rank кожи кости-якоря в порядке отрисовки скелета (порядок objectRef SCML).
+			// Overlay кладётся на sortingOrder = base скелета + z и приподнимается над кожей микро-Z
+			// (WeaponMount.ZLift). null (сервер не прислал ключ — у кости нет своей/дочерней кожи) —
+			// fallback «поверх всего» (WeaponMount.FallbackOrder).
+			public int? z;
 		}
 
 		// Якорь слота = AnimationEntityObject (сериализуется его jsonSerialize: name/type/w/h/frame).
@@ -837,7 +907,7 @@ namespace Mmogick
 			// Sidecar для object_slot — обновляется/удаляется синхронно со structFile (см. SyncAll/SlotsFile).
 			// Пишем всегда, даже если object_slot пустой/null, чтобы кеш-хит был детерминирован:
 			// «.xml есть → .slots.json тоже должен быть на диске».
-			File.WriteAllText(SlotsFile(gameId, animationId), JsonConvert.SerializeObject(wrapper.object_slot ?? new System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>()));
+			File.WriteAllText(SlotsFile(gameId, animationId), JsonConvert.SerializeObject(wrapper.object_slot ?? new System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>()));
 			_manifest.animation_versions[animationId] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
@@ -848,37 +918,47 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Anchor-карта slot-slug-ов на скелете указанной Animation: entity_name → slot_slug → {objectId, offsetX, ...}.
+		/// Anchor-карта slot-slug-ов на скелете указанной Animation: entity_name → slot_slug → {индекс → entry}
+		/// (per-direction список якорей slug'а, см. StructureResponse.object_slot).
 		/// Лежит в кеше sidecar-файлом рядом с {animationId}.xml. Возвращает null если кеша нет (анимация ещё не загружена
 		/// через GetStructure — клиент должен сначала закачать структуру). Пустой Dictionary = у скелета нет AEOS-привязок.
-		/// Применение (будущее): для экипировки prefab.equipable_slot ∩ object_slot носителя → anchor для рендера.
+		/// Применение: для экипировки prefab.equipable_slot ∩ object_slot носителя → anchor для рендера.
 		/// </summary>
-		public static System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>> GetObjectSlots(int gameId, int animationId)
+		public static System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>> GetObjectSlots(int gameId, int animationId)
 		{
 			string path = SlotsFile(gameId, animationId);
 			if (!File.Exists(path)) return null;
-			try { return JsonConvert.DeserializeObject<System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>(File.ReadAllText(path)); }
-			catch (Exception ex) { Debug.LogError("AnimationCache: чтение " + path + ": " + ex.Message); return null; }
+			try { return JsonConvert.DeserializeObject<System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>>(File.ReadAllText(path)); }
+			catch (Exception ex)
+			{
+				// Sidecar дозамены формата (одно-якорный slot→entry) или битый: парсинг в актуальный тип падает.
+				// Сносим вместе с {animationId}.xml — следующий GetStructure перекачает структуру с сервера
+				// и перепишет sidecar; без удаления .xml кеш-хит вечно оставлял бы экипировку без якорей.
+				Debug.LogError("AnimationCache: " + path + " устаревшего формата/битый (" + ex.Message + ") — кеш структуры " + animationId + " сброшен");
+				try { File.Delete(path); } catch { /* нет прав / уже удалён */ }
+				try { File.Delete(Path.Combine(StructPath(gameId), animationId + ".xml")); } catch { /* нет прав / уже удалён */ }
+				return null;
+			}
 		}
 
-		// ObjectSlotEntry для (prefab, slotSlug): резолвит animationId prefab'а из library,
-		// читает object_slot-кеш и ищет слот по всем entity скелета (у одновидовых — одна entity).
+		// Якоря слота (prefab, slotSlug) в порядке сервера — у slug'а их НЕСКОЛЬКО (per-direction:
+		// своя кость на ракурс), активный по кадру выбирает WeaponMount. Резолвит animationId prefab'а
+		// из library, читает object_slot-кеш и ищет слот по всем entity скелета (у одновидовых — одна).
 		// Контракт по _library тот же что у GetPrefabSize/GetEquipableSlots — вызывать только после
 		// SyncAll, иначе exception (тихий null замаскировал бы гонку загрузки как «нет якоря →
 		// оружие не надевается», см. EquipmentController.SyncWeapon).
-		// null — только для «prefab не в library / нет кеша / слота нет». Используется при экипировке
-		// для поиска точки крепления (entry.anchor.name) и её offset/angle/scale.
-		public static ObjectSlotEntry GetSlotEntry(int gameId, string prefab, string slotSlug)
+		// null — только для «prefab не в library / нет кеша / слота нет».
+		public static System.Collections.Generic.List<ObjectSlotEntry> GetSlotEntries(int gameId, string prefab, string slotSlug)
 		{
 			if (_library == null)
-				throw new InvalidOperationException("AnimationCacheService.GetSlotEntry вызван до SyncAll (_library == null). prefab=" + prefab);
+				throw new InvalidOperationException("AnimationCacheService.GetSlotEntries вызван до SyncAll (_library == null). prefab=" + prefab);
 			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e))
 				return null;
 			var slots = GetObjectSlots(gameId, e.animation);
 			if (slots == null) return null;
 			foreach (var entityMap in slots.Values)
-				if (entityMap != null && entityMap.TryGetValue(slotSlug, out ObjectSlotEntry entry))
-					return entry;
+				if (entityMap != null && entityMap.TryGetValue(slotSlug, out var anchors) && anchors != null && anchors.Count > 0)
+					return new System.Collections.Generic.List<ObjectSlotEntry>(anchors.Values);
 			return null;
 		}
 
