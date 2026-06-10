@@ -278,7 +278,7 @@ namespace Mmogick
 			public string slot;
 			public float offsetX;
 			public float offsetY;
-			public float angle;
+			public float? angle;   // null = «как загружено»: предмет не доворачивается к кости (мировой upright)
 			public float scale;
 		}
 

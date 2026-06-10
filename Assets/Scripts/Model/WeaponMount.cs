@@ -22,7 +22,8 @@ namespace Mmogick
             public string pointName;
             public GameObject go;
             public Sprite sprite;   // созданный grip-pivot спрайт (отдельный от иконки) — освобождаем при замене/снятии
-            public float ox, oy, angle, scale;
+            public float ox, oy, scale;
+            public float? angle;    // null = «как загружено»: предмет не доворачивается к кости (мировой upright)
         }
 
         private readonly Dictionary<string, Mounted> _slots = new Dictionary<string, Mounted>();
@@ -33,7 +34,7 @@ namespace Mmogick
         // scale — ЦЕЛЕВОЙ МИРОВОЙ масштаб предмета (слот.scale × ground-нормализация): тот же размер,
         // что у prefab'а на земле. Композицию делает EquipmentController.SyncWeapon; bodyScale носителя
         // компенсируется в LateUpdate (предмет — внук нормализованной Metadata-ветки скелета).
-        public void Apply(string slot, string pointName, Sprite sprite, float pivotX, float pivotY, float ox, float oy, float angle, float scale)
+        public void Apply(string slot, string pointName, Sprite sprite, float pivotX, float pivotY, float ox, float oy, float? angle, float scale)
         {
             if (sprite == null || string.IsNullOrEmpty(pointName)) { Detach(slot); return; }
 
@@ -82,7 +83,13 @@ namespace Mmogick
                 m.go.SetActive(true);
                 if (m.go.transform.parent != pt) m.go.transform.SetParent(pt, false);
                 m.go.transform.localPosition = new Vector3(m.ox / Ppu, m.oy / Ppu, 0f);
-                m.go.transform.localEulerAngles = new Vector3(0f, 0f, m.angle);
+                // angle задан — доворачиваем относительно точки (предмет следует за поворотом кости/руки).
+                // angle == null — «как загружено»: держим мировой upright, игнорируя поворот точки/кости
+                // (предмет крепится к руке позицией, но не крутится вместе с ней).
+                if (m.angle.HasValue)
+                    m.go.transform.localEulerAngles = new Vector3(0f, 0f, m.angle.Value);
+                else
+                    m.go.transform.rotation = Quaternion.identity;
                 // m.scale — целевой МИРОВОЙ масштаб (как на земле). Точка (pt) живёт под нормализованной
                 // Metadata-веткой скелета, её lossyScale.y = bodyScale носителя. Делим на него, иначе предмет
                 // унаследовал бы это сжатие и в руке был бы в bodyScale раз мельче того же prefab'а на земле
