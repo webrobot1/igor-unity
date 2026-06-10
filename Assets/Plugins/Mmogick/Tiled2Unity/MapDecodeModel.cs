@@ -15,7 +15,9 @@ namespace Mmogick
 
 		public static MapDecode generate(string json, Transform grid, int gameId)
 		{
-			Map map = JsonConvert.DeserializeObject<Map>(json);
+			// Канон сервера: sandbox-скаляры приходят всегда, включая null (null ≡ отсутствие ≡ дефолт).
+			// Ignore не даёт Newtonsoft писать null в не-nullable поля — null оставляет дефолт поля.
+			Map map = JsonConvert.DeserializeObject<Map>(json, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
 			// Grid сдвиг -0.5 совмещает визуальные границы тайлов (pivot 0,0 → [N, N+1))
 			// с логическими (RoundToInt → [N-0.5, N+0.5)). Player pivot (0.5, 0.5) — центр.
