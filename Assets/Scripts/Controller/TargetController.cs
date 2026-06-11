@@ -290,6 +290,20 @@ namespace Mmogick
                     return;
                 }
 
+                // Статичная цель (kind-only/image, без Spriter-mirror и без legacy controller'а):
+                // сеттер Target копировал спрайт источника один раз при выделении, но спрайт корневого SR
+                // меняется в рантайме — Universal dead/remove перезаписывает его (placeholder → dead-кадр),
+                // а restore возвращает обратно. Без пер-кадровой синхронизации рамка цели показывает
+                // устаревший снимок (unknow при лежащем dead-черепе). Animator-кадры эффекта тоже
+                // подхватываются — копируем текущий спрайт, какой бы кадр ни стоял.
+                if (animator.runtimeAnimatorController == null && transform.Find("Sprites") == null
+                    && spriteRender != null)
+                {
+                    var srcSr = _target.GetComponentInChildren<SpriteRenderer>(true);
+                    if (srcSr != null && srcSr.sprite != null && spriteRender.sprite != srcSr.sprite)
+                        spriteRender.sprite = srcSr.sprite;
+                }
+
                 // Синхронизируем текущий clip mirror'а с source. Без этого mirror живёт со своей
                 // дефолтной анимацией (первая в SCML, обычно "Attack") и расходится с источником.
                 if (_sourceSpriter != null && _sourceSpriter.Animator != null
