@@ -50,6 +50,49 @@ namespace Mmogick
 		[NonSerialized]
 		public string prefab;
 
+		/// <summary>
+		/// Placeholder-спрайт kind-only сущности (нет ни image, ни SCML — рисуется "unknow" с Resources-префаба).
+		/// Запоминается в UpdateController.ApplyVisualPrefab. Нужен чтобы ВЕРНУТЬ его на корневой SpriteRenderer
+		/// после терминального Universal-эффекта: dead/remove.anim перезаписывают SR.m_Sprite (PPtrCurve,
+		/// writeDefaults=false) и сами назад не откатывают — без восстановления сущность, ожившая после dead,
+		/// навсегда застревала бы на dead-кадре. Восстановление выполняет PlayAction (см. Universal-ветку).
+		/// null для image/Spriter-сущностей (у них свой визуал, восстанавливать нечего).
+		/// </summary>
+		private Sprite _fallbackSprite;
+
+		/// <summary>scale сущности с placeholder-визуалом (вне эффекта) и scale на время Universal-эффекта.
+		/// Эффект подменяет scale на <see cref="_effectScale"/>, чтобы effect-спрайт (крупнее placeholder)
+		/// рендерился в тот же мировой размер ≈1 клетка, а не «гигантом»; восстановление возвращает
+		/// <see cref="_fallbackScale"/>. См. <see cref="SetFallbackSprite"/>.</summary>
+		private Vector3 _fallbackScale = Vector3.one;
+		private Vector3 _effectScale = Vector3.one;
+
+		/// <summary>
+		/// Размер (в юнитах) спрайтов Universal-эффектов dead/remove: 120px @ 100 ppu = 1.2 юнита.
+		/// Держать в синхроне с PNG в Sprites/Entitys/{Dead,Remove}/ — по нему считается _effectScale,
+		/// чтобы эффект на kind-only сущности рендерился в мировую высоту placeholder'а, а не своим
+		/// (более крупным) размером. См. CLAUDE.md «Архитектура анимаций».
+		/// </summary>
+		private const float UNIVERSAL_EFFECT_UNIT_SIZE = 1.2f;
+
+		/// <summary>
+		/// Запоминает placeholder-спрайт kind-only сущности и считает _fallbackScale/_effectScale для
+		/// корректного размера Universal-эффекта. Вызывается из UpdateController.ApplyVisualPrefab ДО
+		/// навешивания Animator'а (когда на корневом SR ещё placeholder-спрайт). См. <see cref="_fallbackSprite"/>.
+		/// </summary>
+		public void SetFallbackSprite(Sprite sprite)
+		{
+			_fallbackSprite = sprite;
+			_fallbackScale = transform.localScale;
+			if (sprite != null && sprite.pixelsPerUnit > 0.0001f)
+			{
+				float placeholderWorldHeight = sprite.rect.height / sprite.pixelsPerUnit * Mathf.Abs(_fallbackScale.y);
+				float s = placeholderWorldHeight / UNIVERSAL_EFFECT_UNIT_SIZE;
+				_effectScale = new Vector3(s, s, _fallbackScale.z);
+			}
+			else _effectScale = _fallbackScale;
+		}
+
 		private Vector3 _forward = Vector3.zero;
 
 		/// <summary>
@@ -427,7 +470,25 @@ namespace Mmogick
 				bool hasTrigger = false;
 				foreach (var p in unityAnim.parameters)
 					if (p.type == AnimatorControllerParameterType.Trigger && p.name == actionName) { hasTrigger = true; break; }
-				if (!hasTrigger) return false;
+				if (!hasTrigger)
+				{
+					// Под этот action нет ни Spriter-клипа, ни Universal-триггера. Для kind-only сущности это
+					// означает «обычное» состояние (walk/idle): если ранее проиграл терминальный Universal-эффект
+					// (dead/remove) и перезаписал спрайт корневого SR — возвращаем placeholder. Иначе (image/
+					// Spriter, _fallbackSprite==null) просто сообщаем вызывающему «эффекта нет».
+					if (_fallbackSprite != null)
+					{
+						var sr0 = GetComponent<SpriteRenderer>();
+						if (sr0 != null && sr0.sprite != _fallbackSprite)
+						{
+							unityAnim.enabled = false; // снять удержание dead-кадра Animator'ом (writeDefaults=false)
+							sr0.sprite = _fallbackSprite;
+							sr0.enabled = true;
+							transform.localScale = _fallbackScale; // вернуть исходный scale (эффект ставил _effectScale)
+						}
+					}
+					return false;
+				}
 
 				// Image-prefab'ы держат Animator выключенным после init — иначе он перехватывает SR.sprite
 				// и item-объекты рендерятся пустыми. Включаем здесь, перед SetTrigger.
@@ -444,6 +505,11 @@ namespace Mmogick
 				if (spriter != null)
 					foreach (var r in spriter.GetComponentsInChildren<SpriteRenderer>(includeInactive: false))
 						if (r.gameObject != spriter.gameObject) r.enabled = false;
+
+				// kind-only сущность: на время эффекта ужимаем scale, чтобы крупный effect-спрайт
+				// (dead/remove 1.2 юнита) рендерился в мировой размер placeholder'а (≈1 клетка), а не
+				// гигантом. Восстановление вернёт _fallbackScale (см. ветку !hasTrigger выше).
+				if (_fallbackSprite != null) transform.localScale = _effectScale;
 
 				// direction по Forward: 0=down, 1=left, 2=right, 3=up
 				int direction = Mathf.Abs(Forward.y) > Mathf.Abs(Forward.x) ? (Forward.y < 0 ? 0 : 3) : (Forward.x < 0 ? 1 : 2);

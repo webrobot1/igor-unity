@@ -400,8 +400,21 @@ namespace Mmogick
 			{
 				// prefab есть в library, но без image и без SCML-анимации — он существует только чтобы
 				// донести kind (GetPrefabKind → Resources/Prefabs/{kind}). Визуала-оверлея нет: остаёмся
-				// на fallback-SpriteRenderer Resources-префаба. Легитимно (см. PrefabEntry), это НЕ ошибка.
-				model.LogWarning("prefab '" + newPrefab + "' без image/animation — остаётся fallback-визуал kind");
+				// на fallback-SpriteRenderer Resources-префаба ("unknow"). Легитимно (см. PrefabEntry).
+				//
+				// Universal Animator навешиваем, чтобы зашитые в клиент дефолтные эффекты dead (силуэт) и
+				// remove (Puff) работали и для kind-only сущности (без них PlayAction вернул бы false и
+				// сущность никогда не проигрывала бы даже дефолтную смерть). Universal dead/remove.anim бьют
+				// по спрайту КОРНЕВОГО SR — поэтому placeholder-спрайт запоминаем в EntityModel ДО навешивания
+				// Animator'а: PlayAction вернёт его на SR, когда сущность оживёт после dead (иначе она застряла
+				// бы на dead-кадре, т.к. writeDefaults=false держит последний кадр анимации). startDisabled=true:
+				// в idle Animator не должен перехватывать placeholder; PlayAction включит его в момент эффекта.
+				var entityModel = go.GetComponent<Mmogick.EntityModel>();
+				var sr = go.GetComponent<SpriteRenderer>();
+				if (entityModel != null && sr != null && sr.sprite != null)
+					entityModel.SetFallbackSprite(sr.sprite);
+				if (entityModel != null) entityModel.EnsureUniversalAnimator(startDisabled: true);
+				model.LogWarning("prefab '" + newPrefab + "' без image/animation — fallback-визуал kind + Universal overlay (dead/remove)");
 			}
 			else
 				model.LogError("префаб '" + newPrefab + "' не определён в library (нет ни image-привязки, ни animation-привязки на сервере)");

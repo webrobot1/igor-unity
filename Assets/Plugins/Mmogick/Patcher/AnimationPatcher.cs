@@ -9,7 +9,9 @@ namespace Mmogick
 		public string        error;
 		public SpriterPacket spriterPacket;  // SCML XML + sha256-список картинок (из локального кеша)
 
-		// Скачивает SCML+sha256-маппинг с /animation/patch/{gameId}/{token}/structure/{prefab} (с ETag-кешированием).
+		// Читает структуру (SCML + sha256-маппинг) через AnimationCacheService.GetStructure — из локального кеша структур;
+		// при cache-miss лениво докачивает SCML с /animation/patch/{gameId}/{token}/animations/{animationId}.
+		// Кеширование: файловый кеш структур + If-Modified-Since для /images.
 		// Картинки берутся из локального кеша AnimationCacheService (см. SyncImagesArchive).
 		public static IEnumerator Get(string server, int game_id, string token, string prefab, Action<AnimationPatcher> callback)
 		{
