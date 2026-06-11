@@ -168,11 +168,18 @@ namespace Mmogick
                 }
                 if (m.go.transform.parent != pt) m.go.transform.SetParent(pt, false);
                 m.go.transform.localPosition = new Vector3(a.ox / Ppu, a.oy / Ppu, ZLift);
-                // angle задан — доворачиваем относительно точки (предмет следует за поворотом кости/руки).
-                // angle == null — «как загружено»: держим мировой upright, игнорируя поворот точки/кости
-                // (предмет крепится к руке позицией, но не крутится вместе с ней).
+                // angle задан — предмет следует за костью: нарисованное направление варианта сначала
+                // нормализуется к канону (вправо), затем доворачивается slot.angle относительно точки —
+                // предметы, нарисованные в любую сторону (но с честным image.angle), ведут себя одинаково.
+                // Экранное направление флипнутого кандидата — 180−angle (зеркало вокруг pivot'а); флип
+                // корня (h_mirror) зеркалит весь локальный фрейм и поправки не требует.
+                // angle == null — «как загружено»: мировой upright, поза предмета = его рисунок
+                // (копьё, нарисованное вертикально, остаётся вертикальным; поворот точки игнорируется).
                 if (a.angle.HasValue)
-                    m.go.transform.localEulerAngles = new Vector3(0f, 0f, a.angle.Value);
+                {
+                    float drawn = flip ? Mathf.Repeat(180f - m.variants[vi].angle, 360f) : m.variants[vi].angle;
+                    m.go.transform.localEulerAngles = new Vector3(0f, 0f, a.angle.Value - drawn);
+                }
                 else
                     m.go.transform.rotation = Quaternion.identity;
                 // a.scale — целевой МИРОВОЙ масштаб (как на земле). Точка (pt) живёт под нормализованной
