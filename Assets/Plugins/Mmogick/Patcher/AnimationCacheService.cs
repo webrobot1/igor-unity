@@ -740,24 +740,29 @@ namespace Mmogick
 		}
 
 		// Резолв action → имя SCML-клипа для данного prefab с учётом направления (angle).
-		// Возвращает (clipName, flipX). flipX=true если clip получен через h_mirror (горизонтальное зеркало).
+		// Возвращает (clipName, flipX, clipAngle). flipX=true если clip получен через h_mirror
+		// (горизонтальное зеркало). clipAngle — НАРИСОВАННЫЙ угол выбранного клипа (ключ angle-карты,
+		// 0=вправо), null для клипа без направления (""). Зеркало в угол НЕ входит — экранное
+		// направление флипнутого клипа (180 − clipAngle) считает потребитель (WeaponMount) по знаку
+		// lossyScale.x. Ракурсов может быть меньше, чем направлений: forward «прилипает» к ближайшему
+		// существующему клипу, поэтому фактический ракурс тела — clipAngle, а не forward.
 		// null clipName если: library/entityActions ещё не загружены, prefab неизвестен, маппинга на action нет.
 		// Вызывающий (EntityModel.SetData) делает fallback на action как имя клипа при null.
-		public static (string clipName, bool flipX) GetClipName(
+		public static (string clipName, bool flipX, int? clipAngle) GetClipName(
 			string prefab, string action, float forwardX, float forwardY,
 			Dictionary<int, Dictionary<string, Dictionary<string, string>>> entityActions)
 		{
-			if (_library == null || string.IsNullOrEmpty(prefab)) return (null, false);
-			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return (null, false);
-			if (p.IsImage) return (null, false);
-			if (entityActions == null) return (null, false);
-			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return (null, false);
-			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false);
+			if (_library == null || string.IsNullOrEmpty(prefab)) return (null, false, null);
+			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return (null, false, null);
+			if (p.IsImage) return (null, false, null);
+			if (entityActions == null) return (null, false, null);
+			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return (null, false, null);
+			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false, null);
 
 			// Единственный ключ "" = clip без направления. Если h_mirror разрешён —
 			// зеркалим по X при взгляде влево; иначе клип статичен.
 			if (angleMap.Count == 1 && angleMap.ContainsKey(""))
-				return (angleMap[""], p.h_mirror && forwardX < 0);
+				return (angleMap[""], p.h_mirror && forwardX < 0, null);
 
 			float targetAngle = Mathf.Atan2(forwardY, forwardX) * Mathf.Rad2Deg;
 			if (targetAngle < 0) targetAngle += 360f;
@@ -765,6 +770,7 @@ namespace Mmogick
 			string bestClip = null;
 			float bestDist = 360f;
 			bool bestFlip = false;
+			int? bestAngle = null;
 
 			foreach (var kv in angleMap)
 			{
@@ -777,6 +783,7 @@ namespace Mmogick
 					bestDist = dist;
 					bestClip = kv.Value;
 					bestFlip = false;
+					bestAngle = clipAngle;
 				}
 
 				if (p.h_mirror)
@@ -793,15 +800,16 @@ namespace Mmogick
 						bestDist = mirrorDist;
 						bestClip = kv.Value;
 						bestFlip = true;
+						bestAngle = clipAngle;
 					}
 				}
 			}
 
 			// Fallback на без-направления если ничего не нашли
 			if (bestClip == null && angleMap.TryGetValue("", out var fallback))
-				return (fallback, false);
+				return (fallback, false, null);
 
-			return (bestClip, bestFlip);
+			return (bestClip, bestFlip, bestAngle);
 		}
 
 		// Простой резолв без направления (backward compat для вызовов где forward неважен, например idle в importer)

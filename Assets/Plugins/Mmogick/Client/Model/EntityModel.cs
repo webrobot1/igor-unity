@@ -72,6 +72,18 @@ namespace Mmogick
 		private Vector3 _forward = Vector3.zero;
 
 		/// <summary>
+		/// Нарисованный угол текущего Spriter-клипа (0=вправо, 90=вверх) — ключ angle-карты
+		/// entity_actions, под которым клип отрезолвлен в GetClipName. null — клип без направления
+		/// или резолв не удался (fallback на имя action). Зеркало (flipX) сюда НЕ входит — оно живёт
+		/// в localScale корня, потребитель читает его из lossyScale. Нужен WeaponMount для выбора
+		/// варианта картинки предмета по ФАКТИЧЕСКОМУ ракурсу тела, а не по логическому Forward:
+		/// ракурсов может быть меньше, чем направлений (существо с единственным фронтальным видом
+		/// всегда играет его, какой бы Forward ни был — предмет обязан следовать за телом).
+		/// </summary>
+		[NonSerialized]
+		public int? DisplayAngle;
+
+		/// <summary>
 		/// при запросе поля выдает серверные значения. при смене - меняет transform position только в клиенте (на сервере меняется лишь попутно с другими событиями требующих направления)
 		/// </summary>
 		public virtual Vector3 Forward
@@ -131,7 +143,7 @@ namespace Mmogick
 						string prefabName = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
 						float fwdX = recive.forwardX ?? Forward.x;
 						float fwdY = recive.forwardY ?? Forward.y;
-						var (clipName, flipX) = AnimationCacheService.GetClipName(
+						var (clipName, flipX, clipAngle) = AnimationCacheService.GetClipName(
 							prefabName, recive.action, fwdX, fwdY, ConnectController.entity_actions);
 						if (clipName == null) { clipName = recive.action; flipX = false; }
 
@@ -140,14 +152,20 @@ namespace Mmogick
 						// (которая может быть какой угодно — у player'а это Attack).
 						if (!animator.Animator.HasAnimation(clipName))
 						{
-							var (idleClip, idleFlip) = AnimationCacheService.GetClipName(
+							var (idleClip, idleFlip, idleAngle) = AnimationCacheService.GetClipName(
 								prefabName, ConnectController.idle_action, fwdX, fwdY, ConnectController.entity_actions);
 							if (idleClip != null && animator.Animator.HasAnimation(idleClip))
 							{
 								clipName = idleClip;
 								flipX = idleFlip;
+								clipAngle = idleAngle;
 							}
 						}
+
+						// Ракурс тела — только если клип реально есть в SCML (иначе играет прежний клип,
+						// и прежний DisplayAngle остаётся верным).
+						if (animator.Animator.HasAnimation(clipName))
+							DisplayAngle = clipAngle;
 
 						if (type != "object")
 						{
@@ -193,13 +211,15 @@ namespace Mmogick
 					{	
 						if (anim && action != null && recive.action == null)
 						{
-							var (newClip, newFlip) = AnimationCacheService.GetClipName(
+							var (newClip, newFlip, newAngle) = AnimationCacheService.GetClipName(
 								pn, action, Forward.x, Forward.y, ConnectController.entity_actions);
 							if (newClip != null)
 							{
 								Vector3 s = transform.localScale;
 								transform.localScale = new Vector3(
 									newFlip ? -Mathf.Abs(s.x) : Mathf.Abs(s.x), s.y, s.z);
+								if (anim.Animator.HasAnimation(newClip))
+									DisplayAngle = newAngle;
 								if (anim.Animator.CurrentAnimation == null || anim.Animator.CurrentAnimation.Name != newClip)
 								{
 									if (anim.Animator.HasAnimation(newClip))
