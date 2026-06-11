@@ -448,11 +448,12 @@ namespace Mmogick
 			var spriter = GetComponent<SpriterDotNetBehaviour>();
 			if (spriter != null && spriter.Animator != null && !string.IsNullOrEmpty(prefab))
 			{
-				var (clip, _) = AnimationCacheService.GetClipName(
+				var (clip, _, clipAngle) = AnimationCacheService.GetClipName(
 					prefab, actionName, Forward.x, Forward.y, ConnectController.entity_actions);
 				if (!string.IsNullOrEmpty(clip) && spriter.Animator.HasAnimation(clip))
 				{
 					spriter.Animator.Play(clip);
+					DisplayAngle = clipAngle;
 					return true;
 				}
 			}

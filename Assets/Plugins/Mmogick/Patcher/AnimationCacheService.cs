@@ -831,7 +831,7 @@ namespace Mmogick
 
 		// SCML XML анимации. Ключ кеша/URL — Animation.id (шерится между Prefab-ами).
 		// Если локальный кеш есть — читаем с диска (свежесть проверяется через /animations до вызова).
-		// Иначе — GET /structure/{id} → распаковываем base64+gzip, сохраняем, возвращаем.
+		// Иначе — GET /animations/{id} → распаковываем base64+gzip, сохраняем, возвращаем.
 		// Маппинг SCML-file-idx → sha256.ext подтягивается из _files (прилетает в /images как _files.json).
 		public static IEnumerator GetStructure(string host, int gameId, string prefab, string token,
 			Action<string, Dictionary<int, string>, string> callback)

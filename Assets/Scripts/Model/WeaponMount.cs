@@ -56,7 +56,7 @@ namespace Mmogick
         private class Mounted
         {
             public Anchor[] anchors;
-            public Variant[] variants;   // ≥1, в серверном порядке (angle ASC); активный выбирается по forward
+            public Variant[] variants;   // ≥1, в серверном порядке (angle ASC); активный выбирается по ракурсу тела
             public string rotationMode;  // AnimationCacheService.RotationMode.* (mirror_x даёт зеркальных кандидатов)
             public GameObject go;
             public SpriteRenderer sr;
@@ -66,10 +66,10 @@ namespace Mmogick
 
         private readonly Dictionary<string, Mounted> _slots = new Dictionary<string, Mounted>();
         private SpriterDotNetBehaviour _beh;
-        private EntityModel _em;   // forward носителя — для выбора варианта картинки по направлению
+        private EntityModel _em;   // DisplayAngle (ракурс играющего клипа) + Forward (fallback) — выбор варианта картинки
 
         // Надеть/обновить предмет в слоте: anchors — все якоря слота (активный выбирается по кадру),
-        // variants — все варианты картинки по направлениям (активный выбирается по forward в LateUpdate),
+        // variants — все варианты картинки по направлениям (активный выбирается по ракурсу тела в LateUpdate),
         // rotationMode — AnimationCacheService.RotationMode.* (mirror_x добавляет зеркальных кандидатов).
         // Grip-спрайты (pivot = хват, 0..1, центр вращения) пересоздаются из текстур исходников один раз
         // здесь — не в LateUpdate (Sprite.Create аллоцирует). bodyScale носителя компенсируется в LateUpdate.
@@ -111,10 +111,11 @@ namespace Mmogick
             }
         }
 
-        // Выбор варианта картинки под forward. Экранный угол кандидата учитывает зеркало ТЕЛА (флип корня
-        // h_mirror — предмет-потомок зеркалится вместе с телом, второй раз зеркалить нельзя) и собственный
-        // flipX предмета (только mirror_x: лево из права): screen = (mirrored XOR flip) ? 180−angle : angle.
-        // Побеждает кандидат с минимальной |DeltaAngle(forward, screen)|; для none/free flip-кандидатов нет.
+        // Выбор варианта картинки под экранный ракурс тела (fwdDeg). Экранный угол кандидата учитывает
+        // зеркало ТЕЛА (флип корня h_mirror — предмет-потомок зеркалится вместе с телом, второй раз
+        // зеркалить нельзя) и собственный flipX предмета (только mirror_x: лево из права):
+        // screen = (mirrored XOR flip) ? 180−angle : angle.
+        // Побеждает кандидат с минимальной |DeltaAngle(fwdDeg, screen)|; для none/free flip-кандидатов нет.
         private static void PickVariant(Mounted m, float fwdDeg, bool mirrored, out int best, out bool flip)
         {
             best = 0; flip = false;
@@ -153,12 +154,24 @@ namespace Mmogick
 
                 m.go.SetActive(true);
 
-                // Вариант картинки под forward носителя. mirrored — тело отзеркалено флипом корня
-                // (h_mirror): знак мирового X-масштаба точки включает все родительские флипы.
+                // Вариант картинки — под ФАКТИЧЕСКИЙ ракурс тела, не под логический forward: ракурсов
+                // может быть меньше, чем направлений (GetClipName «прилипает» к ближайшему клипу), и у
+                // существа с единственным фронтальным видом тело смотрит вниз при любом forward — предмет
+                // обязан следовать за телом. DisplayAngle — нарисованный угол играющего клипа; экранный
+                // ракурс = 180−angle при зеркале корня (mirrored — знак мирового X-масштаба точки включает
+                // все родительские флипы). Forward — fallback: клип без направления / резолв не удался.
                 bool mirrored = pt.lossyScale.x < 0f;
-                Vector3 fwd = _em != null ? _em.Forward : Vector3.right;
-                if (fwd.x == 0f && fwd.y == 0f) fwd = Vector3.right;
-                PickVariant(m, Mathf.Atan2(fwd.y, fwd.x) * Mathf.Rad2Deg, mirrored, out int vi, out bool flip);
+                float fwdDeg;
+                int? bodyAngle = _em != null ? _em.DisplayAngle : null;
+                if (bodyAngle.HasValue)
+                    fwdDeg = mirrored ? Mathf.Repeat(180f - bodyAngle.Value, 360f) : bodyAngle.Value;
+                else
+                {
+                    Vector3 fwd = _em != null ? _em.Forward : Vector3.right;
+                    if (fwd.x == 0f && fwd.y == 0f) fwd = Vector3.right;
+                    fwdDeg = Mathf.Atan2(fwd.y, fwd.x) * Mathf.Rad2Deg;
+                }
+                PickVariant(m, fwdDeg, mirrored, out int vi, out bool flip);
                 if (vi != m.curVariant || flip != m.curFlip)
                 {
                     m.curVariant = vi;

@@ -203,24 +203,26 @@ namespace Mmogick
             {
                 // GetClipName с учётом forward — иначе для action с направленными клипами берётся
                 // случайный угол из словаря (например walk→walk_right при Forward.x<0).
-                var (targetClip, flipX) = AnimationCacheService.GetClipName(
+                var (targetClip, flipX, clipAngle) = AnimationCacheService.GetClipName(
                     em.prefab, em.action, em.Forward.x, em.Forward.y, ConnectController.entity_actions);
                 if (string.IsNullOrEmpty(targetClip) || !cachedBehaviour.Animator.HasAnimation(targetClip))
                 {
                     // action не настроен в entity_actions (ACTION_LOAD и т.п.) или clip отсутствует
                     // в SCML — fallback на idle, иначе Spriter оставит первую анимацию SCML.
-                    var (idleClip, idleFlip) = AnimationCacheService.GetClipName(
+                    var (idleClip, idleFlip, idleAngle) = AnimationCacheService.GetClipName(
                         em.prefab, ConnectController.idle_action, em.Forward.x, em.Forward.y, ConnectController.entity_actions);
                     if (!string.IsNullOrEmpty(idleClip) && cachedBehaviour.Animator.HasAnimation(idleClip))
                     {
                         targetClip = idleClip;
                         flipX = idleFlip;
+                        clipAngle = idleAngle;
                     }
                     else targetClip = null;
                 }
 
                 if (!string.IsNullOrEmpty(targetClip))
                 {
+                    em.DisplayAngle = clipAngle;   // ракурс тела для WeaponMount (HasAnimation проверен выше)
                     // localScale.x: симметрично EntityModel.SetData (object — без flip).
                     if (em.type != "object")
                     {
