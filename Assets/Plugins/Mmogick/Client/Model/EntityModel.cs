@@ -76,6 +76,13 @@ namespace Mmogick
 		private const float UNIVERSAL_EFFECT_UNIT_SIZE = 1.2f;
 
 		/// <summary>
+		/// Доля от мировой высоты placeholder'а, на которую масштабируется Universal-эффект (dead/remove)
+		/// у kind-only сущности. 0.7 = эффект на 30% мельче placeholder'а (подобрано визуально — иначе
+		/// dead-силуэт выглядит крупновато). 1.0 = ровно в размер placeholder'а.
+		/// </summary>
+		private const float UNIVERSAL_EFFECT_SIZE_FACTOR = 0.7f;
+
+		/// <summary>
 		/// Запоминает placeholder-спрайт kind-only сущности и считает _fallbackScale/_effectScale для
 		/// корректного размера Universal-эффекта. Вызывается из UpdateController.ApplyVisualPrefab ДО
 		/// навешивания Animator'а (когда на корневом SR ещё placeholder-спрайт). См. <see cref="_fallbackSprite"/>.
@@ -87,7 +94,7 @@ namespace Mmogick
 			if (sprite != null && sprite.pixelsPerUnit > 0.0001f)
 			{
 				float placeholderWorldHeight = sprite.rect.height / sprite.pixelsPerUnit * Mathf.Abs(_fallbackScale.y);
-				float s = placeholderWorldHeight / UNIVERSAL_EFFECT_UNIT_SIZE;
+				float s = placeholderWorldHeight * UNIVERSAL_EFFECT_SIZE_FACTOR / UNIVERSAL_EFFECT_UNIT_SIZE;
 				_effectScale = new Vector3(s, s, _fallbackScale.z);
 			}
 			else _effectScale = _fallbackScale;
