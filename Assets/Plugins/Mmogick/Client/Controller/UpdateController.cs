@@ -328,21 +328,11 @@ namespace Mmogick
 				try { sr.sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); }
 				catch (Exception ex) { Error(ex.Message); return; }
 
+				// Размер целиком ведёт СЕРВЕР: wire несёт size всегда (свой дефолт null→1 подставляет он —
+				// сменится дефолт, клиент не правится). ?:1f ниже — не семантика, а гард записей
+				// ЛОКАЛЬНОГО кеша от прежних версий wire, где size бывал null.
 				float? size = AnimationCacheService.GetPrefabSize(newPrefab);
-				float effectiveSize = 0f;
-				if (size.HasValue && size.Value > 0.0001f)
-				{
-					effectiveSize = size.Value;
-				}
-				else if (sr.sprite != null && AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight) && Mathf.Max(tight.size.x, tight.size.y) > 0.0001f)
-				{
-					// Сервер не задал size для image-prefab → fallback на tight-bounds спрайта.
-					// Берём max(width, height) (как SpriterPostImportAdjuster для вытянутых сущностей) — иначе
-					// горизонтальная молния 3:1 нормализуется по Y в 3 клетки в ширину.
-					// Используется TryGetTightRect (а не sprite.bounds), чтобы прозрачные поля PNG не раздували размер.
-					effectiveSize = Mathf.Max(tight.size.x, tight.size.y);
-					Debug.LogWarning("image-sprite " + newPrefab + ": server size не задан, fallback на tight-bounds max(w,h)=" + effectiveSize);
-				}
+				float effectiveSize = (size.HasValue && size.Value > 0.0001f) ? size.Value : 1f;
 
 				if (effectiveSize > 0.0001f)
 				{

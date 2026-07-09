@@ -7,6 +7,18 @@
     "mmogick-websocket": {
       "type": "http",
       "url": "http://localhost/mcp"
+    },
+    "sequential-thinking": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "ctx7sk-82de9738-cbda-4cc5-993a-74ecd70f7bfa"
+      }
     }
   }
 }

@@ -1,12 +1,11 @@
 namespace Mmogick
 {
 	/// <summary>
-	/// Тайл на слое тайл-карты.
-	/// На проводе — sparse-словарь int → объект:
-	///   { "12": {"sha256":"abc..."}, "37": {"sha256":"def...","flipH":true}, ... }
-	/// Где ключ словаря — индекс ячейки (y*width + x), значение — объект с sha256
-	/// и опциональными flip-флагами (отсутствующее поле = false).
-	/// Поля x/y заполняются после десериализации в MapDecodeModel.generate из ключа словаря.
+	/// Один декодированный тайл слоя тайл-карты.
+	/// На проводе тайлов слоя нет как объектов — слой несёт ОДНУ CSV-строку (см. Layer.tile,
+	/// формат LayerTileCsvCodec). MapDecodeModel.generate парсит её в набор LayerTile:
+	/// tile (sha256 из легенды) + flip-флаги из битмаски + x/y из позиции ячейки в CSV
+	/// (i = y*width+x; y инвертируется умножением на -1). Отсутствующий флаг = false.
 	/// </summary>
 	[System.Serializable]
 	public class LayerTile

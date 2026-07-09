@@ -38,17 +38,9 @@ namespace Mmogick
 			}
 			Colliders = colliders;
 
-			// Пересчёт позиционных полей из ключа словаря (pos = y*width + x)
+			// Пересчёт позиционных полей объектов (тайлы слоёв декодируются из CSV ниже)
 			foreach (Layer layer in map.layer.Values)
 			{
-				if (layer.tile != null)
-				{
-					foreach (var tile in layer.tile)
-					{
-						tile.Value.x = tile.Key % map.width;
-						tile.Value.y = (tile.Key / map.width) * -1;
-					}
-				}
 				if (layer.@object != null)
 				{
 					foreach (LayerObject obj in layer.@object)
@@ -81,17 +73,18 @@ namespace Mmogick
 
 				Tilemap tilemap = newLayer.GetComponent<Tilemap>();
 
-				if (layer.tile != null)
+				if (!string.IsNullOrEmpty(layer.tile))
 				{
-					foreach (KeyValuePair<int, LayerTile> tile in layer.tile)
+					List<LayerTile> tiles = DecodeTileCsv(layer.tile, map.width);
+					foreach (LayerTile tile in tiles)
 					{
 						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-						newTile.transform = BuildTileMatrix(tile.Value.flipH, tile.Value.flipV, tile.Value.flipD, tile.Value.rotHex120);
+						newTile.transform = BuildTileMatrix(tile.flipH, tile.flipV, tile.flipD, tile.rotHex120);
 
-						applySprite(newTile, gameId, tile.Value.tile);
-						tilemap.SetTile(new Vector3Int(tile.Value.x, tile.Value.y, 0), newTile);
+						applySprite(newTile, gameId, tile.tile);
+						tilemap.SetTile(new Vector3Int(tile.x, tile.y, 0), newTile);
 					}
-					Debug.Log("Карта: у слоя " + newLayer.name + " раставлены " + layer.tile.Count + " тайлов");
+					Debug.Log("Карта: у слоя " + newLayer.name + " раставлены " + tiles.Count + " тайлов");
 				}
 
 				if (layer.@object != null)
@@ -216,6 +209,56 @@ namespace Mmogick
 			}
 
 			return new MapDecode(map);
+		}
+
+		// Декод CSV-строки тайлов слоя в набор LayerTile (зеркало серверного LayerTileCsvCodec::decodeCsv).
+		// Формат: "легенда\nданные". До '\n' — distinct sha256 через ';'. После — CSV ячеек через ','.
+		// Ячейка = индекс в легенде (1-based; 0/пусто пропускается) + опц. флаги через '|' битмаской
+		// (1=flipH, 2=flipV, 4=flipD, 8=rotHex120). Позиция ячейки i = y*width+x; y инвертируется (*-1).
+		private static List<LayerTile> DecodeTileCsv(string s, int width)
+		{
+			List<LayerTile> result = new List<LayerTile>();
+
+			s = s.Trim();
+			if (s.Length == 0)
+				return result;
+
+			int nl = s.IndexOf('\n');
+			if (nl < 0)
+				return result; // легенда без данных — пусто
+
+			string[] legend = s.Substring(0, nl).Split(';');
+			string[] cells  = s.Substring(nl + 1).Split(',');
+
+			for (int i = 0; i < cells.Length; i++)
+			{
+				string cell = cells[i].Trim();
+				if (cell.Length == 0 || cell == "0")
+					continue;
+
+				string[] cellParts = cell.Split('|');
+				int idx = int.Parse(cellParts[0]);
+				if (idx < 1 || idx > legend.Length)
+				{
+					Debug.LogError("CSV-слой: индекс легенды " + idx + " вне диапазона (легенда из " + legend.Length + " sha, позиция " + i + ")");
+					continue;
+				}
+
+				int flags = cellParts.Length > 1 ? int.Parse(cellParts[1]) : 0;
+
+				result.Add(new LayerTile
+				{
+					tile      = legend[idx - 1],
+					flipH     = (flags & 1) != 0,
+					flipV     = (flags & 2) != 0,
+					flipD     = (flags & 4) != 0,
+					rotHex120 = (flags & 8) != 0,
+					x         = i % width,
+					y         = (i / width) * -1,
+				});
+			}
+
+			return result;
 		}
 
 		// Назначает TilemapModel либо одиночный Sprite (нет анимации), либо массив фреймов (есть).

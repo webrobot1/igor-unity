@@ -110,7 +110,10 @@ namespace Mmogick
 						string id = Path.GetFileNameWithoutExtension(file);
 						try
 						{
-							var ts = JsonConvert.DeserializeObject<TilesetMeta>(File.ReadAllText(file));
+							// Канон сервера: sandbox-скаляры приходят всегда, включая null (null ≡ дефолт).
+							// Ignore не даёт Newtonsoft писать null в не-nullable поля (напр. LayerObject.ellipse) —
+							// тот же контракт, что у MapDecodeModel.generate.
+							var ts = JsonConvert.DeserializeObject<TilesetMeta>(File.ReadAllText(file), new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 							if (ts != null)
 							{
 								_tilesets[id] = ts;
@@ -296,7 +299,10 @@ namespace Mmogick
 
 				try
 				{
-					var ts = JsonConvert.DeserializeObject<TilesetMeta>(json);
+					// Канон сервера: sandbox-скаляры приходят всегда, включая null (null ≡ дефолт).
+					// Ignore не даёт Newtonsoft писать null в не-nullable поля (напр. LayerObject.ellipse) —
+					// тот же контракт, что у MapDecodeModel.generate.
+					var ts = JsonConvert.DeserializeObject<TilesetMeta>(json, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 					File.WriteAllText(TilesetFilePath(gameId, tilesetId), json);
 					_manifest.tileset_versions[tilesetId] = serverTs;
 

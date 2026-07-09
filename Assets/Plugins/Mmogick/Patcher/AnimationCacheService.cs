@@ -124,9 +124,11 @@ namespace Mmogick
 			public string extension;
 
 			/// <summary>
-			/// Читаемое имя prefab'а для UI (Prefab.name из админки). Приоритетнее лейбла картинки: сервер
-			/// шлёт сюда Prefab.name, а при его отсутствии — GameImage.name (лейбл картинки) для image-prefab'ов.
-			/// Null — имя не задано (клиент показывает сам prefab-slug). Не используется для построения путей.
+			/// Читаемое имя prefab'а для UI (Prefab.name из админки) — единый источник и для статичных,
+			/// и для анимированных prefab'ов: сервер кладёт сюда только Prefab.name, в wire привязки
+			/// картинки (image-prefab) имя НЕ шлётся (skill animation «Имя предмета — у потребителя»).
+			/// Ключа нет (имя не задано) → поле null, клиент показывает сам prefab-slug. Не используется
+			/// для построения путей.
 			/// </summary>
 			public string name;
 

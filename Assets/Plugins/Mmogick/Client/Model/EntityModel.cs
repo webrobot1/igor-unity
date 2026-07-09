@@ -230,8 +230,8 @@ namespace Mmogick
 					}
 					// Поворот transform применяем только сущностям без Spriter и без legacy blend-tree Animator'а.
 					// У player/enemy/animal направление передаётся сменой clip + flip по X (Spriter), либо
-					// SetFloat("x"/"y") в blend-tree (legacy PlayerController.controller) — им крутить
-					// transform нельзя.
+					// SetFloat("x"/"y") в blend-tree (исторический legacy-механизм, сам blend-tree контроллер
+					// удалён) — им крутить transform нельзя.
 					// Universal.controller (overlay для remove-эффектов) не имеет параметров x/y — для image-
 					// projectile'ов с ним крутить ВСЁ ЕЩЁ можно.
 					// Критерий «нельзя крутить»: есть Spriter, или есть Animator с параметрами x/y.

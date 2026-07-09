@@ -32,30 +32,6 @@ namespace Mmogick
 		[NonSerialized]
 		public Animator animator;
 
-		/// <summary>
-		/// список анимационных тригеров
-		/// </summary>
-		private static Dictionary<string, bool> trigers;
-
-		/// <summary>
-		///  активный слой анимации
-		/// </summary>
-		private int _layerIndex = 0;
-
-		// Кешированное наличие параметров x/y в текущем animator.runtimeAnimatorController.
-		// Forward setter ниже использует SetFloat("x"/"y") — это валидно только для blend-tree
-		// контроллеров (старый PlayerController). Universal.controller на enemy/object этих параметров
-		// не имеет; обращение без guard'а спамит "Parameter 'x' does not exist" каждый кадр.
-		private bool _hasParamX;
-		private bool _hasParamY;
-
-
-		public int CurrentAnimationIndex
-		{
-			get { return _layerIndex; }
-		}
-
-
 		private Dictionary<string, Coroutine> coroutines = new Dictionary<string, Coroutine>();
 
 		/// <summary>
@@ -69,16 +45,6 @@ namespace Mmogick
 				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
 				if (value.x != base.Forward.x || value.y != base.Forward.y)
 				{
-					// Blend-tree аниматора (legacy PlayerController использует параметры x/y для смешивания
-					// направлений). Универсальный Animator с Universal.controller их не имеет —
-					// guard через закешированный _hasParamX/Y (заполняется в RebuildTriggersCache).
-					if (animator)
-					{
-						if (_hasParamX && animator.GetFloat("x") != value.x)
-							animator.SetFloat("x", value.x);
-						if (_hasParamY && animator.GetFloat("y") != value.y)
-							animator.SetFloat("y", value.y);
-					}
 					base.Forward = value;
 				}
 			}
@@ -86,68 +52,31 @@ namespace Mmogick
 
 		protected virtual void Awake()
 		{
-			if (animator = GetComponent<Animator>())
-				RebuildTriggersCache();
+			animator = GetComponent<Animator>();
 		}
 
 		/// <summary>
 		/// Spriter-init / image-init навешивают Animator на GO после Awake — кеш этого момента ещё null.
-		/// Hook обновляет ObjectModel.animator и пересобирает trigers под новый controller.
+		/// Hook обновляет ObjectModel.animator под навешенный сторонним кодом Animator.
 		/// </summary>
 		protected override void OnAnimatorAttached(Animator anim)
 		{
 			animator = anim;
-			RebuildTriggersCache();
-		}
-
-		private void RebuildTriggersCache()
-		{
-			_hasParamX = false;
-			_hasParamY = false;
-			if (animator == null) return;
-			trigers ??= new Dictionary<string, bool>();
-			foreach (var parameter in animator.parameters)
-			{
-				if (parameter.type == AnimatorControllerParameterType.Trigger && !trigers.ContainsKey(parameter.name))
-					trigers.Add(parameter.name, true);
-				if (parameter.name == "x") _hasParamX = true;
-				else if (parameter.name == "y") _hasParamY = true;
-			}
 		}
 
 		// Update is called once per frame
 		void Update()
 		{
 			// если текущий наш статус анимации - не стояние и давно небыло активности - включим анмацию остановки.
-			// Имя idle-action берётся из ConnectController.idle_action (серверное, default "idle") — не хардкодим,
-			// чтобы одна переменная управляла обеими ветками (Spriter adjuster + legacy Animator).
-			// Ограничение: layer в Animator Controller должен называться так же, как ConnectController.idle_action —
-			// обычно "idle", но если сервер переименует, .controller'ы тоже надо будет переименовать.
+			// Имя idle-action берётся из ConnectController.idle_action (серверное, default "idle") — не хардкодим.
 			string idleAction = ConnectController.idle_action;
 			if (action == "dead" || action == ConnectController.ACTION_REMOVE) return;
 			if (DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) >= 1) return;
 
-			// 1) Legacy multi-layer Animator (например PlayerController.controller со слоями по action).
-			if (animator != null
-				&& (animator.GetCurrentAnimatorStateInfo(_layerIndex).loop
-					|| animator.GetCurrentAnimatorStateInfo(_layerIndex).normalizedTime >= 1.0f))
-			{
-				string layer_name = animator.GetLayerName(_layerIndex);
-				if (layer_name != idleAction)
-				{
-					int idx = animator.GetLayerIndex(idleAction);
-					if (idx >= 0)
-					{
-						Log("Анимация " + key + " с " + action + " на " + idleAction + " (таймаут)");
-						Animate(animator, idx);
-					}
-				}
-			}
-
-			// 2) Spriter (SCML): таймаут с последнего action-пакета от сервера — переключаем на idle.
+			// Spriter (SCML): таймаут с последнего action-пакета от сервера — переключаем на idle.
 			// Проверку cur.Looping/Progress намеренно не делаем: SCML-контент часто помечает action'ы
 			// (Attack, Hurt) как Looping=true, и они зацикливаются вечно. Триггер для возврата в idle
-			// — только activeLast timeout (как у legacy multi-layer Animator выше).
+			// — только activeLast timeout.
 			var spriter = GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
 			var cur = spriter?.Animator?.CurrentAnimation;
 			if (cur != null && !string.IsNullOrEmpty(prefab)
@@ -229,47 +158,10 @@ namespace Mmogick
 			// todo некоторые анимации не нужно запускать если существо только добавлено (например смерти тк умерло оно может уже давно а карта только загрузилась)
 			if (recive.action != null && recive.action != ConnectController.ACTION_REMOVE)
 			{
-				// 1) legacy multi-layer controller (PlayerController.controller): слой по имени action.
-				// 2) Universal-overlay (1 слой + триггеры): нет одноимённого layer'а → PlayAction
-				//    сам решит Spriter→Universal trigger по имени action.
-				int layerIndex = animator != null ? animator.GetLayerIndex(recive.action) : -1;
-				if (layerIndex >= 0)
-					Animate(animator, layerIndex);
-				else
-					PlayAction(recive.action);
+				// PlayAction сам выберет анимацию по имени action: Spriter-клип (SCML с сервера),
+				// иначе Universal-overlay trigger (dead/remove) — см. EntityModel.PlayAction.
+				PlayAction(recive.action);
 			}
-		}
-
-		/// <summary>
-		/// включить анимацию - те отключить все слои анимаций других и оставить только нужную. если есть анмиационный тригер одноименный со слоем - и его выключить (для анимаций которых не зацикленные и надо запустить один раз)
-		/// </summary>
-		public void Animate(Animator animator, int layerIndex)
-		{		
-			if (layerIndex >=0)
-			{
-				if (layerIndex == 0 || animator.GetLayerWeight(layerIndex) != 1) 
-				{ 
-					// "остановим" все слои анмиации
-					if (animator.layerCount > 1) 
-					{ 
-						for (int i = 1; i < animator.layerCount; i++)
-						{
-							animator.SetLayerWeight(i, 0);
-						}
-					}
-					animator.SetLayerWeight(layerIndex, 1);		
-				}
-				this._layerIndex = layerIndex;
-
-				string name = animator.GetLayerName(layerIndex);
-				if (trigers.ContainsKey(name))
-				{
-					Log("запускаем тригер " + name);
-					animator.SetTrigger(name);
-				}
-			}
-			else
-				PlayerController.Error("неверный индекс анимации "+ layerIndex);
 		}
 
 		/// <summary>

@@ -33,7 +33,7 @@ namespace Mmogick
         {
             public string pointName; // имя точки (object.name из object_slot)
             public float ox, oy;     // сдвиг от точки, px
-            public float scale;      // ЦЕЛЕВОЙ МИРОВОЙ масштаб (слот.scale × ground-нормализация, см. SyncWeapon)
+            public float scale;      // ЧИСТЫЙ scale слота (предмет наследует масштаб скелета иерархией якоря)
             public float? angle;     // null = «как загружено»: предмет не доворачивается к кости (мировой upright)
             public int? z;           // draw-rank кожи кости-якоря (object_slot.z); null → FallbackOrder
         }
@@ -195,13 +195,12 @@ namespace Mmogick
                 }
                 else
                     m.go.transform.rotation = Quaternion.identity;
-                // a.scale — целевой МИРОВОЙ масштаб (как на земле). Точка (pt) живёт под нормализованной
-                // Metadata-веткой скелета, её lossyScale.y = bodyScale носителя. Делим на него, иначе предмет
-                // унаследовал бы это сжатие и в руке был бы в bodyScale раз мельче того же prefab'а на земле
-                // (на giant — ещё мельче). Якорь не масштабируется (Point.localScale=1), root.y=1 → lossyScale.y чист.
-                float body = Mathf.Abs(pt.lossyScale.y);
-                if (body < 0.0001f) body = 1f;
-                float s = a.scale / body;
+                // a.scale — ЧИСТЫЙ scale слота: предмет живёт child'ом якоря и НАСЛЕДУЕТ масштаб скелета
+                // через иерархию (bodyScale НЕ компенсируем) → пропорции предмет↔скелет натуральные,
+                // как нарисовал художник — пиксель-в-пиксель с админ-примеркой (equip-preview рисует
+                // спрайт в мире кости × scale слота). size привязки в руке не участвует — он задаёт
+                // размер предмета только на земле и в инвентаре (UpdateController.ApplyVisualPrefab).
+                float s = a.scale;
                 m.go.transform.localScale = new Vector3(s, s, 1f);
 
                 // Глубина кожи якоря: base тот же, что у частей тела (SpriterDotNetBehaviour прокидывает

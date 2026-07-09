@@ -33,11 +33,6 @@ namespace Mmogick
         private SpriterDotNetUnity.SpriterDotNetBehaviour _sourceSpriter;
         private SpriterDotNetUnity.SpriterDotNetBehaviour _mirrorSpriter;
 
-        /// <summary>
-        ///  последняя воспроизведенная анимация
-        /// </summary>
-        public int _layerIndex;
-
         private ObjectModel _target = null;
 
         private void Awake()
@@ -110,7 +105,6 @@ namespace Mmogick
                         if (srcSpriter != null && srcSpriter.SpriterData != null)
                         {
                             animator.runtimeAnimatorController = null;
-                            _layerIndex = value.CurrentAnimationIndex;
 
                             // Зеркалим Spriter-анимацию в target-UI, чтобы face_camera снимала её вживую.
                             // SpriteRenderer оставляем с корневым fallback-спрайтом (его bounds нужны CameraUpdate),
@@ -125,18 +119,10 @@ namespace Mmogick
                             _mirrorSpriter = NewSpriterRuntimeImporter.MirrorFromSource(srcSpriter, gameObject);
                             _sourceSpriter = srcSpriter;
                         }
-                        else if (value.animator != null && value.animator.enabled)
-                        {
-                            // Animator без Spriter — legacy путь (PlayerController.controller с blend-tree и т.п.).
-                            if (localSr != null) localSr.enabled = true;
-                            animator.runtimeAnimatorController = value.animator.runtimeAnimatorController;
-                            Animate();
-                        }
                         else
                         {
                             // Статичный фолбэк для не-анимированных целей.
                             animator.runtimeAnimatorController = null;
-                            _layerIndex = value.CurrentAnimationIndex;
                             if (localSr != null) localSr.enabled = true;
                             SpriteRenderer spriteRender = value.GetComponentInChildren<SpriteRenderer>(true);
                             if (spriteRender == null)
@@ -328,11 +314,6 @@ namespace Mmogick
                     return;
                 }
                     
-                if (_target.animator != null && _target.CurrentAnimationIndex != _layerIndex)
-                {
-                    Animate();
-                }
-
                 EnemyModel enemyTarget = _target as EnemyModel;
 
                 if (enemyTarget.hp != null)
@@ -389,12 +370,6 @@ namespace Mmogick
                 if (text.text != newText)
                     text.text = newText;
             }
-        }
-
-        private void Animate()
-        {
-            _layerIndex = _target.CurrentAnimationIndex;
-            _target.Animate(animator, _target.CurrentAnimationIndex);
         }
     }
 }
