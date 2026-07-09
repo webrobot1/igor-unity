@@ -51,7 +51,6 @@ Errro() - что то типа безопсного exception , что в сле
 
 Механизм подробно задокументирован XML-doc'ами в коде — здесь только обзор, карта файлов и cross-file инварианты (их ни один отдельный файл не покрывает). За деталями — в код:
 - `EntityModel.PlayAction` (единая точка: Spriter-приоритет → Universal-fallback), `EnsureUniversalAnimator`/`OnAnimatorAttached` (привязка overlay-Animator'а, startDisabled для image-init), rotation projectile'ов в `SetData` — [EntityModel.cs](Assets/Plugins/Mmogick/Client/Model/EntityModel.cs).
-- guard `_hasParamX/_hasParamY` для `Forward` setter (Universal.controller не имеет `x/y`, без guard'а спам `Parameter 'x' does not exist`) — [ObjectModel.cs](Assets/Scripts/Model/ObjectModel.cs).
 - семантика полей prefab'а (size/sha256/equipable_slot…), throw vs null политика кеша — [AnimationCacheService.cs](Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs).
 
 Два слоя на одном GameObject:
