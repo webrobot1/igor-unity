@@ -126,6 +126,7 @@ namespace Mmogick
                 obj.name = "Slot" + (i + 1);
                 SlotScript slot = obj.GetComponent<SlotScript>();
                 slot.SlotNum = i + 1;
+                slot.SetTooltip(tooltip);
                 _slots[i] = slot;
             }
         }

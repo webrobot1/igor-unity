@@ -34,7 +34,9 @@ namespace Mmogick
 
         public override string GetTooltipText()
         {
-            return _prefab;
+            string title = AnimationCacheService.GetPrefabName(_prefab) ?? _prefab;
+            string description = AnimationCacheService.GetPrefabDescription(_prefab);
+            return string.IsNullOrEmpty(description) ? title : title + "\n" + description;
         }
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)

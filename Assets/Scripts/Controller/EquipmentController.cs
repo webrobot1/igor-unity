@@ -67,6 +67,7 @@ namespace Mmogick
                     return;
                 }
 
+                slot.SetTooltip(tooltip);
                 _equipSlots[slot.SlotSlug] = slot;
             }
         }

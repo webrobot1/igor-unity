@@ -5,12 +5,16 @@ using UnityEngine.UI;
 
 namespace Mmogick
 {
-    public class SlotScript : MonoBehaviour, IPointerClickHandler
+    public class SlotScript : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         // protected — EquipmentSlot переиспользует тот же binding из Inspector
         // (свой _icon-биндинг в prefab'е equipment-слота уже привязан к этому полю).
         [SerializeField] protected Image _icon;
         [SerializeField] private Text _stackText;
+
+        // Тултип показывает СЛОТ, а не Item: Item в слоте деактивирован (SetActive(false)
+        // в InventoryController.UpdateObject) и pointer-события не получает.
+        protected Tooltip tooltip;
 
         private Item _item;
         private int _slotNum;
@@ -80,9 +84,32 @@ namespace Mmogick
             _stackText.text = "";
         }
 
+        public void SetTooltip(Tooltip t)
+        {
+            tooltip = t;
+        }
+
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
             HandlePointerClick(eventData);
+        }
+
+        // Через property Item, не поле _item: EquipmentSlot переопределяет Item на чтение
+        // из инвентаря (ярлык-pattern), собственного _item у него нет.
+        void IPointerEnterHandler.OnPointerEnter(PointerEventData eventData)
+        {
+            if (Item != null && tooltip != null)
+            {
+                string text = Item.GetTooltipText();
+                if (text != null)
+                    tooltip.Show(transform.position, text);
+            }
+        }
+
+        void IPointerExitHandler.OnPointerExit(PointerEventData eventData)
+        {
+            if (tooltip != null)
+                tooltip.Hide();
         }
 
         // Точка переопределения для наследников (EquipmentSlot). Базовое поведение —
