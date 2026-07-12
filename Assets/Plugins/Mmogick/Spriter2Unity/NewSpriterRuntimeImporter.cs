@@ -59,7 +59,7 @@ namespace Mmogick
         // Кешируем collider один раз — Phase 2 читает offset каждый кадр до Destroy, лишние GetComponent'ы не нужны.
         private CapsuleCollider2D cachedCapsule;
         // Для принудительного воспроизведения idle-клипа в Phase 1: walk/attack-позы раздувают bbox
-        // и портят median. Если idle-клип разрешён (через server entity_actions или scml animation[0]) —
+        // и портят median. Если idle-клип разрешён (через PrefabEntry.actions или scml animation[0]) —
         // форсим его во время sampling'а, чтобы норма считалась по «телу в покое».
         private SpriterDotNetBehaviour cachedBehaviour;
         private string idleClipName;
@@ -204,13 +204,13 @@ namespace Mmogick
                 // GetClipName с учётом forward — иначе для action с направленными клипами берётся
                 // случайный угол из словаря (например walk→walk_right при Forward.x<0).
                 var (targetClip, flipX, clipAngle) = AnimationCacheService.GetClipName(
-                    em.prefab, em.action, em.Forward.x, em.Forward.y, ConnectController.entity_actions);
+                    em.prefab, em.action, em.Forward.x, em.Forward.y);
                 if (string.IsNullOrEmpty(targetClip) || !cachedBehaviour.Animator.HasAnimation(targetClip))
                 {
-                    // action не настроен в entity_actions (ACTION_LOAD и т.п.) или clip отсутствует
+                    // action не настроен в actions (ACTION_LOAD и т.п.) или clip отсутствует
                     // в SCML — fallback на idle, иначе Spriter оставит первую анимацию SCML.
                     var (idleClip, idleFlip, idleAngle) = AnimationCacheService.GetClipName(
-                        em.prefab, ConnectController.idle_action, em.Forward.x, em.Forward.y, ConnectController.entity_actions);
+                        em.prefab, ConnectController.idle_action, em.Forward.x, em.Forward.y);
                     if (!string.IsNullOrEmpty(idleClip) && cachedBehaviour.Animator.HasAnimation(idleClip))
                     {
                         targetClip = idleClip;
@@ -299,7 +299,7 @@ namespace Mmogick
         private static readonly string ObjectNameSprites = "Sprites";
         private static readonly string ObjectNameMetadata = "Metadata";
         /// <param name="prefabName">Имя Prefab (из library, соответствует EntityRecive.prefab) — используется
-        /// для резолва idle-клипа через server-маппинг entity_actions (action ConnectController.idle_action).
+        /// для резолва idle-клипа через PrefabEntry.actions (action ConnectController.idle_action).
         /// Если null или нет маппинга — adjuster сэмплит то, что сейчас играется (без фолбэка на animation[0],
         /// т.к. первая scml-анимация не гарантированно idle).</param>
         /// <param name="bodyHeight">Высота «тела» в scml-единицах (per-prefab, с сервера через Prefab.size
@@ -378,16 +378,16 @@ namespace Mmogick
             //      ~1.5-2x body, fallback на случай если (2) не сработает).
             float? xmlCanvasFallback = ParseScmlCanvasHeight(packet.xml);
 
-            // Резолв idle-клипа для форсирования в Phase 1 sampling через server entity_actions:
+            // Резолв idle-клипа для форсирования в Phase 1 sampling через PrefabEntry.actions:
             // action ConnectController.idle_action → имя scml-клипа для этой entity. Имя action-а для idle
             // серверное (по умолчанию "idle"), чтобы не хардкодить литерал в клиенте — см. SigninRecive.idle_action.
-            // Если маппинг не найден (не настроено в админке или entity_actions ещё не пришли) — adjuster
+            // Если маппинг не найден (не настроено в админке или actions ещё не пришли) — adjuster
             // сэмплит то, что сейчас играется (animation[0] по умолчанию в SpriterDotNet). Fallback'а на
             // entity.Animations[0].Name намеренно нет — первая анимация scml не гарантированно idle, а наугад
             // форсить не-idle позу хуже чем оставить дефолт.
             string idleClipName = null;
             if (!string.IsNullOrEmpty(prefabName))
-                idleClipName = AnimationCacheService.GetClipNameSimple(prefabName, ConnectController.idle_action, ConnectController.entity_actions);
+                idleClipName = AnimationCacheService.GetClipNameSimple(prefabName, ConnectController.idle_action);
 
             var lifeBar = go.transform.Find("LifeBar");
             var adjuster = go.AddComponent<SpriterPostImportAdjuster>();

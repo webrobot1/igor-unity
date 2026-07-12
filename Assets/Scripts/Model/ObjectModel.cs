@@ -80,7 +80,7 @@ namespace Mmogick
 			var spriter = GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
 			var cur = spriter?.Animator?.CurrentAnimation;
 			if (cur != null && !string.IsNullOrEmpty(prefab)
-				&& AnimationCacheService.GetClipNameSimple(prefab, idleAction, ConnectController.entity_actions) is string idleClip
+				&& AnimationCacheService.GetClipNameSimple(prefab, idleAction) is string idleClip
 				&& spriter.Animator.HasAnimation(idleClip)
 				&& cur.Name != idleClip)
 			{

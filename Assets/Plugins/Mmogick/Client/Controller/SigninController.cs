@@ -160,16 +160,10 @@ namespace Mmogick
 				if (string.IsNullOrEmpty(data.idle_action))
 					throw new System.Exception("Сервер не отдал поле 'idle' в /auth response. По контракту оно обязательно.");
 
-				if (data.entity_actions != null)
-					foreach (var kv in data.entity_actions)
-						if (!kv.Value.ContainsKey(data.idle_action))
-							Debug.LogWarning($"У entity {kv.Key} отсутствует action \"{data.idle_action}\" в entity_actions");
-
 				ConnectController.idle_action = data.idle_action;
 				ConnectController.step = data.step;
 				ConnectController.position_precision = data.position_precision;
 				ConnectController.server_fps = data.fps;
-				ConnectController.entity_actions = data.entity_actions;
 
 				// equipment_slot — справочник slug-ов слотов экипировки игры. По контракту приходит непустой
 				// (см. SigninRecive.equipment_slot). UI рисует ровно эти ячейки.

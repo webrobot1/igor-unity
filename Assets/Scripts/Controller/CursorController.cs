@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 namespace Mmogick
 {
-    public abstract class CursorController : ActionBarsController
+    public abstract class CursorController : LootWindowController
     {
         /// <summary>
         /// нажата кнопка двигаться по горизонтали
@@ -181,6 +181,28 @@ namespace Mmogick
                         ObjectModel new_target = gameObject.GetComponent<ObjectModel>();
                         if (new_target != null)
                         {
+                            // Труп (мёртвая сущность) — контейнер лута (ui/loot). Рядом (клетка серверного
+                            // tile() = banker's rounding, совпадает с Mathf.RoundToInt) — открыть окно;
+                            // далеко — подойти (двухслойная валидация: заведомо невалидное не слать,
+                            // сервер дошедшее режет Error+дисконнектом).
+                            if (new_target.action == "dead")
+                            {
+                                Target = null;
+                                persist_target = false;
+
+                                if (player != null)
+                                {
+                                    bool sameTile = Mathf.RoundToInt(player.position.x) == Mathf.RoundToInt(new_target.position.x)
+                                        && Mathf.RoundToInt(player.position.y) == Mathf.RoundToInt(new_target.position.y);
+
+                                    if (sameTile)
+                                        LootWindowController.Open(new_target.key);
+                                    else
+                                        move_to = gameObject.transform.position;
+                                }
+                                return;
+                            }
+
                             // КАК ПОДБИРАЮТСЯ ПРЕДМЕТЫ (kind=item / экипируемые):
                             // Отдельной клиентской команды "подобрать" НЕТ. Подбор серверный — сервер кладёт
                             // предмет в инвентарь, когда игрок касается клетки предмета (item/pickup на стороне

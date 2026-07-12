@@ -35,8 +35,12 @@ namespace Mmogick
 		private const string IMAGES_DIR           = "images";
 		private const string STRUCT_DIR           = "structures";
 
+		// Версия формата локального кеша (PrefabEntry/library.json). Бамп при смене состава entry
+		// (добавление/удаление полей) → EnsureLoaded форсит полный refetch каталога /prefabs (см. cache_schema_version).
+		private const int CACHE_SCHEMA_VERSION = 1;
+
 		private static SyncManifest _manifest;
-		private static Dictionary<string, PrefabEntry> _library;                     // prefab.name → {animation, entity}
+		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
 		private static Dictionary<int, Dictionary<int, string>> _files;              // animationId → idx → sha256.ext
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
@@ -74,6 +78,11 @@ namespace Mmogick
 			// Шлётся как ?since в следующий заход — сервер вернёт только изменившиеся с этого момента prefab'ы.
 			// 0 (дефолт, в т.ч. для старых sync.json без поля) → холодный старт: полный каталог.
 			public long prefab_version;
+
+			// Версия формата локального кеша на диске. При несовпадении с CACHE_SCHEMA_VERSION EnsureLoaded
+			// сбрасывает prefab_version→0 (разовый полный refetch каталога уже в новом формате PrefabEntry).
+			// 0 (дефолт, в т.ч. старые sync.json без поля) → миграция сработает при первом заходе после апдейта.
+			public int cache_schema_version;
 		}
 
 		[Serializable]
@@ -102,10 +111,18 @@ namespace Mmogick
 		{
 			public string prefab;
 			public int animation;
-			public int entity;
+
+			/// <summary>
+			/// Маппинг action-slug → angle_str → clip.name для этого prefab'а (приходит per-entry в /prefabs).
+			/// Ключ angle: "" = клип без направления; "0".."359" = направленные клипы (нарисованный facing-угол,
+			/// 0=вправо). Резолвится AnimationCacheService.GetClipName/Simple. Null/отсутствует — у prefab'а
+			/// нет action-маппинга (image-prefab либо не настроено в админке). Пустой словарь сервер шлёт как {}.
+			/// </summary>
+			public Dictionary<string, Dictionary<string, string>> actions;
+
 			/// <summary>
 			/// Высота «тела» персонажа в scml-единицах (per-prefab константа, приходит с /prefabs
-			/// вместе с animation и entity, задаётся в админке при конфигурации prefab'а).
+			/// вместе с animation, задаётся в админке при конфигурации prefab'а).
 			/// Клиент нормализует Spriter-сущность так, чтобы size * final_scale = 1 клетка.
 			/// Если null (поле не задано на сервере) — fallback на автозамер bounds за N кадров.
 			/// </summary>
@@ -420,6 +437,16 @@ namespace Mmogick
 				_manifest = File.Exists(mp)
 					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
 					: new SyncManifest();
+				// Миграция схемы кеша: состав PrefabEntry расширился (напр. поле actions), а since-дельта
+				// /prefabs для НЕизменившихся prefab'ов вернула бы пустоту — старый library.json остался бы
+				// без новых полей (actions=null → анимации не резолвятся). При смене версии формата разово
+				// форсим полный refetch каталога: prefab_version→0 (since=0 в SyncLibrary тянет весь каталог).
+				if (_manifest.cache_schema_version != CACHE_SCHEMA_VERSION)
+				{
+					_manifest.cache_schema_version = CACHE_SCHEMA_VERSION;
+					_manifest.prefab_version = 0;
+					SaveManifest(gameId);
+				}
 			}
 			if (_library == null)
 			{
@@ -503,7 +530,7 @@ namespace Mmogick
 		}
 
 		// Полная синхронизация перед входом в игру: архив картинок + library + delta анимаций + предзагрузка структур. Вызывать ДО Connect.
-		// entity_actions в SyncAll не качается — приходит инлайном в ответе /auth и хранится в ConnectController.entity_actions.
+		// Маппинг action→angle→clip приходит per-prefab в /prefabs (PrefabEntry.actions), качается здесь через SyncLibrary.
 		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null)
 		{
 			EnsureLoaded(gameId);
@@ -748,18 +775,16 @@ namespace Mmogick
 		// направление флипнутого клипа (180 − clipAngle) считает потребитель (WeaponMount) по знаку
 		// lossyScale.x. Ракурсов может быть меньше, чем направлений: forward «прилипает» к ближайшему
 		// существующему клипу, поэтому фактический ракурс тела — clipAngle, а не forward.
-		// null clipName если: library/entityActions ещё не загружены, prefab неизвестен, маппинга на action нет.
+		// null clipName если: library ещё не загружена, prefab неизвестен, у prefab нет actions, маппинга на action нет.
 		// Вызывающий (EntityModel.SetData) делает fallback на action как имя клипа при null.
 		public static (string clipName, bool flipX, int? clipAngle) GetClipName(
-			string prefab, string action, float forwardX, float forwardY,
-			Dictionary<int, Dictionary<string, Dictionary<string, string>>> entityActions)
+			string prefab, string action, float forwardX, float forwardY)
 		{
 			if (_library == null || string.IsNullOrEmpty(prefab)) return (null, false, null);
 			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return (null, false, null);
 			if (p.IsImage) return (null, false, null);
-			if (entityActions == null) return (null, false, null);
-			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return (null, false, null);
-			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false, null);
+			if (p.actions == null) return (null, false, null);
+			if (!p.actions.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false, null);
 
 			// Единственный ключ "" = clip без направления. Если h_mirror разрешён —
 			// зеркалим по X при взгляде влево; иначе клип статичен.
@@ -816,15 +841,13 @@ namespace Mmogick
 
 		// Простой резолв без направления (backward compat для вызовов где forward неважен, например idle в importer)
 		public static string GetClipNameSimple(
-			string prefab, string action,
-			Dictionary<int, Dictionary<string, Dictionary<string, string>>> entityActions)
+			string prefab, string action)
 		{
 			if (_library == null || string.IsNullOrEmpty(prefab)) return null;
 			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return null;
 			if (p.IsImage) return null;
-			if (entityActions == null) return null;
-			if (!entityActions.TryGetValue(p.entity, out var actionMap) || actionMap == null) return null;
-			if (!actionMap.TryGetValue(action, out var angleMap) || angleMap == null) return null;
+			if (p.actions == null) return null;
+			if (!p.actions.TryGetValue(action, out var angleMap) || angleMap == null) return null;
 			// Берём первый попавшийся clip (предпочитая без-направления)
 			if (angleMap.TryGetValue("", out var clip)) return clip;
 			foreach (var kv in angleMap) return kv.Value;

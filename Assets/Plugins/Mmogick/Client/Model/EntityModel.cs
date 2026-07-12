@@ -73,7 +73,7 @@ namespace Mmogick
 
 		/// <summary>
 		/// Нарисованный угол текущего Spriter-клипа (0=вправо, 90=вверх) — ключ angle-карты
-		/// entity_actions, под которым клип отрезолвлен в GetClipName. null — клип без направления
+		/// actions (из /prefabs entry), под которым клип отрезолвлен в GetClipName. null — клип без направления
 		/// или резолв не удался (fallback на имя action). Зеркало (flipX) сюда НЕ входит — оно живёт
 		/// в localScale корня, потребитель читает его из lossyScale. Нужен WeaponMount для выбора
 		/// варианта картинки предмета по ФАКТИЧЕСКОМУ ракурсу тела, а не по логическому Forward:
@@ -144,7 +144,7 @@ namespace Mmogick
 						float fwdX = recive.forwardX ?? Forward.x;
 						float fwdY = recive.forwardY ?? Forward.y;
 						var (clipName, flipX, clipAngle) = AnimationCacheService.GetClipName(
-							prefabName, recive.action, fwdX, fwdY, ConnectController.entity_actions);
+							prefabName, recive.action, fwdX, fwdY);
 						if (clipName == null) { clipName = recive.action; flipX = false; }
 
 						// Action не имеет клипа в SCML (ACTION_LOAD, не настроенный action и т.п.) —
@@ -153,7 +153,7 @@ namespace Mmogick
 						if (!animator.Animator.HasAnimation(clipName))
 						{
 							var (idleClip, idleFlip, idleAngle) = AnimationCacheService.GetClipName(
-								prefabName, ConnectController.idle_action, fwdX, fwdY, ConnectController.entity_actions);
+								prefabName, ConnectController.idle_action, fwdX, fwdY);
 							if (idleClip != null && animator.Animator.HasAnimation(idleClip))
 							{
 								clipName = idleClip;
@@ -212,7 +212,7 @@ namespace Mmogick
 						if (anim && action != null && recive.action == null)
 						{
 							var (newClip, newFlip, newAngle) = AnimationCacheService.GetClipName(
-								pn, action, Forward.x, Forward.y, ConnectController.entity_actions);
+								pn, action, Forward.x, Forward.y);
 							if (newClip != null)
 							{
 								Vector3 s = transform.localScale;
@@ -449,7 +449,7 @@ namespace Mmogick
 			if (spriter != null && spriter.Animator != null && !string.IsNullOrEmpty(prefab))
 			{
 				var (clip, _, clipAngle) = AnimationCacheService.GetClipName(
-					prefab, actionName, Forward.x, Forward.y, ConnectController.entity_actions);
+					prefab, actionName, Forward.x, Forward.y);
 				if (!string.IsNullOrEmpty(clip) && spriter.Animator.HasAnimation(clip))
 				{
 					spriter.Animator.Play(clip);

@@ -72,16 +72,8 @@ namespace Mmogick
 		protected static string player_key;
 
 		/// <summary>
-		/// Маппинг entity_id → action → angle_str → clip.name, приходит инлайном в ответе /auth.
-		/// Сессионный state (на диск не пишется), живёт параллельно с token/key/step.
-		/// Читается резолвером AnimationCacheService.GetClipName.
-		/// Ключ angle: "0".."359" для направленных clip-ов, "" для clip без направления.
-		/// </summary>
-		public static Dictionary<int, Dictionary<string, Dictionary<string, string>>> entity_actions;
-
-		/// <summary>
-		/// Имя server-action, обозначающее «idle»-поза (тело в покое). Приходит в /auth вместе
-		/// с entity_actions. Используется везде, где клиент ищет idle:
+		/// Имя server-action, обозначающее «idle»-поза (тело в покое). Приходит в /auth.
+		/// Используется везде, где клиент ищет idle:
 		///   — SpriterPostImportAdjuster: форсит idle-клип во время Phase 1 sampling'а (стабильная поза);
 		///   — ObjectModel.Update: переводит legacy Animator на idle-layer по таймауту неактивности.
 		/// Инициализируется в SigninController.LoadMain до ConnectController.Connect — т.е. до первого спавна.
