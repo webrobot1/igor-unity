@@ -76,7 +76,10 @@ namespace Mmogick
         /// </summary>
         protected override void Handle(string json)
         {
-            HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, EnemyRecive>>(json));
+            // NullValueHandling.Ignore обязателен: сервер шлёт null-скаляры (null ≡ дефолт поля),
+            // без Ignore Newtonsoft пишет null в не-nullable C#-поле и падает (канон CLAUDE.md).
+            HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, EnemyRecive>>(json,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
         }
 
         protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive> recive)

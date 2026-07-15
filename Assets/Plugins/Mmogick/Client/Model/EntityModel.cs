@@ -107,7 +107,20 @@ namespace Mmogick
 		public Vector3 position = Vector3.zero;
 
 		/// <summary>
-		/// установка данных пришедших с сервера объекту 
+		/// Одна ли клетка у двух мировых позиций. Клетка = округление координат: banker's rounding
+		/// (Mathf.RoundToInt) зеркалит серверный position.tile(). Единый источник клеточного порога
+		/// для клиентских гейтов «на той же клетке, что сущность» (открытие контейнера, авто-закрытие
+		/// его окна и т.п.) — чтобы зеркало не разошлось с серверным same-tile в разных местах.
+		/// Сравнивать серверную position (авторитетную), не сглаженный transform.position.
+		/// </summary>
+		public static bool SameTile(Vector3 a, Vector3 b)
+		{
+			return Mathf.RoundToInt(a.x) == Mathf.RoundToInt(b.x)
+				&& Mathf.RoundToInt(a.y) == Mathf.RoundToInt(b.y);
+		}
+
+		/// <summary>
+		/// установка данных пришедших с сервера объекту
 		/// </summary>
 		public virtual void SetData(EntityRecive recive)
 		{
@@ -452,6 +465,9 @@ namespace Mmogick
 					prefab, actionName, Forward.x, Forward.y);
 				if (!string.IsNullOrEmpty(clip) && spriter.Animator.HasAnimation(clip))
 				{
+					// Spriter снова владеет визуалом — снять терминальный Universal-оверлей (dead-силуэт),
+					// если он был активен: вернуть тело Spriter'а, погасить силуэт корневого SR.
+					RestoreSpriterFromTerminalOverlay(spriter);
 					spriter.Animator.Play(clip);
 					DisplayAngle = clipAngle;
 					return true;
@@ -469,10 +485,13 @@ namespace Mmogick
 					if (p.type == AnimatorControllerParameterType.Trigger && p.name == actionName) { hasTrigger = true; break; }
 				if (!hasTrigger)
 				{
-					// Под этот action нет ни Spriter-клипа, ни Universal-триггера. Для kind-only сущности это
-					// означает «обычное» состояние (walk/idle): если ранее проиграл терминальный Universal-эффект
-					// (dead/remove) и перезаписал спрайт корневого SR — возвращаем placeholder. Иначе (image/
-					// Spriter, _fallbackSprite==null) просто сообщаем вызывающему «эффекта нет».
+					// Под этот action нет ни Spriter-клипа, ни Universal-триггера — «обычное» состояние
+					// (walk/idle/resurrect). Если ранее проиграл терминальный Universal-эффект (dead-силуэт)
+					// и перезаписал корневой SR — восстанавливаем нормальный визуал:
+					//  - kind-only (есть _fallbackSprite): возвращаем placeholder на корневой SR;
+					//  - Spriter (тело в детях): гасим силуэт корневого SR и включаем тело Spriter'а обратно.
+					// Без этого ожившая после dead сущность застревает на dead-кадре (у Spriter-сущности
+					// GetClipName направленных клипов часто NULL → сюда же попадают её walk/idle/resurrect).
 					if (_fallbackSprite != null)
 					{
 						var sr0 = GetComponent<SpriteRenderer>();
@@ -482,6 +501,10 @@ namespace Mmogick
 							sr0.sprite = _fallbackSprite;
 							sr0.enabled = true;
 						}
+					}
+					else if (spriter != null)
+					{
+						RestoreSpriterFromTerminalOverlay(spriter);
 					}
 					return false;
 				}
@@ -511,6 +534,47 @@ namespace Mmogick
 			}
 
 			return false;
+		}
+
+		/// <summary>
+		/// Возврат Spriter-визуала после терминального Universal-оверлея (dead-силуэт / remove-Puff).
+		/// Оверлей (Universal-ветка PlayAction) зажигает корневой SR (силуэт) и ГАСИТ SpriteRenderer'ы
+		/// тела Spriter'а. SpriterDotNet сам их НЕ включает обратно — он управляет GameObject.SetActive,
+		/// а НЕ SpriteRenderer.enabled (см. UnityAnimator.ApplySpriteTransform) — поэтому оживший после
+		/// dead Spriter застревает на dead-кадре (корневой SR держит силуэт при writeDefaults=false),
+		/// даже когда его walk/idle-клип уже играется на выключенных детях. Зовём, когда Spriter снова
+		/// получает управление (не-эффектный action). no-op, если оверлея нет: у Spriter-сущности
+		/// корневой SR штатно выключен (CreateSpriter), включён — значит его зажёг терминальный оверлей.
+		/// </summary>
+		private void RestoreSpriterFromTerminalOverlay(SpriterDotNetBehaviour spriter)
+		{
+			var sr = GetComponent<SpriteRenderer>();
+			if (sr == null || !sr.enabled) return;   // оверлея нет — восстанавливать нечего
+
+			sr.enabled = false;   // погасить силуэт корневого SR (Spriter рисует детьми)
+			foreach (var r in spriter.GetComponentsInChildren<SpriteRenderer>(true))
+				if (r.gameObject != spriter.gameObject) r.enabled = true;   // вернуть тело Spriter'а
+		}
+
+		/// <summary>
+		/// Суммарные world-границы ВИДИМЫХ спрайтов сущности (Spriter даёт много child-SpriteRenderer;
+		/// image / fallback / Universal-силуэт — один корневой). Выключенные/пустые рендереры не учитываем.
+		/// Единый источник «тела» сущности для клиентских гейтов, чтобы они совпадали: кольцо-подсветка
+		/// трупа (CursorController) и подгонка его кликабельного коллайдера (ObjectModel) берут ОДНИ И ТЕ ЖЕ
+		/// границы — область клика по трупу совпадает с кольцом.
+		/// </summary>
+		public bool TryGetVisualBounds(out Bounds bounds)
+		{
+			bounds = new Bounds();
+			bool has = false;
+			var srs = GetComponentsInChildren<SpriteRenderer>();
+			for (int i = 0; i < srs.Length; i++)
+			{
+				if (!srs[i].enabled || srs[i].sprite == null) continue;
+				if (!has) { bounds = srs[i].bounds; has = true; }
+				else bounds.Encapsulate(srs[i].bounds);
+			}
+			return has;
 		}
 
 		/// <summary>

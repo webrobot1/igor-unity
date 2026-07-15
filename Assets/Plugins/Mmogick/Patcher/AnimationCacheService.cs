@@ -37,7 +37,8 @@ namespace Mmogick
 
 		// Версия формата локального кеша (PrefabEntry/library.json). Бамп при смене состава entry
 		// (добавление/удаление полей) → EnsureLoaded форсит полный refetch каталога /prefabs (см. cache_schema_version).
-		private const int CACHE_SCHEMA_VERSION = 1;
+		// v2: actions сменил форму словарь(action→angle→clip) → плоский список ActionBinding[].
+		private const int CACHE_SCHEMA_VERSION = 2;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
@@ -107,18 +108,31 @@ namespace Mmogick
 			public string File => sha256 + "." + extension;
 		}
 
+		// Одна привязка action→clip prefab'а (элемент actions[] из /prefabs, формат общий с серверным
+		// PrefabAnimation::actionList). Один action-slug ПОВТОРЯЕТСЯ по клипу на направление; angle —
+		// нарисованный facing-угол клипа (0=вправо), null = клип без направления. Серверные id/entity
+		// клиенту не нужны — поля не объявляем (Newtonsoft молча игнорит лишние ключи).
+		[Serializable]
+		public class ActionBinding
+		{
+			public string action;
+			public string clip;
+			public int? angle;   // null = клип без направления (прежний ключ "" словарной формы)
+		}
+
 		public class PrefabEntry
 		{
 			public string prefab;
 			public int animation;
 
 			/// <summary>
-			/// Маппинг action-slug → angle_str → clip.name для этого prefab'а (приходит per-entry в /prefabs).
-			/// Ключ angle: "" = клип без направления; "0".."359" = направленные клипы (нарисованный facing-угол,
-			/// 0=вправо). Резолвится AnimationCacheService.GetClipName/Simple. Null/отсутствует — у prefab'а
-			/// нет action-маппинга (image-prefab либо не настроено в админке). Пустой словарь сервер шлёт как {}.
+			/// Привязки action→clip prefab'а плоским списком (приходит per-entry в /prefabs). Один action-slug
+			/// ПОВТОРЯЕТСЯ по клипу на направление; ActionBinding.angle — нарисованный facing-угол (0=вправо),
+			/// null = клип без направления. Резолвится AnimationCacheService.GetClipName/Simple (фильтр списка
+			/// по action + выбор клипа по углу). Null/отсутствует — у prefab'а нет action-привязок (image-prefab
+			/// либо не настроено в админке). Пустой набор сервер шлёт как [] (список, каста в объект не требует).
 			/// </summary>
-			public Dictionary<string, Dictionary<string, string>> actions;
+			public List<ActionBinding> actions;
 
 			/// <summary>
 			/// Высота «тела» персонажа в scml-единицах (per-prefab константа, приходит с /prefabs
@@ -530,7 +544,7 @@ namespace Mmogick
 		}
 
 		// Полная синхронизация перед входом в игру: архив картинок + library + delta анимаций + предзагрузка структур. Вызывать ДО Connect.
-		// Маппинг action→angle→clip приходит per-prefab в /prefabs (PrefabEntry.actions), качается здесь через SyncLibrary.
+		// Привязки action→clip приходят per-prefab в /prefabs (PrefabEntry.actions списком), качаются здесь через SyncLibrary.
 		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null)
 		{
 			EnsureLoaded(gameId);
@@ -770,8 +784,8 @@ namespace Mmogick
 
 		// Резолв action → имя SCML-клипа для данного prefab с учётом направления (angle).
 		// Возвращает (clipName, flipX, clipAngle). flipX=true если clip получен через h_mirror
-		// (горизонтальное зеркало). clipAngle — НАРИСОВАННЫЙ угол выбранного клипа (ключ angle-карты,
-		// 0=вправо), null для клипа без направления (""). Зеркало в угол НЕ входит — экранное
+		// (горизонтальное зеркало). clipAngle — НАРИСОВАННЫЙ угол выбранного клипа (ActionBinding.angle,
+		// 0=вправо), null для клипа без направления (angle==null). Зеркало в угол НЕ входит — экранное
 		// направление флипнутого клипа (180 − clipAngle) считает потребитель (WeaponMount) по знаку
 		// lossyScale.x. Ракурсов может быть меньше, чем направлений: forward «прилипает» к ближайшему
 		// существующему клипу, поэтому фактический ракурс тела — clipAngle, а не forward.
@@ -784,31 +798,40 @@ namespace Mmogick
 			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return (null, false, null);
 			if (p.IsImage) return (null, false, null);
 			if (p.actions == null) return (null, false, null);
-			if (!p.actions.TryGetValue(action, out var angleMap) || angleMap == null) return (null, false, null);
-
-			// Единственный ключ "" = clip без направления. Если h_mirror разрешён —
-			// зеркалим по X при взгляде влево; иначе клип статичен.
-			if (angleMap.Count == 1 && angleMap.ContainsKey(""))
-				return (angleMap[""], p.h_mirror && forwardX < 0, null);
 
 			float targetAngle = Mathf.Atan2(forwardY, forwardX) * Mathf.Rad2Deg;
 			if (targetAngle < 0) targetAngle += 360f;
 
+			// Один проход по плоскому списку с фильтром по action (slug повторяется по клипу на направление).
+			// angle==null — клип без направления (прежний ключ ""); направленные (angle!=null) конкурируют за
+			// ближайший угол к ракурсу. matchCount отличает «единственная привязка, и она без направления»
+			// (тогда h_mirror-флип по forwardX) от «есть направленные, best не нашёлся → fallback на
+			// без-направления БЕЗ флипа» — поведение прежней словарной формы 1:1.
+			int matchCount = 0;
+			string noDirClip = null;   // первый клип без направления (angle==null), если есть
+			bool hasNoDir = false;
 			string bestClip = null;
 			float bestDist = 360f;
 			bool bestFlip = false;
 			int? bestAngle = null;
 
-			foreach (var kv in angleMap)
+			foreach (var b in p.actions)
 			{
-				if (kv.Key == "") continue;
-				if (!int.TryParse(kv.Key, out int clipAngle)) continue;
+				if (b == null || b.action != action) continue;
+				matchCount++;
+
+				if (b.angle == null)
+				{
+					if (!hasNoDir) { noDirClip = b.clip; hasNoDir = true; }
+					continue;
+				}
+				int clipAngle = b.angle.Value;
 
 				float dist = Mathf.Abs(Mathf.DeltaAngle(targetAngle, clipAngle));
 				if (dist < bestDist)
 				{
 					bestDist = dist;
-					bestClip = kv.Value;
+					bestClip = b.clip;
 					bestFlip = false;
 					bestAngle = clipAngle;
 				}
@@ -825,16 +848,23 @@ namespace Mmogick
 					if (mirrorDist < bestDist)
 					{
 						bestDist = mirrorDist;
-						bestClip = kv.Value;
+						bestClip = b.clip;
 						bestFlip = true;
 						bestAngle = clipAngle;
 					}
 				}
 			}
 
-			// Fallback на без-направления если ничего не нашли
-			if (bestClip == null && angleMap.TryGetValue("", out var fallback))
-				return (fallback, false, null);
+			if (matchCount == 0) return (null, false, null);
+
+			// Единственная привязка и она без направления = clip без направления. Если h_mirror разрешён —
+			// зеркалим по X при взгляде влево; иначе клип статичен.
+			if (matchCount == 1 && hasNoDir)
+				return (noDirClip, p.h_mirror && forwardX < 0, null);
+
+			// Fallback на без-направления если направленного клипа не нашли
+			if (bestClip == null && hasNoDir)
+				return (noDirClip, false, null);
 
 			return (bestClip, bestFlip, bestAngle);
 		}
@@ -847,11 +877,15 @@ namespace Mmogick
 			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return null;
 			if (p.IsImage) return null;
 			if (p.actions == null) return null;
-			if (!p.actions.TryGetValue(action, out var angleMap) || angleMap == null) return null;
-			// Берём первый попавшийся clip (предпочитая без-направления)
-			if (angleMap.TryGetValue("", out var clip)) return clip;
-			foreach (var kv in angleMap) return kv.Value;
-			return null;
+			// Первый клип этого action, предпочитая без-направления (angle==null); иначе первый направленный.
+			string firstClip = null;
+			foreach (var b in p.actions)
+			{
+				if (b == null || b.action != action) continue;
+				if (b.angle == null) return b.clip;    // клип без направления предпочтителен
+				if (firstClip == null) firstClip = b.clip;
+			}
+			return firstClip;
 		}
 
 		// SCML XML анимации. Ключ кеша/URL — Animation.id (шерится между Prefab-ами).

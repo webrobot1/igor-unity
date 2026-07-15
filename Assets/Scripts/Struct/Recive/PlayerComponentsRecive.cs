@@ -14,7 +14,9 @@ namespace Mmogick
 		public Dictionary<string, string>? settings = null;
 		public Dictionary<string, bool>? spellBook = null;
 		public Dictionary<int, ActionBarsRecive?>? actionbars = null;
-		public Dictionary<int, InventorySlotRecive>? inventory = null;
+
+		// inventory поднят в базовый EnemyComponentsRecive (контейнеры — enemy/entity). Своё
+		// поле остаётся доступно как ((PlayerRecive)recive).components.inventory (наследование).
 
 		// Контракт сервера (см. base/components/equip.yaml):
 		//   null            — поле отсутствует в пакете, no-op (экипировку не трогать);

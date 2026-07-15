@@ -1,3 +1,8 @@
+using System.Collections.Generic;
+using Newtonsoft.Json;
+
+#nullable enable
+
 namespace Mmogick
 {
 	/// <summary>
@@ -17,5 +22,16 @@ namespace Mmogick
 
 		public int? speed;
 
+		// inventory в БАЗЕ (не только у player): контейнер (труп/сундук) — это enemy/entity,
+		// и его содержимое приходит обыскивающему игроку АДРЕСНО обычной world-дельтой самой
+		// сущности-контейнера (components.inventory чужого key). Без поля в базовом классе
+		// Newtonsoft молча отбросил бы inventory чужого enemy. Свой player наследует поле в
+		// PlayerComponentsRecive и читает его как раньше.
+		//   null      — поля нет в пакете (no-op);
+		//   Count==0  — контейнер пуст (сервер прислал JSON `[]`, конвертер → пустой Dictionary → окно закрыть);
+		//   Count>0   — позиция → предмет.
+		// EmptyArrayAsDictionaryConverter: без него Newtonsoft падает на `[]` (канон equip).
+		[JsonConverter(typeof(EmptyArrayAsDictionaryConverter<int, InventorySlotRecive>))]
+		public Dictionary<int, InventorySlotRecive>? inventory = null;
 	}
 }

@@ -49,6 +49,32 @@ namespace Mmogick
 
         public override void Use(Vector2 pos = new Vector2(), GameObject obj = null)
         {
+            // Предмет ОТКРЫТОГО КОНТЕЙНЕРА (лут трупа/сундука) распознаётся по метке LootSlotMarker
+            // на слоте-родителе (SlotNum у него 0 — инвентарные ветки ниже не срабатывают).
+            LootSlotMarker myLootSlot = GetComponentInParent<LootSlotMarker>();
+            LootSlotMarker targetLootSlot = obj != null ? obj.GetComponentInParent<LootSlotMarker>() : null;
+
+            // Дроп на слот окна контейнера
+            if (targetLootSlot != null)
+            {
+                if (myLootSlot != null)
+                    LootWindowController.SendReorder(myLootSlot.Num, targetLootSlot.Num);   // перестановка внутри контейнера
+                else if (SlotNum > 0 && CursorController.SourceEquipmentSlot == null)
+                    LootWindowController.SendPut(SlotNum, targetLootSlot.Num);              // свой предмет — в контейнер
+                // экипированное сперва снимается в инвентарь — напрямую в контейнер не кладём
+                return;
+            }
+
+            // Предмет контейнера дропнут в свой инвентарь — атомарный забор по позициям (сервер
+            // переносит сам; локально не двигаем, ответ-пакет перерисует оба инвентаря)
+            if (myLootSlot != null)
+            {
+                if (obj != null && obj.GetComponentInParent<SlotScript>() != null && obj.GetComponentInParent<EquipmentSlot>() == null)
+                    LootWindowController.SendTake(myLootSlot.Num, obj.GetComponentInParent<SlotScript>().SlotNum);
+                // в мир/на экипировку из чужого контейнера не выбрасываем — только через свой инвентарь
+                return;
+            }
+
             // Дроп на ActionBar — назначить предмет на быструю клавишу
             if (obj != null && obj.GetComponent<ActionBar>())
             {

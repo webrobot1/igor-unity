@@ -88,14 +88,7 @@ namespace Mmogick
 
                         if (slot.Value != null && !string.IsNullOrEmpty(slot.Value.prefab))
                         {
-                            Item item = Instantiate(itemPrefab, slotUI.transform);
-                            item.gameObject.SetActive(false);
-                            item.SetData(slot.Value.prefab);
-                            item.SetTooltip(tooltip);
-                            item.SlotNum = slot.Key;
-                            item.Count = slot.Value.count;
-
-                            slotUI.SetItem(item, slot.Value.count, slot.Value.components);
+                            Item item = RenderSlotItem(slotUI, itemPrefab, slot.Value, slot.Key);
 
                             _items[slot.Value.prefab] = item;
 
@@ -115,20 +108,56 @@ namespace Mmogick
         // создает пустые ячейки инвентаря в количестве count
         private void InitializeSlots(int count)
         {
-            foreach (Transform child in inventorySlotArea)
-                Destroy(child.gameObject);
+            _slots = SlotScript.BuildGrid(slotPrefab, inventorySlotArea, count, "Slot", tooltip,
+                (slot, i) => slot.SlotNum = i + 1);
+        }
 
-            _slots = new SlotScript[count];
+        /// <summary>
+        /// Наполнить UI-слот предметом из данных слота инвентаря (общий рендер для окна инвентаря и окна
+        /// контейнера): инстанс префаба, спрайт, тултип, счётчик. slotNum — номер СВОЕГО инвентаря
+        /// (по нему ветвятся Item.Use/equip); 0 — предмет чужого контейнера (позицию несёт LootSlotMarker).
+        /// </summary>
+        protected Item RenderSlotItem(SlotScript slotUI, Item prefab, InventorySlotRecive data, int slotNum)
+        {
+            Item item = Instantiate(prefab, slotUI.transform);
+            item.gameObject.SetActive(false);
+            item.SetData(data.prefab);
+            item.SetTooltip(tooltip);
+            item.SlotNum = slotNum;
+            item.Count = data.count;
 
-            for (int i = 0; i < count; i++)
+            slotUI.SetItem(item, data.count, data.components);
+            return item;
+        }
+
+        /// <summary>
+        /// Снимок UI-слотов → словарь позиций для ui/inventory/index (null = пустая позиция); общий для
+        /// пересейва своего инвентаря и перестановки контейнера. map — перестановка читаемых позиций
+        /// (SendReorder свопает from/to); null — тождественная.
+        /// </summary>
+        protected static Dictionary<int, InventorySlotRecive> SnapshotSlots(SlotScript[] slots, System.Func<int, int> map = null)
+        {
+            Dictionary<int, InventorySlotRecive> snapshot = new Dictionary<int, InventorySlotRecive>();
+
+            for (int i = 0; i < slots.Length; i++)
             {
-                GameObject obj = Instantiate(slotPrefab, inventorySlotArea);
-                obj.name = "Slot" + (i + 1);
-                SlotScript slot = obj.GetComponent<SlotScript>();
-                slot.SlotNum = i + 1;
-                slot.SetTooltip(tooltip);
-                _slots[i] = slot;
+                int pos = i + 1;
+                SlotScript src = slots[(map != null ? map(pos) : pos) - 1];
+                snapshot[pos] = src.Item != null
+                    ? new InventorySlotRecive(src.Item.Prefab, src.Item.Count, src.Components)
+                    : null;
             }
+
+            return snapshot;
+        }
+
+        /// <summary>
+        /// Число слотов инвентаря (0 — инвентарь ещё не приходил). У сервера один компонент
+        /// inventory на всех носителей — окно контейнера (LootWindowController) строит сетку того же размера.
+        /// </summary>
+        public static int SlotCount
+        {
+            get { return _slots != null ? _slots.Length : 0; }
         }
 
         /// <summary>
@@ -243,16 +272,7 @@ namespace Mmogick
             if (_slots == null) return;
 
             InventoryResponse response = new InventoryResponse();
-
-            for (int i = 0; i < _slots.Length; i++)
-            {
-                int slotNum = i + 1;
-                SlotScript slot = _slots[i];
-
-                response.inventory[slotNum] = slot.Item != null
-                    ? new InventorySlotRecive(slot.Item.Prefab, slot.Item.Count, slot.Components)
-                    : null;
-            }
+            response.inventory = SnapshotSlots(_slots);
 
             response.Send();
             _dirty = false;

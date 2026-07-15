@@ -89,6 +89,29 @@ namespace Mmogick
             tooltip = t;
         }
 
+        // Общий каркас сетки слотов для инвентаря игрока (InventoryController) и окна контейнера
+        // (LootWindowController): чистит area, создаёт count слотов из prefab, вешает tooltip.
+        // Различия (номер слота / метка контейнера LootSlotMarker) наследник задаёт через configure.
+        // Оба контроллера держат свою static-ссылку на возвращённый массив — их два (свой инвентарь
+        // и контейнер) на одном MainController-инстансе, поэтому массив не в общем поле, а тут — фабрика.
+        public static SlotScript[] BuildGrid(GameObject prefab, Transform area, int count, string namePrefix, Tooltip tooltip, System.Action<SlotScript, int> configure)
+        {
+            foreach (Transform child in area)
+                Destroy(child.gameObject);
+
+            SlotScript[] slots = new SlotScript[count];
+            for (int i = 0; i < count; i++)
+            {
+                GameObject obj = Instantiate(prefab, area);
+                obj.name = namePrefix + (i + 1);
+                SlotScript slot = obj.GetComponent<SlotScript>();
+                slot.SetTooltip(tooltip);
+                configure?.Invoke(slot, i);
+                slots[i] = slot;
+            }
+            return slots;
+        }
+
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
             HandlePointerClick(eventData);

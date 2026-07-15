@@ -10,5 +10,9 @@ namespace Mmogick
     {
         public Dictionary<string, SettingRecive> settings = null;
         public Dictionary<string, SpellRecive> spellBook = null;
+
+        // содержимое открытого контейнера (труп/сундук) больше НЕ приходит кастомным полем:
+        // сервер шлёт inventory контейнера world-дельтой самой сущности (EnemyComponentsRecive.inventory),
+        // реакция — LootWindowController.UpdateObject по чужому key.
     }
 }

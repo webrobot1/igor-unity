@@ -34,6 +34,16 @@ namespace Mmogick
 
 		private Dictionary<string, Coroutine> coroutines = new Dictionary<string, Coroutine>();
 
+		// Зазор кликабельного коллайдера трупа над границами его спрайта. ЧУТЬ больше зазора кольца-подсветки
+		// (CursorController.HIGHLIGHT_GAP) — кольцо лежит ВНУТРИ хит-области, клик по кольцу всегда попадает по трупу.
+		private const float CORPSE_HIT_GAP = 1.2f;
+
+		private CapsuleCollider2D _corpseCapsule;
+		private Vector2 _liveCapsuleSize;
+		private Vector2 _liveCapsuleOffset;
+		private bool _liveCapsuleSaved;
+		private bool _capsuleFittedToCorpse;
+
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
 		/// </summary>
@@ -67,6 +77,14 @@ namespace Mmogick
 		// Update is called once per frame
 		void Update()
 		{
+			// Труп (action=dead) — контейнер лута: подгоняем кликабельный коллайдер под ВИДИМОЕ тело трупа,
+			// чтобы клик открывал лут по всему телу (совпадая с кольцом-подсветкой CursorController), а не по
+			// узкому пересечению боевой капсулы с иначе расположенной/размерной позой трупа. Ожил/задвигался —
+			// возвращаем боевую капсулу. Здесь (Update), а не в LateUpdate: у PlayerModel свой LateUpdate,
+			// добавление второго в ObjectModel затенило бы его (потеря вклада — CLAUDE.md о base.*).
+			if (action == "dead") FitCorpseCollider();
+			else RestoreLiveCollider();
+
 			// если текущий наш статус анимации - не стояние и давно небыло активности - включим анмацию остановки.
 			// Имя idle-action берётся из ConnectController.idle_action (серверное, default "idle") — не хардкодим.
 			string idleAction = ConnectController.idle_action;
@@ -87,6 +105,42 @@ namespace Mmogick
 				Log("Spriter: " + key + " с " + cur.Name + " на " + idleClip + " (таймаут)");
 				PlayAction(idleAction);
 			}
+		}
+
+		/// <summary>
+		/// Подгоняет CapsuleCollider2D под ВИДИМОЕ тело трупа (EntityModel.TryGetVisualBounds), чтобы клик по
+		/// любой точке тела открывал лут и совпадал с кольцом-подсветкой. Боевую капсулу запоминаем один раз и
+		/// возвращаем в RestoreLiveCollider при выходе из dead. world→local: коллайдер в системе корня —
+		/// offset = InverseTransformPoint(центр bounds), size = мировой размер bounds / |lossyScale| × зазор.
+		/// </summary>
+		private void FitCorpseCollider()
+		{
+			if (_corpseCapsule == null) { _corpseCapsule = GetComponent<CapsuleCollider2D>(); if (_corpseCapsule == null) return; }
+			if (!TryGetVisualBounds(out Bounds b) || b.size.x < 0.01f || b.size.y < 0.01f) return;
+
+			if (!_liveCapsuleSaved)
+			{
+				_liveCapsuleSize = _corpseCapsule.size;
+				_liveCapsuleOffset = _corpseCapsule.offset;
+				_liveCapsuleSaved = true;
+			}
+
+			Vector3 lossy = transform.lossyScale;
+			float sx = Mathf.Max(Mathf.Abs(lossy.x), 0.0001f);
+			float sy = Mathf.Max(Mathf.Abs(lossy.y), 0.0001f);
+			Vector3 centerLocal = transform.InverseTransformPoint(b.center);
+			_corpseCapsule.offset = new Vector2(centerLocal.x, centerLocal.y);
+			_corpseCapsule.size = new Vector2(b.size.x / sx * CORPSE_HIT_GAP, b.size.y / sy * CORPSE_HIT_GAP);
+			_capsuleFittedToCorpse = true;
+		}
+
+		/// <summary>Возврат боевой капсулы после выхода трупа из dead (воскрешение/движение). no-op если не подгоняли.</summary>
+		private void RestoreLiveCollider()
+		{
+			if (!_capsuleFittedToCorpse || _corpseCapsule == null) return;
+			_corpseCapsule.size = _liveCapsuleSize;
+			_corpseCapsule.offset = _liveCapsuleOffset;
+			_capsuleFittedToCorpse = false;
 		}
 
 		/// <summary>

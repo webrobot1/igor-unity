@@ -41,6 +41,13 @@ namespace Mmogick
         private Vector3 cursor_offset;
 
         /// <summary>
+        /// Кольцо-подсветка кликабельной сущности (труп-контейнер) под курсором. Один переиспользуемый
+        /// world-объект на сцене (НЕ создаём per-frame): двигаем к наведённой сущности, прячем когда её нет.
+        /// </summary>
+        [SerializeField]
+        private SpriteRenderer hoverHighlight;
+
+        /// <summary>
         /// если не null - то объект который двигаем
         /// </summary>
         public static MoveableObject MyMoveable;
@@ -67,7 +74,14 @@ namespace Mmogick
             {
                 Error("не указан джойстик");
                 return;
-            }   
+            }
+
+            if (hoverHighlight == null)
+            {
+                Error("не назначено кольцо-подсветка кликабельной сущности (hoverHighlight)");
+                return;
+            }
+            hoverHighlight.gameObject.SetActive(false);
         }
 
         /// <summary>
@@ -81,6 +95,8 @@ namespace Mmogick
 
             //Makes sure that the icon follows the hand
             cursor.transform.position = Input.mousePosition + cursor_offset;
+
+            UpdateHoverHighlight(Input.mousePosition);
 
             if (MyMoveable!=null)
                 cursor.raycastTarget = true;
@@ -181,24 +197,26 @@ namespace Mmogick
                         ObjectModel new_target = gameObject.GetComponent<ObjectModel>();
                         if (new_target != null)
                         {
-                            // Труп (мёртвая сущность) — контейнер лута (ui/loot). Рядом (клетка серверного
-                            // tile() = banker's rounding, совпадает с Mathf.RoundToInt) — открыть окно;
-                            // далеко — подойти (двухслойная валидация: заведомо невалидное не слать,
-                            // сервер дошедшее режет Error+дисконнектом).
+                            // Труп (мёртвая сущность) — контейнер лута: open с ЛЮБОЙ дистанции одним кликом,
+                            // сервер сам ведёт игрока к трупу и повторяет открытие до прибытия (как fight/melee
+                            // подходит к цели). move_to НЕ ставим: параллельный walk/to from_client снял бы
+                            // серверный лут-подход (ручное движение = отмена). Кликнутый труп выбираем тем же
+                            // правилом, что hover-кольцо (CorpseAtScreen) — куда подсветили, туда и кликнули.
                             if (new_target.action == "dead")
                             {
-                                Target = null;
-                                persist_target = false;
-
                                 if (player != null)
                                 {
-                                    bool sameTile = Mathf.RoundToInt(player.position.x) == Mathf.RoundToInt(new_target.position.x)
-                                        && Mathf.RoundToInt(player.position.y) == Mathf.RoundToInt(new_target.position.y);
+                                    ObjectModel corpse = CorpseAtScreen(Input.mousePosition);
+                                    if (corpse == null)
+                                        corpse = new_target;
 
-                                    if (sameTile)
-                                        LootWindowController.Open(new_target.key);
-                                    else
-                                        move_to = gameObject.transform.position;
+                                    // фрейм цели показывает кликнутый труп (кого лутаем); persist не
+                                    // держим — нападающий перебьёт труп-цель автоматически (CanBeTarget
+                                    // пропускает смену цели, у которой hp == 0)
+                                    Target = corpse;
+                                    persist_target = false;
+
+                                    LootWindowController.Open(corpse.key);
                                 }
                                 return;
                             }
@@ -302,6 +320,112 @@ namespace Mmogick
 
             return base.UpdateObject(map_id, key, recive);
         }
+
+        // множитель кольца к рендер-границам трупа: 1.0 — ровно по спрайту (прозрачные поля текстуры
+        // сами дают небольшой зазор). Держать МЕНЬШЕ зазора кликабельного коллайдера трупа
+        // (ObjectModel.CORPSE_HIT_GAP) — кольцо лежит ВНУТРИ хит-области, клик по кольцу попадает по трупу.
+        private const float HIGHLIGHT_GAP = 1.0f;
+
+        /// <summary>
+        /// Hover-фидбек: навёл курсор на кликабельную сущность (труп-контейнер) — кольцо ВОКРУГ её спрайта
+        /// (сигнал «кликабельно» + отличие трупа от пустой земли под курсором). Курсор ушёл — скрыть.
+        /// Один переиспользуемый объект (двигаем/масштабируем, не пересоздаём).
+        /// </summary>
+        private void UpdateHoverHighlight(Vector3 screenPos)
+        {
+            ObjectModel hovered = CorpseAtScreen(screenPos);
+            if (hovered != null)
+            {
+                FitHighlightTo(hovered);
+                if (!hoverHighlight.gameObject.activeSelf)
+                    hoverHighlight.gameObject.SetActive(true);
+            }
+            else if (hoverHighlight.gameObject.activeSelf)
+                hoverHighlight.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Центрирует и масштабирует кольцо ПОД конкретный труп: центр и РАЗМЕРЫ по суммарным рендер-границам
+        /// его спрайтов (EntityModel.TryGetVisualBounds) — облегает тело по ОБЕИМ осям (эллипс под аспект
+        /// спрайта), а не описанной окружностью по большей стороне: у вытянутого трупа окружность по большей
+        /// стороне заметно шире тела (жалоба «круг велик»). Те же границы использует ObjectModel для подгонки
+        /// кликабельного коллайдера трупа — кольцо и хит-область совпадают. Нет спрайтов (редко) — по позиции.
+        /// </summary>
+        private void FitHighlightTo(EntityModel e)
+        {
+            float nativeX = hoverHighlight.sprite != null ? hoverHighlight.sprite.bounds.size.x : 1f;
+            float nativeY = hoverHighlight.sprite != null ? hoverHighlight.sprite.bounds.size.y : 1f;
+
+            Vector3 center;
+            float wx, wy;
+            if (e.TryGetVisualBounds(out Bounds b))
+            {
+                center = b.center;
+                wx = b.size.x * HIGHLIGHT_GAP;
+                wy = b.size.y * HIGHLIGHT_GAP;
+            }
+            else
+            {
+                center = e.transform.position;
+                wx = wy = HIGHLIGHT_GAP;   // fallback: ~1 клетка
+            }
+
+            hoverHighlight.transform.position = new Vector3(center.x, center.y, hoverHighlight.transform.position.z);
+            float sx = nativeX > 0.0001f ? wx / nativeX : 1f;
+            float sy = nativeY > 0.0001f ? wy / nativeY : 1f;
+            hoverHighlight.transform.localScale = new Vector3(sx, sy, 1f);
+        }
+
+        /// <summary>
+        /// Кликабельный труп-контейнер под курсором. Первая значимая (НЕ-игрок) сущность по лучу решает
+        /// тип взаимодействия: живой враг / предмет сверху → null (не подсвечиваем). Если она труп —
+        /// среди ВСЕХ мёртвых под курсором выбираем БЛИЖАЙШЕГО к точке курсора (центры визуальных
+        /// границ): у сваленных в кучу тел коллайдеры перекрываются, а порядок RaycastAll при точечном
+        /// луче недетерминирован — без выбора по дистанции кольцо «прыгало бы» на соседнее тело.
+        /// Тем же методом труп выбирает и клик (Update) — подсветка и клик всегда об одном теле.
+        /// </summary>
+        private ObjectModel CorpseAtScreen(Vector3 screenPos)
+        {
+            if (Camera.main == null || player == null) return null;
+
+            Vector3 world = Camera.main.ScreenToWorldPoint(screenPos);
+            RaycastHit2D[] hits = Physics2D.RaycastAll(world, Vector2.zero, Mathf.Infinity);
+
+            bool corpseZone = false;            // первая значимая сущность — труп?
+            ObjectModel nearest = null;
+            float nearestSqr = float.MaxValue;
+
+            for (int i = 0; i < hits.Length; i++)
+            {
+                Transform t = hits[i].transform;
+                if (t == null) continue;
+                EntityModel e = t.GetComponentInParent<EntityModel>();
+                if (e == null) continue;
+                if (PlayerController.Player != null && e == PlayerController.Player) continue;   // «сквозь себя»
+
+                ObjectModel obj = e as ObjectModel;
+                bool dead = obj != null && obj.action == "dead";
+
+                if (!corpseZone)
+                {
+                    if (!dead)
+                        return null;            // сверху живой/предмет — боевой/подборный клик в приоритете
+                    corpseZone = true;
+                }
+
+                if (!dead) continue;
+
+                Vector3 center = e.TryGetVisualBounds(out Bounds b) ? b.center : e.transform.position;
+                float dx = center.x - world.x, dy = center.y - world.y;
+                float sqr = dx * dx + dy * dy;
+                if (sqr < nearestSqr)
+                {
+                    nearestSqr = sqr;
+                    nearest = obj;
+                }
+            }
+            return nearest;
+        }
         /// <summary>
         /// Метод вызываемый при перетаскивании
         /// </summary>
@@ -323,7 +447,10 @@ namespace Mmogick
             // Подсветить совместимые equipment-слоты. Для не-Item moveable'ов очищаем подсветку,
             // чтобы chain-swap с предмета на не-предмет (если когда-нибудь появится) не оставлял
             // старую подсветку висящей.
-            EquipmentController.HighlightForItem(moveable as Item);
+            // Только предмет СВОЕГО инвентаря (SlotNum > 0): контракт ui/equip требует
+            // inventory_idx > 0 (equip хранит ссылку на слот инвентаря) — предмет контейнера
+            // (SlotNum == 0) надеть напрямую нельзя, подсветка обещала бы невозможное.
+            EquipmentController.HighlightForItem(moveable is Item item && item.SlotNum > 0 ? item : null);
         }
     }
 }
