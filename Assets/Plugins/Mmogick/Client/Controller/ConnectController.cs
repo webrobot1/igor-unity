@@ -110,6 +110,13 @@ namespace Mmogick
 		public static int position_precision;
 
 		/// <summary>
+		/// Эффективный debug-флаг игры (приходит в /auth, Game.getIsDebug на сервере). Гейтит
+		/// debug-оверлей непроходимых тайлов (MapDecodeModel.generate) и расширенные клиентские
+		/// логи (Debug.unityLogger.logEnabled). Установка — SigninController.LoadMain после /auth.
+		/// </summary>
+		public static bool isDebug;
+
+		/// <summary>
 		/// Префаб нашего игрока
 		/// TODO переделать в статический get - set свойство возвращающее ваш (переопределенный) объект ObjectModel
 		/// </summary>

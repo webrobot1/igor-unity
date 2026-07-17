@@ -19,6 +19,11 @@ namespace Mmogick
 
 		public int position_precision;
 
+		// Эффективный debug-флаг игры (Game.getIsDebug на сервере: own ?? parent ?? false).
+		// Клиент гейтит по нему debug-оверлей непроходимых тайлов (MapDecodeModel) и расширенные
+		// логи (Debug.unityLogger.logEnabled). bool: сервер шлёт всегда; отсутствие → false = прод-режим.
+		public bool isDebug;
+
 		// Имя action, обозначающего «idle» (сущность в покое). Клиент использует его для:
 		//   1) Normalize-sampling в SpriterPostImportAdjuster Phase 1 (стабильная поза для median-bounds).
 		//   2) Таймаут-перехода в idle у legacy Animator (ObjectModel.Update).

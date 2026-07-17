@@ -174,14 +174,15 @@ namespace Mmogick
 				for (int y = 0; y < map.height; y++)
 					debugTilemap.SetTile(new Vector3Int(x, -y, 0), gridTile);
 
-			// Отладочный слой непроходимых тайлов (выключен по умолчанию, включать в инспекторе)
+			// Отладочный слой непроходимых тайлов — виден только при debug-флаге игры
+			// (ConnectController.isDebug, эффективный Game.getIsDebug, приходит в /auth). Прод-игра его не рисует.
 			if (colliders.Count > 0)
 			{
 				GameObject debugCollision = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 				debugCollision.name = "DebugCollision";
 				debugCollision.transform.SetParent(grid, false);
 				debugCollision.GetComponent<TilemapRenderer>().sortingOrder = sort + 1;
-				debugCollision.SetActive(true);
+				debugCollision.SetActive(ConnectController.isDebug);
 
 				Texture2D colTex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
 				colTex.filterMode = FilterMode.Point;
