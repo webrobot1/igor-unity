@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Newtonsoft.Json;
 
 #nullable enable
 
@@ -28,10 +27,9 @@ namespace Mmogick
 		// Newtonsoft молча отбросил бы inventory чужого enemy. Свой player наследует поле в
 		// PlayerComponentsRecive и читает его как раньше.
 		//   null      — поля нет в пакете (no-op);
-		//   Count==0  — контейнер пуст (сервер прислал JSON `[]`, конвертер → пустой Dictionary → окно закрыть);
+		//   Count==0  — контейнер пуст (сервер шлёт пустой словарь {} — компонент типа object; окно показать/закрыть);
 		//   Count>0   — позиция → предмет.
-		// EmptyArrayAsDictionaryConverter: без него Newtonsoft падает на `[]` (канон equip).
-		[JsonConverter(typeof(EmptyArrayAsDictionaryConverter<int, InventorySlotRecive>))]
+		// Пустой словарь приходит {} (сервер, ComponentTypeEnum::Object), Newtonsoft читает нативно — конвертер не нужен.
 		public Dictionary<int, InventorySlotRecive>? inventory = null;
 	}
 }
