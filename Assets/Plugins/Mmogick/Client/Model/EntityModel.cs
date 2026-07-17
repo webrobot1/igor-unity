@@ -39,7 +39,7 @@ namespace Mmogick
 		public int map;
 
 		[NonSerialized]
-		public string login;
+		public string slug;
 
 		/// <summary>
 		/// стандартное поле действия. хорошим тоном связать его с анимацией и в серверных механиках использовать
@@ -298,8 +298,8 @@ namespace Mmogick
 			if (!string.IsNullOrEmpty(recive.prefab))
 				this.prefab = recive.prefab;
 
-			if (recive.login != null)
-				this.login = recive.login;
+			if (recive.slug != null)
+				this.slug = recive.slug;
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{
@@ -386,6 +386,8 @@ namespace Mmogick
 		/// </summary>
 		public static bool verbose = false;
 
+		// Префикс лог-строк — имя объекта = wire-ключ kind_slug: идентичность (slug/логин) уже в нём,
+		// тот же формат у серверных логов (EntityAbstract фреймворка).
 		public void Log(string message)
         {
 			if (verbose)

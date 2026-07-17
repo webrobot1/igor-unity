@@ -16,7 +16,8 @@ namespace Mmogick
 
 		public int? map = null;
 		public string prefab;
-		public string login;
+		// Идентичность сущности с сервера: у моба/NPC — slug git-цикла, у игрока — логин аккаунта.
+		public string slug;
 		public string action;
 
 		public float? forwardX = null;

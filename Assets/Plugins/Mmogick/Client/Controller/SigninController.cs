@@ -66,7 +66,7 @@ namespace Mmogick
 				SERVER = serverField.text;
 
 			WWWForm formData = new WWWForm();
-			formData.AddField("login", login);
+			formData.AddField("slug", login); // поле wire — slug (единая идентичность сущностей на сервере)
 			formData.AddField("password", password);
 
 			string url = "http://" + SERVER + "/api/game/" + GAME_ID + "/" + action;
