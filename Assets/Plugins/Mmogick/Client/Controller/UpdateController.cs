@@ -65,8 +65,10 @@ namespace Mmogick
 						map_zone = new GameObject(map.Key.ToString()).transform;
 						map_zone.SetParent(worldObject.transform, false);
 
-						if (mapObject.transform.Find(map.Key.ToString()) !=null)
-							map_zone.localPosition = mapObject.transform.Find(map.Key.ToString()).localPosition;
+						// zone (сущности) = чистая позиция карты (sides), БЕЗ TILE_OFFSET: сдвиг несут только тайлы (grid).
+						// Раньше копировалось из grid.localPosition — теперь там TILE_OFFSET, потому берём напрямую из sides.
+						if (getSides().ContainsKey(map.Key))
+							map_zone.localPosition = new Vector2(getSides()[map.Key].x, getSides()[map.Key].y);
 
 						Debug.LogWarning("WebSocket: Создаем область для объектов " + map.Key);
 					}

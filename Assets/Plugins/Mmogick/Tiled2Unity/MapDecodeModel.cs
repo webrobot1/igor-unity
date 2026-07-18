@@ -11,18 +11,14 @@ namespace Mmogick
 	/// </summary>
 	abstract public class MapDecodeModel
 	{
-		public static HashSet<Vector2Int> Colliders { get; private set; }
-
 		public static MapDecode generate(string json, Transform grid, int gameId)
 		{
 			// Канон сервера: sandbox-скаляры приходят всегда, включая null (null ≡ отсутствие ≡ дефолт).
 			// Ignore не даёт Newtonsoft писать null в не-nullable поля — null оставляет дефолт поля.
 			Map map = JsonConvert.DeserializeObject<Map>(json, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
-			// Grid сдвиг -0.5 совмещает визуальные границы тайлов (pivot 0,0 → [N, N+1))
-			// с логическими (RoundToInt → [N-0.5, N+0.5)). Player pivot (0.5, 0.5) — центр.
-			// Без сдвига игрок при позиции -8.49 (логически тайл -8) визуально в тайле -9.
-			grid.localPosition = new Vector3(-0.5f, -0.5f, 0f);
+			// grid.localPosition здесь НЕ трогаем: MapController.SortMap выставляет его сразу после generate
+			// (позиция карты в открытом мире + TILE_OFFSET). Прежняя установка -0.5 тут была мёртвой (затиралась).
 
 			HashSet<Vector2Int> colliders = new HashSet<Vector2Int>();
 			if (map.colliders != null)
@@ -36,8 +32,6 @@ namespace Mmogick
 					}
 				}
 			}
-			Colliders = colliders;
-
 			// Пересчёт позиционных полей объектов (тайлы слоёв декодируются из CSV ниже)
 			foreach (Layer layer in map.layer.Values)
 			{
@@ -209,7 +203,9 @@ namespace Mmogick
 				Debug.Log("DebugCollision: " + colliders.Count + " непроходимых тайлов");
 			}
 
-			return new MapDecode(map);
+			MapDecode decoded = new MapDecode(map);
+			decoded.colliders = colliders;   // per-map коллайдеры (не общий статик — см. MapDecode.colliders)
+			return decoded;
 		}
 
 		// Декод CSV-строки тайлов слоя в набор LayerTile (зеркало серверного LayerTileCsvCodec::decodeCsv).

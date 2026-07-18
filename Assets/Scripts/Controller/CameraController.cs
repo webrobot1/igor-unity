@@ -15,6 +15,7 @@ namespace Mmogick
     {
         private Dictionary<int, Point> last_sides;
         private int last_lifeRadius;
+        private int last_map;
 
         private float minX;
         private float minY;
@@ -49,11 +50,16 @@ namespace Mmogick
                 // если все карты скачены и мы не удаляемся с карты
                 if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getMaps().Count > 0 && PlayerController.getSides().Count == PlayerController.getMaps().Count && PlayerController.getSides().Keys.SequenceEqual(PlayerController.getMaps().Keys))
                 {
-                    // контроли видимости за край карты 
-                    if (last_sides != PlayerController.getSides() || last_lifeRadius != PlayerController.Player.lifeRadius)
+                    // контроли видимости за край карты.
+                    // last_map в инвалидации обязателен: при переходе пакет sides обновляется на кадр раньше Player.map,
+                    // и UpdateView по одной смене ссылки sides пересчитал бы границы со старым Player.map (реального
+                    // соседа приняв за текущую карту, maxY не расширив) — урезанный maxY защёлкнулся бы до следующей
+                    // смены карт. Смена Player.map обязана пересчитать зону обзора.
+                    if (last_sides != PlayerController.getSides() || last_lifeRadius != PlayerController.Player.lifeRadius || last_map != PlayerController.Player.map)
                     {
                         UpdateView();
                         last_lifeRadius = PlayerController.Player.lifeRadius;
+                        last_map = PlayerController.Player.map;
                     }
 
                     Camera.main.transform.position = new Vector3(Mathf.Clamp(PlayerController.Player.transform.position.x, minX, maxX), Mathf.Clamp(PlayerController.Player.transform.position.y, minY, maxY), Camera.main.transform.position.z);

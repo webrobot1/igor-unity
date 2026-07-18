@@ -297,7 +297,7 @@ namespace Mmogick
 						int ntx = Mathf.RoundToInt(nextFinish.x);
 						int nty = Mathf.RoundToInt(nextFinish.y);
 
-						if (MapDecodeModel.Colliders.Contains(new Vector2Int(ntx, nty)))
+						if (PlayerController.IsColliderCell(this.map, new Vector2Int(ntx, nty)))
 						{
 							// Не экстраполируем в коллайдер. Snap к (tx±0.49) делал телепорт когда
 							// текущая позиция уже не целая (после серверного creep или диагонали).

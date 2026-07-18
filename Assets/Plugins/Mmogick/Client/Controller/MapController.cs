@@ -35,6 +35,16 @@ namespace Mmogick
 		/// </summary>
 		private static Dictionary<int, MapDecode> _maps = new Dictionary<int, MapDecode>();
 
+		/// <summary>
+		/// Сдвиг ТАЙЛОВ (grid) относительно логических клеток и сущностей. Тайлы кладутся спрайтом с pivot(0,0)
+		/// при tileAnchor(0.5,0.5) — визуальный центр тайла уходит от логической клетки; этот сдвиг возвращает
+		/// совмещение. X=-1: центр спрайта тайла совпадает с центром сущности. Y=-0.5: сущность привязана
+		/// НОГАМИ (feet), а не центром, поэтому по вертикали пол-клетки, а не целая.
+		/// Применяется ТОЛЬКО к grid (тайлам), НЕ к zone (сущностям) — иначе сдвинулись бы вместе и совмещение
+		/// не изменилось бы. Раньше держался вручную позицией mapObject в сцене (хрупко) — перенесён в код.
+		/// </summary>
+		private static readonly Vector2 TILE_OFFSET = new Vector2(-1f, -0.5f);
+
 		protected override void Awake()
 		{
 			base.Awake();
@@ -139,6 +149,18 @@ namespace Mmogick
 			}
 		}
 
+		/// <summary>
+		/// Непроходима ли клетка cell на карте mapId. Коллайдеры берутся ПЕР-КАРТА
+		/// (getMaps()[mapId].colliders) — единый источник клиентских проверок проходимости: guard игрока
+		/// (CursorController) и экстраполяция сущностей (ObjectModel). Карта не загружена/выгружена
+		/// (нет в _maps) → false (проходимо): легитимное состояние асинхронной загрузки, сервер отобьёт.
+		/// НЕ общий статик — он в открытом мире хранил бы коллайдеры случайного соседнего сегмента.
+		/// </summary>
+		public static bool IsColliderCell(int mapId, Vector2Int cell)
+		{
+			return _maps.TryGetValue(mapId, out MapDecode m) && m.colliders != null && m.colliders.Contains(cell);
+		}
+
 		public static Dictionary<int, MapDecode> getMaps()
         {
 			return _maps;
@@ -156,12 +178,15 @@ namespace Mmogick
 				int map_id = Int32.Parse(grid.name);
 				if (_sides.ContainsKey(map_id))
 				{
-					grid.localPosition = new Vector2(_sides[map_id].x, _sides[map_id].y);
+					// mapPos — чистая позиция карты в открытом мире (для zone сущностей). grid (тайлы) дополнительно
+					// сдвигается на TILE_OFFSET — совмещение спрайтов тайлов с логическими клетками (см. TILE_OFFSET).
+					Vector2 mapPos = new Vector2(_sides[map_id].x, _sides[map_id].y);
+					grid.localPosition = mapPos + TILE_OFFSET;
 
 					// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
 					if (worldObject.transform.Find(grid.gameObject.name) != null)
 					{
-						worldObject.transform.Find(grid.gameObject.name).localPosition = grid.localPosition;
+						worldObject.transform.Find(grid.gameObject.name).localPosition = mapPos;
 						foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
 						{
 							var model = child.GetComponent<EntityModel>();
