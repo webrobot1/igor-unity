@@ -15,7 +15,6 @@ namespace Mmogick
     {
         private Dictionary<int, Point> last_sides;
         private int last_lifeRadius;
-        private int last_map;
 
         private float minX;
         private float minY;
@@ -47,19 +46,19 @@ namespace Mmogick
                     Camera.main.orthographicSize = height;
                 }
 
-                // если все карты скачены и мы не удаляемся с карты
-                if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getMaps().Count > 0 && PlayerController.getSides().Count == PlayerController.getMaps().Count && PlayerController.getSides().Keys.SequenceEqual(PlayerController.getMaps().Keys))
+                // Кламп к границам обзора — только когда номер карты игрока СОГЛАСОВАН со списком соседей:
+                // текущая карта обязана присутствовать в getSides() со смещением (0,0). При переходе пакет sides
+                // обновляется на кадр раньше Player.map, и в этот кадр они противоречивы (sides уже про новую карту,
+                // Player.map ещё про старую) — UpdateView посчитал бы границы по чужой карте (реального соседа приняв
+                // за текущую), а кламп дёрнул бы камеру по урезанной границе. Пока рассогласовано — идём в else (камера
+                // плавно следует за игроком без клампа); согласуется — пересчёт по свежему sides (last_sides != ссылка).
+                Dictionary<int, Point> sides = PlayerController.getSides();
+                if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getMaps().Count > 0 && sides.Count == PlayerController.getMaps().Count && sides.Keys.SequenceEqual(PlayerController.getMaps().Keys) && sides.TryGetValue(PlayerController.Player.map, out Point current) && current.x == 0 && current.y == 0)
                 {
-                    // контроли видимости за край карты.
-                    // last_map в инвалидации обязателен: при переходе пакет sides обновляется на кадр раньше Player.map,
-                    // и UpdateView по одной смене ссылки sides пересчитал бы границы со старым Player.map (реального
-                    // соседа приняв за текущую карту, maxY не расширив) — урезанный maxY защёлкнулся бы до следующей
-                    // смены карт. Смена Player.map обязана пересчитать зону обзора.
-                    if (last_sides != PlayerController.getSides() || last_lifeRadius != PlayerController.Player.lifeRadius || last_map != PlayerController.Player.map)
+                    if (last_sides != sides || last_lifeRadius != PlayerController.Player.lifeRadius)
                     {
                         UpdateView();
                         last_lifeRadius = PlayerController.Player.lifeRadius;
-                        last_map = PlayerController.Player.map;
                     }
 
                     Camera.main.transform.position = new Vector3(Mathf.Clamp(PlayerController.Player.transform.position.x, minX, maxX), Mathf.Clamp(PlayerController.Player.transform.position.y, minY, maxY), Camera.main.transform.position.z);
