@@ -9,6 +9,11 @@ namespace Mmogick
 	public class Layer
 	{
 		public string name;
+
+		// class слоя из Tiled (напр. "collision" у слоя непроходимых зон). Debug-рендер объектов-разметки
+		// (DebugObjects в MapDecodeModel) исключает слой коллизий по этому признаку — он уже в DebugCollision.
+		public string @class;
+
 		public bool visible = true;
 		public float opacity = 1;
 

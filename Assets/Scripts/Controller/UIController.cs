@@ -6,7 +6,7 @@ namespace Mmogick
     /// <summary>
     /// Класс верхнего уровня для управления всеми UI эллементами на экране и передачи в них инфомрацию с сервераб вешается на gameObject на сцене
     /// </summary>
-    abstract public class UIController : PlayerController
+    abstract public class UIController : MinimapController
     {
         [Header("Список всплывающих UI меню")]
 

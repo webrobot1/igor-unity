@@ -17,6 +17,9 @@ namespace Mmogick
 
 		public string tileset_image;
 
+		// Класс объекта Tiled (warp / spawn / particle_effect …). Задаёт цвет debug-рамки в DebugObjects.
+		public string type;
+
 		public string name = "";
 
 		public float x;

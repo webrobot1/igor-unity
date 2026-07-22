@@ -18,6 +18,10 @@ namespace Mmogick
 
 		public int? spawn_sort = null;
 
+		// Свойства карты (terrain.json). Известное: spawn = имя слоя-земли (граница спавна игроков),
+		// один на карту. Резолв имени в spawn_sort (индекс слоя) — MapDecodeModel.generate.
+		public Dictionary<string, LayerProperty> property;
+
 		public Dictionary<int, Layer> layer = new Dictionary<int, Layer> {};
 		public Dictionary<int, Dictionary<string, bool>> colliders = new Dictionary<int, Dictionary<string, bool>>();
 	}
