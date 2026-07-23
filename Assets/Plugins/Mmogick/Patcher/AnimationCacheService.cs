@@ -126,6 +126,14 @@ namespace Mmogick
 			public int animation;
 
 			/// <summary>
+			/// Name нужной SpriterEntity внутри анимации: одна анимация несёт НЕСКОЛЬКО entity (вариации листа
+			/// перекраской — разные prefab на разные entity одной анимации). Приходит в /prefabs
+			/// (PatchController::prefabs). Клиент выбирает по нему SpriterEntity из SCML (NewSpriterRuntimeImporter).
+			/// Null/пусто — одно-entity SCML: берётся первая (совместимость со старыми анимациями).
+			/// </summary>
+			public string entity;
+
+			/// <summary>
 			/// Привязки action→clip prefab'а плоским списком (приходит per-entry в /prefabs). Один action-slug
 			/// ПОВТОРЯЕТСЯ по клипу на направление; ActionBinding.angle — нарисованный facing-угол (0=вправо),
 			/// null = клип без направления. Резолвится AnimationCacheService.GetClipName/Simple (фильтр списка
@@ -240,6 +248,16 @@ namespace Mmogick
 			if (_library == null)
 				throw new InvalidOperationException("AnimationCacheService.GetPrefabSize вызван до SyncAll (_library == null). prefab=" + prefab + ". Вызывайте только после завершения SigninController.LoadMain.");
 			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
+		}
+
+		// Name нужной SpriterEntity из /prefabs-привязки: несколько entity в одной анимации (вариации листа
+		// перекраской) → клиент выбирает entity по имени. Контракт по _library как у GetPrefabSize.
+		// Null/пусто — одно-entity SCML (NewSpriterRuntimeImporter берёт первую, совместимость).
+		public static string GetPrefabEntity(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabEntity вызван до SyncAll (_library == null). prefab=" + prefab);
+			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.entity : null;
 		}
 
 		// Режим достройки направлений картинки (RotationMode.*). Контракт по _library тот же что у

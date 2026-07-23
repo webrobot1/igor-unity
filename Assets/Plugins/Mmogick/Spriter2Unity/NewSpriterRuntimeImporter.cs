@@ -305,7 +305,7 @@ namespace Mmogick
         /// <param name="bodyHeight">Высота «тела» в scml-единицах (per-prefab, с сервера через Prefab.size
         /// в library — AnimationCacheService.GetPrefabSize(prefabName)). Если null — adjuster fallback'ает
         /// на автозамер bounds.y за N кадров (менее точно).</param>
-        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, int gameId, string prefabName = null, float? bodyHeight = null)
+        public static SpriterDotNetBehaviour CreateSpriter(SpriterPacket packet, string entityName, int gameId, string prefabName, float? bodyHeight = null)
         {
             GameObject go = GameObject.Find(entityName);
             if (go == null)
@@ -326,7 +326,7 @@ namespace Mmogick
             if (existingAdjuster != null) GameObject.DestroyImmediate(existingAdjuster);
 
             SpriterDotNetBehaviour behaviour = go.AddComponent<SpriterDotNetBehaviour>();
-            SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, entityName, behaviour, gameId);
+            SpriterEntity entity = FetchOrCacheSpriterEntityDataFromFile(packet, prefabName, behaviour, gameId);
 
             // Spriter управляет направлением через смену clip + flip по X, а не через transform.rotation.
             // Но если первый forward-пакет от сервера пришёл ДО завершения асинхронной загрузки SCML
@@ -408,7 +408,10 @@ namespace Mmogick
 
             var entities = source.SpriterData.Spriter.Entities;
             if (entities == null || entities.Length == 0) return null;
-            SpriterEntity entity = entities[0];
+            // Зеркалим ту же entity, что выбрана у source: мульти-entity анимация (вариации перекраской) — цель
+            // может быть вариантом (sea-slime), не первой entity. source.EntityIndex несёт выбранную.
+            int idx = (source.EntityIndex >= 0 && source.EntityIndex < entities.Length) ? source.EntityIndex : 0;
+            SpriterEntity entity = entities[idx];
 
             SpriterDotNetBehaviour behaviour = targetGo.AddComponent<SpriterDotNetBehaviour>();
             behaviour.SpriterData = source.SpriterData;
@@ -537,9 +540,12 @@ namespace Mmogick
             }
         }
 
-        private static SpriterEntity FetchOrCacheSpriterEntityDataFromFile(SpriterPacket packet, string entityName, SpriterDotNetBehaviour spriterDotNetBehaviour, int gameId)
+        private static SpriterEntity FetchOrCacheSpriterEntityDataFromFile(SpriterPacket packet, string prefabName, SpriterDotNetBehaviour spriterDotNetBehaviour, int gameId)
         {
-            if (SpriterEntityDatas.TryGetValue(entityName, out SpriterEntityData cachedEntityData))
+            // Кеш по prefab: prefab→entity 1:1 (skill animation «Вариации листа»), инстансы одного prefab реюзят
+            // тяжёлый SpriterData (Spriter XML + текстуры). Анимированный визуал всегда идёт через prefab-привязку
+            // (единственный вызов — UpdateController по /prefabs-потоку), потому prefabName всегда задан.
+            if (SpriterEntityDatas.TryGetValue(prefabName, out SpriterEntityData cachedEntityData))
             {
                 spriterDotNetBehaviour.SpriterData = cachedEntityData.data;
                 return cachedEntityData.entity;
@@ -547,18 +553,20 @@ namespace Mmogick
 
             Spriter spriter = SpriterReader.Default.Read(packet.xml);
 
-            if(spriter.Entities.Length>1)
-                throw new Exception("В наборе может быть одна сущность с анимациями");
-
-            SpriterEntity entity = spriter.Entities[0];
+            // Одна анимация несёт НЕСКОЛЬКО SpriterEntity (вариации листа перекраской). Нужную выбираем по имени
+            // из /prefabs-привязки (PatchController шлёт entity per-prefab; AnimationCacheService.GetPrefabEntity).
+            // Имени нет (одно-entity SCML старой анимации без сервер-привязки entity) / не найдена — первая (совместимость).
+            string wantEntity = AnimationCacheService.GetPrefabEntity(prefabName);
+            SpriterEntity entity = (wantEntity != null ? Array.Find(spriter.Entities, e => e.Name == wantEntity) : null)
+                ?? spriter.Entities[0];
 
             SpriterData spriterData = ScriptableObject.CreateInstance<SpriterData>();
             spriterData.Spriter = spriter;
             spriterData.FileEntries = LoadAssets(spriter, packet.files, gameId).ToArray();
 
             SpriterEntityData entityData = new SpriterEntityData(entity, spriterData);
-            SpriterEntityDatas[entity.Name] = entityData;
-           
+            SpriterEntityDatas[prefabName] = entityData;
+
             spriterDotNetBehaviour.SpriterData = spriterData;
 
             return entity;
