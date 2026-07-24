@@ -44,34 +44,44 @@ namespace Mmogick
             // Защита от двойного взятия (см. MoveableObject).
             if (CursorController.MyMoveable != null)
                 return;
+
+            // Чужая добыча до истечения срока: сервер откажет молча — не даём даже взять предмет
+            // в курсор, иначе игрок таскал бы то, что забрать нельзя. CanvasGroup.interactable тут
+            // не помощник: он гасит Selectable-контролы, а слот ловит клик своим IPointerClickHandler.
+            if (GetComponentInParent<LootSlotMarker>() != null && !LootWindowController.CanTakeFromOpen())
+                return;
+
             CursorController.TakeMoveable(this);
         }
 
         public override void Use(Vector2 pos = new Vector2(), GameObject obj = null)
         {
-            // Предмет ОТКРЫТОГО КОНТЕЙНЕРА (лут трупа/сундука) распознаётся по метке LootSlotMarker
-            // на слоте-родителе (SlotNum у него 0 — инвентарные ветки ниже не срабатывают).
+            // Предмет ОТКРЫТОЙ ДОБЫЧИ трупа распознаётся по метке LootSlotMarker на слоте-родителе
+            // (SlotNum у него 0 — инвентарные ветки ниже не срабатывают).
             LootSlotMarker myLootSlot = GetComponentInParent<LootSlotMarker>();
             LootSlotMarker targetLootSlot = obj != null ? obj.GetComponentInParent<LootSlotMarker>() : null;
 
-            // Дроп на слот окна контейнера
+            // Дроп на слот окна добычи
             if (targetLootSlot != null)
             {
-                if (myLootSlot != null)
-                    LootWindowController.SendReorder(myLootSlot.Num, targetLootSlot.Num);   // перестановка внутри контейнера
-                else if (SlotNum > 0 && CursorController.SourceEquipmentSlot == null)
-                    LootWindowController.SendPut(SlotNum, targetLootSlot.Num);              // свой предмет — в контейнер
-                // экипированное сперва снимается в инвентарь — напрямую в контейнер не кладём
+                // Внутри добычи предметы не переставляются: у ui/inventory/index нет адресации чужого
+                // контейнера, писать в добычу может только серверный код механик.
+                if (myLootSlot == null && SlotNum > 0 && CursorController.SourceEquipmentSlot == null)
+                    LootWindowController.SendPut(SlotNum, targetLootSlot.Num);              // свой предмет — в добычу
+                // экипированное сперва снимается в инвентарь — напрямую в добычу не кладём
                 return;
             }
 
-            // Предмет контейнера дропнут в свой инвентарь — атомарный забор по позициям (сервер
-            // переносит сам; локально не двигаем, ответ-пакет перерисует оба инвентаря)
+            // Предмет добычи дропнут в свой инвентарь — атомарный забор по позициям (сервер переносит
+            // сам; локально не двигаем, ответ-дельта перерисует и инвентарь, и окно добычи).
+            // idx — список даже для одного предмета: контракт ui/inventory/take.
             if (myLootSlot != null)
             {
                 if (obj != null && obj.GetComponentInParent<SlotScript>() != null && obj.GetComponentInParent<EquipmentSlot>() == null)
-                    LootWindowController.SendTake(myLootSlot.Num, obj.GetComponentInParent<SlotScript>().SlotNum);
-                // в мир/на экипировку из чужого контейнера не выбрасываем — только через свой инвентарь
+                    LootWindowController.SendTake(
+                        new System.Collections.Generic.List<int> { myLootSlot.Num },
+                        obj.GetComponentInParent<SlotScript>().SlotNum);
+                // в мир/на экипировку из чужой добычи не выбрасываем — только через свой инвентарь
                 return;
             }
 

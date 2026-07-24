@@ -188,6 +188,9 @@ namespace Mmogick
                     if (settings.ContainsKey("actions"))
                         onlyMobileActions.gameObject.SetActive(settings["actions"] == "mobile");
 
+                    if (settings.ContainsKey("minimap"))
+                        SetMinimapEnabled(int.Parse(settings["minimap"]) > 0);
+
                     foreach (var setting in settings)
                     {
                         if (!_types.ContainsKey(setting.Key))

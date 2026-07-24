@@ -14,8 +14,12 @@ namespace Mmogick
 		public Dictionary<string, bool>? spellBook = null;
 		public Dictionary<int, ActionBarsRecive?>? actionbars = null;
 
-		// inventory поднят в базовый EnemyComponentsRecive (контейнеры — enemy/entity). Своё
-		// поле остаётся доступно как ((PlayerRecive)recive).components.inventory (наследование).
+		// Инвентарь — ПРИВАТНЫЙ компонент: сервер шлёт его только своему игроку, чужой сущности он не
+		// приходит никогда. Содержимое трупа-контейнера живёт в отдельном публичном компоненте
+		// (EnemyComponentsRecive.loot), а не здесь.
+		//   null      — поля нет в пакете (no-op);
+		//   позиция → предмет либо null (пустая позиция). Дельта частична — приходят только изменившиеся.
+		public Dictionary<int, ItemSlotRecive>? inventory = null;
 
 		// Контракт сервера (компонент equip, тип object → словарь):
 		//   null            — поле отсутствует в пакете, no-op (экипировку не трогать);

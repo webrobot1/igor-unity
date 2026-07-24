@@ -238,6 +238,13 @@ namespace Mmogick
                 }
             }
 
+            // Размер и позиция финальны — показываем то, что CreateSpriter собирал скрытым.
+            // Показ строго ДО Destroy и до нотификации: OnVisualReady может сразу вешать эффект появления,
+            // которому нужна видимая сущность.
+            spritesRoot.gameObject.SetActive(true);
+            if (metadataRoot != null) metadataRoot.gameObject.SetActive(true);
+            if (em != null) em.OnVisualReady();
+
             Destroy(this);
         }
 
@@ -343,6 +350,15 @@ namespace Mmogick
 
             sprites.SetParent(go);
             metadata.SetParent(go);
+
+            // Сборка идёт СКРЫТОЙ: игрок не должен видеть промежуточные состояния (скелет native-размера,
+            // прыжок scale, дрейф центровки). Adjuster включит обе ветки обратно в конце Phase 2, когда
+            // размер и позиция финальны. Замерам это не мешает: SpriterDotNetBehaviour тикает на активном
+            // корне, а TryComputeAggBounds читает tight-rect + transforms, которым рендер не нужен.
+            // Metadata скрывается заодно: предмет экипировки (WeaponMount) — ребёнок её Point-якоря,
+            // видимый предмет при скрытом теле — артефакт.
+            sprites.SetActive(false);
+            metadata.SetActive(false);
 
             ChildData cd = new ChildData();
             SpriterImporterUtil.CreateSprites(entity, cd, sprites);
@@ -545,7 +561,14 @@ namespace Mmogick
             // Кеш по prefab: prefab→entity 1:1 (skill animation «Вариации листа»), инстансы одного prefab реюзят
             // тяжёлый SpriterData (Spriter XML + текстуры). Анимированный визуал всегда идёт через prefab-привязку
             // (единственный вызов — UpdateController по /prefabs-потоку), потому prefabName всегда задан.
-            if (SpriterEntityDatas.TryGetValue(prefabName, out SpriterEntityData cachedEntityData))
+            //
+            // cachedEntityData.data != null — Unity destroyed-чек, ОБЯЗАТЕЛЕН при СТАБИЛЬНОМ ключе кеша (prefabName):
+            // статический кеш переживает перезапуск Play Mode в редакторе, а SpriterData (ScriptableObject) Unity при
+            // выходе из Play Mode уничтожает. Прежний ключ (entityName=kind_slug) при каждом спавне менялся → повторный
+            // вход всегда промахивался мимо кеша и пересоздавал; со стабильным prefabName сюда попадал destroyed-труп,
+            // и ВСЕ сущности оставались без визуала (SpriterData==null) до рекомпиляции. Труп → пересоздаём (ниже
+            // перезапишем свежим). В билде (полный перезапуск процесса статику сбрасывает) недостижимо.
+            if (SpriterEntityDatas.TryGetValue(prefabName, out SpriterEntityData cachedEntityData) && cachedEntityData.data != null)
             {
                 spriterDotNetBehaviour.SpriterData = cachedEntityData.data;
                 return cachedEntityData.entity;

@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using SpriterDotNetUnity;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -14,6 +15,22 @@ namespace Mmogick
 	/// </summary>
 	abstract public class UpdateController : MapController
 	{
+		/// <summary>
+		/// true, пока обрабатывается пакет полной перезагрузки мира (верхний action == ACTION_LOAD):
+		/// сущности из него — первичная отгрузка мира (вход/переход), НЕ живой спавн, эффект появления
+		/// им не положен. Живые спавны приходят обычными дельтами (World::add песочницы) — worldLoading=false.
+		/// </summary>
+		private bool worldLoading;
+
+		/// <summary>
+		/// Кандидаты на удаление при полной перезагрузке мира (ACTION_LOAD). Сущности НЕ сносятся сразу:
+		/// та, что есть и в новом мире (тот же key), переиспользуется UpdateObject (снимается из списка) —
+		/// её визуал живёт бесшовно, без «исчезло-пересобралось» при каждом переходе между картами.
+		/// Остаток (кого в новом мире нет) уничтожается после обработки пакета. Симметрично реюзу
+		/// карт-тайлов в MapController.HandleData (там неактуальные зоны сносятся по sides).
+		/// </summary>
+		private List<GameObject> loadSweep;
+
 		protected override void Handle(string json)
 		{
 			HandleData(JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive>>(json));
@@ -24,6 +41,8 @@ namespace Mmogick
 		/// </summary>
 		protected override void HandleData<P,E>(Recive<P, E> recive)
 		{
+			worldLoading = recive.action == ACTION_LOAD;
+
 			base.HandleData(recive);
 
 			if (recive.action != null)
@@ -33,22 +52,23 @@ namespace Mmogick
 					case ACTION_LOAD:
 						Debug.LogWarning("WebSocket: полная перезагрузка мира");
 
-						// .Cast<Transform>().ToList() — снапшот детей: DestroyImmediate меняет коллекцию, прямой
-						// foreach по transform пропустил бы половину
+						// Не сносим сразу — собираем кандидатов: тех, кто есть и в новом мире, UpdateObject
+						// переиспользует (см. loadSweep), остаток уничтожается после обработки пакета.
+						loadSweep = new List<GameObject>();
 						foreach (var side in worldObject.transform.Cast<Transform>().ToList())
-						{ 
+						{
 							foreach (var child in side.transform.Cast<Transform>().ToList())
 							{
 								if (player == null || child.gameObject.name != player.gameObject.name)
 								{
-									DestroyImmediate(child.gameObject);
+									loadSweep.Add(child.gameObject);
 								}
                                 else
                                 {
 									player.Log("Не очищаем игрока при перезагрузке");
-                                }	
+                                }
 							}
-						}	
+						}
 					break;
 				}
 			}
@@ -116,6 +136,20 @@ namespace Mmogick
 					}
 				}
 			}
+
+			// Остаток кандидатов перезагрузки мира — сущности, которых в новом мире нет: сносим.
+			// Немедленно (DestroyImmediate, как прежний снос в ACTION_LOAD-ветке), а не Remove-корутиной:
+			// на новых картах их не существует, «шанс отмены» им не положен.
+			if (loadSweep != null)
+			{
+				foreach (var stale in loadSweep)
+					if (stale != null)
+					{
+						Debug.LogWarning("WebSocket: " + stale.name + " отсутствует в новом мире - удаляем");
+						DestroyImmediate(stale);
+					}
+				loadSweep = null;
+			}
 		}
 
 		/// <summary>
@@ -125,6 +159,10 @@ namespace Mmogick
 		{
 			GameObject prefab = GameObject.Find(key);
 			EntityModel model;
+
+			// Сущность из нового мира жива на сцене — переиспользуем, из кандидатов на снос убираем.
+			if (prefab != null)
+				loadSweep?.Remove(prefab);
 
 			// если игрока нет на сцене
 			if (prefab == null)
@@ -225,6 +263,15 @@ namespace Mmogick
 				
 				model.key = key;
 				model.type = kind.ToLower();
+
+				// Живой спавн существа (появилось, пока игрок в игре) — пометить для эффекта появления.
+				// Сыграет EntityModel.OnVisualReady, когда визуал готов и показан. НЕ живой спавн:
+				//  - worldLoading: сущность из пакета полной отгрузки мира (вход/переход);
+				//  - key == player_key: свой игрок при входе добавляется в мир песочницей ПОСЛЕ отдачи
+				//    мира и приходит дельтой (WebSocket.sendWorlds → Channel::player_add) — это вход, не спавн;
+				//  - object: предметы/декор появляются без эффекта (выброс item'а, снаряды).
+				if (!worldLoading && key != player_key && model.type != "object")
+					model.pendingAppearFlash = true;
 
 				model.Log("создан с префабом " + recive.prefab);
 
@@ -362,18 +409,48 @@ namespace Mmogick
 					}
 				}
 				model.Log("image-sprite " + newPrefab + " применён");
+				// Image-визуал применяется синхронно — точка «визуал готов» сразу здесь
+				// (у animation-пути её проходит SpriterPostImportAdjuster по концу подгонки).
+				model.OnVisualReady();
 			}
 			else if (AnimationCacheService.HasAnimation(newPrefab))
 			{
+				// Пока Spriter асинхронно собирается, сущность не показываем вовсе: placeholder "unknow"
+				// (при первом спавне) или устаревший визуал мелькали бы до готового тела. Прячем корневой SR
+				// (запомнив состояние — при смене prefab он уже выключен прошлым CreateSpriter) и LifeBar
+				// первого спавна (model.prefab ещё пуст — SetData присвоит его после). Показ по готовности —
+				// SpriterPostImportAdjuster (тело) и EntityModel.OnVisualReady (LifeBar); при ошибке загрузки
+				// возвращаем как было, иначе сущность осталась бы невидимкой.
+				var hideSr = go.GetComponent<SpriteRenderer>();
+				bool srWasEnabled = hideSr != null && hideSr.enabled;
+				if (hideSr != null) hideSr.enabled = false;
+				var hideLifeBar = string.IsNullOrEmpty(model.prefab) ? go.transform.Find("LifeBar") : null;
+				if (hideLifeBar != null && hideLifeBar.gameObject.activeSelf)
+				{
+					hideLifeBar.gameObject.SetActive(false);
+					model.lifeBarHiddenForBuild = true;
+				}
+				Action restoreVisual = () =>
+				{
+					if (srWasEnabled && hideSr != null) hideSr.enabled = true;
+					if (model.lifeBarHiddenForBuild && hideLifeBar != null)
+					{
+						hideLifeBar.gameObject.SetActive(true);
+						model.lifeBarHiddenForBuild = false;
+					}
+				};
+
 				StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, newPrefab, (AnimationPatcher patcher) =>
 				{
 					if (patcher.error != null)
 					{
+						restoreVisual();
 						Error("Анимации: ошибка " + patcher.error);
 						return;
 					}
 					if (patcher.spriterPacket == null)
 					{
+						restoreVisual();
 						Error("Анимации: пустой ответ от патчера для " + key);
 						return;
 					}
@@ -384,6 +461,7 @@ namespace Mmogick
 					}
 					catch (Exception ex)
 					{
+						restoreVisual();
 						Error("Анимации: ошибка " + ex);
 					}
 				}));
@@ -407,6 +485,8 @@ namespace Mmogick
 					entityModel.SetFallbackSprite(sr.sprite);
 				if (entityModel != null) entityModel.EnsureUniversalAnimator(startDisabled: true);
 				model.LogWarning("prefab '" + newPrefab + "' без image/animation — fallback-визуал kind + Universal overlay (dead/remove)");
+				// kind-only визуал (placeholder) окончателен и виден сразу — точка «визуал готов» здесь.
+				model.OnVisualReady();
 			}
 			else
 				model.LogError("префаб '" + newPrefab + "' не определён в library (нет ни image-привязки, ни animation-привязки на сервере)");

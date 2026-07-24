@@ -103,6 +103,7 @@ public class Script {
 Механизм подробно задокументирован XML-doc'ами в коде — здесь только обзор, карта файлов и cross-file инварианты (их ни один отдельный файл не покрывает). За деталями — в код:
 - `EntityModel.PlayAction` (единая точка: Spriter-приоритет → Universal-fallback), `EnsureUniversalAnimator`/`OnAnimatorAttached` (привязка overlay-Animator'а, startDisabled для image-init), rotation projectile'ов в `SetData` — [EntityModel.cs](Assets/Plugins/Mmogick/Client/Model/EntityModel.cs).
 - семантика полей prefab'а (size/sha256/equipable_slot…), throw vs null политика кеша — [AnimationCacheService.cs](Assets/Plugins/Mmogick/Patcher/AnimationCacheService.cs).
+- скрытая async-сборка визуала (cross-file цепочка из трёх файлов): `UpdateController.ApplyVisualPrefab` прячет placeholder/LifeBar на время загрузки SCML → `NewSpriterRuntimeImporter.CreateSpriter` создаёт Sprites/Metadata ВЫКЛЮЧЕННЫМИ (замерам adjuster'а рендер не нужен — tight-rect от transforms) → `SpriterPostImportAdjuster` в конце подгонки включает их и зовёт `EntityModel.OnVisualReady` (возврат LifeBar + отложенная вспышка появления `SpawnAppearFlash`/`AppearFlashEffect` — отдельный child-объект, тело Spriter не трогает). Гейт живого спавна (не отгрузка мира, не свой игрок, не object) и реюз существ при полной перезагрузке мира (`loadSweep` — существа, живущие в старом и новом мире, не пересоздаются) — `UpdateController`.
 
 Два слоя на одном GameObject:
 - **Per-prefab Spriter (SCML с сервера)** — индивидуальные `idle/walk/attack/hurt/dead`. Компонент `SpriterDotNetBehaviour`, кеш — `AnimationCacheService`.
@@ -111,6 +112,7 @@ public class Script {
 **Структура Universal.controller** (это asset — описание только здесь, в коде нет): 1 слой, параметры `direction` (Int 0..3: 0=down, 1=left, 2=right, 3=up) и `remove` (Trigger). AnyState→`remove_{down,left,right,up}` по `remove If 0` + `direction Equals N`. Возврат в `Idle` (motion=null) по `hasExitTime=true, exitTime=1`.
 
 **Инварианты — чего НЕ делать:**
+- Не включать Sprites/Metadata сущности вручную во время сборки и не ронять вызов `OnVisualReady` в конце adjuster'а — показ тела, возврат LifeBar и вспышка появления идут одной точкой; разрыв даёт сущность в промежуточном состоянии либо потерю эффекта.
 - Не выключать `writeDefaults=false` в state'ах Universal.controller — иначе при transition в Idle Animator сбрасывает `SpriteRenderer.m_Sprite` в default и сущность мелькает «пустым» спрайтом перед уничтожением.
 - Не удалять [Sprites/Entitys/Remove/Puff*.png](Assets/Sprites/Entitys/Remove/) и [Sprites/Entitys/Dead/dead*.png](Assets/Sprites/Entitys/Dead/) — Universal/{Remove,Dead}/*.anim ссылается на них по GUID.
 - Не возвращать `DestroyImmediate(Animator)` в Spriter/image-init — это убьёт Universal-overlay.

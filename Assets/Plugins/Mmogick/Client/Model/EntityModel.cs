@@ -69,6 +69,72 @@ namespace Mmogick
 		/// </summary>
 		public void SetFallbackSprite(Sprite sprite) => _fallbackSprite = sprite;
 
+		/// <summary>
+		/// Живой спавн (существо появилось, пока игрок в игре) — сыграть эффект появления, когда визуал
+		/// будет готов и показан. Ставит UpdateController.UpdateObject в спавн-ветке; гейт (не отгрузка
+		/// мира, не свой игрок, не object) — там же. Снимается единожды в <see cref="OnVisualReady"/>.
+		/// </summary>
+		[NonSerialized]
+		public bool pendingAppearFlash;
+
+		/// <summary>
+		/// LifeBar скрыт на время асинхронной сборки Spriter-визуала (UpdateController.ApplyVisualPrefab
+		/// прячет его вместе с placeholder-спрайтом, чтобы полоска не висела в воздухе без тела).
+		/// Возврат — в <see cref="OnVisualReady"/> либо в error-ветке загрузки самим ApplyVisualPrefab.
+		/// </summary>
+		[NonSerialized]
+		public bool lifeBarHiddenForBuild;
+
+		/// <summary>
+		/// Точка «визуал сущности готов и показан»: конец подгонки SpriterPostImportAdjuster у
+		/// animation-prefab'ов, синхронное применение у image/kind-only (UpdateController.ApplyVisualPrefab).
+		/// Возвращает спрятанный на время сборки LifeBar и играет отложенный эффект появления.
+		/// Повторные вызовы (смена prefab на лету) безопасны: оба флага одноразовые.
+		/// </summary>
+		public void OnVisualReady()
+		{
+			if (lifeBarHiddenForBuild)
+			{
+				lifeBarHiddenForBuild = false;
+				var lifeBar = transform.Find("LifeBar");
+				if (lifeBar != null) lifeBar.gameObject.SetActive(true);
+			}
+
+			if (pendingAppearFlash)
+			{
+				pendingAppearFlash = false;
+				SpawnAppearFlash();
+			}
+		}
+
+		/// <summary>
+		/// Эффект появления существа: ОТДЕЛЬНЫЙ дочерний объект с Universal Animator'ом, играющий Puff
+		/// (кадры и state'ы remove) поверх уже показанного тела. Именно отдельный объект: Universal-ветка
+		/// PlayAction на самой сущности глушит SpriteRenderer'ы тела Spriter'а — для появления тело должно
+		/// оставаться видимым. Позиция/масштаб — системы корня сущности, как у remove-Puff на корневом SR.
+		/// Уничтожается сам по концу анимации (AppearFlashEffect).
+		/// </summary>
+		private void SpawnAppearFlash()
+		{
+			var controller = GetUniversalController();
+			if (controller == null) return;   // Universal-ассет отсутствует — предупреждение уже выдано
+
+			var fx = new GameObject("AppearFlash");
+			fx.transform.SetParent(transform, false);
+
+			var sr = fx.AddComponent<SpriteRenderer>();
+			// Поверх всех SpriteRenderer'ов тела внутри SortingGroup сущности (Spriter раздаёт детям 0..N;
+			// та же «поверх всего» конвенция, что WeaponMount.FallbackOrder).
+			sr.sortingOrder = 1000;
+
+			var anim = fx.AddComponent<Animator>();
+			anim.runtimeAnimatorController = controller;
+			anim.SetInteger("direction", ForwardToDirection());
+			anim.SetTrigger(ConnectController.ACTION_REMOVE);
+
+			fx.AddComponent<AppearFlashEffect>();
+		}
+
 		private Vector3 _forward = Vector3.zero;
 
 		/// <summary>
@@ -411,6 +477,33 @@ namespace Mmogick
 		private static bool _universalControllerMissing = false;
 
 		/// <summary>
+		/// Lazy-load Universal-контроллера (общий для всех сущностей). null — ассета нет в Resources,
+		/// предупреждение выдаётся один раз, эффекты отключены.
+		/// </summary>
+		private RuntimeAnimatorController GetUniversalController()
+		{
+			if (_universalControllerMissing) return null;
+			if (_universalController == null)
+			{
+				_universalController = Resources.Load<RuntimeAnimatorController>("Animations/Universal");
+				if (_universalController == null)
+				{
+					_universalControllerMissing = true;
+					LogWarning("GetUniversalController: Resources/Animations/Universal не найден — fallback-эффекты отключены");
+				}
+			}
+			return _universalController;
+		}
+
+		/// <summary>
+		/// direction-параметр Universal.controller из Forward: 0=down, 1=left, 2=right, 3=up.
+		/// </summary>
+		private int ForwardToDirection()
+		{
+			return Mathf.Abs(Forward.y) > Mathf.Abs(Forward.x) ? (Forward.y < 0 ? 0 : 3) : (Forward.x < 0 ? 1 : 2);
+		}
+
+		/// <summary>
 		/// Навешивает на сущность Universal Animator (или меняет controller существующего на Universal).
 		/// Вызывается из Spriter-init и image-init.
 		///
@@ -422,17 +515,7 @@ namespace Mmogick
 		/// </summary>
 		public void EnsureUniversalAnimator(bool startDisabled = false)
 		{
-			if (_universalControllerMissing) return;
-			if (_universalController == null)
-			{
-				_universalController = Resources.Load<RuntimeAnimatorController>("Animations/Universal");
-				if (_universalController == null)
-				{
-					_universalControllerMissing = true;
-					LogWarning("EnsureUniversalAnimator: Resources/Animations/Universal не найден — fallback-эффекты отключены");
-					return;
-				}
-			}
+			if (GetUniversalController() == null) return;
 
 			var anim = GetComponent<Animator>();
 			if (anim == null) anim = gameObject.AddComponent<Animator>();
@@ -527,9 +610,7 @@ namespace Mmogick
 					foreach (var r in spriter.GetComponentsInChildren<SpriteRenderer>(includeInactive: false))
 						if (r.gameObject != spriter.gameObject) r.enabled = false;
 
-				// direction по Forward: 0=down, 1=left, 2=right, 3=up
-				int direction = Mathf.Abs(Forward.y) > Mathf.Abs(Forward.x) ? (Forward.y < 0 ? 0 : 3) : (Forward.x < 0 ? 1 : 2);
-				unityAnim.SetInteger("direction", direction);
+				unityAnim.SetInteger("direction", ForwardToDirection());
 				unityAnim.ResetTrigger(actionName);
 				unityAnim.SetTrigger(actionName);
 				return true;
@@ -611,5 +692,6 @@ namespace Mmogick
 
 			yield break;
 		}
+
 	}
 }

@@ -95,15 +95,20 @@ namespace Mmogick
 			// Проверку cur.Looping/Progress намеренно не делаем: SCML-контент часто помечает action'ы
 			// (Attack, Hurt) как Looping=true, и они зацикливаются вечно. Триггер для возврата в idle
 			// — только activeLast timeout.
+			// Резолв клипа для сравнения — направленный (GetClipName по Forward), строго ТОТ ЖЕ, что
+			// внутри PlayAction: ненаправленный резолв здесь даёт другой угловой вариант клипа, сравнение
+			// с текущим вечно «не совпадает», и Play рестартует анимацию каждый кадр — idle замирает
+			// на первом кадре.
 			var spriter = GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
 			var cur = spriter?.Animator?.CurrentAnimation;
-			if (cur != null && !string.IsNullOrEmpty(prefab)
-				&& AnimationCacheService.GetClipNameSimple(prefab, idleAction) is string idleClip
-				&& spriter.Animator.HasAnimation(idleClip)
-				&& cur.Name != idleClip)
+			if (cur != null && !string.IsNullOrEmpty(prefab))
 			{
-				Log("Spriter: " + key + " с " + cur.Name + " на " + idleClip + " (таймаут)");
-				PlayAction(idleAction);
+				var (idleClip, _, _) = AnimationCacheService.GetClipName(prefab, idleAction, Forward.x, Forward.y);
+				if (!string.IsNullOrEmpty(idleClip) && spriter.Animator.HasAnimation(idleClip) && cur.Name != idleClip)
+				{
+					Log("Spriter: " + key + " с " + cur.Name + " на " + idleClip + " (таймаут)");
+					PlayAction(idleAction);
+				}
 			}
 		}
 

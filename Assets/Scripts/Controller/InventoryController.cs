@@ -131,19 +131,16 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Снимок UI-слотов → словарь позиций для ui/inventory/index (null = пустая позиция); общий для
-        /// пересейва своего инвентаря и перестановки контейнера. map — перестановка читаемых позиций
-        /// (SendReorder свопает from/to); null — тождественная.
+        /// Снимок UI-слотов → словарь позиций для ui/inventory/index (null = пустая позиция).
         /// </summary>
-        protected static Dictionary<int, InventorySlotRecive> SnapshotSlots(SlotScript[] slots, System.Func<int, int> map = null)
+        protected static Dictionary<int, InventorySlotRecive> SnapshotSlots(SlotScript[] slots)
         {
             Dictionary<int, InventorySlotRecive> snapshot = new Dictionary<int, InventorySlotRecive>();
 
             for (int i = 0; i < slots.Length; i++)
             {
-                int pos = i + 1;
-                SlotScript src = slots[(map != null ? map(pos) : pos) - 1];
-                snapshot[pos] = src.Item != null
+                SlotScript src = slots[i];
+                snapshot[i + 1] = src.Item != null
                     ? new InventorySlotRecive(src.Item.Prefab, src.Item.Count, src.Components)
                     : null;
             }

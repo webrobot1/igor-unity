@@ -27,7 +27,10 @@ namespace Mmogick
     {
         [Header("Мини-карта (радар)")]
 
-        /// <summary>UI-панель мини-карты целиком (RawImage + рамка). Toggle-клавишей скрывается/показывается.</summary>
+        /// <summary>
+        /// UI-панель мини-карты целиком (RawImage + рамка). Её активность И ЕСТЬ состояние мини-карты —
+        /// отдельного флага видимости нет: источник — настройка игрока (компонент settings, ключ minimap).
+        /// </summary>
         [SerializeField]
         private GameObject minimapRoot;
 
@@ -64,9 +67,6 @@ namespace Mmogick
 
         /// <summary>Пул точек сущностей (переиспользуем, не пересоздаём каждый кадр — паттерн боевого текста/слотов).</summary>
         private readonly List<GameObject> _markerPool = new List<GameObject>();
-
-        /// <summary>Видима ли мини-карта (toggle-клавиша N).</summary>
-        private bool _minimapVisible = true;
 
         protected override void Awake()
         {
@@ -117,15 +117,7 @@ namespace Mmogick
         {
             base.Update();
 
-            // Toggle. Keybinds (#9) отложены — клавиша захардкожена, как остальные хоткеи (I/M/Escape в UIController).
-            if (Input.GetKeyDown(KeyCode.N))
-            {
-                _minimapVisible = !_minimapVisible;
-                minimapRoot.SetActive(_minimapVisible);
-                minimapCamera.enabled = _minimapVisible;   // скрытую карту не рендерим в RenderTexture (экономия)
-            }
-
-            if (!_minimapVisible)
+            if (!minimapRoot.activeSelf)
                 return;
 
             // Охват радара = основная камера × коэффициент. Читаем её orthographicSize КАЖДЫЙ кадр
@@ -145,6 +137,18 @@ namespace Mmogick
             minimapCamera.transform.position = new Vector3(playerPos.x, playerPos.y, CAMERA_Z);
 
             UpdateMarkers(playerPos);
+        }
+
+        /// <summary>
+        /// Применяет настройку игрока «Мини-карта» (компонент settings, ключ minimap) — приходит с сервера.
+        /// </summary>
+        protected void SetMinimapEnabled(bool enabled)
+        {
+            minimapRoot.SetActive(enabled);
+            minimapCamera.enabled = enabled;   // скрытую карту не рендерим в RenderTexture (экономия)
+
+            if (!enabled)
+                HideAllMarkers();
         }
 
         /// <summary>
