@@ -23,6 +23,11 @@ namespace Mmogick
 		public Dictionary<string, LayerProperty> property;
 
 		public Dictionary<int, Layer> layer = new Dictionary<int, Layer> {};
-		public Dictionary<int, Dictionary<string, bool>> colliders = new Dictionary<int, Dictionary<string, bool>>();
+
+		// Непроходимые области по z-слоям ПРЯМОУГОЛЬНИКАМИ [x, y, ширина, высота]: x/y — левая ВЕРХНЯЯ клетка
+		// (y внутри карты <= 0), прямоугольник простирается вправо и вниз, то есть y убывает. Поклеточный
+		// словарь тех же преград на типовой карте в десятки раз тяжелее — терраин им бы распух. Разворот
+		// в множество клеток — MapDecodeModel.generate.
+		public Dictionary<int, List<int[]>> colliders = new Dictionary<int, List<int[]>>();
 	}
 }

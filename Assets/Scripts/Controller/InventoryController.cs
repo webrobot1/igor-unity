@@ -66,7 +66,7 @@ namespace Mmogick
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
             {
-                Dictionary<int, InventorySlotRecive> inventory = ((PlayerRecive)recive).components.inventory;
+                Dictionary<int, ItemSlotRecive> inventory = ((PlayerRecive)recive).components.inventory;
 
                 if (inventory != null)
                 {
@@ -117,7 +117,7 @@ namespace Mmogick
         /// контейнера): инстанс префаба, спрайт, тултип, счётчик. slotNum — номер СВОЕГО инвентаря
         /// (по нему ветвятся Item.Use/equip); 0 — предмет чужого контейнера (позицию несёт LootSlotMarker).
         /// </summary>
-        protected Item RenderSlotItem(SlotScript slotUI, Item prefab, InventorySlotRecive data, int slotNum)
+        protected Item RenderSlotItem(SlotScript slotUI, Item prefab, ItemSlotRecive data, int slotNum)
         {
             Item item = Instantiate(prefab, slotUI.transform);
             item.gameObject.SetActive(false);
@@ -133,15 +133,15 @@ namespace Mmogick
         /// <summary>
         /// Снимок UI-слотов → словарь позиций для ui/inventory/index (null = пустая позиция).
         /// </summary>
-        protected static Dictionary<int, InventorySlotRecive> SnapshotSlots(SlotScript[] slots)
+        protected static Dictionary<int, ItemSlotRecive> SnapshotSlots(SlotScript[] slots)
         {
-            Dictionary<int, InventorySlotRecive> snapshot = new Dictionary<int, InventorySlotRecive>();
+            Dictionary<int, ItemSlotRecive> snapshot = new Dictionary<int, ItemSlotRecive>();
 
             for (int i = 0; i < slots.Length; i++)
             {
                 SlotScript src = slots[i];
                 snapshot[i + 1] = src.Item != null
-                    ? new InventorySlotRecive(src.Item.Prefab, src.Item.Count, src.Components)
+                    ? new ItemSlotRecive(src.Item.Prefab, src.Item.Count, src.Components)
                     : null;
             }
 

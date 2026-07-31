@@ -4,24 +4,16 @@ using System.Collections.Generic;
 
 namespace Mmogick
 {
-    // Команды группы ui/inventory (единая инвентарная механика сервера):
-    //   action=index (default) — полный пересейв инвентаря (inventory), своего либо контейнера key;
-    //   action=take — забрать позицию idx контейнера key (to — целевой слот СВОЕГО инвентаря);
-    //   action=put  — положить свою позицию idx в контейнер key (to — целевой слот контейнера).
-    // Сервер сериализует операции гейтом «группа занята» — одна инвентарная операция за тик.
-    // null-поля не сериализуются (NullValueHandling.Ignore в ConnectController.Send): у take/put
-    // нет параметра inventory, у index — idx/to; лишний параметр сервер режет с дисконнектом.
+    // Полный пересейв СВОЕГО инвентаря (действие index серверной группы ui/inventory): раскладка после
+    // перетаскивания уходит одним снимком, сервер валидирует «предметы не появились и не выросли
+    // в количестве».
+    // Чужой контейнер этим событием не адресуется: параметра key у него нет, а лишний параметр
+    // в пакете сервер режет с дисконнектом. Перенос между инвентарём и добычей — LootTakeResponse
+    // и LootPutResponse (те же ui/inventory: очередь одна на все операции игрока с предметами).
     public class InventoryResponse : Response
     {
-        // снимок слотов для index; null у take/put (поле не уйдёт в пакет)
-        public Dictionary<int, InventorySlotRecive?>? inventory = null;
-
-        // key контейнера (труп/сундук): операция над ЕГО инвентарём вместо своего.
-        // null (свой инвентарь) не сериализуется — сервер применит default параметра события.
-        public string? key = null;
-
-        public int? idx = null;
-        public int? to = null;
+        // снимок слотов: позиция → предмет либо null (пустая позиция)
+        public Dictionary<int, ItemSlotRecive?>? inventory = null;
 
         public override string group
         {

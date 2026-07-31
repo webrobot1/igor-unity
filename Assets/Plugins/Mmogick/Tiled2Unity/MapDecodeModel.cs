@@ -21,15 +21,20 @@ namespace Mmogick
 			// grid.localPosition здесь НЕ трогаем: MapController.SortMap выставляет его сразу после generate
 			// (позиция карты в открытом мире + TILE_OFFSET). Прежняя установка -0.5 тут была мёртвой (затиралась).
 
+			// Преграды приходят прямоугольниками (см. Map.colliders) — разворачиваем в клетки: проверка шага
+			// спрашивает конкретную клетку, а z-уровни схлопнуты (клиентская проверка плоская).
 			HashSet<Vector2Int> colliders = new HashSet<Vector2Int>();
 			if (map.colliders != null)
 			{
 				foreach (var zLevel in map.colliders.Values)
 				{
-					foreach (string key in zLevel.Keys)
+					foreach (int[] rect in zLevel)
 					{
-						string[] parts = key.Split(',');
-						colliders.Add(new Vector2Int(int.Parse(parts[0]), int.Parse(parts[1])));
+						for (int row = 0; row < rect[3]; row++)
+						{
+							for (int col = 0; col < rect[2]; col++)
+								colliders.Add(new Vector2Int(rect[0] + col, rect[1] - row));
+						}
 					}
 				}
 			}

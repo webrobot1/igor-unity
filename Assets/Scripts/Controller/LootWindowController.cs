@@ -1,26 +1,29 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Mmogick
 {
-	// Окно контейнера (лут трупа, позже сундук #17): сетка слотов по паттерну инвентаря.
-	// Контракт сервера (открытие — ui/loot/open; перенос/перестановка — группа ui/inventory:
-	// take/put/index с key, сервер сериализует операции гейтом «группа занята»):
-	//   - содержимое контейнера приходит обыскивающему игроку АДРЕСНО, обычной world-дельтой
-	//     самой сущности-контейнера: components.inventory чужого key (см. EnemyComponentsRecive.inventory).
-	//     Данные принадлежат сущности (несут её key) → текут world-каналом, не кастомным полем игрока;
-	//   - реакция — в UpdateObject (ветка key != player_key), не в отдельном пакете loot;
-	//   - каждая операция (take/put/перестановка) отвечает свежей дельтой — окно перерисовывается
+	// Окно добычи трупа: сетка слотов по паттерну инвентаря.
+	// Контракт сервера:
+	//   - содержимое добычи — ПУБЛИЧНЫЙ компонент loot самой сущности-трупа: приезжает всем видящим
+	//     обычной world-дельтой, отдельной команды открытия НЕТ (группа ui/loot удалена, отправка
+	//     неизвестной группы = дисконнект). Данные оседают на самом трупе (CorpseLootMarker);
+	//   - когда ПОКАЗЫВАТЬ окно, решает клиент: игрок стоит на клетке трупа. Клик по трупу издалека —
+	//     обычное движение к его клетке (тот же путь, что клик по земле), окно открывается по прибытии;
+	//   - право на добычу (компонент loot_owner) сервер проверяет на попытке взять: до истечения срока
+	//     берёт только владелец, после — любой, отказ тихий. Клиент это ЗЕРКАЛИТ неактивными кнопками —
+	//     UX-фильтр, а не замена серверной проверки;
+	//   - каждая операция (take/put) отвечает свежей дельтой компонента loot — окно перерисовывается
 	//     по ней, локально ничего не двигаем (сервер — source of truth);
-	//   - пустой inventory (JSON `[]` → Count==0) = контейнер пуст → окно ПОКАЗЫВАЕТСЯ пустым
-	//     (сигнал «обыскал — пусто»; молчание неотличимо от несработавшего клика).
+	//   - опустевшая добыча закрывает окно: труп с пустой добычей вообще не рисуется (CorpseLootMarker).
 	// Взятие предмета контейнера в курсор делает базовый SlotScript-клик; принадлежность слота
 	// контейнеру Item.Use определяет меткой LootSlotMarker (на слоте-цели и на родителе Item).
 	abstract public class LootWindowController : ActionBarsController
 	{
-		[Header("Для работы с окном лута (контейнер трупа/сундука)")]
+		[Header("Для работы с окном добычи (труп)")]
 
-		// панель окна лута (включается при открытии). Слоты создаются в lootSlotArea из тех же
+		// панель окна добычи (включается при открытии). Слоты создаются в lootSlotArea из тех же
 		// slotPrefab/itemPrefab, что инвентарь (биндинги ниже).
 		[SerializeField]
 		private CanvasGroup lootGroup;
@@ -34,16 +37,35 @@ namespace Mmogick
 		[SerializeField]
 		private Item lootItemPrefab;
 
-		// key открытого контейнера; null — окно закрыто. static — Item.Use шлёт команды
-		// take/put/reorder без поиска инстанса контроллера (паттерн InventoryController._slots).
+		// «Забрать всё» — одна команда take со списком ВСЕХ занятых позиций: инвентарные команды
+		// игрока сервер исполняет по одной за тик, пачка отдельных take затёрла бы сама себя.
+		[SerializeField]
+		private Button lootTakeAllButton;
+
+		// key открытого трупа; null — окно закрыто. static — Item.Use шлёт команды take/put без поиска
+		// инстанса контроллера (паттерн InventoryController._slots).
 		private static string _containerKey;
+
+		// key трупа, к которому игрок идёт по клику: окно откроется по прибытии на его клетку.
+		private static string _pendingKey;
+
 		private static SlotScript[] _lootSlots;
 		private static CanvasGroup _lootGroup;
+		private static Button _takeAllButton;
 
-		public static string ContainerKey
-		{
-			get { return _containerKey; }
-		}
+		// Маркер трупа, с которым работает окно (открытого либо того, к которому идём). Кеш нужен
+		// потому, что состояние окна пересчитывается КАЖДЫЙ кадр: истечение чужого эксклюзива — не
+		// событие, пакета в этот момент нет (сервер шлёт только изменения), а кнопки обязаны
+		// разблокироваться сами. GameObject.Find на каждом кадре для этого слишком дорог.
+		private static CorpseLootMarker _marker;
+		private static string _markerKey;
+
+		// Версия добычи, по которой отрисованы слоты сейчас (-1 — окно закрыто/не отрисовано).
+		private static int _renderedVersion = -1;
+
+		// Инстанс контроллера для статических точек входа (Item.Use, кнопка, RefreshWindow): единственный
+		// на сцене, заполняется в Awake — Find не нужен.
+		private static LootWindowController _instance;
 
 		protected override void Awake()
 		{
@@ -51,118 +73,231 @@ namespace Mmogick
 
 			// статики чистить вручную: Enter Play Mode без Domain Reload их не сбрасывает
 			_containerKey = null;
+			_pendingKey = null;
 			_lootSlots = null;
+			_renderedVersion = -1;
+			_marker = null;
+			_markerKey = null;
 			_lootGroup = lootGroup;
+			_takeAllButton = lootTakeAllButton;
+			_instance = this;
 
 			if (lootGroup == null)
 			{
-				Error("не указана CanvasGroup окна лута");
+				Error("не указана CanvasGroup окна добычи");
 				return;
 			}
 
 			if (lootSlotArea == null)
 			{
-				Error("не указан Transform контейнер слотов окна лута");
+				Error("не указан Transform контейнер слотов окна добычи");
 				return;
 			}
 
 			if (lootSlotPrefab == null || lootItemPrefab == null)
 			{
-				Error("не указаны префабы слота/предмета окна лута");
+				Error("не указаны префабы слота/предмета окна добычи");
 				return;
 			}
+
+			if (lootTakeAllButton == null)
+			{
+				Error("не назначена кнопка «Забрать всё» окна добычи");
+				return;
+			}
+
+			lootTakeAllButton.onClick.RemoveListener(SendTakeAll);
+			lootTakeAllButton.onClick.AddListener(SendTakeAll);
 
 			Hide();
 		}
 
-		// Содержимое контейнера приходит АДРЕСНО world-дельтой самой сущности — реагируем в UpdateObject.
-		// Свой игрок (key == player_key) не наш случай (его инвентарь наполняет InventoryController);
-		// обрабатываем только чужой key, у которого в пакете есть компонент inventory.
+		// Состояние окна пересчитывается каждый кадр, а не только на пакете: окончание чужого
+		// эксклюзива событием не приходит (значение loot_owner не обнуляется, «истёк ли» — сравнение
+		// с текущим временем), и без покадрового пересчёта кнопки остались бы заблокированными до
+		// ближайшей дельты. Отсчёт на трупе гаснет тем же способом (CorpseLootMarker.LateUpdate).
+		protected override void Update()
+		{
+			base.Update();
+
+			if (_containerKey != null || _pendingKey != null)
+				RefreshWindow();
+		}
+
+		// Добыча приходит компонентом самой сущности — складываем её на сущность (CorpseLootMarker),
+		// оттуда её читают и окно, и отображение трупа на карте. Свой игрок не наш случай: у игроков добычи нет,
+		// его inventory наполняет InventoryController.
 		protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
 		{
+			EnemyComponentsRecive components = null;
+
 			if (key != player_key)
 			{
 				// components полиморфны (shadowed new): у player-группы Newtonsoft заполняет
-				// PlayerRecive.components, у entity-группы — EnemyRecive.components; inventory лежит
+				// PlayerRecive.components, у entity-группы — EnemyRecive.components; loot лежит
 				// в общем базовом EnemyComponentsRecive, поэтому читаем через базовый тип.
-				EnemyComponentsRecive components = recive is PlayerRecive playerRecive
+				components = recive is PlayerRecive playerRecive
 					? playerRecive.components
 					: ((EnemyRecive)recive).components;
-
-				if (components != null)
-				{
-					// Контейнер открытого лута ОЖИЛ (hp контейнера стало >0) — закрыть окно: зеркалит
-					// серверный отказ open/take/put при воскрешении. hp>0 приходит world-дельтой самой
-					// сущности-контейнера тем же каналом, что и inventory; проверяем ДО inventory —
-					// в пакете воскрешения может прийти и то, и другое, приоритет за закрытием.
-					if (key == _containerKey && components.hp != null && components.hp > 0)
-						Hide();
-					else if (components.inventory != null)
-					{
-						// пустой inventory (JSON `[]` → Count==0) тоже показываем: игрок видит «обыскал —
-						// пусто» вместо молчания, неотличимого от «клик не сработал»
-						ShowLoot(key, components.inventory);
-					}
-				}
 			}
 
 			GameObject prefab = base.UpdateObject(map_id, key, recive);
 
-			// Авто-закрытие: контейнер доступен, ТОЛЬКО пока игрок стоит на ЕГО клетке (серверное
-			// правило ui/loot — open/take/put валидируют same-tile, шаг в сторону = уход). После base
-			// серверная позиция игрока из этого пакета уже применена — сверяем его клетку с клеткой
-			// контейнера тем же порогом, что гейтит открытие (EntityModel.SameTile). Сошёл с клетки —
-			// или контейнер исчез из мира (труп распался, GameObject.Find вернул null) — закрыть окно.
-			if (key == player_key && _containerKey != null && player != null)
-			{
-				GameObject container = GameObject.Find(_containerKey);
-				EntityModel containerModel = container != null ? container.GetComponent<EntityModel>() : null;
-				if (containerModel == null || !EntityModel.SameTile(player.position, containerModel.position))
-					Hide();
-			}
+			if (prefab != null && components != null && (components.loot != null || components.loot_owner != null))
+				CorpseLootMarker.Apply(prefab, components);
+
+			// Немедленный пересчёт на пришедшей дельте: игрок сдвинулся (сошёл с клетки / дошёл до цели)
+			// либо изменилась сама добыча — окно догоняет в том же кадре, не ожидая ближайшего Update.
+			// После base серверная позиция игрока из этого пакета уже применена.
+			if (key == player_key || key == _containerKey || key == _pendingKey)
+				RefreshWindow();
 
 			return prefab;
 		}
 
-		// Открыть/перерисовать окно лута по содержимому контейнера key (позиция → предмет).
-		private void ShowLoot(string key, Dictionary<int, InventorySlotRecive> items)
+		/// <summary>
+		/// Клик по трупу. Игрок уже на его клетке — открываем окно локально (на сервер не уходит ничего)
+		/// и возвращаем true. Иначе запоминаем цель, возвращаем false: вызывающий ведёт игрока к клетке
+		/// обычным движением, окно откроется по прибытии (RefreshWindow на пакете с новой позицией).
+		/// </summary>
+		public static bool RequestOpen(EntityModel corpse)
 		{
+			if (corpse == null) return false;
+
+			_pendingKey = corpse.key;
+			RefreshWindow();
+			return _containerKey == corpse.key;
+		}
+
+		/// <summary>Игрок выбрал другую цель/пошёл в другое место — отменить отложенное открытие.</summary>
+		public static void CancelPending()
+		{
+			_pendingKey = null;
+		}
+
+		/// <summary>
+		/// Показать/перерисовать/закрыть окно по ТЕКУЩЕМУ состоянию мира. Единственная точка решения
+		/// «показывать ли»: и открытие по прибытии, и закрытие (сход с клетки, воскрешение цели,
+		/// исчезновение сущности, опустевшая добыча) — один и тот же набор условий.
+		/// </summary>
+		private static void RefreshWindow()
+		{
+			string key = _containerKey ?? _pendingKey;
+			if (key == null) return;
+
+			PlayerModel me = PlayerController.Player;
+			CorpseLootMarker marker = FindMarker(key);
+			EntityModel corpse = marker != null ? marker.GetComponent<EntityModel>() : null;
+
+			// Сущность исчезла (тело распалось) — отложенное открытие больше не состоится.
+			if (corpse == null)
+			{
+				_pendingKey = null;
+				Hide();
+				return;
+			}
+
+			// Труп ожил (воскрешение гасит добычу), добыча пуста, игрок сошёл с клетки либо сам мёртв
+			// (мёртвый не лутает — тот же гейт держит сервер, а умереть на клетке трупа обычное дело) —
+			// окна нет. SameTile — тот же порог, что гейтит серверную проверку клетки на попытке взять.
+			if (me == null || (me.hp != null && me.hp <= 0) || corpse.action != "dead" || !marker.HasLoot
+				|| !EntityModel.SameTile(me.position, corpse.position))
+			{
+				Hide();
+				return;
+			}
+
+			ShowLoot(key, marker);
+		}
+
+		/// <summary>
+		/// Маркер трупа key через кеш. Промах (сущности ещё/уже нет на сцене) не кешируется — иначе
+		/// отложенное открытие не дождалось бы появления тела.
+		/// </summary>
+		private static CorpseLootMarker FindMarker(string key)
+		{
+			if (_markerKey == key && _marker != null) return _marker;
+
+			_marker = CorpseLootMarker.Find(key);
+			_markerKey = _marker != null ? key : null;
+			return _marker;
+		}
+
+		/// <summary>Открыть/перерисовать окно по содержимому добычи трупа key.</summary>
+		private static void ShowLoot(string key, CorpseLootMarker marker)
+		{
+			LootWindowController instance = _instance;
+			if (instance == null) return;
+
+			// Слоты пересоздаём ТОЛЬКО на смене трупа либо пришедшей дельте добычи: RefreshWindow
+			// зовётся каждый кадр, а пересборка Item'ов рвала бы перетаскивание.
+			bool opening = _containerKey != key;
+			bool rebuild = opening || _renderedVersion != marker.Version;
+
 			_containerKey = key;
+			_pendingKey = null;
 
 			if (_lootSlots == null)
-				InitializeSlots();
-
-			for (int i = 0; i < _lootSlots.Length; i++)
 			{
-				SlotScript slotUI = _lootSlots[i];
-				slotUI.Clear();
+				instance.InitializeSlots();
+				if (_lootSlots == null) return;
+				rebuild = true;
+			}
 
-				if (items.TryGetValue(i + 1, out InventorySlotRecive data) && data != null && !string.IsNullOrEmpty(data.prefab))
+			if (rebuild)
+			{
+				_renderedVersion = marker.Version;
+
+				Dictionary<int, ItemSlotRecive> loot = marker.Loot;
+
+				for (int i = 0; i < _lootSlots.Length; i++)
 				{
-					// SlotNum=0: предмет НЕ в инвентаре игрока — инвентарные ветки Item.Use
-					// (LocalSwap/equip по SlotNum) не должны срабатывать; позицию контейнера
-					// несёт LootSlotMarker слота-родителя.
-					RenderSlotItem(slotUI, lootItemPrefab, data, 0);
+					SlotScript slotUI = _lootSlots[i];
+					slotUI.Clear();
+
+					if (loot != null && loot.TryGetValue(i + 1, out ItemSlotRecive data) && data != null && !string.IsNullOrEmpty(data.prefab))
+					{
+						// SlotNum=0: предмет НЕ в инвентаре игрока — инвентарные ветки Item.Use
+						// (LocalSwap/equip по SlotNum) не должны срабатывать; позицию добычи
+						// несёт LootSlotMarker слота-родителя.
+						instance.RenderSlotItem(slotUI, instance.lootItemPrefab, data, 0);
+					}
 				}
 			}
 
-			lootGroup.alpha = 1;
-			lootGroup.blocksRaycasts = true;
+			// Чужая добыча до истечения срока — окно видно (что лежит и сколько ждать), но не активно:
+			// зеркалим серверную проверку права, чтобы не слать заведомо отбиваемую команду.
+			bool canTake = marker.CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
 
-			// перетаскивание контейнер↔инвентарь требует оба окна: инвентарь открываем вместе с лутом
-			inventoryGroup.alpha = 1;
-			inventoryGroup.blocksRaycasts = true;
+			if (_lootGroup != null)
+			{
+				_lootGroup.alpha = 1;
+				_lootGroup.blocksRaycasts = true;
+				_lootGroup.interactable = canTake;
+			}
+
+			if (_takeAllButton != null)
+				_takeAllButton.interactable = canTake;
+
+			// Перетаскивание труп↔инвентарь требует оба окна: инвентарь открываем вместе с добычей —
+			// но только В МОМЕНТ открытия, иначе покадровый пересчёт не давал бы игроку закрыть
+			// инвентарь клавишей, пока он стоит на трупе.
+			if (opening)
+			{
+				instance.inventoryGroup.alpha = 1;
+				instance.inventoryGroup.blocksRaycasts = true;
+			}
 		}
 
-		// Сетка слотов контейнера — размер как у инвентаря игрока (у сервера один компонент inventory
-		// на всех носителей, число позиций одинаковое).
+		// Сетка слотов добычи — размер как у инвентаря игрока (ёмкость добычи на сервере равна числу
+		// слотов инвентаря).
 		private void InitializeSlots()
 		{
-			// инвентарь игрока приходит при входе — к моменту первого loot-пакета размер известен
+			// инвентарь игрока приходит при входе — к моменту первого пакета с добычей размер известен
 			int count = InventoryController.SlotCount;
 			if (count == 0)
 			{
-				Error("окно лута открыто до получения инвентаря игрока");
+				Error("окно добычи открыто до получения инвентаря игрока");
 				return;
 			}
 
@@ -173,61 +308,63 @@ namespace Mmogick
 			});
 		}
 
-		public static void Hide()
+		private static void Hide()
 		{
 			_containerKey = null;
+			_renderedVersion = -1;
 			if (_lootGroup != null)
 			{
 				_lootGroup.alpha = 0;
 				_lootGroup.blocksRaycasts = false;
+				_lootGroup.interactable = true;
 			}
 		}
 
-		// Клик по мёртвой сущности рядом (CursorController) — запросить содержимое.
-		public static void Open(string key)
+		/// <summary>Разрешает ли право на добычу забирать из ОТКРЫТОГО трупа (нет открытого — нет и забора).</summary>
+		public static bool CanTakeFromOpen()
 		{
-			LootResponse response = new LootResponse();
-			response.action = "open";
-			response.key = key;
-			response.Send();
+			if (_containerKey == null) return false;
+
+			CorpseLootMarker marker = FindMarker(_containerKey);
+			return marker != null && marker.CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
 		}
 
-		// Забрать позицию idx контейнера в свой инвентарь (to — конкретный слот, null — стак/первый свободный).
-		// Перенос между инвентарями — операция группы ui/inventory (сервер: списание исполняет владелец-контейнер).
-		public static void SendTake(int idx, int? to = null)
+		/// <summary>
+		/// Забрать позиции добычи в свой инвентарь. to (желаемый свой слот) сервер учитывает, только
+		/// когда позиция одна. Перенос исполняет владелец-источник, ответ приезжает дельтой компонента.
+		/// </summary>
+		public static void SendTake(List<int> idx, int? to = null)
 		{
-			if (_containerKey == null) return;
-			InventoryResponse response = new InventoryResponse();
-			response.action = "take";
+			if (_containerKey == null || idx == null || idx.Count == 0) return;
+			if (!CanTakeFromOpen()) return;
+
+			LootTakeResponse response = new LootTakeResponse();
 			response.key = _containerKey;
 			response.idx = idx;
 			response.to = to;
 			response.Send();
 		}
 
-		// Положить свой предмет (позиция idx своего инвентаря) в контейнер (to — позиция контейнера).
+		/// <summary>Забрать всё: одна команда со списком всех занятых позиций.</summary>
+		public static void SendTakeAll()
+		{
+			if (_containerKey == null) return;
+
+			CorpseLootMarker marker = FindMarker(_containerKey);
+			if (marker == null) return;
+
+			SendTake(marker.OccupiedSlots());
+		}
+
+		// Положить свой предмет (позиция idx своего инвентаря) в добычу трупа (to — позиция добычи).
 		public static void SendPut(int idx, int? to = null)
 		{
 			if (_containerKey == null) return;
-			InventoryResponse response = new InventoryResponse();
-			response.action = "put";
+
+			LootPutResponse response = new LootPutResponse();
 			response.key = _containerKey;
 			response.idx = idx;
 			response.to = to;
-			response.Send();
-		}
-
-		// Перестановка ВНУТРИ контейнера: полный пересейв его инвентаря с обменом from↔to
-		// (ui/inventory с key — сервер валидирует «ничего не появилось» над инвентарём цели).
-		public static void SendReorder(int from, int to)
-		{
-			if (_containerKey == null || _lootSlots == null || from == to) return;
-
-			InventoryResponse response = new InventoryResponse();
-			response.key = _containerKey;
-			// содержимое читаем из UI-слотов с обменом позиций from/to
-			response.inventory = SnapshotSlots(_lootSlots, pos => pos == from ? to : (pos == to ? from : pos));
-
 			response.Send();
 		}
 	}

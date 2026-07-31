@@ -67,6 +67,10 @@ namespace Mmogick
 				DestroyImmediate(transform.gameObject);
 			}
 
+			// Окно прозрачности в перекрывающих слоях карты: живёт на контейнере карт, центры окон берёт
+			// по сущностям контейнера World. Ставится кодом — отдельного объекта в сцене не требует.
+			TilemapXray.Attach(mapObject, worldObject);
+
 			// определяем здесь что бы сбросить статичные свойства если мы перезаходили в игру
 			// сбрасываем тк при разработке некие опции у нас стоят что не очищают при отладке эти данные https://youtu.be/sRx14YMbLuw
 			_sides.Clear();
@@ -134,6 +138,11 @@ namespace Mmogick
 										grid.SetParent(mapObject.transform, false);
 
 										_maps.Add(side.Key, MapDecodeModel.generate(patcher.result, grid, GAME_ID));
+
+										// Слои, способные перекрыть сущность (выше слоя-земли), переводим на
+										// xray-материал — окно прозрачности вокруг сущностей под кронами и крышами.
+										TilemapXray.RegisterMap(grid, _maps[side.Key].spawn_sort);
+
 										SortMap();
 									}
 								}

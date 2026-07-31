@@ -182,6 +182,7 @@ namespace Mmogick
                     {
                         Target = null;
                         persist_target = false;
+                        LootWindowController.CancelPending();   // пошли в другое место — отложенное открытие добычи снимается
                         Debug.Log("Кликнули на " + Camera.main.ScreenToWorldPoint(Input.mousePosition));
 
                         // движение к указанной клетке
@@ -197,11 +198,12 @@ namespace Mmogick
                         ObjectModel new_target = gameObject.GetComponent<ObjectModel>();
                         if (new_target != null)
                         {
-                            // Труп (мёртвая сущность) — контейнер лута: open с ЛЮБОЙ дистанции одним кликом,
-                            // сервер сам ведёт игрока к трупу и повторяет открытие до прибытия (как fight/melee
-                            // подходит к цели). move_to НЕ ставим: параллельный walk/to from_client снял бы
-                            // серверный лут-подход (ручное движение = отмена). Кликнутый труп выбираем тем же
-                            // правилом, что hover-кольцо (CorpseAtScreen) — куда подсветили, туда и кликнули.
+                            // Труп (мёртвая сущность) — контейнер добычи. Команды открытия на сервере НЕТ:
+                            // состав добычи уже прислан публичным компонентом, окно открывает клиент сам —
+                            // на своей клетке сразу, иначе это ОБЫЧНОЕ движение к клетке трупа (тот же
+                            // move_to, что клик по земле), и окно открывается по прибытии.
+                            // Кликнутый труп выбираем тем же правилом, что hover-кольцо (CorpseAtScreen) —
+                            // куда подсветили, туда и кликнули.
                             if (new_target.action == "dead")
                             {
                                 if (player != null)
@@ -216,7 +218,8 @@ namespace Mmogick
                                     Target = corpse;
                                     persist_target = false;
 
-                                    LootWindowController.Open(corpse.key);
+                                    if (!LootWindowController.RequestOpen(corpse))
+                                        move_to = corpse.transform.position;
                                 }
                                 return;
                             }
@@ -235,6 +238,7 @@ namespace Mmogick
                             {
                                 Target = null;
                                 persist_target = false;
+                                LootWindowController.CancelPending();
                                 if (player != null)
                                     move_to = gameObject.transform.position;
                             }
@@ -243,6 +247,7 @@ namespace Mmogick
                                 // Враг/NPC: выбираем как цель (UI-рамка + цель для заклинаний/атак по Target).
                                 Target = new_target;
                                 persist_target = true;
+                                LootWindowController.CancelPending();
                             }
                         }
                     }

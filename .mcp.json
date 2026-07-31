@@ -2,7 +2,7 @@
   "mcpServers": {
     "ai-game-developer": {
       "type": "http",
-      "url": "http://localhost:22475"
+      "url": "http://localhost:22475/p/9e662a4c"
     },
     "mmogick-websocket": {
       "type": "http",
@@ -11,7 +11,10 @@
     "sequential-thinking": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
     },
     "context7": {
       "type": "http",
