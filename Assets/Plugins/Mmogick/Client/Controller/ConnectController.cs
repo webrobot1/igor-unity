@@ -353,9 +353,10 @@ namespace Mmogick
 							// если к моменту соединения есть ошибки или загружена сцена регистрации
 							if (coroutine != null || errors.Count > 0)
                             {
-								ws.CloseAsync();
-								throw new Exception("WebSocket: В процессе инициализации класса произошли ошибки");
-							}							
+								Debug.LogWarning("WebSocket: соединение с сервером " + ws.Url + " установлено, но уже не требуется - закрываем");
+
+								CloseSocket(ws);
+							}
 							else
 							{
 								connect = ws;
@@ -631,7 +632,28 @@ namespace Mmogick
 			player.Log("Новое значение оставшегося времени группы событий " + group + ": "+ player.GetEventRemain(group));
 		}
 
-		private static void Close()
+		/// <summary>
+		/// Закрытие сокета ВНЕ стека колбэка библиотеки. WebSocketSharp вызывает OnOpen/OnMessage/OnError/OnClose
+		/// из своего конечного автомата, и закрытие, начатое прямо оттуда, срывается ошибкой сокета: клиент уходит
+		/// на экран входа, а соединение остаётся живым — сервер по нему авторизует игрока и держит его в мире,
+		/// пока сокет не оборвётся по таймауту ОС, и следующий вход накладывается на этот хвост. Ошибки же и смена
+		/// карты приходят как раз из этих колбэков, поэтому уводим закрытие с их стека всегда.
+		/// </summary>
+		/// <param name="immediate">Закрыть синхронно — только на выходе из приложения: фоновому потоку там уже не дадут доработать</param>
+		private static void CloseSocket(WebSocket ws, bool immediate = false)
+		{
+			#if !UNITY_WEBGL || UNITY_EDITOR
+				if (immediate)
+					ws.Close();
+				else
+					System.Threading.ThreadPool.QueueUserWorkItem(_ => ws.Close());
+			#else
+				// В WebGL потоков нет, а закрытие идёт через JS-обёртку, автомата библиотеки на пути нет
+				ws.Close();
+			#endif
+		}
+
+		private static void Close(bool immediate = false)
 		{
 			var c = connect;
 			if (c != null)
@@ -641,7 +663,7 @@ namespace Mmogick
 				if (c.ReadyState != WebSocketState.Closed && c.ReadyState != WebSocketState.Closing)
 				{
 					Debug.Log("WebSocket: закрытие соединения " + c.Url);
-					c.CloseAsync();
+					CloseSocket(c, immediate);
 				}
 				else
 					Debug.LogWarning("WebSocket: соединение уже закрывается " + c.Url);
@@ -717,7 +739,7 @@ namespace Mmogick
 		void OnApplicationQuit()
 		{
 			Debug.Log("WebSocket: Закрытие приложения");
-			Close();
+			Close(true);
 			errors.Clear();
 		}
 	}
