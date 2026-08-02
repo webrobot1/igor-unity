@@ -12,6 +12,44 @@ namespace Mmogick
 	/// </summary>
 	abstract public class MapDecodeModel
 	{
+		/// <summary>
+		/// Готовые плитки: «картинка + поворот» → объект плитки. Объект плитки не зависит от места, где её
+		/// поставили, поэтому один и тот же кусок травы обслуживает тысячи клеток — и одну карту, и соседние
+		/// (набор картинок у карт мира общий). Набор живёт, пока идёт игра одной игры; при смене игры
+		/// сбрасывается — картинки там другие.
+		/// </summary>
+		private static readonly Dictionary<string, TilemapModel> tileAssets = new Dictionary<string, TilemapModel>();
+		private static int tileAssetsGame;
+
+		/// <summary>
+		/// Плитка для клетки: из набора, а при первом появлении — создаётся и в набор кладётся.
+		/// Ключ — картинка вместе с флагами разворота: одна и та же картинка, повёрнутая иначе, это другая плитка.
+		/// </summary>
+		private static TilemapModel getTileAsset(int gameId, LayerTile tile)
+		{
+			if (tileAssetsGame != gameId)
+			{
+				tileAssets.Clear();
+				tileAssetsGame = gameId;
+			}
+
+			string key = tile.tile
+				+ (tile.flipH ? "H" : "")
+				+ (tile.flipV ? "V" : "")
+				+ (tile.flipD ? "D" : "")
+				+ (tile.rotHex120 ? "R" : "");
+
+			if (tileAssets.TryGetValue(key, out TilemapModel known) && known != null)
+				return known;
+
+			TilemapModel created = TilemapModel.CreateInstance<TilemapModel>();
+			created.transform = BuildTileMatrix(tile.flipH, tile.flipV, tile.flipD, tile.rotHex120);
+			applySprite(created, gameId, tile.tile);
+
+			tileAssets[key] = created;
+			return created;
+		}
+
 		public static MapDecode generate(string json, Transform grid, int gameId)
 		{
 			// Канон сервера: sandbox-скаляры приходят всегда, включая null (null ≡ отсутствие ≡ дефолт).
@@ -83,15 +121,26 @@ namespace Mmogick
 				if (!string.IsNullOrEmpty(layer.tile))
 				{
 					List<LayerTile> tiles = DecodeTileCsv(layer.tile, map.width);
-					foreach (LayerTile tile in tiles)
-					{
-						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-						newTile.transform = BuildTileMatrix(tile.flipH, tile.flipV, tile.flipD, tile.rotHex120);
 
-						applySprite(newTile, gameId, tile.tile);
-						tilemap.SetTile(new Vector3Int(tile.x, tile.y, 0), newTile);
+					// Плитка на клетку не создаётся: одна и та же картинка с тем же поворотом повторяется на карте
+					// тысячи раз, а объект плитки от места не зависит — берём готовый из общего набора (см. tileAssets).
+					// Раскладываем всё одним движением: поклеточная установка перестраивает внутренние структуры
+					// тайл-карты на каждую клетку, и на слое в двадцать тысяч клеток это занимало почти секунду —
+					// ровно та задержка, что была видна при возвращении на карту с двумя соседями.
+					Vector3Int[] positions = new Vector3Int[tiles.Count];
+					TileBase[] assets = new TileBase[tiles.Count];
+
+					for (int i = 0; i < tiles.Count; i++)
+					{
+						LayerTile tile = tiles[i];
+
+						positions[i] = new Vector3Int(tile.x, tile.y, 0);
+						assets[i] = getTileAsset(gameId, tile);
 					}
-					Debug.Log("Карта: у слоя " + newLayer.name + " раставлены " + tiles.Count + " тайлов");
+
+					tilemap.SetTiles(positions, assets);
+
+					Debug.Log("Карта: у слоя " + newLayer.name + " раставлены " + tiles.Count + " тайлов (" + tileAssets.Count + " разных плиток в наборе)");
 				}
 
 				if (layer.@object != null)
@@ -177,10 +226,21 @@ namespace Mmogick
 			UnityEngine.Tilemaps.Tile gridTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
 			gridTile.sprite = gridSprite;
 
+			// Раскладка одним движением — как и у игровых слоёв: сетка накрывает карту целиком (у карты в
+			// 140×120 это почти семнадцать тысяч клеток), и поклеточная установка стоила бы столько же, сколько
+			// сам игровой слой. Плитка тут одна на все клетки, разной её не бывает.
 			Tilemap debugTilemap = debugGrid.GetComponent<Tilemap>();
+			Vector3Int[] gridPositions = new Vector3Int[map.width * map.height];
+			TileBase[] gridTiles = new TileBase[gridPositions.Length];
+			int gridIndex = 0;
 			for (int x = 0; x < map.width; x++)
 				for (int y = 0; y < map.height; y++)
-					debugTilemap.SetTile(new Vector3Int(x, -y, 0), gridTile);
+				{
+					gridPositions[gridIndex] = new Vector3Int(x, -y, 0);
+					gridTiles[gridIndex] = gridTile;
+					gridIndex++;
+				}
+			debugTilemap.SetTiles(gridPositions, gridTiles);
 
 			// Отладочный слой непроходимых тайлов. Видимость — галочка «Коллизии» debug-панели
 			// (DebugPanelController.ShowCollision); её начальное значение = isDebug игры (прод — выкл, dev — вкл),
@@ -212,8 +272,16 @@ namespace Mmogick
 				colTile.sprite = colSprite;
 
 				Tilemap colTilemap = debugCollision.GetComponent<Tilemap>();
+				Vector3Int[] colPositions = new Vector3Int[colliders.Count];
+				TileBase[] colTiles = new TileBase[colliders.Count];
+				int colIndex = 0;
 				foreach (Vector2Int pos in colliders)
-					colTilemap.SetTile(new Vector3Int(pos.x, pos.y, 0), colTile);
+				{
+					colPositions[colIndex] = new Vector3Int(pos.x, pos.y, 0);
+					colTiles[colIndex] = colTile;
+					colIndex++;
+				}
+				colTilemap.SetTiles(colPositions, colTiles);
 
 				Debug.Log("DebugCollision: " + colliders.Count + " непроходимых тайлов");
 			}

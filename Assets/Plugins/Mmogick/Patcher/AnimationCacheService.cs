@@ -384,6 +384,10 @@ namespace Mmogick
 			// через #[ORM\HasLifecycleCallbacks]::bumpAnimationUpdated → /animations listing показывает свежий updated.
 			// Применение: prefab.equipable_slot (из /prefabs) ∩ object_slot носителя → anchor для рендера экипированного prefab.
 			public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>> object_slot;
+
+			// Версия анимации в том же виде, в каком её отдаёт перечень /animations. Кладётся в кеш и при
+			// следующем входе сверяется с перечнем: совпало — структура берётся с диска, нет — качается заново.
+			public long updated;
 		}
 
 		[Serializable]
@@ -993,7 +997,10 @@ namespace Mmogick
 			// Пишем всегда, даже если object_slot пустой/null, чтобы кеш-хит был детерминирован:
 			// «.xml есть → .slots.json тоже должен быть на диске».
 			File.WriteAllText(SlotsFile(gameId, animationId), JsonConvert.SerializeObject(wrapper.object_slot ?? new System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>()));
-			_manifest.animation_versions[animationId] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+			// Версия берётся у СЕРВЕРА, не собственное время скачивания: сверка при следующем входе идёт с
+			// перечнем /animations, где стоит серверная версия, и своё время с ней не совпало бы никогда —
+			// все структуры считались бы устаревшими и качались заново на каждый вход в игру.
+			_manifest.animation_versions[animationId] = wrapper.updated;
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
 			#endif
