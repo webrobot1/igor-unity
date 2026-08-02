@@ -19,6 +19,16 @@ namespace Mmogick
         [SerializeField]
         protected InputField serverField;
 
+        // Сколько всего ждём поднятия сервера карты, повторяя вход. Порог человеческий: дольше игрок читает
+        // затянувшийся вход как зависание, и честнее показать ошибку, чем крутить попытки дальше.
+        private const int MAX_RETRY_SEC = 60;
+
+        // Пауза перед повтором, когда ответ нечитаем и сервер паузы не назвал (сеть, ошибка узла, чужая страница).
+        private const int FALLBACK_RETRY_SEC = 3;
+
+        // Момент, после которого повторы прекращаются. Ставится на первой попытке входа (см. HttpRequest).
+        private DateTime retryDeadline;
+
         protected virtual void Start()
         {
            if (loginField == null)
@@ -51,13 +61,18 @@ namespace Mmogick
             StartCoroutine(HttpRequest("auth"));
         }
 
-		private IEnumerator HttpRequest(string action)
+		private IEnumerator HttpRequest(string action, bool retrying = false)
 		{
 			if (login.Length == 0 || password.Length == 0)
 			{
 				Error("Заполните логин или пароль");
 				yield break;
 			}
+
+			// Предел общего ожидания входа. Ставится на ПЕРВОЙ попытке и переживает повторы: сервер карты может
+			// подниматься десятки секунд, но не бесконечно, а без предела цикл повторов не кончился бы никогда.
+			if (!retrying)
+				retryDeadline = DateTime.Now.AddSeconds(MAX_RETRY_SEC);
 
 			var canvas = GetComponentInParent<Canvas>();
 			if (canvas != null) canvas.enabled = false;
@@ -77,30 +92,67 @@ namespace Mmogick
 			yield return request.SendWebRequest();
 
 			// проверка что данные в ответ
-			string text = request.downloadHandler.text;
+			string text = request.downloadHandler != null ? request.downloadHandler.text : "";
+			string failure = null;
+			SigninRecive recive = null;
+
 			if (text.Length > 0)
 			{
 				try
 				{
 					Debug.Log("Ответ авторизации: " + text);
-					SigninRecive recive = JsonConvert.DeserializeObject<SigninRecive>(text);
-
-					if (recive.error.Length > 0)
-						Error("Ошибка авторизации к серверу " + SERVER + ": " + recive.error);
-					else
-						StartCoroutine(LoadMain(recive));
+					// NullValueHandling.Ignore обязателен для любого серверного payload: сервер шлёт скаляры всегда,
+					// включая null (null ≡ дефолт поля), а без Ignore Newtonsoft пишет null в не-nullable поле и падает.
+					recive = JsonConvert.DeserializeObject<SigninRecive>(text,
+						new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 				}
 				catch (Exception ex)
 				{
-					Error("Ошибка разбора авторизации: (" + text + ")", ex);
+					failure = "Ошибка разбора авторизации: (" + text + ") " + ex.Message;
 				}
 			}
 			else
-				Error("Пустой ответ авторизации с сервера " + SERVER + ": " + request.error);
+				failure = "Пустой ответ авторизации с сервера " + SERVER + " (код " + request.responseCode + "): " + request.error;
 
 			request.Dispose();
 
-			yield break;
+			if (recive == null)
+			{
+				// Ответа нет либо он нечитаем: моргнула сеть, узел ответил своей ошибкой, пока поднимал карту, вклинился
+				// прокси. Для игрока это тот же затянувшийся вход, что и штатное «поднимается», и обрывать им уже
+				// идущее ожидание нельзя — ждём и пробуем снова, пока не вышел общий предел.
+				if (DateTime.Now < retryDeadline)
+				{
+					Debug.LogWarning("Авторизация: " + failure + ", повтор через " + FALLBACK_RETRY_SEC + " сек.");
+
+					yield return new WaitForSeconds(FALLBACK_RETRY_SEC);
+					yield return StartCoroutine(HttpRequest(action, true));
+					yield break;
+				}
+
+				Error(failure);
+				yield break;
+			}
+
+			if (recive.error.Length > 0)
+			{
+				// retry — повторимый отказ (сервер карты ещё поднимается): ждём названное сервером время и заходим
+				// снова. Для игрока это затянувшийся вход, а не ошибка, потому Error() тут не зовём — он увёл бы на
+				// экран входа с текстом.
+				if (recive.retry > 0 && DateTime.Now < retryDeadline)
+				{
+					Debug.Log("Авторизация: " + recive.error + ", повтор через " + recive.retry + " сек.");
+
+					yield return new WaitForSeconds(recive.retry);
+					yield return StartCoroutine(HttpRequest(action, true));
+					yield break;
+				}
+
+				Error("Ошибка авторизации к серверу " + SERVER + ": " + recive.error);
+				yield break;
+			}
+
+			StartCoroutine(LoadMain(recive));
 		}
 
 		// PS для webgl рекомендую отключить profiling в Build Settings чтобы заполнит память браузера после прихода по websocket пакетов в логах

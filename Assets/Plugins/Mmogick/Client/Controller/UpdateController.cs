@@ -31,6 +31,30 @@ namespace Mmogick
 		/// </summary>
 		private List<GameObject> loadSweep;
 
+		/// <summary>
+		/// Сущности на сцене по их ключу. Поиск объекта по имени средствами движка обходит всю сцену, а он нужен
+		/// на КАЖДУЮ сущность КАЖДОГО пакета — при сотне сущностей и шестидесяти пакетах в секунду это тысячи
+		/// обходов сцены в секунду. Записи об уничтоженных объектах убираются лениво: уничтоженный объект движка
+		/// сравнивается с null, и запись снимается при первом же обращении.
+		/// </summary>
+		private static readonly Dictionary<string, GameObject> entityObjects = new Dictionary<string, GameObject>();
+
+		/// <summary>
+		/// Объект сущности по ключу; null — её на сцене нет (либо она уже уничтожена).
+		/// </summary>
+		protected static GameObject FindEntity(string key)
+		{
+			if (entityObjects.TryGetValue(key, out GameObject known))
+			{
+				if (known != null)
+					return known;
+
+				entityObjects.Remove(key);
+			}
+
+			return null;
+		}
+
 		protected override void Handle(string json)
 		{
 			HandleData(JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive>>(json));
@@ -41,6 +65,19 @@ namespace Mmogick
 		/// </summary>
 		protected override void HandleData<P,E>(Recive<P, E> recive)
 		{
+			// Сервер снял НАШЕГО игрока со сцены и назвал новую карту — он переехал туда, где мы ещё не
+			// авторизованы: закрываем соединение и заходим заново. Проверка живёт здесь, а не в приёме пакета
+			// (сетевой поток), потому что там мир уже не разбирается — там читаются только служебные поля.
+			if (player != null && recive.world != null
+				&& recive.world.ContainsKey(player.map) && recive.world[player.map].player != null
+				&& recive.world[player.map].player.ContainsKey(player_key)
+				&& recive.world[player.map].player[player_key].action == ACTION_REMOVE
+				&& recive.world[player.map].player[player_key].map != null)
+			{
+				RequestReconnect("смена карты игрока — переавторизация");
+				return;
+			}
+
 			worldLoading = recive.action == ACTION_LOAD;
 
 			base.HandleData(recive);
@@ -157,7 +194,7 @@ namespace Mmogick
 		/// </summary>
 		protected virtual GameObject UpdateObject(int map_id, string key, EntityRecive recive)
 		{
-			GameObject prefab = GameObject.Find(key);
+			GameObject prefab = FindEntity(key);
 			EntityModel model;
 
 			// Сущность из нового мира жива на сцене — переиспользуем, из кандидатов на снос убираем.
@@ -192,6 +229,7 @@ namespace Mmogick
 
 				prefab = Instantiate(ob) as GameObject;
 				prefab.name = key;
+				entityObjects[key] = prefab;
 
 				// Non-uniform scale root-префаба в связке с rotated children даёт skew (Unity doc для Transform:
 				// «child rotated relative to a non-uniformly scaled parent might appear skewed»). Spriter создаёт
@@ -304,11 +342,19 @@ namespace Mmogick
 			else if (string.IsNullOrEmpty(recive.prefab) && string.IsNullOrEmpty(model.prefab))
 				model.LogWarning("не указан префаб");
 
-			model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+			// Пакет в текстовом виде собирается ТОЛЬКО под флагом подробного журнала: сериализация выполняется
+			// на каждую сущность каждого кадра и стоит дороже всей остальной обработки пакета вместе взятой.
+			if (EntityModel.verbose)
+				model.Log("Обрабатываем на карте " + map_id + " пакетом " + JsonConvert.SerializeObject(recive, Formatting.None, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
+
 			// worldPositionStays=true: при смене map_zone (переход через границу карты) мировая позиция
 			// сохраняется автоматически — localPosition пересчитывается под новый map_zone. Иначе мировая
 			// прыгает (localPosition сохраняется, родитель сменился, мировая = новый_родитель + старый_local).
-			prefab.transform.SetParent(worldObject.transform.Find(map_id.ToString()).transform, true);
+			// Смена родителя перестраивает иерархию сцены, потому делается только при РЕАЛЬНОЙ смене зоны:
+			// у стоящей на месте сущности зона та же самая в каждом пакете.
+			Transform target_zone = worldObject.transform.Find(map_id.ToString());
+			if (prefab.transform.parent != target_zone)
+				prefab.transform.SetParent(target_zone, true);
 
 			try
 			{
@@ -327,16 +373,22 @@ namespace Mmogick
 			// пришла раньше карты.
 			if (getMaps().ContainsKey(map_id))
 			{
-				int order = getMaps()[map_id].spawn_sort + model.sort;
+				int spawn_sort = getMaps()[map_id].spawn_sort;
 
+				// Компоненты берутся из кеша модели: их поиск обходит объект (а поиск Canvas — ещё и всех
+				// потомков), и это на каждую сущность каждого пакета. Состав компонентов сущности после
+				// сборки визуала не меняется, потому ссылки достаточно найти однажды.
 				// SortingGroup гарантированно добавлен выше — все child-SpriteRenderer'ы (fallback или Spriter)
 				// сортируются как единое целое относительно других сущностей.
-				prefab.GetComponent<UnityEngine.Rendering.SortingGroup>().sortingOrder = order;
+				model.EnsureRenderRefs();
 
-				if (prefab.GetComponentInChildren<Canvas>())
+				if (model.sortingGroup != null)
+					model.sortingGroup.sortingOrder = spawn_sort + model.sort;
+
+				if (model.barCanvas != null)
 					// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации
 					// (Spriter создаёт N child-sprite'ов с собственным sortingOrder 0..N-1 из UnityAnimator).
-					prefab.GetComponentInChildren<Canvas>().sortingOrder = getMaps()[map_id].spawn_sort + 100 + model.sort;
+					model.barCanvas.sortingOrder = spawn_sort + 100 + model.sort;
 			}
 
 			return prefab;

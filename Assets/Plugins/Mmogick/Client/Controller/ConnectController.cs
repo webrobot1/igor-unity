@@ -195,10 +195,10 @@ namespace Mmogick
 
 		protected override void Awake()
 		{
-			// тк пакеты обрабатываются во время FixedUpdate , но приходят чаще (в отдельном потоке onMessage)  - уменьшим паузу между запросами до 100FPS (это не зависит от FPS сервера, просто что бы небыло пауз больших) 
-			// не нужно зависить и вообще знать fps сервера (он может и 1000 быть если не успевает за игрой, а при маленьком типа 30 и установки пакет в fixedupdate может запуститься попасть спустя 30мс)
-			// последнее происходит если пакет пришел сразу после запуска FixedUpdate (не успел), и потом следует эта долгая пауза в 30мс до следующего
-			Time.fixedDeltaTime = 0.01f;
+			// Приходящие данные, движение существ и управление игроком идут по кадрам ОТРИСОВКИ (Update), потому
+			// шаг расчёта физики оставляем стандартным: удваивать частоту физики ради плавности больше не нужно —
+			// плавность теперь задаёт частота экрана, а на слабых устройствах лишние расчёты физики дорого стоят.
+			Time.fixedDeltaTime = 0.02f;
 			Application.targetFrameRate = 60;
 			QualitySettings.vSyncCount = 0;
 
@@ -225,6 +225,13 @@ namespace Mmogick
 		}
 
 
+		/// <summary>
+		/// Разбор пришедших данных и проверка состояния соединения.
+		///
+		/// Именно в кадре отрисовки, а не в кадре расчёта физики: раньше увиденного игроком всё равно ничего не
+		/// произойдёт, а частота физики — отдельная настройка, от которой скорость получения данных зависеть не
+		/// должна. Пакеты приходят чаще кадра — накопленные разбираются пачкой, состояние мира всегда свежее.
+		/// </summary>
 		protected virtual void Update()
 		{
 			// обработка пакетов с эмулированной задержкой
@@ -239,13 +246,7 @@ namespace Mmogick
 					}
 				}
 			}
-		}
 
-		/// <summary>
-		/// Проверка наличие новых данных или ошибок соединения
-		/// </summary>
-		protected virtual void FixedUpdate()
-		{
 			// если не загружаем сцену регистрации (по ошибке)
 			if (coroutine == null)
 			{
@@ -301,6 +302,21 @@ namespace Mmogick
 		}
 
 		abstract protected void Handle(string json);
+
+		/// <summary>
+		/// Запросить переподключение с повторной авторизацией: соединение закрывается, дальше по флагу reload
+		/// пойдёт вход заново. Вызывается из разбора мира (главный поток), когда сервер снял нашего игрока со
+		/// сцены с указанием новой карты — то есть он переехал туда, где нас ещё не авторизовали.
+		/// </summary>
+		protected static void RequestReconnect(string reason)
+		{
+			if (reload != ReloadStatus.None)
+				return;
+
+			reload = ReloadStatus.Start;
+			Close();
+			Debug.Log("WebSocket: " + reason);
+		}
 
 		/// <summary>
 		/// Звпускается после авторизации - заполяет id и token 
@@ -452,10 +468,15 @@ namespace Mmogick
 					Error("WebSocket: Пришло пустое сообщение");
 				else
 				{
-#if UNITY_EDITOR
-					Debug.Log("WebSocket: Пришел пакет" + text);
-#endif
-					Recive<EntityRecive, EntityRecive> recive = JsonConvert.DeserializeObject<Recive<EntityRecive, EntityRecive>>(text);
+					// Целиком пакет в лог — только по явному флагу: он приходит каждый кадр и весит килобайты,
+					// а вывод в консоль редактора стоит дороже самого разбора пакета.
+					if (EntityModel.verbose)
+						Debug.Log("WebSocket: Пришел пакет" + text);
+
+					// Здесь, в сетевом потоке, разбираются ТОЛЬКО служебные поля конверта: сам мир разбирает
+					// главный поток (Handle), причём в свой, более конкретный тип. Разбор всего пакета и тут, и
+					// там означал бы двойную сборку сотен объектов сущностей на каждый кадр.
+					ReciveEnvelope recive = JsonConvert.DeserializeObject<ReciveEnvelope>(text);
 
 					if (recive.error != null)
 					{
@@ -470,16 +491,6 @@ namespace Mmogick
 							ConnectController.player_token = recive.token;
 							Close();
 							Debug.Log("WebSocket: смена карты — переподключение к " + recive.host);
-						}
-						else if (player != null && recive.world != null
-							&& recive.world.ContainsKey(player.map) && recive.world[player.map].player != null
-							&& recive.world[player.map].player.ContainsKey(player_key)
-							&& recive.world[player.map].player[player_key].action == ACTION_REMOVE
-							&& recive.world[player.map].player[player_key].map != null)
-						{
-							reload = ReloadStatus.Start;
-							Close();
-							Debug.Log("WebSocket: смена карты игрока — переавторизация");
 						}
 
 						if (recive.action == ACTION_LOAD)
@@ -694,7 +705,9 @@ namespace Mmogick
 		// этот метод по типу exception только выбросит в следующем кадре тк добавляет errors  и выведет в UI ошибку 
 		public static new void Error(string text, Exception ex = null)
 		{
-			errors.Add(text+": "+ ex??ex.Message);
+			// Текст уходит игроку на экран входа, потому от исключения берём сообщение, а не весь ToString со стеком;
+			// стек и без того попадает в лог строкой ниже.
+			errors.Add(ex != null ? text + ": " + ex.Message : text);
 
 			if (ex!=null)
 				Debug.LogException(ex);

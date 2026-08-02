@@ -173,6 +173,29 @@ namespace Mmogick
 		public Vector3 position = Vector3.zero;
 
 		/// <summary>
+		/// Группа сортировки сущности (на корне) и холст полоски жизни (в потомках). Держим ссылки, потому что
+		/// порядок отрисовки выставляется на каждый приходящий пакет, а поиск компонента — обход объекта, поиск
+		/// холста — обход всех его потомков. Состав компонентов после сборки визуала не меняется.
+		/// </summary>
+		[NonSerialized]
+		public UnityEngine.Rendering.SortingGroup sortingGroup;
+
+		[NonSerialized]
+		public Canvas barCanvas;
+
+		/// <summary>
+		/// Найти ссылки на компоненты отрисовки, если они ещё не найдены (или потерялись при пересборке визуала).
+		/// </summary>
+		public void EnsureRenderRefs()
+		{
+			if (sortingGroup == null)
+				sortingGroup = GetComponent<UnityEngine.Rendering.SortingGroup>();
+
+			if (barCanvas == null)
+				barCanvas = GetComponentInChildren<Canvas>(true);
+		}
+
+		/// <summary>
 		/// Одна ли клетка у двух мировых позиций. Клетка = округление координат: banker's rounding
 		/// (Mathf.RoundToInt) зеркалит серверный position.tile(). Единый источник клеточного порога
 		/// для клиентских гейтов «на той же клетке, что сущность» (открытие контейнера, авто-закрытие

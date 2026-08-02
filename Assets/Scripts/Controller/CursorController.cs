@@ -93,6 +93,8 @@ namespace Mmogick
         {
             base.Update();
 
+            HandleMovementInput();
+
             //Makes sure that the icon follows the hand
             cursor.transform.position = Input.mousePosition + cursor_offset;
 
@@ -255,9 +257,13 @@ namespace Mmogick
             }
         }
 
-        protected override void FixedUpdate()
+        /// <summary>
+        /// Опрос управления и отправка команд движения. Зовётся из кадра отрисовки (см. Update), а не из кадра
+        /// расчёта физики: ввод в Unity положено читать по кадрам, иначе нажатия между кадрами физики теряются
+        /// либо считываются дважды. Отзывчивость управления при этом растёт вместе с частотой экрана.
+        /// </summary>
+        private void HandleMovementInput()
         {
-            base.FixedUpdate();
             if (player != null && player.action != ACTION_REMOVE)
             {
                 try

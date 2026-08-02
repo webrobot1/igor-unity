@@ -250,7 +250,7 @@ namespace Mmogick
 
 			double timeout = (1.0 / ConnectController.server_fps);					   // если существо переходит на другую карту то пакет придет с картой в следующем кадре сервера
 			timeout += ConnectController.Ping();                                       // время с который одна локация передаст другой локации пакет с существом или игроком
-			timeout += Time.fixedDeltaTime;											   // добавляем 1 кадра тк пакет с новыми координатами может прийти во время во врмеся пауз между кадрами FixedUpdate
+			timeout += Time.deltaTime;												   // добавляем кадр тк пакет с новыми координатами может прийти в паузе между кадрами
 
 			// если мы уходим с карты надо замедлиться на время полных пинга
 			// мы не првоеряем удаляется ли существо или именно переходит (в обоих случаях action одинаков, но при переходе новая карта указывается) тк при удалении окончательном эта корутина уничтожается с существом
@@ -273,7 +273,11 @@ namespace Mmogick
 			// Иначе мелкие шаги (slide вдоль стены, corner wrap) играются медленно и видны
 			// как "замедления" между нормальными шагами. С STEP в формуле скорость стабильна:
 			// мелкий шаг доходит до finish раньше срока, дальше idle wait до нового пакета.
-			double distancePerUpdate = (ConnectController.step / (timeout / Time.fixedDeltaTime));
+			//
+			// Скорость задаётся в клетках В СЕКУНДУ, а пройденное за виток считается по времени самого витка:
+			// шаг перемещения тем самым привязан к частоте отрисовки, а не к частоте расчёта физики. Движение
+			// на экране в 120 герц выходит вдвое плавнее, чем на 60, и не зависит от настройки шага физики.
+			double speed = ConnectController.step / timeout;
 			bool extrapolation = false;
 			// время начала экстраполяции для ограничения по MaxPing * 2
 			DateTime extrapolationStart = DateTime.MinValue;
@@ -288,6 +292,9 @@ namespace Mmogick
 				}
 
 				distance = Vector3.Distance(transform.localPosition, finish);
+
+				// путь за этот виток отрисовки
+				double distancePerUpdate = speed * Time.deltaTime;
 
 				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
@@ -313,7 +320,7 @@ namespace Mmogick
 						else
 						{
 							finish = nextFinish;
-							distancePerUpdate *= 0.7;
+							speed *= 0.7;
 							LogWarning("Движение - экстраполируем на полный шаг, замедление 0.7x");
 						}
 					}
@@ -344,7 +351,7 @@ namespace Mmogick
 
 				Log("Движение - перешли в "+ transform.localPosition +", осталось время "+ GetEventRemain(WalkResponse.GROUP)+" сек., расстояние "+ distance);
 
-				yield return new WaitForFixedUpdate();
+				yield return null;
 			}
 			coroutines.Remove("walk");
 
