@@ -172,6 +172,15 @@ namespace Mmogick
             base.HandleData(recive);
         }
 
+        /// <summary>
+        /// Тестовый режим игрока (настройка «Тестовый режим»): открывает служебные блоки интерфейса —
+        /// отладочные слои карты и счётчики частоты, задержки и номера карты. Сама настройка приходит с
+        /// сервера как обычная галочка; что именно показывать, решают наследники, у которых эти блоки есть.
+        /// </summary>
+        protected virtual void SetTestMode(bool enabled)
+        {
+        }
+
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
@@ -190,6 +199,9 @@ namespace Mmogick
 
                     if (settings.ContainsKey("minimap"))
                         SetMinimapEnabled(int.Parse(settings["minimap"]) > 0);
+
+                    if (settings.ContainsKey("debug"))
+                        SetTestMode(int.Parse(settings["debug"]) > 0);
 
                     foreach (var setting in settings)
                     {

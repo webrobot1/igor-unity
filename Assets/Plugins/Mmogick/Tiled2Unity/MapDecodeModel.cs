@@ -18,6 +18,20 @@ namespace Mmogick
 		/// (набор картинок у карт мира общий). Набор живёт, пока идёт игра одной игры; при смене игры
 		/// сбрасывается — картинки там другие.
 		/// </summary>
+		/// <summary>
+		/// Данные карты, из которых строятся отладочные слои: сама карта, её непроходимые клетки и слой
+		/// сортировки. Хранятся до включения галочки — сами слои создаются только тогда (см. EnsureDebugLayer).
+		/// Ключ — корень карты на сцене; уничтоженные карты отсеиваются при обращении.
+		/// </summary>
+		private class DebugSource
+		{
+			public Map map;
+			public HashSet<Vector2Int> colliders;
+			public int sort;
+		}
+
+		private static readonly Dictionary<Transform, DebugSource> debugSources = new Dictionary<Transform, DebugSource>();
+
 		private static readonly Dictionary<string, TilemapModel> tileAssets = new Dictionary<string, TilemapModel>();
 		private static int tileAssetsGame;
 
@@ -200,12 +214,58 @@ namespace Mmogick
 			if (map.spawn_sort == null)
 				map.spawn_sort = 1;
 
+			// Отладочные слои (сетка, непроходимые клетки, объекты-разметка) сразу НЕ строятся. Вместе они
+			// накрывают карту трижды — у карты 140×120 это больше тридцати тысяч клеток плюс все контуры объектов, —
+			// а нужны, только когда их включают галочкой в тестовом режиме. Потому здесь лишь запоминаем данные,
+			// из которых слой можно построить, а строит его EnsureDebugLayer в момент включения.
+			debugSources[grid] = new DebugSource { map = map, colliders = colliders, sort = sort };
+
+			// Уже включённые слои строим сразу: карта могла прийти позже, чем игрок нажал галочку.
+			if (DebugLayers.ShowGrid)
+				EnsureDebugLayer(grid, DebugLayers.GRID);
+			if (DebugLayers.ShowCollision)
+				EnsureDebugLayer(grid, DebugLayers.COLLISION);
+			if (DebugLayers.ShowObjects)
+				EnsureDebugLayer(grid, DebugLayers.OBJECTS);
+
+			MapDecode decoded = new MapDecode(map);
+			decoded.colliders = colliders;   // per-map коллайдеры (не общий статик — см. MapDecode.colliders)
+			return decoded;
+		}
+
+
+		/// <summary>
+		/// Построить отладочный слой карты, если он ещё не построен. Зовётся при включении галочки тестового
+		/// режима: до этого слоёв нет вовсе — они втрое дороже самой карты, а видит их лишь разработчик.
+		/// Карта уже уничтожена либо данных о ней нет — тихо выходим.
+		/// </summary>
+		public static void EnsureDebugLayer(Transform grid, string layerName)
+		{
+			if (grid == null)
+				return;
+
+			if (grid.Find(layerName) != null)
+				return;
+
+			if (!debugSources.TryGetValue(grid, out DebugSource src))
+				return;
+
+			if (layerName == DebugLayers.GRID)
+				buildDebugGrid(grid, src);
+			else if (layerName == DebugLayers.COLLISION)
+				buildDebugCollision(grid, src);
+			else if (layerName == DebugLayers.OBJECTS)
+				buildDebugObjects(grid, src);
+		}
+
+		private static void buildDebugGrid(Transform grid, DebugSource src)
+		{
 			// Отладочный слой-сетка. Видимость — галочка «Сетка» debug-панели (DebugPanelController.ShowGrid),
 			// применяется и к картам, загружаемым позже (см. DebugPanelController).
 			GameObject debugGrid = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 			debugGrid.name = DebugLayers.GRID;
 			debugGrid.transform.SetParent(grid, false);
-			debugGrid.GetComponent<TilemapRenderer>().sortingOrder = sort;
+			debugGrid.GetComponent<TilemapRenderer>().sortingOrder = src.sort;
 			debugGrid.SetActive(DebugLayers.ShowGrid);
 
 			Texture2D tex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
@@ -230,27 +290,31 @@ namespace Mmogick
 			// 140×120 это почти семнадцать тысяч клеток), и поклеточная установка стоила бы столько же, сколько
 			// сам игровой слой. Плитка тут одна на все клетки, разной её не бывает.
 			Tilemap debugTilemap = debugGrid.GetComponent<Tilemap>();
-			Vector3Int[] gridPositions = new Vector3Int[map.width * map.height];
+			Vector3Int[] gridPositions = new Vector3Int[src.map.width * src.map.height];
 			TileBase[] gridTiles = new TileBase[gridPositions.Length];
 			int gridIndex = 0;
-			for (int x = 0; x < map.width; x++)
-				for (int y = 0; y < map.height; y++)
+			for (int x = 0; x < src.map.width; x++)
+				for (int y = 0; y < src.map.height; y++)
 				{
 					gridPositions[gridIndex] = new Vector3Int(x, -y, 0);
 					gridTiles[gridIndex] = gridTile;
 					gridIndex++;
 				}
 			debugTilemap.SetTiles(gridPositions, gridTiles);
+		}
+
+		private static void buildDebugCollision(Transform grid, DebugSource src)
+		{
+			if (src.colliders.Count == 0)
+				return;
 
 			// Отладочный слой непроходимых тайлов. Видимость — галочка «Коллизии» debug-панели
 			// (DebugPanelController.ShowCollision); её начальное значение = isDebug игры (прод — выкл, dev — вкл),
 			// далее пользователь переключает свободно. Применяется и к картам, загружаемым позже.
-			if (colliders.Count > 0)
-			{
 				GameObject debugCollision = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 				debugCollision.name = DebugLayers.COLLISION;
 				debugCollision.transform.SetParent(grid, false);
-				debugCollision.GetComponent<TilemapRenderer>().sortingOrder = sort + 1;
+				debugCollision.GetComponent<TilemapRenderer>().sortingOrder = src.sort + 1;
 				debugCollision.SetActive(DebugLayers.ShowCollision);
 
 				Texture2D colTex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
@@ -272,10 +336,10 @@ namespace Mmogick
 				colTile.sprite = colSprite;
 
 				Tilemap colTilemap = debugCollision.GetComponent<Tilemap>();
-				Vector3Int[] colPositions = new Vector3Int[colliders.Count];
-				TileBase[] colTiles = new TileBase[colliders.Count];
+				Vector3Int[] colPositions = new Vector3Int[src.colliders.Count];
+				TileBase[] colTiles = new TileBase[src.colliders.Count];
 				int colIndex = 0;
-				foreach (Vector2Int pos in colliders)
+				foreach (Vector2Int pos in src.colliders)
 				{
 					colPositions[colIndex] = new Vector3Int(pos.x, pos.y, 0);
 					colTiles[colIndex] = colTile;
@@ -283,9 +347,11 @@ namespace Mmogick
 				}
 				colTilemap.SetTiles(colPositions, colTiles);
 
-				Debug.Log("DebugCollision: " + colliders.Count + " непроходимых тайлов");
-			}
+				Debug.Log("DebugCollision: " + src.colliders.Count + " непроходимых тайлов");
+		}
 
+		private static void buildDebugObjects(Transform grid, DebugSource src)
+		{
 			// Отладочный слой объектов-разметки (зоны спавна, варпы, полигоны). Видимость — галочка
 			// «Полигоны» debug-панели (DebugPanelController.ShowObjects). Рисуем формы линиями поверх карты.
 			// Исключаем: tile-объекты (obj.tile — визуал карты, уже нарисованы тайлами выше) и слой класса
@@ -297,7 +363,8 @@ namespace Mmogick
 			// MapController.TILE_OFFSET компенсирует для тайлов↔сущностей). LineRenderer этого сдвига не имеет → контуры
 			// уезжают на tileAnchor влево-вниз. Совмещаем сдвигом слоя на tileAnchor Tilemap'а — берём ИЗ НЕГО, не
 			// хардкодим 0.5 (единый источник: сменится tileAnchor prefab'а — сдвиг следует за ним).
-			Vector3 tileAnchor = debugTilemap.tileAnchor;
+			Tilemap anyTilemap = grid.GetComponentInChildren<Tilemap>();
+			Vector3 tileAnchor = anyTilemap != null ? anyTilemap.tileAnchor : new Vector3(0.5f, 0.5f, 0f);
 			debugObjects.transform.localPosition = new Vector3(tileAnchor.x, tileAnchor.y, 0f);
 
 			// Canvas подписей объектов: World Space + UI Text (по правилу клиента — не TextMesh, несовместимый с 2D
@@ -306,13 +373,13 @@ namespace Mmogick
 			labelCanvasGo.transform.SetParent(debugObjects.transform, false);
 			Canvas labelCanvas = labelCanvasGo.AddComponent<Canvas>();
 			labelCanvas.renderMode = RenderMode.WorldSpace;
-			labelCanvas.sortingOrder = sort + 3;
+			labelCanvas.sortingOrder = src.sort + 3;
 			Font labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
 			Material lineMat = new Material(Shader.Find("Sprites/Default"));
 			int objectsCount = 0;
 
-			foreach (Layer layer in map.layer.Values)
+			foreach (Layer layer in src.map.layer.Values)
 			{
 				if (layer.@object == null || layer.@class == "collision")
 					continue;
@@ -322,17 +389,13 @@ namespace Mmogick
 					if (!string.IsNullOrEmpty(obj.tile))
 						continue;
 
-					DrawDebugObject(debugObjects.transform, labelCanvas.transform, labelFont, obj, map.tilewidth, map.tileheight, lineMat, sort + 2);
+					DrawDebugObject(debugObjects.transform, labelCanvas.transform, labelFont, obj, src.map.tilewidth, src.map.tileheight, lineMat, src.sort + 2);
 					objectsCount++;
 				}
 			}
 
 			debugObjects.SetActive(DebugLayers.ShowObjects);
 			Debug.Log("DebugObjects: " + objectsCount + " объектов-разметки");
-
-			MapDecode decoded = new MapDecode(map);
-			decoded.colliders = colliders;   // per-map коллайдеры (не общий статик — см. MapDecode.colliders)
-			return decoded;
 		}
 
 		// Декод CSV-строки тайлов слоя в набор LayerTile (зеркало серверного LayerTileCsvCodec::decodeCsv).

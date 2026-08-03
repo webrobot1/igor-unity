@@ -54,14 +54,39 @@ namespace Mmogick
             polygonToggle.onValueChanged.AddListener(v => { DebugLayers.ShowObjects = v; ApplyToLoadedMaps(DebugLayers.OBJECTS, v); });
         }
 
-        // isDebug приходит в /auth и выставляется в SigninController.LoadMain ПОСЛЕ загрузки MainScene, но
-        // ДО Start контроллеров сцены (Start идёт в следующем кадре). Потому начальное значение галочки
-        // «Коллизии» = isDebug ставим здесь, а не в Awake — там isDebug ещё старый. «Сетка»/«Полигоны» — выкл.
+        /// <summary>
+        /// Тестовый режим: блок отладочных слоёв показывается только в нём. Выключили — гасим и сами слои,
+        /// иначе они остались бы нарисованы поверх карты без возможности их убрать.
+        /// </summary>
+        protected override void SetTestMode(bool enabled)
+        {
+            base.SetTestMode(enabled);
+
+            if (collisionToggle == null)
+                return;
+
+            // Блок — родитель галочек: отдельной ссылки на него не заводим, чтобы не плодить настройку сцены,
+            // которую легко забыть назначить.
+            collisionToggle.transform.parent.gameObject.SetActive(enabled);
+
+            if (!enabled)
+            {
+                collisionToggle.isOn = false;
+                gridToggle.isOn = false;
+                polygonToggle.isOn = false;
+            }
+        }
+
+        // Слои по умолчанию выключены: их показывает только тестовый режим игрока (настройка приходит с
+        // сервера уже после входа). Строятся они тоже лишь при включении — см. ApplyToLoadedMaps.
         protected virtual void Start()
         {
-            DebugLayers.ShowCollision = ConnectController.isDebug;
+            DebugLayers.ShowCollision = false;
             DebugLayers.ShowGrid = false;
             DebugLayers.ShowObjects = false;
+
+            // До прихода настроек блок скрыт: у обычного игрока он не появится вовсе.
+            collisionToggle.transform.parent.gameObject.SetActive(false);
 
             // Синхронизируем визуал галочек без вызова обработчика; к уже загруженным картам (если какая-то
             // успела прийти до Start) применяем состояние явно ниже.
@@ -75,6 +100,8 @@ namespace Mmogick
         }
 
         // Применить видимость слоя ко всем уже загруженным картам (слой ищется по имени в иерархии каждой карты).
+        // Включение — момент, когда слой и строится: до первого включения его на карте нет вовсе (три отладочных
+        // слоя вместе накрывают карту больше тридцати тысяч клеток, и строить их всем подряд незачем).
         private void ApplyToLoadedMaps(string layerName, bool visible)
         {
             if (mapObject == null)
@@ -82,6 +109,9 @@ namespace Mmogick
 
             foreach (Transform grid in mapObject.transform)
             {
+                if (visible)
+                    MapDecodeModel.EnsureDebugLayer(grid, layerName);
+
                 Transform layer = grid.Find(layerName);
                 if (layer != null)
                     layer.gameObject.SetActive(visible);

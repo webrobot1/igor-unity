@@ -65,13 +65,31 @@ namespace Mmogick
             }
 
             _instance = this;
+
+            // До прихода настроек игрока блок счётчиков скрыт: обычному игроку он не нужен вовсе.
+            ping.transform.parent.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Блок счётчиков (частота, задержка, номер карты) — служебный: показываем только в тестовом режиме.
+        /// Ссылка на сам блок — родитель этих подписей, отдельного поля не заводим.
+        /// </summary>
+        protected override void SetTestMode(bool enabled)
+        {
+            base.SetTestMode(enabled);
+
+            if (ping != null)
+                ping.transform.parent.gameObject.SetActive(enabled);
         }
 
         protected override void Update()
         {
             deltaTime += (Time.deltaTime - deltaTime) * 0.1f;
             float fps = 1.0f / deltaTime;
-            this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString();
+
+            // Пока блок скрыт (обычный режим игры), подписи не пересчитываем — их всё равно никто не видит.
+            if (this.fps.transform.parent.gameObject.activeSelf)
+                this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString();
 
             base.Update();
         }
