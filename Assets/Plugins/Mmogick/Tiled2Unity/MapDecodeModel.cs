@@ -21,8 +21,7 @@ namespace Mmogick
 		/// <summary>
 		/// Данные карты, из которых строятся слои поверх неё: сама карта, её непроходимые клетки и слой
 		/// сортировки. Отладочные слои по ним создаются лишь при включении галочки (см. EnsureDebugLayer),
-		/// метки переходов — при каждой смене набора выложенных карт (см. RebuildWarpLayers).
-		/// Ключ — корень карты на сцене; уничтоженные карты отсеиваются при обращении.
+		/// Ключ — корень карты на сцене; уничтоженные карты отсеиваются при появлении новой.
 		/// </summary>
 		private class MapSource
 		{
@@ -221,9 +220,17 @@ namespace Mmogick
 			// из которых слой можно построить, а строит его EnsureDebugLayer в момент включения.
 			mapSources[grid] = new MapSource { map = map, colliders = colliders, sort = sort };
 
-			// Метки переходов — обычный слой карты, не отладочный: их видит игрок, а не разработчик. Строятся
-			// сразу и по всем картам: пришедшая карта могла закрыть собой стык, на котором у соседа висит метка.
-			RebuildWarpLayers();
+			// Метки переходов — обычный слой карты, не отладочный: их видит игрок, а не разработчик, и строятся
+			// они сразу. Соседей учитывать не нужно: разметке на бесшовной границе класс перехода снимает сервер,
+			// собирая карту, — какая метка горит, решают только данные самой карты.
+			// sortingOrder — слой-земля карты (spawn_sort), тот же, по которому сортируются существа: метка лежит
+			// с ними в одной плоскости, крыши её закрывают. Не sort источника — там слоёв всего.
+			WarpMarker.BuildLayer(grid, map, (int)map.spawn_sort);
+
+			// Уничтоженные карты выпадают отсюда же: их корни на сцене снесены, а ключи остались бы навсегда.
+			foreach (Transform key in new List<Transform>(mapSources.Keys))
+				if (key == null)
+					mapSources.Remove(key);
 
 			// Уже включённые слои строим сразу: карта могла прийти позже, чем игрок нажал галочку.
 			if (DebugLayers.ShowGrid)
@@ -238,35 +245,6 @@ namespace Mmogick
 			return decoded;
 		}
 
-
-		/// <summary>
-		/// Пере-собрать метки переходов на ВСЕХ выложенных картах. Зовётся при смене набора карт: какая цель
-		/// достижима границей, а какая переносом, зависит от того, какие карты сейчас стоят рядом, — метка
-		/// на стыке гаснет, а при уходе соседа обязана вернуться.
-		/// </summary>
-		public static void RebuildWarpLayers()
-		{
-			// Номер карты — имя её корня на сцене (его ставит MapController по стороне): в самой карте номера
-			// нет, terrain.json несёт её мету под другим ключом и в разбор не попадает.
-			Dictionary<int, Map> loaded = new Dictionary<int, Map>();
-			List<Transform> gone = new List<Transform>();
-
-			foreach (KeyValuePair<Transform, MapSource> pair in mapSources)
-			{
-				if (pair.Key == null)
-					gone.Add(pair.Key);
-				else if (int.TryParse(pair.Key.name, out int mapId))
-					loaded[mapId] = pair.Value.map;
-			}
-
-			foreach (Transform key in gone)
-				mapSources.Remove(key);
-
-			// sortingOrder метки — слой-земля карты (spawn_sort), тот же, по которому сортируются существа:
-			// метка лежит с ними в одной плоскости, крыши её закрывают. Не sort источника — там слоёв всего.
-			foreach (KeyValuePair<Transform, MapSource> pair in mapSources)
-				WarpMarker.BuildLayer(pair.Key, pair.Value.map, (int)pair.Value.map.spawn_sort, loaded);
-		}
 
 		/// <summary>
 		/// Построить отладочный слой карты, если он ещё не построен. Зовётся при включении галочки тестового

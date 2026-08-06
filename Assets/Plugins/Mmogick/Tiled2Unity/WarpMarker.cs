@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
@@ -13,9 +12,9 @@ namespace Mmogick
 	/// (<see cref="ConnectController.warp_class"/>). Пусто — игра переходами по разметке не пользуется,
 	/// слой не строится вовсе.
 	///
-	/// Разметка, ведущая на карту, с которой эта стыкуется бесшовно, метки НЕ получает: там игрок
-	/// переходит границей сам, переноса не происходит. Тот же отбор делает игровой процесс, собирая
-	/// свой реестр переходов, — потому метка и переход зажигаются на одних и тех же клетках.
+	/// Разметку на бесшовной границе разбирать не приходится: класс перехода ей снимает сервер, собирая
+	/// карту, — сюда она приходит уже обычным объектом. Потому метка и перенос зажигаются на одних и тех
+	/// же клетках, а стык карт клиент вообще не считает.
 	///
 	/// Метка одна на объект и растянута на всю его площадь: широкий проход светится полосой, дверь —
 	/// пятном в клетку. Компонент на самой метке гасит и разгорается — неподвижное пятно на полу
@@ -26,11 +25,6 @@ namespace Mmogick
 		// Имя слоя-контейнера меток внутри карты. Наружу нужно, чтобы карту можно было перестроить,
 		// не плодя второй такой слой.
 		public const string LAYER = "Warps";
-
-		// Имена свойств: у объекта-перехода цель адресована кодом карты, у самой карты этот код лежит
-		// её свойством. Канон общий с сервером и игровым процессом.
-		private const string TARGET_MAP = "map";
-		private const string MAP_CODE = "slug";
 
 		private const string SpriteResource = "Sprites/Map/warp_glow";
 
@@ -51,11 +45,10 @@ namespace Mmogick
 		/// Построить слой меток карты. sortingOrder берётся у слоя-земли карты (spawn_sort) — тот же,
 		/// по которому сортируются существа: метка лежит с ними в одной плоскости, а не поверх крыш.
 		///
-		/// loaded — карты, уже выложенные в игровое пространство (ключ — их номер): по ним определяется,
-		/// какая цель перехода достижима границей. Слой строится заново при каждом вызове: набор смежных
-		/// карт меняется по ходу игры, и метка, погашенная при прежнем наборе, обязана вернуться.
+		/// Слой строится заново при каждом вызове: карту перекладывают целиком, второго такого слоя быть
+		/// не должно.
 		/// </summary>
-		public static void BuildLayer(Transform grid, Map map, int sortingOrder, Dictionary<int, Map> loaded)
+		public static void BuildLayer(Transform grid, Map map, int sortingOrder)
 		{
 			Transform existing = grid.Find(LAYER);
 			if (existing != null)
@@ -68,8 +61,6 @@ namespace Mmogick
 			Sprite sprite = GetSprite();
 			if (sprite == null)
 				return;
-
-			HashSet<int> seam = SeamMaps(grid, map, loaded);
 
 			GameObject layerGo = new GameObject(LAYER);
 			layerGo.transform.SetParent(grid, false);
@@ -89,15 +80,15 @@ namespace Mmogick
 
 				foreach (LayerObject obj in layer.@object)
 				{
-					// Класс несёт либо сам объект, либо его слой — так же, как их различает сервер.
-					if (obj.type != warpClass && layer.@class != warpClass)
+					// Класс несёт либо сам объект, либо его слой — так же, как их различает сервер. Свой класс
+					// объекта перекрывает класс слоя, и пустой строкой сервер снимает его у одного объекта:
+					// так с разметки на бесшовной границе снят класс перехода.
+					bool isWarp = !string.IsNullOrEmpty(obj.type) ? obj.type == warpClass : layer.@class == warpClass;
+					if (!isWarp)
 						continue;
 
 					// Точка и линия площади не имеют — светить нечему.
 					if (obj.width <= 0 || obj.height <= 0)
-						continue;
-
-					if (seam.Contains(TargetMap(obj, loaded)))
 						continue;
 
 					Create(layerGo.transform, sprite, obj, map.tilewidth, map.tileheight, sortingOrder, count);
@@ -111,11 +102,12 @@ namespace Mmogick
 		private static void Create(Transform parent, Sprite sprite, LayerObject obj, int tileWidth, int tileHeight, int sortingOrder, int index)
 		{
 			// Координаты объекта приходят в пикселях (в клетки их переводит потребитель — так же считает
-			// отладочный контур объекта). Якорь — левый нижний угол площади, y растёт вверх.
-			float x = obj.x / tileWidth;
-			float y = obj.y / tileHeight;
-			float width = obj.width / tileWidth;
-			float height = obj.height / tileHeight;
+			// отладочный контур объекта).
+			Rect area = Area(obj, tileWidth, tileHeight);
+			float x = area.x;
+			float y = area.y;
+			float width = area.width;
+			float height = area.height;
 
 			GameObject go = new GameObject(string.IsNullOrEmpty(obj.name) ? "warp" : obj.name);
 			go.transform.SetParent(parent, false);
@@ -136,82 +128,15 @@ namespace Mmogick
 			marker._phase = index * 0.6f;
 		}
 
-		/// <summary>
-		/// Номера карт, куда с этой карты уходят ГРАНИЦЕЙ: их прямоугольники в открытом мире касаются её.
-		/// Считается по уже выложенным картам — сервер присылает стороны только текущей карты, поэтому у
-		/// соседней её собственные дальние соседи ещё неизвестны и метка там останется до перехода на неё.
-		/// </summary>
-		private static HashSet<int> SeamMaps(Transform grid, Map map, Dictionary<int, Map> loaded)
+		/// <summary>Площадь объекта в клетках карты: якорь — левый нижний угол, y растёт вверх.</summary>
+		private static Rect Area(LayerObject obj, int tileWidth, int tileHeight)
 		{
-			HashSet<int> seam = new HashSet<int>();
-			Dictionary<int, Point> sides = MapController.getSides();
-
-			// Номер карты несёт имя её корня на сцене — в самой карте его нет (см. RebuildWarpLayers).
-			if (loaded == null || !int.TryParse(grid.name, out int mapId) || !sides.TryGetValue(mapId, out Point self))
-				return seam;
-
-			foreach (KeyValuePair<int, Map> pair in loaded)
-			{
-				if (pair.Key == mapId || !sides.TryGetValue(pair.Key, out Point other))
-					continue;
-
-				if (Touches(self, map, other, pair.Value))
-					seam.Add(pair.Key);
-			}
-
-			return seam;
-		}
-
-		/// <summary>
-		/// Касаются ли карты сторонами. Позиция карты — её левый ВЕРХНИЙ угол в клетках относительно
-		/// текущей (y вниз убывает), потому карта занимает [x, x+width] по горизонтали и [y-height, y]
-		/// по вертикали. Открытый мир перекрытия карт не допускает — общая сторона и есть бесшовный стык.
-		/// </summary>
-		private static bool Touches(Point a, Map aMap, Point b, Map bMap)
-		{
-			float aRight = a.x + aMap.width, aBottom = a.y - aMap.height;
-			float bRight = b.x + bMap.width, bBottom = b.y - bMap.height;
-
-			bool overlapX = a.x < bRight && b.x < aRight;
-			bool overlapY = aBottom < b.y && bBottom < a.y;
-
-			bool touchX = Mathf.Approximately(aRight, b.x) || Mathf.Approximately(bRight, a.x);
-			bool touchY = Mathf.Approximately(a.y, bBottom) || Mathf.Approximately(b.y, aBottom);
-
-			return (touchX && overlapY) || (touchY && overlapX);
-		}
-
-		/// <summary>
-		/// Номер карты, куда ведёт переход, либо 0, если её среди выложенных нет. Цель задана КОДОМ карты,
-		/// и разбирается он как на сервере: точное совпадение кода либо код-начало (в разметке источника
-		/// цель зовут коротким номером «002-2», а код карты мира несёт ещё имя и отпечаток).
-		/// </summary>
-		private static int TargetMap(LayerObject obj, Dictionary<int, Map> loaded)
-		{
-			if (obj.property == null || !obj.property.TryGetValue(TARGET_MAP, out LayerProperty target))
-				return 0;
-
-			string code = target.value == null ? "" : target.value.Trim();
-			if (code.Length == 0 || loaded == null)
-				return 0;
-
-			foreach (KeyValuePair<int, Map> pair in loaded)
-			{
-				string slug = Code(pair.Value);
-				if (slug == code || slug.StartsWith(code + "-"))
-					return pair.Key;
-			}
-
-			return 0;
-		}
-
-		/// <summary>Код карты — её стабильная идентичность, им же адресуют цель переходы разметки.</summary>
-		private static string Code(Map map)
-		{
-			if (map.property == null || !map.property.TryGetValue(MAP_CODE, out LayerProperty code))
-				return "";
-
-			return code.value ?? "";
+			return new Rect(
+				obj.x / (float) tileWidth,
+				obj.y / (float) tileHeight,
+				obj.width / (float) tileWidth,
+				obj.height / (float) tileHeight
+			);
 		}
 
 		private static Sprite GetSprite()
