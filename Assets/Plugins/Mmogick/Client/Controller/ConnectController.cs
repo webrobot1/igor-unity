@@ -403,7 +403,10 @@ namespace Mmogick
 							if (reload == ReloadStatus.None && connect!=null && connect == ws)
 								Error("WebSocket: Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
 							else
-								Debug.LogError("WebSocket: Ошибка соединени яс сервером " + ws.Url + ": " + ev.Message);
+								// Идёт переход на другую карту либо соединение уже брошено: рвёт его сам сервер, а библиотека сообщает
+								// о разрыве ошибкой. Состояние штатное — в консоль идёт обычной записью, иначе каждый переход красит
+								// журнал редактора ошибкой, за которой ничего чинить не надо.
+								Debug.Log("WebSocket: старое соединение " + ws.Url + " разорвано при переходе: " + ev.Message);
 						};
 						ws.OnMessage += (sender, ev) =>
 						{
@@ -534,6 +537,13 @@ namespace Mmogick
 							recives.Enqueue(text);
 					}
 				}
+			}
+			// Хвост пакетов уже начатого перехода: соединение сервер закрывает сразу за пакетом смены карты, и то,
+			// что было в пути, приходит уже сюда. Разбирать его нечем и незачем — карта меняется.
+			else if (reload != ReloadStatus.None)
+			{
+				if (EntityModel.verbose)
+					Debug.Log("WebSocket: пакет пришёл в начатом переходе на другую карту — отброшен");
 			}
 			else
 			{

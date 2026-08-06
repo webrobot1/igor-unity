@@ -5,6 +5,8 @@ using SpriterDotNetUnity;
 namespace Mmogick
 {
     // Вешает внешние спрайты-предметы (оружие/щит) на Spriter-точки скелета сущности.
+    // Носитель — ЛЮБАЯ сущность с экипировкой: свой игрок, чужой игрок, моб (компонент equip публичный,
+    // приходит всем видящим). Точка входа — Sync: слот + prefab надетого предмета.
     // Точка (PointTransform) двигается каждый кадр вместе с костью, к которой привязана в SCML
     // (UnityAnimator.ApplyPointTransform ставит ей разрешённые позицию+угол), поэтому предмет —
     // ребёнок точки — автоматически следует за анимацией без покадровой логики позиционирования.
@@ -55,7 +57,10 @@ namespace Mmogick
 
         private class Mounted
         {
-            public Anchor[] anchors;
+            public string slot;          // slug слота экипировки: по нему резолвятся якоря на скелете носителя
+            public Anchor[] anchors;     // null — якорей нет ЛИБО структура носителя ещё не докачана (см. ResolveAnchors)
+            public bool anchorsTried;
+            public SpriterDotNetBehaviour anchorBeh;   // скелет, под который якоря резолвили: сменился — резолвим заново
             public Variant[] variants;   // ≥1, в серверном порядке (angle ASC); активный выбирается по ракурсу тела
             public string rotationMode;  // AnimationCacheService.RotationMode.* (mirror_x даёт зеркальных кандидатов)
             public GameObject go;
@@ -68,20 +73,68 @@ namespace Mmogick
         private SpriterDotNetBehaviour _beh;
         private EntityModel _em;   // DisplayAngle (ракурс играющего клипа) + Forward (fallback) — выбор варианта картинки
 
-        // Надеть/обновить предмет в слоте: anchors — все якоря слота (активный выбирается по кадру),
-        // variants — все варианты картинки по направлениям (активный выбирается по ракурсу тела в LateUpdate),
-        // rotationMode — AnimationCacheService.RotationMode.* (mirror_x добавляет зеркальных кандидатов).
-        // Grip-спрайты (pivot = хват, 0..1, центр вращения) пересоздаются из текстур исходников один раз
-        // здесь — не в LateUpdate (Sprite.Create аллоцирует). bodyScale носителя компенсируется в LateUpdate.
-        public void Apply(string slot, Anchor[] anchors, VariantSource[] variants, string rotationMode)
+        // Надеть/снять предмет в слоте экипировки ЛЮБОЙ сущности: wearer — носитель, itemPrefab — prefab
+        // надетого предмета (пусто = снять). Единая точка для своего игрока, чужих игроков и мобов:
+        // компонент equip публичный и несёт prefab, инвентарь носителя тут не нужен.
+        // Предмет-картинка (image-prefab) — единственный поддерживаемый визуал предмета.
+        public static void Sync(EntityModel wearer, string slot, string itemPrefab)
         {
-            Detach(slot);   // пересоздаём с нуля: освобождает прежние grip-спрайты (набор мог измениться)
-            if (anchors == null || anchors.Length == 0 || variants == null || variants.Length == 0)
+            if (wearer == null)
                 return;
 
-            Mounted m = new Mounted { go = new GameObject("Weapon_" + slot) };
+            WeaponMount mount = wearer.GetComponent<WeaponMount>();
+
+            if (string.IsNullOrEmpty(itemPrefab))
+            {
+                if (mount != null) mount.Detach(slot);
+                return;
+            }
+
+            List<AnimationCacheService.ImageVariant> variants = AnimationCacheService.GetPrefabImageVariants(itemPrefab);
+            if (variants == null)
+                return;   // не image-prefab: визуала предмета нет
+
+            // Спрайты всех вариантов из локального кеша (битый файл — пропуск с warning, не валим экип).
+            var sources = new List<VariantSource>();
+            foreach (AnimationCacheService.ImageVariant v in variants)
+            {
+                Sprite s;
+                try { s = AnimationCacheService.TryGetSprite(BaseController.GAME_ID, v.File); }
+                catch (System.Exception ex) { Debug.LogWarning("WeaponMount " + itemPrefab + " вариант " + v.angle + "°: " + ex.Message); continue; }
+                if (s == null) continue;
+                sources.Add(new VariantSource { angle = v.angle, sprite = s, pivotX = v.pivotX, pivotY = v.pivotY });
+            }
+            if (sources.Count == 0)
+                return;   // ни один вариант не загрузился
+
+            if (mount == null) mount = wearer.gameObject.AddComponent<WeaponMount>();
+            mount.Apply(slot, sources.ToArray(), AnimationCacheService.GetPrefabRotationMode(itemPrefab));
+        }
+
+        // Снять всё надетое (сервер прислал пустую экипировку — full-clear).
+        public static void DetachAll(EntityModel wearer)
+        {
+            WeaponMount mount = wearer != null ? wearer.GetComponent<WeaponMount>() : null;
+            if (mount == null)
+                return;
+
+            foreach (string slot in new List<string>(mount._slots.Keys))
+                mount.Detach(slot);
+        }
+
+        // Надеть/обновить предмет в слоте: variants — все варианты картинки по направлениям (активный
+        // выбирается по ракурсу тела в LateUpdate), rotationMode — AnimationCacheService.RotationMode.*
+        // (mirror_x добавляет зеркальных кандидатов). Якоря слота резолвятся отложенно (ResolveAnchors).
+        // Grip-спрайты (pivot = хват, 0..1, центр вращения) пересоздаются из текстур исходников один раз
+        // здесь — не в LateUpdate (Sprite.Create аллоцирует). bodyScale носителя компенсируется в LateUpdate.
+        private void Apply(string slot, VariantSource[] variants, string rotationMode)
+        {
+            Detach(slot);   // пересоздаём с нуля: освобождает прежние grip-спрайты (набор мог измениться)
+            if (variants == null || variants.Length == 0)
+                return;
+
+            Mounted m = new Mounted { slot = slot, go = new GameObject("Weapon_" + slot) };
             m.sr = m.go.AddComponent<SpriteRenderer>();
-            m.anchors = anchors;
             m.rotationMode = rotationMode;
             m.variants = new Variant[variants.Length];
             for (int i = 0; i < variants.Length; i++)
@@ -109,6 +162,58 @@ namespace Mmogick
                         if (v != null && v.grip != null) Destroy(v.grip);
                 _slots.Remove(slot);
             }
+        }
+
+        // Сущность уничтожается (умерла, ушла из зоны видимости, мир перезагрузился) — вместе с ней
+        // уходит дочерний объект предмета, но grip-спрайты созданы через Sprite.Create и живут отдельно
+        // от сцены: без явного Destroy они копятся в памяти на каждом снятом с карты существе.
+        private void OnDestroy()
+        {
+            foreach (Mounted m in _slots.Values)
+                if (m.variants != null)
+                    foreach (Variant v in m.variants)
+                        if (v != null && v.grip != null) Destroy(v.grip);
+
+            _slots.Clear();
+        }
+
+        // Якоря слота лежат в структуре скелета НОСИТЕЛЯ и попадают в кеш вместе с ней. Структура
+        // качается асинхронно (UpdateController.ApplyVisualPrefab), а экипировка приезжает тем же
+        // пакетом, что и сама сущность, — на момент Apply кеша ещё может не быть. Потому резолв
+        // отложенный: повтор — при появлении/смене скелета (к этому моменту структура уже на диске),
+        // не каждый кадр, чтение sidecar с диска дорогое.
+        // z — draw-rank кожи кости якоря, на нём LateUpdate строит sortingOrder предмета; scale — ЧИСТЫЙ
+        // scale слота: предмет живёт child'ом якоря и наследует масштаб скелета через иерархию, потому
+        // пропорции предмет↔скелет натуральные, как нарисовал художник (пиксель-в-пиксель с админ-примеркой
+        // equip-preview). size привязки в руке не участвует — он задаёт размер предмета только на земле
+        // и в инвентаре (UpdateController.ApplyVisualPrefab).
+        private Anchor[] ResolveAnchors(string slot)
+        {
+            string wearerPrefab = _em != null ? _em.prefab : null;
+            if (string.IsNullOrEmpty(wearerPrefab))
+                return null;
+
+            List<AnimationCacheService.ObjectSlotEntry> entries =
+                AnimationCacheService.GetSlotEntries(BaseController.GAME_ID, wearerPrefab, slot);
+            if (entries == null)
+                return null;   // структура ещё не докачана либо у скелета нет якорей этого слота
+
+            var anchors = new List<Anchor>();
+            foreach (AnimationCacheService.ObjectSlotEntry entry in entries)
+            {
+                if (entry == null || entry.anchor == null || entry.anchor.type != "point")
+                    continue;   // якорь без точки (кость сервер подменяет на «<bone>_point» сам)
+                anchors.Add(new Anchor
+                {
+                    pointName = entry.anchor.name,
+                    ox        = entry.offsetX,
+                    oy        = entry.offsetY,
+                    angle     = entry.angle,
+                    scale     = entry.scale,
+                    z         = entry.z,
+                });
+            }
+            return anchors.Count > 0 ? anchors.ToArray() : null;
         }
 
         // Выбор варианта картинки под экранный ракурс тела (fwdDeg). Экранный угол кандидата учитывает
@@ -141,6 +246,16 @@ namespace Mmogick
             foreach (Mounted m in _slots.Values)
             {
                 if (m.go == null) continue;
+
+                // Якоря — по скелету носителя; пока его нет (структура качается) либо он сменился
+                // (смена prefab на лету), пробуем отрезолвить заново. См. ResolveAnchors.
+                if (m.anchors == null && (!m.anchorsTried || !ReferenceEquals(m.anchorBeh, _beh)))
+                {
+                    m.anchors = ResolveAnchors(m.slot);
+                    m.anchorsTried = true;
+                    m.anchorBeh = _beh;
+                }
+                if (m.anchors == null) { m.go.SetActive(false); continue; }   // якорей этого слота у носителя нет
 
                 // Активный якорь = первый, чья точка есть в кадре (клип направления содержит только свои кости).
                 Anchor a = null;

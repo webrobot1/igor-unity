@@ -153,10 +153,10 @@ public class Script {
 
 Если по этим признакам непонятно — не угадывай дефолтом: проверь вызывающие места (что они делают с дефолтом) и порядок инициализации. Эталоны в `AnimationCacheService`: `GetPrefabSize`/`HasPrefab`/`GetPrefabImage`/`GetPrefabs` — throw на незагруженном кеше; `GetClipName`/`GetClipNameSimple` — оставлены с null (null доминирующе = «нет спец-клипа», а «не готов» после LoadMain недостижим).
 
-## Отложенный план: наложение prefab-экипировки на анимацию
+## Наложение prefab-экипировки на анимацию
 
-План: [Plans/equipment-overlay.md](Plans/equipment-overlay.md) — серверная и транспортная часть готова, данные доходят и кешируются (`SigninRecive.equipment_slot`, `_library[prefab].equipable_slot`, sidecar `{animationId}.slots.json` через `AnimationCacheService.GetObjectSlots`). Визуальный overlay item-prefab на скелете заморожен **до UI экипировки player'а** — без UI нечем триггерить equip/unequip. Напомнить про этот план при разговорах про инвентарь / экипировку / equip-action / overlay на скелете.
+Надетый предмет рисуется на скелете ЛЮБОЙ сущности — своего игрока, чужих игроков, мобов: спрайт — ребёнок Spriter-точки-якоря, механика в XML-doc [WeaponMount.cs](Assets/Scripts/Model/WeaponMount.cs), точка входа — `WeaponMount.Sync`, разбор пакета — в [EquipmentController.cs](Assets/Scripts/Controller/EquipmentController.cs). Компонент экипировки публичный и несёт prefab самого предмета: инвентарь носителя для рисования не нужен (у чужих он и не приходит), а номер ячейки инвентаря из того же компонента полезен только своему игроку — им подсвечивается его окно экипировки. Визуал предмета — набор картинок-ракурсов (image-prefab); предмет-скелет (SCML) не рисуется — таких предметов в контенте игры нет.
 
 
 ## Активный план: интеграция lessons → release
-План: `C:\Unity\release\Plans\lessons-integration.md` — 18 этапов, от дешёвых к дорогим. При запросе «продолжи план» — прочитать план, найти первый незакрытый этап, продолжить.
+План: `C:\Unity\release\Plans\lessons-integration.md` — этапы строго по нумерации уроков. При запросе «продолжи план» — прочитать план, найти первый незакрытый этап (наименьший номер урока), продолжить.

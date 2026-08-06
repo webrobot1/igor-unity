@@ -9,8 +9,10 @@ namespace Mmogick
     //
     // Контракт сервера (см. base/config.yaml equipment_slot и components/equip.php):
     //   - SigninRecive.equipment_slot: список slug-ов слотов разрешённых в игре.
-    //   - PlayerComponentsRecive.equip: Dictionary<string, int?> = slot_slug → inventory_idx.
-    //     null/отсутствие = слот пуст. inventory_idx ссылается на тот же предмет что и в inventory[idx].
+    //   - EnemyComponentsRecive.equip: slot_slug → {idx, prefab}, null значение = слот пуст.
+    //     Компонент ПУБЛИЧНЫЙ: приходит на любую видимую сущность, потому наложение предметов на скелет
+    //     делается и для чужих игроков с мобами; idx (ячейка инвентаря) полезен только своему игроку —
+    //     чужой инвентарь не приходит вовсе, внешний вид несёт prefab.
     //   - Отправка: EquipmentResponse {items: slot → idx; null = снять} → event "ui/equip/index".
     //
     // Контракт «inventory остаётся source-of-truth» реализован через ярлык-pattern:
@@ -78,150 +80,108 @@ namespace Mmogick
             // иконки для экипировки через GetItemBySlot.
             GameObject ret = base.UpdateObject(map_id, key, recive);
 
-            if (key == player_key && ((PlayerRecive)recive).components != null && _equipSlots != null)
-            {
-                Dictionary<string, int?> equip = ((PlayerRecive)recive).components.equip;
+            // Экипировка приходит на ЛЮБУЮ видимую сущность. У PlayerRecive поле components ЗАТЕНЯЕТ
+            // базовое (new PlayerComponentsRecive) — базовое остаётся пустым, потому тип разбираем явно.
+            Dictionary<string, EquipSlotRecive> equip = recive is PlayerRecive playerRecive
+                ? playerRecive.components?.equip
+                : (recive as EnemyRecive)?.components?.equip;
 
-                // Контракт сервера (см. base/components/equip.yaml):
-                //   equip == null         — поля equip нет в delta = no-op (экипировку не трогать);
-                //   equip.Count == 0      — full-clear (сервер прислал JSON `[]`, конвертер дал пустой Dictionary);
-                //   equip.Count > 0       — per-key delta (null значение = unequip slot, int = equip slot).
-                if (equip != null)
-                {
-                    // Первая сверка UI vs server. Делаем здесь (а не в Awake), потому что Awake срабатывает
-                    // при LoadSceneAsync ДО того как SigninController.LoadMain установит equipment_slot.
-                    if (!_serverChecked)
-                    {
-                        if (ConnectController.equipment_slot == null)
-                        {
-                            Error("ConnectController.equipment_slot не инициализирован к моменту первого equip-компонента");
-                            return null;
-                        }
-                        foreach (var kv in ConnectController.equipment_slot)
-                            if (!_equipSlots.ContainsKey(kv.Key))
-                            {
-                                Error("В UI экипировки нет слота для slug '" + kv.Key + "' (есть на сервере, нет в Equipment-prefab)");
-                                return null;
-                            }
-                        foreach (var slug in _equipSlots.Keys)
-                            if (!ConnectController.equipment_slot.ContainsKey(slug))
-                            {
-                                Error("В UI экипировки есть слот '" + slug + "' которого нет в server equipment_slot");
-                                return null;
-                            }
-                        _serverChecked = true;
-                    }
+            // Контракт сервера (см. base/components/equip.yaml):
+            //   equip == null         — поля equip нет в delta = no-op (экипировку не трогать);
+            //   equip.Count == 0      — full-clear (снять всё);
+            //   equip.Count > 0       — per-key delta (null значение = слот снят, объект = надетый предмет).
+            if (equip == null)
+                return ret;
 
-                    if (equip.Count == 0)
-                    {
-                        // full-clear: снимаем все слоты разом
-                        foreach (var slotUI in _equipSlots.Values)
-                            slotUI.Clear();
-                        foreach (var slug in _equipSlots.Keys)
-                            SyncWeapon(slug, null);
-                    }
-                    else
-                    {
-                        foreach (var pair in equip)
-                        {
-                            if (!_equipSlots.TryGetValue(pair.Key, out EquipmentSlot slotUI))
-                            {
-                                Error("Сервер прислал equip для slot '" + pair.Key + "' которого нет в UI");
-                                return null;
-                            }
+            SyncEquipVisual(ret, equip);
 
-                            if (pair.Value.HasValue)
-                            {
-                                // Валидация: сервер не должен слать equip[slot]=idx если inventory[idx] пуст.
-                                if (GetItemBySlot(pair.Value.Value) == null)
-                                {
-                                    Error("equip[" + pair.Key + "] = " + pair.Value.Value + ", но в inventory этого слота нет item");
-                                    return null;
-                                }
-
-                                // Ярлык на inventory_idx — sprite миррорится в EquipmentSlot.Update.
-                                slotUI.SetInventorySlotNum(pair.Value.Value);
-                                SyncWeapon(pair.Key, pair.Value.Value);
-                            }
-                            else
-                            {
-                                slotUI.SetInventorySlotNum(0);
-                                SyncWeapon(pair.Key, null);
-                            }
-                        }
-                    }
-                }
-            }
+            if (key == player_key && _equipSlots != null && !SyncEquipUI(equip))
+                return null;
 
             return ret;
         }
 
-        // Наложение экипированного предмета на скелет игрока (Этап 1: оружие в руке).
-        // slot — slug экипировки, invIdx — индекс инвентаря (null = снять). Рисуется только если
-        // у скелета игрока есть Spriter-точка-якорь для этого слота (object_slot, type=point) и
-        // предмет — статичная картинка (image-prefab). SCML-оружие/прочие случаи — позже.
-        private void SyncWeapon(string slot, int? invIdx)
+        // Наложение надетых предметов на скелет носителя — своего игрока, чужого игрока, моба.
+        // Рисуется, если у скелета носителя есть Spriter-точка-якорь этого слота (object_slot, type=point);
+        // якоря резолвятся отложенно самим WeaponMount (структура носителя качается асинхронно).
+        private static void SyncEquipVisual(GameObject entity, Dictionary<string, EquipSlotRecive> equip)
         {
-            if (player == null) return;
-            WeaponMount mount = player.GetComponent<WeaponMount>();
+            EntityModel wearer = entity != null ? entity.GetComponent<EntityModel>() : null;
+            if (wearer == null)
+                return;
 
-            if (!invIdx.HasValue)
+            if (equip.Count == 0)
             {
-                if (mount != null) mount.Detach(slot);
+                WeaponMount.DetachAll(wearer);
                 return;
             }
 
-            Item item = GetItemBySlot(invIdx.Value);
-            if (item == null) return;
+            foreach (var pair in equip)
+                WeaponMount.Sync(wearer, pair.Key, pair.Value != null ? pair.Value.prefab : null);
+        }
 
-            List<AnimationCacheService.ObjectSlotEntry> entries =
-                AnimationCacheService.GetSlotEntries(BaseController.GAME_ID, player.prefab, slot);
-            if (entries == null)
-                return;   // нет якорей на скелете для этого слота
-
-            List<AnimationCacheService.ImageVariant> variants =
-                AnimationCacheService.GetPrefabImageVariants(item.Prefab);
-            if (variants == null) return;   // не image-prefab — SCML-оружие вне Этапа 1
-
-            // Спрайты всех вариантов из локального кеша (битый файл — пропуск с warning, не валим экип).
-            var sources = new List<WeaponMount.VariantSource>();
-            foreach (AnimationCacheService.ImageVariant v in variants)
+        // Окно экипировки СВОЕГО игрока: ячейки держат ярлык на слот инвентаря (idx), спрайт миррорится
+        // из inventory в EquipmentSlot.Update. false — расхождение с сервером, пакет дальше не обрабатываем.
+        private bool SyncEquipUI(Dictionary<string, EquipSlotRecive> equip)
+        {
+            // Первая сверка UI vs server. Делаем здесь (а не в Awake), потому что Awake срабатывает
+            // при LoadSceneAsync ДО того как SigninController.LoadMain установит equipment_slot.
+            if (!_serverChecked)
             {
-                Sprite s;
-                try { s = AnimationCacheService.TryGetSprite(BaseController.GAME_ID, v.File); }
-                catch (System.Exception ex) { Debug.LogWarning("SyncWeapon " + item.Prefab + " вариант " + v.angle + "°: " + ex.Message); continue; }
-                if (s == null) continue;
-                sources.Add(new WeaponMount.VariantSource { angle = v.angle, sprite = s, pivotX = v.pivotX, pivotY = v.pivotY });
-            }
-            if (sources.Count == 0) return;   // ни один вариант не загрузился
-
-            // Масштаб НАДЕТОГО предмета — натуральная пропорция художника: предмет наследует масштаб
-            // скелета через иерархию якоря (WeaponMount), сюда идёт ЧИСТЫЙ scale слота — пиксель-в-пиксель
-            // с админ-примеркой (equip-preview). size привязки в руке не участвует: он задаёт размер
-            // предмета на земле и в инвентаре (UpdateController.ApplyVisualPrefab).
-            // Все якоря слота (per-direction: своя кость на ракурс) — активный по кадру выбирает
-            // WeaponMount; z — draw-rank кожи кости якоря, на нём WeaponMount строит sortingOrder предмета.
-            var anchors = new List<WeaponMount.Anchor>();
-            foreach (AnimationCacheService.ObjectSlotEntry entry in entries)
-            {
-                if (entry == null || entry.anchor == null || entry.anchor.type != "point")
-                    continue;   // якорь без точки (кость сервер подменяет на «<bone>_point» сам)
-                anchors.Add(new WeaponMount.Anchor
+                if (ConnectController.equipment_slot == null)
                 {
-                    pointName = entry.anchor.name,
-                    ox        = entry.offsetX,
-                    oy        = entry.offsetY,
-                    angle     = entry.angle,
-                    scale     = entry.scale,
-                    z         = entry.z,
-                });
+                    Error("ConnectController.equipment_slot не инициализирован к моменту первого equip-компонента");
+                    return false;
+                }
+                foreach (var kv in ConnectController.equipment_slot)
+                    if (!_equipSlots.ContainsKey(kv.Key))
+                    {
+                        Error("В UI экипировки нет слота для slug '" + kv.Key + "' (есть на сервере, нет в Equipment-prefab)");
+                        return false;
+                    }
+                foreach (var slug in _equipSlots.Keys)
+                    if (!ConnectController.equipment_slot.ContainsKey(slug))
+                    {
+                        Error("В UI экипировки есть слот '" + slug + "' которого нет в server equipment_slot");
+                        return false;
+                    }
+                _serverChecked = true;
             }
-            if (anchors.Count == 0)
-                return;   // нет точек-якорей на скелете для этого слота
 
-            if (mount == null) mount = player.gameObject.AddComponent<WeaponMount>();
-            mount.Apply(slot, anchors.ToArray(), sources.ToArray(),
-                AnimationCacheService.GetPrefabRotationMode(item.Prefab));
+            if (equip.Count == 0)
+            {
+                // full-clear: снимаем все слоты разом
+                foreach (var slotUI in _equipSlots.Values)
+                    slotUI.Clear();
+
+                return true;
+            }
+
+            foreach (var pair in equip)
+            {
+                if (!_equipSlots.TryGetValue(pair.Key, out EquipmentSlot slotUI))
+                {
+                    Error("Сервер прислал equip для slot '" + pair.Key + "' которого нет в UI");
+                    return false;
+                }
+
+                if (pair.Value != null)
+                {
+                    // Валидация: сервер не должен слать equip[slot]=idx если inventory[idx] пуст.
+                    if (GetItemBySlot(pair.Value.idx) == null)
+                    {
+                        Error("equip[" + pair.Key + "] = " + pair.Value.idx + ", но в inventory этого слота нет item");
+                        return false;
+                    }
+
+                    // Ярлык на inventory_idx — sprite миррорится в EquipmentSlot.Update.
+                    slotUI.SetInventorySlotNum(pair.Value.idx);
+                }
+                else
+                    slotUI.SetInventorySlotNum(0);
+            }
+
+            return true;
         }
 
         // Подсветить equipment-слоты, в которые можно положить этот item (по prefab.equipable_slot).

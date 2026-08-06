@@ -20,11 +20,5 @@ namespace Mmogick
 		//   null      — поля нет в пакете (no-op);
 		//   позиция → предмет либо null (пустая позиция). Дельта частична — приходят только изменившиеся.
 		public Dictionary<int, ItemSlotRecive>? inventory = null;
-
-		// Контракт сервера (компонент equip, тип object → словарь):
-		//   null            — поле отсутствует в пакете, no-op (экипировку не трогать);
-		//   Count==0        — full-clear (сервер шлёт пустой словарь {}, Newtonsoft читает нативно);
-		//   Count>0         — per-key delta (null значение = unequip slot, int = inventory_idx).
-		public Dictionary<string, int?>? equip = null;
 	}
 }
