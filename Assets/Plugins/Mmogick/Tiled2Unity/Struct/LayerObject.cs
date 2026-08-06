@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Mmogick
 {
 	/// <summary>
@@ -37,5 +39,9 @@ namespace Mmogick
 		public Point[] polyline;
 
 		public string text;
+
+		// Свойства объекта (ключ — name). У объекта класса переходов ими задана цель: map — код карты
+		// назначения (пусто — прибытие в пределах своей карты), x/y — клетка прибытия.
+		public Dictionary<string, LayerProperty> property;
 	}
 }

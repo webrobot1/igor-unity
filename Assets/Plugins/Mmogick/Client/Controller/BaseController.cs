@@ -29,6 +29,9 @@ namespace Mmogick
 		{
             if (error != null)
 			{
+				// Текст читает игрок на сцене входа — панель загрузки, если она поднята, экран освобождает.
+				LoadingScreen.Hide();
+
 				var errorObj = GameObject.Find("error");
 				var canvas = errorObj.GetComponentInParent<Canvas>();
 				if (canvas != null) canvas.enabled = true;

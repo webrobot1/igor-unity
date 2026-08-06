@@ -172,25 +172,33 @@ namespace Mmogick
 		}
 
 		// Полная синхронизация перед входом в игру: архив PNG + мета. Вызывать ДО Connect.
-		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null)
+		// onProgress — доля принятого архива (0..1) для полосы загрузки; мету не покрывает, она мала.
+		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null, Action<float> onProgress = null)
 		{
 			EnsureLoaded(gameId);
-			yield return SyncArchive(host, gameId, token, onError);
+			yield return SyncArchive(host, gameId, token, onError, onProgress);
 			yield return SyncMeta(host, gameId, token, onError);
 		}
 
 		// Архив: GET с If-Modified-Since. 304 → ничего. 200 → unzip в tiles/.
-		public static IEnumerator SyncArchive(string host, int gameId, string token, Action<string> onError)
+		public static IEnumerator SyncArchive(string host, int gameId, string token, Action<string> onError, Action<float> onProgress = null)
 		{
 			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/archive";
 			Debug.Log("Запрашиваю архив изображения карт "+url);
-			
+
 			UnityWebRequest req = UnityWebRequest.Get(url);
 			if (!string.IsNullOrEmpty(_manifest.archive_last_modified))
 				req.SetRequestHeader("If-Modified-Since", _manifest.archive_last_modified);
 			req.downloadHandler = new DownloadHandlerBuffer();
 
-			yield return req.SendWebRequest();
+			// Ждём по кадрам, а не одним yield: только так видно долю принятого, которой живёт полоса загрузки.
+			// Актуальный кеш отвечает 304 в первом же кадре — доля до полосы просто не успевает дойти.
+			var request = req.SendWebRequest();
+			while (!request.isDone)
+			{
+				onProgress?.Invoke(req.downloadProgress);
+				yield return null;
+			}
 
 			if (req.responseCode == 304)
 			{

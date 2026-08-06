@@ -74,6 +74,11 @@ namespace Mmogick
 			if (!retrying)
 				retryDeadline = DateTime.Now.AddSeconds(MAX_RETRY_SEC);
 
+			// Экран закрываем с самого нажатия: дальше и до первой отрисовки мира игроку показывать нечего —
+			// форма входа гаснет строкой ниже, а сцена меняется на игровую уже посреди ожидания. Ступень
+			// держится и на повторах: сервер карты может подниматься десятки секунд, и вход идёт заново.
+			LoadingScreen.SetStage(LoadingScreen.Stage.Auth);
+
 			var canvas = GetComponentInParent<Canvas>();
 			if (canvas != null) canvas.enabled = false;
 
@@ -175,7 +180,8 @@ namespace Mmogick
 				// Content-addressable кеш тайлов: архив графики + мета (If-Modified-Since) ДО входа в игру.
 				// При ошибке — чистим локальный кеш: рассинхрон с сервером самовосстанавливается при следующем заходе.
 				string syncError = null;
-				yield return StartCoroutine(TileCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err));
+				yield return StartCoroutine(TileCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err,
+					part => LoadingScreen.SetStage(LoadingScreen.Stage.Tiles, part)));
 				if (syncError != null)
 				{
 					TileCacheService.ResetCache(GAME_ID);
@@ -184,7 +190,8 @@ namespace Mmogick
 				}
 
 				// Аналогично для анимаций: ZIP картинок (sha256.ext) + per-game library overrides
-				yield return StartCoroutine(AnimationCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err));
+				yield return StartCoroutine(AnimationCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err,
+					part => LoadingScreen.SetStage(LoadingScreen.Stage.Animations, part)));
 				if (syncError != null)
 				{
 					AnimationCacheService.ResetCache(GAME_ID);
@@ -201,6 +208,7 @@ namespace Mmogick
 					// Wait until the asynchronous scene fully loads
 					while (!asyncLoad.isDone)
 					{
+						LoadingScreen.SetStage(LoadingScreen.Stage.Scene, asyncLoad.progress);
 						yield return null;
 					}
 					SceneManager.UnloadScene("RegisterScene");
@@ -218,6 +226,9 @@ namespace Mmogick
 				ConnectController.server_fps = data.fps;
 
 				ConnectController.isDebug = data.isDebug;
+
+				// До Connect: карта приходит следом, и её разбор уже должен знать, что помечать свечением.
+				ConnectController.warp_class = data.warp;
 				// Финальный гейт клиентских логов — по debug-флагу игры. До /auth флаг неизвестен,
 				// потому фазу входа гейтит билд-флаг (BaseController.Awake); здесь переключаем на
 				// эффективный isDebug игры (тот же, что включает оверлей коллизий в MapDecodeModel):

@@ -567,14 +567,21 @@ namespace Mmogick
 
 		// Полная синхронизация перед входом в игру: архив картинок + library + delta анимаций + предзагрузка структур. Вызывать ДО Connect.
 		// Привязки action→clip приходят per-prefab в /prefabs (PrefabEntry.actions списком), качаются здесь через SyncLibrary.
-		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null)
+		// onProgress — доля пройденных шагов (0..1) для полосы загрузки. Доля ВНУТРИ шага здесь не считается:
+		// шагов четыре, и полоса движется их сменой; долю принятых байт отдаёт кеш тайлов, качающий один
+		// большой архив, где без неё полоса стояла бы всё скачивание.
+		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null, Action<float> onProgress = null)
 		{
 			EnsureLoaded(gameId);
 			yield return SyncImagesArchive(host, gameId, token, onError);
+			onProgress?.Invoke(0.25f);
 			yield return SyncLibrary(host, gameId, token, onError);
+			onProgress?.Invoke(0.5f);
 			var delta = new HashSet<int>();
 			yield return SyncAnimations(host, gameId, token, delta, onError);
+			onProgress?.Invoke(0.75f);
 			yield return PreFetchStructures(host, gameId, token, delta, onError);
+			onProgress?.Invoke(1f);
 		}
 
 		// Полный список animation_id → updated. Сравниваем с локальным, определяем delta, удаляем лишние.

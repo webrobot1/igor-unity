@@ -65,19 +65,6 @@ namespace Mmogick
 		/// </summary>
 		protected override void HandleData<P,E>(Recive<P, E> recive)
 		{
-			// Сервер снял НАШЕГО игрока со сцены и назвал новую карту — он переехал туда, где мы ещё не
-			// авторизованы: закрываем соединение и заходим заново. Проверка живёт здесь, а не в приёме пакета
-			// (сетевой поток), потому что там мир уже не разбирается — там читаются только служебные поля.
-			if (player != null && recive.world != null
-				&& recive.world.ContainsKey(player.map) && recive.world[player.map].player != null
-				&& recive.world[player.map].player.ContainsKey(player_key)
-				&& recive.world[player.map].player[player_key].action == ACTION_REMOVE
-				&& recive.world[player.map].player[player_key].map != null)
-			{
-				RequestReconnect("смена карты игрока — переавторизация");
-				return;
-			}
-
 			worldLoading = recive.action == ACTION_LOAD;
 
 			base.HandleData(recive);
@@ -109,6 +96,17 @@ namespace Mmogick
 					break;
 				}
 			}
+
+			// Сервер снял НАШЕГО игрока со сцены, назвав новую карту: он переезжает туда, где мы ещё не
+			// авторизованы. Переподключение произойдёт позже, по закрытию соединения — команду на вход заново
+			// даёт оно, и ждёт записи новой карты в базу, откуда её читает авторизация. А экран закрываем уже
+			// здесь: пауза до первой отрисовки новой карты — самая длинная в игре, и это её начало.
+			if (player != null && recive.world != null
+				&& recive.world.ContainsKey(player.map) && recive.world[player.map].player != null
+				&& recive.world[player.map].player.ContainsKey(player_key)
+				&& recive.world[player.map].player[player_key].action == ACTION_REMOVE
+				&& recive.world[player.map].player[player_key].map != null)
+				LoadingScreen.Show();
 
 			if (recive.world != null)
 			{

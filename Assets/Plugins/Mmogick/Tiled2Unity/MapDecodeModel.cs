@@ -19,18 +19,19 @@ namespace Mmogick
 		/// сбрасывается — картинки там другие.
 		/// </summary>
 		/// <summary>
-		/// Данные карты, из которых строятся отладочные слои: сама карта, её непроходимые клетки и слой
-		/// сортировки. Хранятся до включения галочки — сами слои создаются только тогда (см. EnsureDebugLayer).
+		/// Данные карты, из которых строятся слои поверх неё: сама карта, её непроходимые клетки и слой
+		/// сортировки. Отладочные слои по ним создаются лишь при включении галочки (см. EnsureDebugLayer),
+		/// метки переходов — при каждой смене набора выложенных карт (см. RebuildWarpLayers).
 		/// Ключ — корень карты на сцене; уничтоженные карты отсеиваются при обращении.
 		/// </summary>
-		private class DebugSource
+		private class MapSource
 		{
 			public Map map;
 			public HashSet<Vector2Int> colliders;
 			public int sort;
 		}
 
-		private static readonly Dictionary<Transform, DebugSource> debugSources = new Dictionary<Transform, DebugSource>();
+		private static readonly Dictionary<Transform, MapSource> mapSources = new Dictionary<Transform, MapSource>();
 
 		private static readonly Dictionary<string, TilemapModel> tileAssets = new Dictionary<string, TilemapModel>();
 		private static int tileAssetsGame;
@@ -218,7 +219,11 @@ namespace Mmogick
 			// накрывают карту трижды — у карты 140×120 это больше тридцати тысяч клеток плюс все контуры объектов, —
 			// а нужны, только когда их включают галочкой в тестовом режиме. Потому здесь лишь запоминаем данные,
 			// из которых слой можно построить, а строит его EnsureDebugLayer в момент включения.
-			debugSources[grid] = new DebugSource { map = map, colliders = colliders, sort = sort };
+			mapSources[grid] = new MapSource { map = map, colliders = colliders, sort = sort };
+
+			// Метки переходов — обычный слой карты, не отладочный: их видит игрок, а не разработчик. Строятся
+			// сразу и по всем картам: пришедшая карта могла закрыть собой стык, на котором у соседа висит метка.
+			RebuildWarpLayers();
 
 			// Уже включённые слои строим сразу: карта могла прийти позже, чем игрок нажал галочку.
 			if (DebugLayers.ShowGrid)
@@ -235,6 +240,35 @@ namespace Mmogick
 
 
 		/// <summary>
+		/// Пере-собрать метки переходов на ВСЕХ выложенных картах. Зовётся при смене набора карт: какая цель
+		/// достижима границей, а какая переносом, зависит от того, какие карты сейчас стоят рядом, — метка
+		/// на стыке гаснет, а при уходе соседа обязана вернуться.
+		/// </summary>
+		public static void RebuildWarpLayers()
+		{
+			// Номер карты — имя её корня на сцене (его ставит MapController по стороне): в самой карте номера
+			// нет, terrain.json несёт её мету под другим ключом и в разбор не попадает.
+			Dictionary<int, Map> loaded = new Dictionary<int, Map>();
+			List<Transform> gone = new List<Transform>();
+
+			foreach (KeyValuePair<Transform, MapSource> pair in mapSources)
+			{
+				if (pair.Key == null)
+					gone.Add(pair.Key);
+				else if (int.TryParse(pair.Key.name, out int mapId))
+					loaded[mapId] = pair.Value.map;
+			}
+
+			foreach (Transform key in gone)
+				mapSources.Remove(key);
+
+			// sortingOrder метки — слой-земля карты (spawn_sort), тот же, по которому сортируются существа:
+			// метка лежит с ними в одной плоскости, крыши её закрывают. Не sort источника — там слоёв всего.
+			foreach (KeyValuePair<Transform, MapSource> pair in mapSources)
+				WarpMarker.BuildLayer(pair.Key, pair.Value.map, (int)pair.Value.map.spawn_sort, loaded);
+		}
+
+		/// <summary>
 		/// Построить отладочный слой карты, если он ещё не построен. Зовётся при включении галочки тестового
 		/// режима: до этого слоёв нет вовсе — они втрое дороже самой карты, а видит их лишь разработчик.
 		/// Карта уже уничтожена либо данных о ней нет — тихо выходим.
@@ -247,7 +281,7 @@ namespace Mmogick
 			if (grid.Find(layerName) != null)
 				return;
 
-			if (!debugSources.TryGetValue(grid, out DebugSource src))
+			if (!mapSources.TryGetValue(grid, out MapSource src))
 				return;
 
 			if (layerName == DebugLayers.GRID)
@@ -258,7 +292,7 @@ namespace Mmogick
 				buildDebugObjects(grid, src);
 		}
 
-		private static void buildDebugGrid(Transform grid, DebugSource src)
+		private static void buildDebugGrid(Transform grid, MapSource src)
 		{
 			// Отладочный слой-сетка. Видимость — галочка «Сетка» debug-панели (DebugPanelController.ShowGrid),
 			// применяется и к картам, загружаемым позже (см. DebugPanelController).
@@ -303,7 +337,7 @@ namespace Mmogick
 			debugTilemap.SetTiles(gridPositions, gridTiles);
 		}
 
-		private static void buildDebugCollision(Transform grid, DebugSource src)
+		private static void buildDebugCollision(Transform grid, MapSource src)
 		{
 			if (src.colliders.Count == 0)
 				return;
@@ -350,7 +384,7 @@ namespace Mmogick
 				Debug.Log("DebugCollision: " + src.colliders.Count + " непроходимых тайлов");
 		}
 
-		private static void buildDebugObjects(Transform grid, DebugSource src)
+		private static void buildDebugObjects(Transform grid, MapSource src)
 		{
 			// Отладочный слой объектов-разметки (зоны спавна, варпы, полигоны). Видимость — галочка
 			// «Полигоны» debug-панели (DebugPanelController.ShowObjects). Рисуем формы линиями поверх карты.

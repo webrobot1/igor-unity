@@ -8,8 +8,6 @@ namespace Mmogick
 	[System.Serializable]
 	public class Map
 	{
-		public int map_id;
-
 		public string renderorder;
 		public int width;
 		public int height;

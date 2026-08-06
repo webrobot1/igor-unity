@@ -1,13 +1,14 @@
-using System;
 using System.Collections.Generic;
 
 namespace Mmogick
 {
     /// <summary>
-    /// —cтруктура получаемых данных данных
+    /// Пакет сервера целиком: служебные поля конверта плюс сам мир. Служебные приходят от
+    /// <see cref="ReciveEnvelope"/> — тот же пакет, прочитанный на меньшую глубину сетевым потоком,
+    /// и держать их вторым списком нельзя: разъехавшись, два списка молча разойдутся и с сервером.
     /// </summary>
     [System.Serializable]
-    public class Recive<P, E> where P : EntityRecive where E : EntityRecive
+    public class Recive<P, E> : ReciveEnvelope where P : EntityRecive where E : EntityRecive
     {
         public Dictionary<int, MapRecive<P, E>> world;
 
@@ -15,30 +16,5 @@ namespace Mmogick
         ///  с какой стороны какой номер карты (мы мо этим номерам при пеерходе на другую карту смещаем карты что бы не запрашивать их снова)
         /// </summary>
         public Dictionary<int, Point> sides;
-
-        /// <summary>
-        ///  временная метка которую выслал клиент и отправленная назад за вычетом времени ожидания этой отправки на сервере (отправляется в потоке с другими данынми когда они будут)
-        /// </summary>
-        public long unixtime;      
-       
-        /// <summary>
-        /// возможные ошибки (если не пусто - произойдет разъединение, но где быстрее - в клиенте или на сервере сказать сложно)
-        /// </summary>
-        public string error;
-
-        /// <summary>
-        /// в большинсве своем это название анимации объекта который (название текущего состояния объекта на сервере, что он делает. ее формат опредяется кодом серверных событий)
-        /// </summary>
-        public string action;
-
-        /// <summary>
-        /// при переходе на другую карту (сервер)  всылается новый хост для подключения
-        /// </summary>
-        public string host;
-
-        /// <summary>
-        /// токен для авторизации на новом сервере при смене карты (приходит вместе с host)
-        /// </summary>
-        public string token;
     }
 }
