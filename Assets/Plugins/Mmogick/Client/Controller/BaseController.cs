@@ -48,13 +48,11 @@ namespace Mmogick
 			// продолжать принимать данные и обновляться в фоновом режиме
 			Application.runInBackground = true;
 
-			// Стартовый гейт логов: фаза до /auth, когда debug-флаг игры ещё неизвестен — в редакторе/dev
-			// логируем, в релизе молчим. Финальный гейт по isDebug игры — SigninController.LoadMain после /auth.
-			#if UNITY_EDITOR || DEVELOPMENT_BUILD
-				Debug.unityLogger.logEnabled = true;
-			#else
-				Debug.unityLogger.logEnabled = false;
-			#endif
+			// Вход и загрузку карты логируем в любом билде: настройка игрока «Тестовый режим», которой логи
+			// гейтятся дальше, приезжает отдельным пакетом уже ПОСЛЕ входа, а сорвавшийся вход разбирать
+			// нечем — молчащий клиент следа не оставляет. Дальнейшее включение и гашение — в
+			// SettingsController.SetTestMode по этой настройке.
+			Debug.unityLogger.logEnabled = true;
 
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				WebGLSupport.WebGLFocus.FocusInit();

@@ -35,10 +35,10 @@ namespace Mmogick
         private static readonly Color LabelTextColor = new Color(1f, 0.95f, 0.7f, 1f);   // тёплый светлый
         private static readonly Color LabelBgColor = new Color(0f, 0f, 0f, 1f);          // тёмная плашка (альфа ниже)
         // characterSize подобран под fontSize=64 + LegacyRuntime.ttf так, чтобы при компенсации scale корня
-        // (label.lossyScale == 1, т.е. локальные единицы = клетки) мировая высота строки была ~0.28 клетки
+        // (label.lossyScale == 1, т.е. локальные единицы = клетки) мировая высота строки была ~0.22 клетки
         // (≤ предмета, который нормализован к ~1 клетке). Меняешь fontSize/шрифт — пересчитай это число.
         private const int LabelFontSize = 64;
-        private const float LabelCharSize = 0.04f;
+        private const float LabelCharSize = 0.032f;
         private const float LabelWorldOffsetY = 0.62f;  // подъём центра надписи над центром предмета (в клетках)
         private const int LabelBgOrder = 60;            // поверх тела и контура
         private const int LabelTextOrder = 61;          // поверх фона

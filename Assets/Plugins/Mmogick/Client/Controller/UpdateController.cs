@@ -433,11 +433,25 @@ namespace Mmogick
 				float? size = AnimationCacheService.GetPrefabSize(newPrefab);
 				float effectiveSize = (size.HasValue && size.Value > 0.0001f) ? size.Value : 1f;
 
-				if (effectiveSize > 0.0001f)
+				// Собственная высота картинки в мировых единицах при scale=1 (спрайты кеша создаются
+				// с PixelsPerUnit=100, т.е. это пиксели/100). Берём tight — по непрозрачным пикселям PNG
+				// (Sprite.vertices при Tight-меше), как и fallback-нормализация в UpdateObject: sprite.bounds
+				// считает всю sprite.rect целиком, и предмет с прозрачными полями в PNG вышел бы мельче остальных.
+				// Нормализуем по ВЫСОТЕ, а не по max(width, height) как соседние нормализации: у них задача —
+				// уместить сущность в клетку по любой оси, здесь же серверное значение объявлено высотой
+				// предмета в клетках, а ширина следует пропорции картинки.
+				float nativeHeight = AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight) && tight.height > 0.0001f
+					? tight.height
+					: sr.sprite.bounds.size.y;
+
+				if (effectiveSize > 0.0001f && nativeHeight > 0.0001f)
 				{
-					// scale.y * factor = 1/effectiveSize → итоговая мировая высота image-sprite = 1/effectiveSize клеток.
-					// Формула идемпотентна: повторное применение на уже отнормализованном scale даёт тот же 1/effectiveSize.
-					float factor = 1f / (effectiveSize * go.transform.localScale.y);
+					// Серверное значение приезжает ДЕЛИТЕЛЕМ: высота предмета в клетках задаётся на сервере,
+					// на клиент уходит обратная ей величина. Отсюда целевая высота = 1/effectiveSize.
+					// scale.y * factor = 1/(effectiveSize * nativeHeight) → итоговая мировая высота image-sprite
+					// = nativeHeight * scale.y = 1/effectiveSize клеток при любом размере PNG.
+					// Формула идемпотентна: повторное применение на уже отнормализованном scale даёт ту же высоту.
+					float factor = 1f / (effectiveSize * nativeHeight * go.transform.localScale.y);
 					Vector3 s = go.transform.localScale;
 					go.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
 
@@ -492,6 +506,15 @@ namespace Mmogick
 
 				StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, newPrefab, (AnimationPatcher patcher) =>
 				{
+					// Анимация грузится асинхронно, и за это время сервер мог убрать сущность со сцены
+					// (тело по истечении срока лежания, снаряд после попадания). Это ОЖИДАЕМАЯ гонка, а не
+					// сбой: рисовать уже нечего, и поднимать её ошибкой нельзя — Error рвёт игроку вход.
+					if (go == null)
+					{
+						Debug.Log("Анимации: " + key + " ушёл со сцены, пока грузилась анимация — рисовать нечего");
+						return;
+					}
+
 					if (patcher.error != null)
 					{
 						restoreVisual();

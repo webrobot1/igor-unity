@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Mmogick
 {
@@ -8,6 +9,14 @@ namespace Mmogick
     /// </summary>
     abstract public class InventoryController : SpellBookController
     {
+        /// <summary>
+        /// Prefab предмета-денег. Деньги в этой игре — обычный предмет инвентаря, признака «это валюта»
+        /// сервер не отдаёт: у позиции есть только prefab и count. Пока такого признака нет, знание
+        /// «монета — это деньги» живёт на клиенте, и держать его надо ровно здесь — единственной
+        /// константой. Появится вторая валюта — заводить признак на сервере, а не второй slug рядом.
+        /// </summary>
+        public const string MONEY_PREFAB = "coin";
+
         [Header("Для работы с инвентарём")]
 
         [SerializeField]
@@ -18,6 +27,14 @@ namespace Mmogick
 
         [SerializeField]
         private Item itemPrefab;
+
+        [Header("Плашка денег в окне инвентаря")]
+
+        [SerializeField]
+        private Image moneyIcon;
+
+        [SerializeField]
+        private Text moneyAmount;
 
         private static SlotScript[] _slots;
         private static bool _dirty;
@@ -60,6 +77,24 @@ namespace Mmogick
                 Error("контейнер слотов инвентаря не является частью CanvasGroup инвентаря");
                 return;
             }
+
+            if (moneyIcon == null)
+            {
+                Error("не указана иконка монеты на плашке денег инвентаря");
+                return;
+            }
+
+            if (moneyAmount == null)
+            {
+                Error("не указан Text суммы денег инвентаря");
+                return;
+            }
+
+            if (!moneyAmount.transform.IsChildOf(inventoryGroup.transform))
+            {
+                Error("плашка денег не является частью CanvasGroup инвентаря");
+                return;
+            }
         }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
@@ -99,10 +134,47 @@ namespace Mmogick
                             slotUI.Clear();
                         }
                     }
+
+                    RefreshMoney();
                 }
             }
 
             return base.UpdateObject(map_id, key, recive);
+        }
+
+        /// <summary>
+        /// Пересчитать плашку денег. Сумма берётся по UI-слотам, а не по пришедшему словарю:
+        /// слоты держат полную картину инвентаря независимо от того, какие позиции были в пакете.
+        /// Отдельный запрос к серверу не нужен — количество денег уже лежит в count позиций.
+        ///
+        /// Точек вызова две, потому что инвентарь меняют обе стороны: сервер (добыча, подбор с земли)
+        /// присылает новое состояние в UpdateObject, а перекладывание и выброс в мир клиент считает
+        /// сам и на ui/inventory/index ответа-дельты не получает — там пересчёт идёт из
+        /// SendFullInventory, в момент фиксации нового состояния слотов.
+        ///
+        /// Монет нет — показываем 0, плашку не прячем: она часть неподвижной рамки окна, и
+        /// исчезновение читалось бы как поломка, тогда как «0» — определённый ответ игроку.
+        ///
+        /// Иконка назначается здесь, а не в Awake: картинка prefab'а лежит в кеше, который
+        /// наполняется входом в игру (AnimationCacheService.SyncAll), а инвентарь приходит уже после.
+        /// </summary>
+        private void RefreshMoney()
+        {
+            int total = 0;
+
+            for (int i = 0; i < _slots.Length; i++)
+            {
+                Item item = _slots[i].Item;
+
+                if (item != null && item.Prefab == MONEY_PREFAB)
+                    total += item.Count;
+            }
+
+            // Тот же резерв, что у иконок предметов (MoveableObject.ApplyPrefabImage): без него
+            // Image с пустым sprite рисует белый прямоугольник, неотличимый от поломки вёрстки.
+            moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(GAME_ID, MONEY_PREFAB)
+                ?? Resources.Load<Sprite>("unknow");
+            moneyAmount.text = total.ToString();
         }
 
         // создает пустые ячейки инвентаря в количестве count
@@ -273,6 +345,8 @@ namespace Mmogick
 
             response.Send();
             _dirty = false;
+
+            MainController.Instance.RefreshMoney();
         }
     }
 }

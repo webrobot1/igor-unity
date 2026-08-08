@@ -38,7 +38,8 @@ namespace Mmogick
 		// Версия формата локального кеша (PrefabEntry/library.json). Бамп при смене состава entry
 		// (добавление/удаление полей) → EnsureLoaded форсит полный refetch каталога /prefabs (см. cache_schema_version).
 		// v2: actions сменил форму словарь(action→angle→clip) → плоский список ActionBinding[].
-		private const int CACHE_SCHEMA_VERSION = 2;
+		// v3: добавлено component (имена компонентов prefab'а).
+		private const int CACHE_SCHEMA_VERSION = 3;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
@@ -228,6 +229,14 @@ namespace Mmogick
 			/// </summary>
 			public System.Collections.Generic.List<string> equipable_slot;
 
+			/// <summary>
+			/// Имена (slug) компонентов, заданных prefab'у на сервере — БЕЗ значений по умолчанию (клиенту
+			/// они не нужны, часть из них игровой баланс). Состав компонентов задаёт игра, поэтому смысл имён
+			/// знает клиент конкретной игры: по составу он отличает свои виды сущностей в своих механиках.
+			/// Пустой набор сервер шлёт как [] (список, каста в объект не требует).
+			/// </summary>
+			public System.Collections.Generic.List<string> component;
+
 			public bool IsImage => !string.IsNullOrEmpty(sha256);
 
 			/// <summary>Полное имя файла спрайта (sha256.extension) или null если у prefab'а SCML-анимация.</summary>
@@ -329,6 +338,19 @@ namespace Mmogick
 			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.equipable_slot == null)
 				return new System.Collections.Generic.List<string>();
 			return e.equipable_slot;
+		}
+
+		// Имена компонентов prefab'а (PrefabEntry.component) — по ним игровые механики клиента отличают
+		// виды сущностей (что это за существо/объект по его составу). Контракт по _library тот же, что
+		// у GetPrefabSize — throw на _library==null (timing-баг: вызов до SyncAll). «Prefab нет в library
+		// / компонентов нет» → пустой список: легитимное отсутствие, вызывающий просто не находит искомого.
+		public static System.Collections.Generic.List<string> GetPrefabComponents(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabComponents вызван до SyncAll (_library == null). prefab=" + prefab);
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.component == null)
+				return new System.Collections.Generic.List<string>();
+			return e.component;
 		}
 
 		// Подбираемый ли это «предмет на земле» (для подсветки/надписи лежащих вещей в мире).

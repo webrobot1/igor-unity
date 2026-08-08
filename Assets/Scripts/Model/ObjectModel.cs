@@ -82,7 +82,14 @@ namespace Mmogick
 			// узкому пересечению боевой капсулы с иначе расположенной/размерной позой трупа. Ожил/задвигался —
 			// возвращаем боевую капсулу. Здесь (Update), а не в LateUpdate: у PlayerModel свой LateUpdate,
 			// добавление второго в ObjectModel затенило бы его (потеря вклада — CLAUDE.md о base.*).
-			if (action == "dead") FitCorpseCollider();
+			if (action == "dead")
+			{
+				FitCorpseCollider();
+
+				// Отсчёт срока над телом навешиваем по действию, а не по составу компонентов: срок есть и
+				// у тела без добычи, и у игрока. Компонент сам решает, показывать ли (см. DeathTimer).
+				if (GetComponent<DeathTimer>() == null) gameObject.AddComponent<DeathTimer>();
+			}
 			else RestoreLiveCollider();
 
 			// если текущий наш статус анимации - не стояние и давно небыло активности - включим анмацию остановки.

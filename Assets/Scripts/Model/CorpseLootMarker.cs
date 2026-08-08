@@ -3,37 +3,38 @@ using UnityEngine;
 
 namespace Mmogick
 {
-	// Состояние добычи КОНКРЕТНОЙ сущности плюс её отображение на карте. Компонент висит на самой
-	// сущности: добыча — её данные (публичные компоненты loot / loot_owner приходят world-дельтой
-	// этой сущности), а не состояние окна. Окно (LootWindowController) читает состояние отсюда и
-	// открывается локально, без запроса на сервер.
+	// Состояние добычи КОНКРЕТНОЙ сущности-контейнера (труп существа либо объект-сундук) плюс её
+	// отображение на карте. Компонент висит на самой сущности: добыча — её данные, а не состояние окна.
+	// Окно (LootWindowController) читает состояние отсюда.
 	//
-	// Отдельного значка «тут есть добыча» нет и быть не должно: видимое тело САМО означает, что взять
-	// есть что — труп с пустой добычей не рисуется вовсе (см. ниже). На карте показывается только
-	// отсчёт оставшихся секунд, пока добыча закреплена за другим игроком; срок вышел — отсчёт
-	// пропадает, брать может любой.
+	// Состав добычи ПРИВАТЕН: сервер шлёт его адресно тому, кто стоит на клетке контейнера, — по команде
+	// открытия и дальше при каждом изменении состава. Пока состав ни разу не приходил, у контейнера
+	// известно только право на добычу (оно публично).
 	//
-	// Труп с ПУСТОЙ добычей не рисуется вовсе (обыскан либо ничего не выпало): тело гасится
-	// forceRenderingOff, кликабельные коллайдеры выключаются — пустое тело не мешает целиться и не
-	// притворяется контейнером. Гасим именно рендер, а не GameObject: выключенный объект перестал бы
-	// находиться GameObject.Find, и следующая дельта создала бы сущность-дубль. Живая сущность и
-	// воскресший моб восстанавливаются автоматически.
+	// Сколько тело лежит на карте, решает сервер: по истечении срока он убирает сущность обычным
+	// удалением. Клиент видимостью тела не управляет — есть сущность, значит рисуем.
 	//
-	// Компонента НЕТ у сущностей без компонента добычи (игроки, животные) — их тела рисуются как раньше.
+	// На карте над телом висит полоска очереди на добычу с именами тех, кому она уже открыта: она тает
+	// до расширения круга и пропадает вместе с самой очередью, когда добыча становится общей.
+	//
+	// Компонента НЕТ у сущностей без компонента добычи (игроки, животные).
 	public class CorpseLootMarker : MonoBehaviour
 	{
-		// --- Отсчёт чужого эксклюзива ---
-		private const float TimerWorldOffsetY = 0.75f;  // подъём отсчёта над центром тела (в клетках)
-		private const int TimerOrder = 71;              // поверх тела
-		private const int TimerFontSize = 64;
-		private const float TimerCharSize = 0.045f;
-		private static readonly Color TimerColor = new Color(1f, 0.85f, 0.5f, 1f);
+		// --- Очередь на добычу ---
 
-		// Пересканирование рендереров скрытого тела: визуал Spriter собирается асинхронно, часть
-		// SpriteRenderer'ов появляется уже после того, как тело решено не рисовать.
-		private const float HideRescanSec = 0.5f;
+		/// <summary>
+		/// Группа события, ведущего ступени очереди: сервер шлёт остаток секунд до расширения круга
+		/// допущенных, а пройдя очередь целиком — гасит право в loot_owner.
+		/// </summary>
+		public const string GROUP_LOOTFREE = "status/lootfree";
 
-		private static Font _font;
+		private const float BarWorldOffsetY = 1f;       // над телом: срок самого тела показан ПОД ним
+		private const int BarOrder = 71;                // поверх тела
+
+		// Моя очередь подошла — зелёным, жду — оранжевым: цвет отвечает на «мне-то уже можно?» раньше,
+		// чем игрок прочтёт имена.
+		private static readonly Color MineColor = new Color(0.45f, 0.85f, 0.45f, 1f);
+		private static readonly Color WaitColor = new Color(1f, 0.7f, 0.3f, 1f);
 
 		private EntityModel _model;
 
@@ -42,12 +43,12 @@ namespace Mmogick
 		private Dictionary<int, ItemSlotRecive> _loot;
 		private LootOwnerRecive _owner;
 
-		private Transform _timerRoot;
-		private TextMesh _timer;
-		private int _timerShown = -1;    // последняя показанная секунда отсчёта
+		private WorldBar _bar;
 
-		private bool _hidden;            // тело сейчас погашено
-		private float _hideRescanAt;
+		// Готовая подпись и состав, из которого она собрана: имена ищутся по сущностям на сцене, а зовут
+		// нас каждый кадр — пересобираем только со сменой круга допущенных.
+		private string _names;
+		private string _namesOf;
 
 		// Счётчик пришедших изменений добычи. Окно перерисовывает слоты только при его сдвиге: пакеты
 		// от сервера идут каждый тик, а пересоздание Item'ов на каждом рвало бы перетаскивание.
@@ -138,141 +139,92 @@ namespace Mmogick
 		{
 			if (_model == null) return;
 
-			bool dead = _model.action == "dead";
-
-			// Живая (или уже удаляемая) сущность про добычу ничего не показывает: у моба она гаснет
-			// воскрешением, а до смерти пуста по определению.
-			if (!dead)
-			{
-				ShowBody();
-				HideTimer();
-				return;
-			}
-
-			if (!HasLoot)
-			{
-				// Пустая добыча = труп обыскан либо не дал ничего: тела нет до воскрешения.
-				HideBody();
-				HideTimer();
-				return;
-			}
-
-			ShowBody();
-			ShowTimer();
+			// Гейт — сама очередь, а не состав добычи: состав приватен и приходит, лишь когда стоишь на теле,
+			// а очередь публична и нужна ИЗДАЛЕКА — по ней решают, идти к телу или оно чужое.
+			ShowBar();
 		}
 
 		private void OnDestroy()
 		{
-			if (_timerRoot != null) Destroy(_timerRoot.gameObject);
+			if (_bar != null) Destroy(_bar.gameObject);
 		}
 
-		// --- Отсчёт чужого эксклюзива ---
+		// --- Очередь на добычу ---
 
-		private void ShowTimer()
+		private void ShowBar()
 		{
-			// Отсчёт до конца чужого эксклюзива — прямо на трупе, чтобы ожидание было видно без окна.
-			// Своя (или уже освободившаяся) добыча ничего не показывает: тело само и есть признак.
-			bool mine = CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
-			int remain = (_owner != null && !mine) ? Mathf.CeilToInt((float)_owner.Remain) : 0;
-
-			if (remain <= 0)
+			// Очередь висит прямо на теле, чтобы ожидание было видно без окна. Закреплённых нет — добыча
+			// общая, показывать нечего: тело само и есть признак.
+			if (_owner == null || !_owner.HasOwner)
 			{
-				HideTimer();
+				HideBar();
 				return;
 			}
 
-			EnsureTimer();
-			if (_timerRoot == null) return;
+			double remain = _model.GetEventRemain(GROUP_LOOTFREE);
+			double step = _owner.step > 0 ? _owner.step : remain;
 
-			if (!_timerRoot.gameObject.activeSelf)
-				_timerRoot.gameObject.SetActive(true);
-
-			_timerRoot.position = transform.position + new Vector3(0f, TimerWorldOffsetY, 0f);
-
-			if (remain != _timerShown)
+			if (remain <= 0 || step <= 0)
 			{
-				_timerShown = remain;
-				_timer.text = remain.ToString();
+				HideBar();
+				return;
 			}
+
+			if (_bar == null)
+				_bar = WorldBar.Create(transform, "LootBar", BarOrder);
+
+			if (_bar == null)
+				return;
+
+			bool mine = CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
+
+			_bar.Show(
+				transform.position + new Vector3(0f, BarWorldOffsetY, 0f),
+				(float)(remain / step),
+				mine ? MineColor : WaitColor,
+				AllowedNames(),
+				GameIcons.Loot
+			);
 		}
 
-		private void HideTimer()
+		private void HideBar()
 		{
-			if (_timerRoot != null && _timerRoot.gameObject.activeSelf)
-				_timerRoot.gameObject.SetActive(false);
+			if (_bar != null) _bar.Hide();
 		}
 
-		private void EnsureTimer()
+		/// <summary>Имена допущенных к добыче через запятую — подпись под полоской очереди.</summary>
+		private string AllowedNames()
 		{
-			if (_timerRoot != null) return;
+			string[] allowed = _owner.Allowed;
+			string of = string.Join("", allowed);
 
-			var rootSr = GetComponent<SpriteRenderer>();
+			if (of == _namesOf)
+				return _names;
 
-			// Отсчёт — СОСЕД тела, а не его ребёнок: EntityModel.TryGetVisualBounds считает границы
-			// сущности по её дочерним SpriteRenderer'ам, и висящий над телом текст раздул бы и
-			// кольцо-подсветку трупа, и его кликабельный коллайдер. Позицию сводим с телом покадрово
-			// (труп не двигается — это дёшево).
-			var timerGo = new GameObject("LootTimer");
-			timerGo.transform.SetParent(transform.parent, false);
-			timerGo.layer = gameObject.layer;
-			_timerRoot = timerGo.transform;
+			_namesOf = of;
 
-			// SortingGroup обязателен: MeshRenderer от TextMesh в 2D-конвейере сортировки сам не участвует
-			// и уходит под тайлы карты — сортируется именно группа, а не рендерер текста.
-			var group = timerGo.AddComponent<UnityEngine.Rendering.SortingGroup>();
-			group.sortingOrder = TimerOrder;
-			if (rootSr != null) group.sortingLayerID = rootSr.sortingLayerID;
+			string[] names = new string[allowed.Length];
+			for (int i = 0; i < allowed.Length; i++)
+				names[i] = NameOf(allowed[i]);
 
-			_timer = timerGo.AddComponent<TextMesh>();
-			_timer.font = GetFont();
-			_timer.characterSize = TimerCharSize;
-			_timer.fontSize = TimerFontSize;
-			_timer.anchor = TextAnchor.MiddleCenter;
-			_timer.alignment = TextAlignment.Center;
-			_timer.color = TimerColor;
-
-			var timerRenderer = timerGo.GetComponent<MeshRenderer>();
-			timerRenderer.sharedMaterial = GetFont().material;
-			timerRenderer.sortingOrder = TimerOrder;
-			if (rootSr != null) timerRenderer.sortingLayerID = rootSr.sortingLayerID;
+			_names = string.Join(", ", names);
+			return _names;
 		}
 
-		// --- Тело трупа ---
-
-		private void HideBody()
+		/// <summary>
+		/// Отображаемое имя по ключу сущности: у стоящего рядом игрока берём его собственное, ушедшего с
+		/// глаз — разбираем ключ (он собран как вид_логин; логин и есть отображаемое имя).
+		/// </summary>
+		private static string NameOf(string key)
 		{
-			if (_hidden && Time.time < _hideRescanAt) return;
+			GameObject go = GameObject.Find(key);
+			EntityModel model = go != null ? go.GetComponent<EntityModel>() : null;
 
-			_hidden = true;
-			_hideRescanAt = Time.time + HideRescanSec;
+			if (model != null && !string.IsNullOrEmpty(model.slug))
+				return model.slug;
 
-			// forceRenderingOff, а не enabled: флагом enabled управляет анимационный слой (Spriter и
-			// Universal-оверлей гасят/зажигают рендереры сами) — перехват дрался бы с ним.
-			// Отсчёт сюда не попадает: он сосед тела, а не его ребёнок (см. EnsureTimer).
-			foreach (var r in GetComponentsInChildren<Renderer>(true))
-				r.forceRenderingOff = true;
-
-			foreach (var c in GetComponentsInChildren<Collider2D>(true))
-				c.enabled = false;
-		}
-
-		private void ShowBody()
-		{
-			if (!_hidden) return;
-			_hidden = false;
-
-			foreach (var r in GetComponentsInChildren<Renderer>(true))
-				r.forceRenderingOff = false;
-
-			foreach (var c in GetComponentsInChildren<Collider2D>(true))
-				c.enabled = true;
-		}
-
-		private static Font GetFont()
-		{
-			if (_font == null)
-				_font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-			return _font;
+			int cut = key.IndexOf('_');
+			return cut >= 0 && cut + 1 < key.Length ? key.Substring(cut + 1) : key;
 		}
 	}
 }

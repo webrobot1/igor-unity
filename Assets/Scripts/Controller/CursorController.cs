@@ -188,40 +188,34 @@ namespace Mmogick
                         Debug.Log("Кликнули на " + Camera.main.ScreenToWorldPoint(Input.mousePosition));
 
                         // движение к указанной клетке
-                        if (player != null)
-                        {
-                            move_to = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-                            if (Vector3.Distance(player.position, move_to) < 1.15f)
-                                move_to = Vector3.zero;
-                        }
+                        WalkToCursor();
                     }
                     else
                     {
                         ObjectModel new_target = gameObject.GetComponent<ObjectModel>();
                         if (new_target != null)
                         {
-                            // Труп (мёртвая сущность) — контейнер добычи. Команды открытия на сервере НЕТ:
-                            // состав добычи уже прислан публичным компонентом, окно открывает клиент сам —
-                            // на своей клетке сразу, иначе это ОБЫЧНОЕ движение к клетке трупа (тот же
-                            // move_to, что клик по земле), и окно открывается по прибытии.
-                            // Кликнутый труп выбираем тем же правилом, что hover-кольцо (CorpseAtScreen) —
-                            // куда подсветили, туда и кликнули.
-                            if (new_target.action == "dead")
+                            // Контейнер добычи — труп существа либо объект-сундук. Состав добычи приватен,
+                            // поэтому клик шлёт команду открытия; подход к клетке контейнера ведёт сам
+                            // сервер, движение клиентом не дублируем. Кликнутый контейнер выбираем тем же
+                            // правилом, что hover-кольцо (ContainerAtScreen) — куда подсветили, туда и
+                            // кликнули; кучей лежат только тела, у одиночного сундука выбор тривиален.
+                            ObjectModel container = ContainerAtScreen(Input.mousePosition);
+                            if (container == null && LootWindowController.IsContainer(new_target))
+                                container = new_target;
+
+                            if (container != null)
                             {
                                 if (player != null)
                                 {
-                                    ObjectModel corpse = CorpseAtScreen(Input.mousePosition);
-                                    if (corpse == null)
-                                        corpse = new_target;
-
                                     // фрейм цели показывает кликнутый труп (кого лутаем); persist не
                                     // держим — нападающий перебьёт труп-цель автоматически (CanBeTarget
-                                    // пропускает смену цели, у которой hp == 0)
-                                    Target = corpse;
+                                    // пропускает смену цели, у которой hp == 0). Объект-сундук целью не
+                                    // держим вовсе — рамка цели предназначена врагам.
+                                    Target = container is EnemyModel ? container : null;
                                     persist_target = false;
 
-                                    if (!LootWindowController.RequestOpen(corpse))
-                                        move_to = corpse.transform.position;
+                                    LootWindowController.RequestOpen(container);
                                 }
                                 return;
                             }
@@ -244,17 +238,41 @@ namespace Mmogick
                                 if (player != null)
                                     move_to = gameObject.transform.position;
                             }
-                            else
+                            // Живой враг/NPC: выбираем как цель (UI-рамка + цель для заклинаний/атак по Target).
+                            else if (new_target is EnemyModel && new_target.action != "dead")
                             {
-                                // Враг/NPC: выбираем как цель (UI-рамка + цель для заклинаний/атак по Target).
                                 Target = new_target;
                                 persist_target = true;
                                 LootWindowController.CancelPending();
+                            }
+                            // Сущность без добычи — объект без неё (портал, алтарь) либо труп существа,
+                            // с которого нечего взять: взаимодействия нет, целью не держим, а сам клик
+                            // трактуем как клик по земле — иначе кликабельная зона объекта работала бы
+                            // «мёртвой» клеткой, на которую персонажа не отправить.
+                            else
+                            {
+                                Target = null;
+                                persist_target = false;
+                                LootWindowController.CancelPending();
+                                WalkToCursor();
                             }
                         }
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Отправить персонажа в точку под курсором. Клик в упор (ближе шага) движения не даёт — иначе
+        /// сервер получал бы команду на клетку, где игрок уже стоит.
+        /// </summary>
+        private void WalkToCursor()
+        {
+            if (player == null) return;
+
+            move_to = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            if (Vector3.Distance(player.position, move_to) < 1.15f)
+                move_to = Vector3.zero;
         }
 
         /// <summary>
@@ -349,13 +367,13 @@ namespace Mmogick
         private const float HIGHLIGHT_GAP = 1.0f;
 
         /// <summary>
-        /// Hover-фидбек: навёл курсор на кликабельную сущность (труп-контейнер) — кольцо ВОКРУГ её спрайта
-        /// (сигнал «кликабельно» + отличие трупа от пустой земли под курсором). Курсор ушёл — скрыть.
-        /// Один переиспользуемый объект (двигаем/масштабируем, не пересоздаём).
+        /// Hover-фидбек: навёл курсор на кликабельную сущность (контейнер добычи — труп либо сундук) —
+        /// кольцо ВОКРУГ её спрайта (сигнал «кликабельно» + отличие контейнера от пустой земли под
+        /// курсором). Курсор ушёл — скрыть. Один переиспользуемый объект (двигаем/масштабируем, не пересоздаём).
         /// </summary>
         private void UpdateHoverHighlight(Vector3 screenPos)
         {
-            ObjectModel hovered = CorpseAtScreen(screenPos);
+            ObjectModel hovered = ContainerAtScreen(screenPos);
             if (hovered != null)
             {
                 FitHighlightTo(hovered);
@@ -399,21 +417,22 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Кликабельный труп-контейнер под курсором. Первая значимая (НЕ-игрок) сущность по лучу решает
-        /// тип взаимодействия: живой враг / предмет сверху → null (не подсвечиваем). Если она труп —
-        /// среди ВСЕХ мёртвых под курсором выбираем БЛИЖАЙШЕГО к точке курсора (центры визуальных
-        /// границ): у сваленных в кучу тел коллайдеры перекрываются, а порядок RaycastAll при точечном
-        /// луче недетерминирован — без выбора по дистанции кольцо «прыгало бы» на соседнее тело.
-        /// Тем же методом труп выбирает и клик (Update) — подсветка и клик всегда об одном теле.
+        /// Кликабельный контейнер добычи (труп существа либо объект-сундук) под курсором. Первая значимая
+        /// (НЕ-игрок) сущность по лучу решает тип взаимодействия: живой враг / предмет сверху → null
+        /// (не подсвечиваем). Если она контейнер — среди ВСЕХ контейнеров под курсором выбираем
+        /// БЛИЖАЙШИЙ к точке курсора (центры визуальных границ): у сваленных в кучу тел коллайдеры
+        /// перекрываются, а порядок RaycastAll при точечном луче недетерминирован — без выбора по
+        /// дистанции кольцо «прыгало бы» на соседнее тело.
+        /// Тем же методом контейнер выбирает и клик (Update) — подсветка и клик всегда об одной сущности.
         /// </summary>
-        private ObjectModel CorpseAtScreen(Vector3 screenPos)
+        private ObjectModel ContainerAtScreen(Vector3 screenPos)
         {
             if (Camera.main == null || player == null) return null;
 
             Vector3 world = Camera.main.ScreenToWorldPoint(screenPos);
             RaycastHit2D[] hits = Physics2D.RaycastAll(world, Vector2.zero, Mathf.Infinity);
 
-            bool corpseZone = false;            // первая значимая сущность — труп?
+            bool containerZone = false;         // первая значимая сущность — контейнер?
             ObjectModel nearest = null;
             float nearestSqr = float.MaxValue;
 
@@ -426,16 +445,16 @@ namespace Mmogick
                 if (PlayerController.Player != null && e == PlayerController.Player) continue;   // «сквозь себя»
 
                 ObjectModel obj = e as ObjectModel;
-                bool dead = obj != null && obj.action == "dead";
+                bool container = obj != null && LootWindowController.IsContainer(obj);
 
-                if (!corpseZone)
+                if (!containerZone)
                 {
-                    if (!dead)
+                    if (!container)
                         return null;            // сверху живой/предмет — боевой/подборный клик в приоритете
-                    corpseZone = true;
+                    containerZone = true;
                 }
 
-                if (!dead) continue;
+                if (!container) continue;
 
                 Vector3 center = e.TryGetVisualBounds(out Bounds b) ? b.center : e.transform.position;
                 float dx = center.x - world.x, dy = center.y - world.y;

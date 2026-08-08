@@ -1,57 +1,64 @@
-using System;
-
 namespace Mmogick
 {
 	/// <summary>
-	/// Компонент loot_owner трупа — право на добычу. Публичный: приходит всем видящим труп обычной
+	/// Компонент loot_owner трупа — очередь на добычу. Публичный: приходит всем видящим труп обычной
 	/// world-дельтой сущности.
-	///   пустой объект {} (key пуст)  — владельца нет, добыча свободна любому;
-	///   key                          — ключ сущности-владельца (нанёс больше всего урона);
-	///   until                        — момент окончания эксклюзива.
-	/// Значение не обнуляется по истечении срока — живёт до воскрешения цели; «истёк ли» решается
-	/// сравнением until с текущим временем в момент попытки взять (так же поступает сервер).
+	///   пустой объект {} (queue пуста) — закреплённых нет, добыча свободна любому;
+	///   queue                          — ключи игроков по убыванию нанесённого урона;
+	///   open                           — сколько первых из очереди уже допущены к добыче;
+	///   step                           — секунд на одну ступень (столько ждёт следующий в очереди).
+	/// Круг допущенных ширится сам: сервер по истечении ступени поднимает open, а пройдя очередь целиком —
+	/// гасит право. Сколько осталось до следующей ступени, несёт остаток события
+	/// <see cref="CorpseLootMarker.GROUP_LOOTFREE"/> у той же сущности.
 	/// </summary>
 	[System.Serializable]
 	public class LootOwnerRecive
 	{
-		public string key;
+		public string[] queue;
 
-		/// <summary>
-		/// Момент окончания эксклюзива в МОНОТОННОМ времени сервера: якорь unix-эпохи, взятый при старте
-		/// серверного процесса, плюс ход hrtime. Клиент собственного эталона этого времени не получает —
-		/// время СОБЫТИЙ сервер переводит в остаток секунд перед отправкой, значения КОМПОНЕНТОВ уходят
-		/// как есть. Поэтому Remain считается по локальным часам и верен ровно настолько, насколько
-		/// они сходятся с серверными (в связке WSL-сервер + Windows-клиент — доли секунды).
-		/// </summary>
-		public double until;
+		public int open;
 
-		/// <summary>Владелец назначен (иначе добыча ничейная).</summary>
+		public double step;
+
+		/// <summary>Добыча за кем-то закреплена (иначе она ничейная).</summary>
 		public bool HasOwner
 		{
-			get { return !string.IsNullOrEmpty(key); }
+			get { return queue != null && queue.Length > 0; }
 		}
 
-		/// <summary>Секунд до конца эксклюзива; 0 — срок истёк либо владельца нет.</summary>
-		public double Remain
+		/// <summary>Ключи, которым добыча уже открыта (пусто — открыта всем).</summary>
+		public string[] Allowed
 		{
 			get
 			{
-				if (!HasOwner) return 0;
-				double now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
-				double remain = until - now;
-				return remain > 0 ? remain : 0;
+				if (!HasOwner) return new string[0];
+
+				int count = open < queue.Length ? open : queue.Length;
+				if (count < 0) count = 0;
+
+				string[] allowed = new string[count];
+				System.Array.Copy(queue, allowed, count);
+				return allowed;
 			}
 		}
 
 		/// <summary>
 		/// Разрешено ли игроку playerKey брать из этой добычи. Зеркалит серверную проверку в item/give:
-		/// владельца нет, владелец я, либо срок эксклюзива вышел. Клиентский guard — UX-фильтр, истина
-		/// на сервере (он молча откажет), поэтому расхождение по часам приводит лишь к преждевременно
-		/// или запоздало разблокированным кнопкам, но не к дисконнекту.
+		/// закреплённых нет либо он среди уже открытых ступеней. Клиентский guard — UX-фильтр, истина
+		/// на сервере (он молча откажет), поэтому запоздалый приход новой ступени приводит лишь к на миг
+		/// заблокированной кнопке, но не к дисконнекту.
 		/// </summary>
 		public bool CanTake(string playerKey)
 		{
-			return !HasOwner || key == playerKey || Remain <= 0;
+			if (!HasOwner) return true;
+			if (string.IsNullOrEmpty(playerKey)) return false;
+
+			int count = open < queue.Length ? open : queue.Length;
+			for (int i = 0; i < count; i++)
+				if (queue[i] == playerKey)
+					return true;
+
+			return false;
 		}
 	}
 }

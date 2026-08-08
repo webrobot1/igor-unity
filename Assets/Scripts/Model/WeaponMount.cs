@@ -30,12 +30,20 @@ namespace Mmogick
         // за пределы SortingGroup скелета z не влияет — группа сортируется с миром как единое целое.
         private const float ZLift = 1f;
 
+        // Доля роста НОСИТЕЛЯ, которую занимает надетый предмет по своей длинной стороне при scale слота = 1.
+        // Тело любой сущности нормируется в одну клетку карты (NewSpriterRuntimeImporter.SpriterPostImportAdjuster,
+        // TARGET_HEIGHT; клетка Grid = 1 мировой юнит), поэтому «доля клетки» и «доля роста носителя» — одно число.
+        // Размер надетого предмета — величина, задаваемая ЗДЕСЬ, а не разрешением исходника: без нормализации
+        // предмет получал бы размер своего PNG в масштабе скелета (400px-меч ≈ рост персонажа, 574px-посох —
+        // полтора роста). Тонкая подгонка под конкретный слот/скелет — множитель scale слота (сервер).
+        private const float MountSpan = 0.6f;
+
         // Один якорь слота: Spriter-точка + позиционирование предмета относительно неё.
         public class Anchor
         {
             public string pointName; // имя точки (object.name из object_slot)
             public float ox, oy;     // сдвиг от точки, px
-            public float scale;      // ЧИСТЫЙ scale слота (предмет наследует масштаб скелета иерархией якоря)
+            public float scale;      // ЧИСТЫЙ scale слота: множитель к MountSpan (доля роста носителя)
             public float? angle;     // null = «как загружено»: предмет не доворачивается к кости (мировой upright)
             public int? z;           // draw-rank кожи кости-якоря (object_slot.z); null → FallbackOrder
         }
@@ -53,6 +61,7 @@ namespace Mmogick
         {
             public int angle;
             public Sprite grip;      // создаётся в Apply, освобождается в Detach
+            public float span;       // длинная сторона видимых пикселей исходника, мировые юниты при scale=1
         }
 
         private class Mounted
@@ -126,7 +135,10 @@ namespace Mmogick
         // выбирается по ракурсу тела в LateUpdate), rotationMode — AnimationCacheService.RotationMode.*
         // (mirror_x добавляет зеркальных кандидатов). Якоря слота резолвятся отложенно (ResolveAnchors).
         // Grip-спрайты (pivot = хват, 0..1, центр вращения) пересоздаются из текстур исходников один раз
-        // здесь — не в LateUpdate (Sprite.Create аллоцирует). bodyScale носителя компенсируется в LateUpdate.
+        // здесь — не в LateUpdate (Sprite.Create аллоцирует). Здесь же замеряется span варианта: у grip-спрайта
+        // меш FullRect (прозрачные поля включены), поэтому видимые пиксели меряем по ИСХОДНИКУ из кеша — он
+        // создан с мешом Tight, и tight-rect у него честный (тем же замером нормализуется предмет на земле).
+        // Масштаб под span и bodyScale носителя считает LateUpdate — он зависит от активного якоря и варианта.
         private void Apply(string slot, VariantSource[] variants, string rotationMode)
         {
             Detach(slot);   // пересоздаём с нуля: освобождает прежние grip-спрайты (набор мог измениться)
@@ -140,11 +152,15 @@ namespace Mmogick
             for (int i = 0; i < variants.Length; i++)
             {
                 Texture2D tex = variants[i].sprite.texture;
+                Vector2 visible = AnimationCacheService.TryGetTightRect(variants[i].sprite, out Rect tight)
+                    ? tight.size
+                    : variants[i].sprite.bounds.size;
                 m.variants[i] = new Variant
                 {
                     angle = variants[i].angle,
                     grip = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
                         new Vector2(variants[i].pivotX, variants[i].pivotY), Ppu, 0, SpriteMeshType.FullRect),
+                    span = Mathf.Max(visible.x, visible.y),
                 };
             }
             // sr.sprite/sortingOrder — в LateUpdate (зависят от активного якоря и forward); LateUpdate
@@ -182,11 +198,11 @@ namespace Mmogick
         // пакетом, что и сама сущность, — на момент Apply кеша ещё может не быть. Потому резолв
         // отложенный: повтор — при появлении/смене скелета (к этому моменту структура уже на диске),
         // не каждый кадр, чтение sidecar с диска дорогое.
-        // z — draw-rank кожи кости якоря, на нём LateUpdate строит sortingOrder предмета; scale — ЧИСТЫЙ
-        // scale слота: предмет живёт child'ом якоря и наследует масштаб скелета через иерархию, потому
-        // пропорции предмет↔скелет натуральные, как нарисовал художник (пиксель-в-пиксель с админ-примеркой
-        // equip-preview). size привязки в руке не участвует — он задаёт размер предмета только на земле
-        // и в инвентаре (UpdateController.ApplyVisualPrefab).
+        // z — draw-rank кожи кости якоря, на нём LateUpdate строит sortingOrder предмета; scale — множитель
+        // к MountSpan: размер предмета в руке задаётся долей роста НОСИТЕЛЯ, а scale слота подгоняет её под
+        // конкретный слот/скелет. size привязки в руке не участвует — он задаёт размер предмета только
+        // на земле и в инвентаре (UpdateController.ApplyVisualPrefab): высота лежащего предмета и его
+        // размер в руке — две независимые величины, общего множителя у них нет.
         private Anchor[] ResolveAnchors(string slot)
         {
             string wearerPrefab = _em != null ? _em.prefab : null;
@@ -310,12 +326,18 @@ namespace Mmogick
                 }
                 else
                     m.go.transform.rotation = Quaternion.identity;
-                // a.scale — ЧИСТЫЙ scale слота: предмет живёт child'ом якоря и НАСЛЕДУЕТ масштаб скелета
-                // через иерархию (bodyScale НЕ компенсируем) → пропорции предмет↔скелет натуральные,
-                // как нарисовал художник — пиксель-в-пиксель с админ-примеркой (equip-preview рисует
-                // спрайт в мире кости × scale слота). size привязки в руке не участвует — он задаёт
-                // размер предмета только на земле и в инвентаре (UpdateController.ApplyVisualPrefab).
-                float s = a.scale;
+                // Размер в руке НОРМИРУЕМ: длинная сторона видимых пикселей предмета = MountSpan × scale слота
+                // (доля роста носителя). Предмет живёт child'ом якоря и унаследовал бы масштаб скелета вместе
+                // с разрешением своего PNG — размер получался бы не из данных, а из того, в каком разрешении
+                // художник нарисовал файл. Потому делим на bodyScale: точка (pt) сидит под нормированной
+                // Metadata-веткой, её lossyScale.y = bodyScale носителя, и после деления мировой размер
+                // предмета зависит только от MountSpan и scale слота — одинаково у любого носителя.
+                // size предмета сюда не входит: высота на земле задаётся сервером отдельно и в руке не
+                // участвует (UpdateController.ApplyVisualPrefab).
+                float body = Mathf.Abs(pt.lossyScale.y);
+                if (body < 0.0001f) body = 1f;
+                float span = m.variants[vi].span;
+                float s = span > 0.0001f ? MountSpan * a.scale / (span * body) : a.scale;
                 m.go.transform.localScale = new Vector3(s, s, 1f);
 
                 // Глубина кожи якоря: base тот же, что у частей тела (SpriterDotNetBehaviour прокидывает

@@ -225,15 +225,8 @@ namespace Mmogick
 				ConnectController.position_precision = data.position_precision;
 				ConnectController.server_fps = data.fps;
 
-				ConnectController.isDebug = data.isDebug;
-
 				// До Connect: карта приходит следом, и её разбор уже должен знать, что помечать свечением.
 				ConnectController.warp_class = data.warp;
-				// Финальный гейт клиентских логов — по debug-флагу игры. До /auth флаг неизвестен,
-				// потому фазу входа гейтит билд-флаг (BaseController.Awake); здесь переключаем на
-				// эффективный isDebug игры (тот же, что включает оверлей коллизий в MapDecodeModel):
-				// прод-игра (isDebug=false) логами не спамит.
-				Debug.unityLogger.logEnabled = data.isDebug;
 
 				// equipment_slot — справочник slug-ов слотов экипировки игры. По контракту приходит непустой
 				// (см. SigninRecive.equipment_slot). UI рисует ровно эти ячейки.

@@ -272,7 +272,7 @@ namespace Mmogick
 
 		private static void buildDebugGrid(Transform grid, MapSource src)
 		{
-			// Отладочный слой-сетка. Видимость — галочка «Сетка» debug-панели (DebugPanelController.ShowGrid),
+			// Отладочный слой-сетка. Видимость — галочка «Сетка» debug-панели (DebugLayers.ShowGrid),
 			// применяется и к картам, загружаемым позже (см. DebugPanelController).
 			GameObject debugGrid = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 			debugGrid.name = DebugLayers.GRID;
@@ -321,8 +321,8 @@ namespace Mmogick
 				return;
 
 			// Отладочный слой непроходимых тайлов. Видимость — галочка «Коллизии» debug-панели
-			// (DebugPanelController.ShowCollision); её начальное значение = isDebug игры (прод — выкл, dev — вкл),
-			// далее пользователь переключает свободно. Применяется и к картам, загружаемым позже.
+			// (DebugLayers.ShowCollision); её блок открывает настройка игрока «Тестовый режим», а сами слои
+			// стартуют выключенными — их зажигает только сама галочка. Применяется и к картам, загружаемым позже.
 				GameObject debugCollision = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
 				debugCollision.name = DebugLayers.COLLISION;
 				debugCollision.transform.SetParent(grid, false);
@@ -365,7 +365,7 @@ namespace Mmogick
 		private static void buildDebugObjects(Transform grid, MapSource src)
 		{
 			// Отладочный слой объектов-разметки (зоны спавна, варпы, полигоны). Видимость — галочка
-			// «Полигоны» debug-панели (DebugPanelController.ShowObjects). Рисуем формы линиями поверх карты.
+			// «Полигоны» debug-панели (DebugLayers.ShowObjects). Рисуем формы линиями поверх карты.
 			// Исключаем: tile-объекты (obj.tile — визуал карты, уже нарисованы тайлами выше) и слой класса
 			// коллизий (@class=="collision" — эти зоны уже показаны в DebugCollision).
 			GameObject debugObjects = new GameObject(DebugLayers.OBJECTS);
