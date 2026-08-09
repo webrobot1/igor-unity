@@ -32,6 +32,19 @@ namespace Mmogick
 		private List<GameObject> loadSweep;
 
 		/// <summary>
+		/// Целевая высота визуала-ЗАГЛУШКИ (спрайт "unknow" на корневом SR Resources-префаба) в клетках карты —
+		/// отдельно для существа и для предмета на земле. Заглушка — единственное, что видно у prefab'а без
+		/// картинки и без SCML, поэтому её размер обязан отвечать РОДУ сущности: существо занимает клетку
+		/// (та же цель, что у нормализации настоящих тел — NewSpriterRuntimeImporter), предмет — заметно меньше,
+		/// иначе он выходит крупнее любого предмета с картинкой и спорит с фигурой персонажа.
+		/// Своей высоты у такого предмета нет вовсе: серверный size приезжает только вместе с картинкой либо
+		/// анимацией — здесь стоит типовая высота предмета этой игры (столько же сервер подставляет дефолтом
+		/// предметам с картинкой). Род сущности решает серверная library (AnimationCacheService.IsGroundItem).
+		/// </summary>
+		private const float PlaceholderHeightCreature = 1f;
+		private const float PlaceholderHeightItem = 0.3f;
+
+		/// <summary>
 		/// Сущности на сцене по их ключу. Поиск объекта по имени средствами движка обходит всю сцену, а он нужен
 		/// на КАЖДУЮ сущность КАЖДОГО пакета — при сотне сущностей и шестидесяти пакетах в секунду это тысячи
 		/// обходов сцены в секунду. Записи об уничтоженных объектах убираются лениво: уничтоженный объект движка
@@ -248,7 +261,8 @@ namespace Mmogick
 				if (prefab.GetComponent<UnityEngine.Rendering.SortingGroup>() == null)
 					prefab.AddComponent<UnityEngine.Rendering.SortingGroup>();
 
-				// Нормализация fallback-визуала до 1 клетки по высоте.
+				// Нормализация fallback-визуала (заглушки) до целевой высоты своего рода — см. doc
+				// PlaceholderHeightCreature/PlaceholderHeightItem.
 				// SR остаётся на корне (его Animator-клипы таргетят по пустому пути — если унести в child,
 				// player'овские fallback-анимации перестанут работать). Поэтому скейлим корень целиком,
 				// а LifeBar и CapsuleCollider2D контр-компенсируем, чтобы они остались своего префабного мира
@@ -265,11 +279,18 @@ namespace Mmogick
 					float native = AnimationCacheService.TryGetTightRect(fallbackSr.sprite, out Rect tight)
 						? Mathf.Max(tight.width, tight.height)
 						: Mathf.Max(fallbackSr.sprite.bounds.size.x, fallbackSr.sprite.bounds.size.y);
+					// Критерий «это предмет» — тот же, каким подбираемым предметам вешается маркер-подсветка
+					// (MainController.UpdateObject): род сущности задаётся её prefab'ом в серверной library,
+					// второго признака под размер заводить незачем. recive.prefab здесь непуст —
+					// GetPrefabKind выше уже отрезолвил по нему Resources-префаб.
+					float target = AnimationCacheService.IsGroundItem(recive.prefab)
+						? PlaceholderHeightItem
+						: PlaceholderHeightCreature;
 					Vector3 oldScale = prefab.transform.localScale;
 					if (native > 0.0001f && oldScale.y > 0.0001f)
 					{
-						// После root.scale *= factor мировая высота спрайта = oldScale.y * factor * native = 1.
-						float factor = 1f / (native * oldScale.y);
+						// После root.scale *= factor мировой max(W,H) спрайта = oldScale.y * factor * native = target.
+						float factor = target / (native * oldScale.y);
 						prefab.transform.localScale = new Vector3(oldScale.x * factor, oldScale.y * factor, oldScale.z);
 
 						// Дети/компоненты, чьи размеры тюнились под oldScale, компенсируем.

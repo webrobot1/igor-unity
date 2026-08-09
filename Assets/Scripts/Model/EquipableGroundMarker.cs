@@ -7,10 +7,13 @@ namespace Mmogick
     //   1) Обводка по силуэту — дубликат иконки предмета с outline-материалом (Mmogick/SpriteOutline),
     //      золотой пульсирующий контур. Внутри SortingGroup корня уходит чуть позади тела (order < 0),
     //      но рисует только КРАЙ (внутри прозрачен), поэтому тело не перекрывает.
-    //   2) Надпись с именем — полупрозрачная плашка (TextMesh + фон) над предметом, всегда видна
-    //      приглушённо, ярче при наведении курсора. Кликабельна: у неё свой BoxCollider2D, и клик
-    //      по ней CursorController трактует как клик по родителю-предмету (GetComponentInParent<EntityModel>)
-    //      → подход к предмету → сервер подбирает. Отдельной pickup-команды нет (см. CursorController).
+    //   2) Надпись с именем — полупрозрачная плашка (TextMesh + фон) над предметом, показывается ТОЛЬКО
+    //      пока предмет под курсором. Плашка шире клетки (в неё пишется имя предмета), поэтому у соседних
+    //      предметов постоянные надписи налезали бы друг на друга; «тут лежит подбираемое» маркирует
+    //      постоянная обводка, а имя — вопрос к конкретному предмету, и адресуется курсором.
+    //      Кликабельна: у неё свой BoxCollider2D, и клик по ней CursorController трактует как клик
+    //      по родителю-предмету (GetComponentInParent<EntityModel>) → подход к предмету → сервер
+    //      подбирает. Отдельной pickup-команды нет (см. CursorController).
     //
     // КОГО помечаем решает ВЫЗЫВАЮЩИЙ (MainController.UpdateObject через AnimationCacheService.IsGroundItem),
     // а не этот компонент: маркер вешается только на подбираемые предметы (kind=item / экипируемые),
@@ -21,6 +24,13 @@ namespace Mmogick
     // приводит локальные единицы к клеткам мира — итоговая мировая высота строки одинакова для любого
     // предмета, без покадровой подгонки под bounds. scale корня детерминирован (нормализация по серверному
     // size в UpdateController.ApplyVisualPrefab), поэтому компенсацию достаточно посчитать один раз.
+    //
+    // ПОДЪЁМ НАДПИСИ, наоборот, у каждого предмета свой: он отсчитывается от ВЕРХНЕГО края предмета
+    // (замер тот же, каким UpdateController нормализует размер, — tight-rect иконки), а не от его центра.
+    // Единого подъёма от центра быть не может: серверный size задаёт высоту предмета в клетках, и она у
+    // предметов разная (замер по нынешнему контенту — от ~0.3 клетки у меча до ~0.42 у посоха; предмет без
+    // своей картинки рисуется заглушкой типовой высоты предмета — UpdateController.PlaceholderHeightItem) —
+    // фиксированное число, подобранное под один предмет, над остальными оставляет пустоту или ложится на них.
     public class EquipableGroundMarker : MonoBehaviour
     {
         // --- Обводка ---
@@ -35,20 +45,21 @@ namespace Mmogick
         private static readonly Color LabelTextColor = new Color(1f, 0.95f, 0.7f, 1f);   // тёплый светлый
         private static readonly Color LabelBgColor = new Color(0f, 0f, 0f, 1f);          // тёмная плашка (альфа ниже)
         // characterSize подобран под fontSize=64 + LegacyRuntime.ttf так, чтобы при компенсации scale корня
-        // (label.lossyScale == 1, т.е. локальные единицы = клетки) мировая высота строки была ~0.22 клетки
-        // (≤ предмета, который нормализован к ~1 клетке). Меняешь fontSize/шрифт — пересчитай это число.
+        // (label.lossyScale == 1, т.е. локальные единицы = клетки) мировая высота строки была ~0.17 клетки —
+        // около половины высоты типового предмета (серверный size даёт им 0.3–0.4 клетки). Планку задают два
+        // встречных требования: подпись мельче подписываемого, но читаемая на игровом масштабе камеры —
+        // на глаз строка в ~0.13 клетки уже неразборчива, в ~0.23 спорит с самим предметом.
+        // Меняешь fontSize/шрифт — пересчитай это число.
         private const int LabelFontSize = 64;
-        private const float LabelCharSize = 0.032f;
-        private const float LabelWorldOffsetY = 0.62f;  // подъём центра надписи над центром предмета (в клетках)
+        private const float LabelCharSize = 0.024f;
+        private const float LabelGapY = 0.06f;          // зазор между верхним краем предмета и низом плашки (в клетках)
         private const int LabelBgOrder = 60;            // поверх тела и контура
         private const int LabelTextOrder = 61;          // поверх фона
         private const float LabelPadX = 0.12f;          // отступ фона вокруг текста (в клетках)
         private const float LabelPadY = 0.06f;
-        private const float LabelTextAlphaIdle = 0.55f;
         private const float LabelTextAlphaHover = 1f;
-        private const float LabelBgAlphaIdle = 0.45f;
         private const float LabelBgAlphaHover = 0.78f;
-        private const float LabelFadeSpeed = 10f;       // скорость перехода idle↔hover
+        private const float LabelFadeSpeed = 10f;       // скорость появления/угасания плашки под курсором
 
         private const float PulseSpeed = 3f;            // темп мерцания контура
 
@@ -70,8 +81,9 @@ namespace Mmogick
         private MeshRenderer _textRenderer;
         private SpriteRenderer _bg;
         private BoxCollider2D _labelCollider;
+        private Collider2D _itemCollider;   // кликабельная зона самого предмета — по ней и решаем «под курсором»
         private bool _needLayout;   // одноразовая раскладка надписи (ждём готовности меша TextMesh)
-        private float _hover;       // 0..1, сглаженная «яркость» наведения
+        private float _hover;       // 0..1, сглаженная видимость плашки (0 — скрыта)
 
         // Навесить/обновить подсветку. Критерий «это предмет» проверяет ВЫЗЫВАЮЩИЙ (MainController) — сюда
         // приходят только подбираемые предметы. prefab непуст только в полном пакете спавна / при смене prefab.
@@ -141,7 +153,8 @@ namespace Mmogick
             bgGo.layer = gameObject.layer;
             _bg = bgGo.AddComponent<SpriteRenderer>();
             _bg.sprite = GetBgSprite();
-            _bg.color = new Color(LabelBgColor.r, LabelBgColor.g, LabelBgColor.b, LabelBgAlphaIdle);
+            // Скрыта, пока предмет не под курсором (LateUpdate поднимет альфу и включит рендереры).
+            _bg.color = new Color(LabelBgColor.r, LabelBgColor.g, LabelBgColor.b, 0f);
             _bg.sortingOrder = LabelBgOrder;
             if (rootSr != null) _bg.sortingLayerID = rootSr.sortingLayerID;
 
@@ -155,7 +168,7 @@ namespace Mmogick
             _text.fontSize = LabelFontSize;
             _text.anchor = TextAnchor.MiddleCenter;
             _text.alignment = TextAlignment.Center;
-            _text.color = new Color(LabelTextColor.r, LabelTextColor.g, LabelTextColor.b, LabelTextAlphaIdle);
+            _text.color = new Color(LabelTextColor.r, LabelTextColor.g, LabelTextColor.b, 0f);
             _textRenderer = textGo.GetComponent<MeshRenderer>();
             _textRenderer.sharedMaterial = GetLabelFont().material;   // material шрифта → рисуется поверх фона
             _textRenderer.sortingOrder = LabelTextOrder;
@@ -168,8 +181,10 @@ namespace Mmogick
             _needLayout = true;
         }
 
-        // Разовая раскладка надписи: компенсация scale корня + позиция + подгонка фона/collider'а под текст.
+        // Разовая раскладка надписи: компенсация scale корня + подгонка фона/collider'а под текст + позиция.
         // Зовётся один раз после готовности меша TextMesh (не покадрово) — scale предмета не меняется.
+        // Порядок важен: позиция считается ПОСЛЕ размера плашки — якорь плашки её центр, и чтобы низ встал
+        // на заданный зазор над предметом, нужна её половина высоты.
         private void LayoutLabel()
         {
             Vector3 rs = transform.localScale;
@@ -178,7 +193,6 @@ namespace Mmogick
             float sx = Mathf.Abs(rs.x) > 1e-4f ? rs.x : 1f;
             // Компенсация: локальные единицы надписи = клетки мира (lossyScale ≈ 1) для любого предмета.
             _label.localScale = new Vector3(1f / sx, 1f / ay, 1f);
-            _label.localPosition = new Vector3(0f, LabelWorldOffsetY / ay, 0f);
 
             // Фон и collider под фактический размер текста (в локальных единицах label).
             Vector3 ls = _label.lossyScale;
@@ -188,6 +202,29 @@ namespace Mmogick
             _bg.transform.localScale = new Vector3(w, h, 1f);
             _labelCollider.size = new Vector2(w, h);
             _labelCollider.offset = Vector2.zero;
+
+            // Подъём: верхний край предмета + фиксированный зазор + половина плашки. Делим на ay — localPosition
+            // задаётся в системе корня, а слагаемые уже в клетках (у label lossyScale ≈ 1 после компенсации).
+            _label.localPosition = new Vector3(0f, (ItemTopY() + LabelGapY + h * 0.5f) / ay, 0f);
+        }
+
+        // Верхний край ВИДИМОГО предмета над началом координат корня, в клетках. Замер тот же, каким
+        // UpdateController.ApplyVisualPrefab нормализует размер предмета: tight-rect иконки (полигон вокруг
+        // непрозрачных пикселей PNG, начало координат — pivot спрайта), умноженный на scale корня. Прозрачные
+        // поля PNG в высоту не идут — иначе надпись висела бы над пустотой, а не над телом предмета.
+        // Иконки на корневом SR нет (у подбираемых предметов не встречается — они статичны-image): мерить
+        // нечего, подъём остаётся зазором над началом координат.
+        private float ItemTopY()
+        {
+            var rootSr = GetComponent<SpriteRenderer>();
+            if (rootSr == null || rootSr.sprite == null)
+                return 0f;
+
+            float topLocal = AnimationCacheService.TryGetTightRect(rootSr.sprite, out Rect tight) && tight.height > 0.0001f
+                ? tight.yMax
+                : rootSr.sprite.bounds.max.y;
+
+            return topLocal * (Mathf.Abs(transform.localScale.y) > 1e-4f ? Mathf.Abs(transform.localScale.y) : 1f);
         }
 
         // Сносим обводку+надпись. Unity зовёт OnDestroy и при явном Destroy(этого компонента) — так
@@ -222,29 +259,39 @@ namespace Mmogick
                 _needLayout = false;
             }
 
-            // 3) Hover: курсор над плашкой → ярче (плавно). Только интерактив — не layout.
+            // 3) Показ плашки: только пока предмет под курсором. Держим её и когда курсор ушёл с предмета
+            //    на саму плашку — она кликабельна, и исчезновение из-под курсора отняло бы клик по ней.
+            //    Плашка держит наведение, только пока показана: скрытая — невидимая кликабельная зона.
             bool hovered = false;
-            if (_labelCollider != null)
+            if (_cam == null) _cam = Camera.main;
+            if (_cam != null)
             {
-                if (_cam == null) _cam = Camera.main;
-                if (_cam != null)
-                {
-                    Vector3 m = _cam.ScreenToWorldPoint(Input.mousePosition);
-                    hovered = _labelCollider.OverlapPoint(new Vector2(m.x, m.y));
-                }
+                Vector3 m = _cam.ScreenToWorldPoint(Input.mousePosition);
+                Vector2 p = new Vector2(m.x, m.y);
+                if (_itemCollider == null) _itemCollider = GetComponent<Collider2D>();
+                hovered = (_itemCollider != null && _itemCollider.OverlapPoint(p))
+                       || (_hover > 0.001f && _labelCollider != null && _labelCollider.OverlapPoint(p));
             }
             _hover = Mathf.MoveTowards(_hover, hovered ? 1f : 0f, Time.deltaTime * LabelFadeSpeed);
+
+            // Скрытая плашка не рисуется и не ловит клики вовсе. Исключение — пока ждём раскладку:
+            // её размер берётся из bounds меша TextMesh, и полагаться на построение меша выключенным
+            // рендерером незачем — видимой плашка от включённого рендерера не станет, альфа ниже нулевая.
+            bool shown = _hover > 0.001f;
+            if (_textRenderer != null) _textRenderer.enabled = shown || _needLayout;
+            if (_bg != null) _bg.enabled = shown || _needLayout;
+            if (_labelCollider != null) _labelCollider.enabled = shown;
 
             if (_text != null)
             {
                 var c = LabelTextColor;
-                c.a = Mathf.Lerp(LabelTextAlphaIdle, LabelTextAlphaHover, _hover);
+                c.a = LabelTextAlphaHover * _hover;
                 _text.color = c;
             }
             if (_bg != null)
             {
                 var c = LabelBgColor;
-                c.a = Mathf.Lerp(LabelBgAlphaIdle, LabelBgAlphaHover, _hover);
+                c.a = LabelBgAlphaHover * _hover;
                 _bg.color = c;
             }
         }

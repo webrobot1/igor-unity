@@ -56,7 +56,7 @@ public class Script {
 
 - `FindFirstObjectByType<T>()`, не `FindObjectOfType<T>()`. Singleton ищет объект на сцене, не создаёт.
 - Статические UI-панели — на сцене через Inspector. Динамическое создание — только повторяющиеся элементы (слоты, списки, боевой текст). `World` и `Map` — контейнеры: дочерние объекты удаляются в `Awake()` и создаются из JSON сервера.
-- UI-префабы (боевой текст, слоты, элементы списков) — создавать через Inspector/MCP как `.prefab` в `Resources/Prefabs/`, не программно в коде. `[SerializeField]` + проверка в `Awake()`.
+- UI-префабы (боевой текст, слоты, элементы списков) — создавать через Inspector/MCP как `.prefab` в `Resources/Prefabs/`, не программно в коде. Ссылки — `[SerializeField]`. Проверка их назначенности — в точке создания экземпляра, не в `Awake()`: `Awake` компонента префаба отрабатывает и при СБОРКЕ самого префаба редакторным скриптом, где поля ещё не назначены. Жалоба оттуда идёт тем же каналом, что игровая ошибка, и выбрасывает играющего на экран входа.
 - Данные с сервера — `*Recive` (`Struct/Recive/`), отправка — `*Response` (`Struct/Response/`). Именно `Recive`, не `Receive`.
 - Ссылки на UI/префабы — `[SerializeField]` + Inspector, не `Find`/`GetComponent` (кроме singleton).
 - Анимации управляются сервером через `action`, клиент переключает слой Animator. Клиентские триггеры не добавлять.
@@ -65,6 +65,7 @@ public class Script {
 - UI-объекты (Tooltip, CombatTextManager и т.д.) — `[SerializeField]` на контроллере, проверка в `Awake()`, доступ через `MainController.Instance`. Не использовать `FindFirstObjectByType` singleton. `ConnectController.Error()` если не назначен.
 - **Model — данные, Controller — UI**: модели (`EnemyModel`, `ObjectModel`) не обращаются к UI-объектам и контроллерам. Все взаимодействия с UI (боевой текст, тултипы, фреймы) — в контроллерах (`UpdateObject`, `HandleData`).
 - Текст в мировых координатах (боевой текст, имена) — через World Space Canvas + UI Text, не TextMesh. Sorting через `Canvas.sortingOrder`. TextMesh (MeshRenderer) не совместим с 2D sorting pipeline.
+- Полоска-индикатор на `Image` со степенью заполнения (`type = Filled`) требует назначенного спрайта. Без спрайта заполнение игнорируется — полоска всегда рисуется полной. Симптом «доля считается верно, полоска не двигается» — про спрайт, искать причину в расчёте бесполезно.
 - Контроллеры — линейная цепочка наследования; новый UI = новый контроллер, встраиваемый в цепочку; актуальный порядок — по наследованию классов в `Assets/Scripts/Controller/`. Каждый контроллер владеет своими `[SerializeField]` UI-объектами.
 - MCP-тулы `gameobject-component-modify`/`gameobject-component-get` видят только поля, объявленные в самом классе компонента, — `[SerializeField]`-поля предков невидимы и непатчабельны. UI-поля контроллеров объявлены в промежуточных классах цепочки → назначать поля предков через `script-execute` + `SerializedObject` (видит сериализованные поля всей иерархии, `ApplyModifiedProperties()` сам помечает сцену dirty); после — `scene-save`.
 - Newtonsoft «Cannot deserialize JSON array into Dictionary» — серверный дефект (PHP-словарь ушёл JSON-массивом), чинить на сервере. Конвертер-обход на клиенте не добавлять.

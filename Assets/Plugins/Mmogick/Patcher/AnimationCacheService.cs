@@ -47,7 +47,9 @@ namespace Mmogick
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
 		/// <summary>
-		/// Tight-rect спрайта в sprite-local мировых единицах (относительно pivot=(0,0), т.е. левый-нижний угол rect).
+		/// Tight-rect спрайта в sprite-local мировых единицах; начало координат — PIVOT спрайта (у спрайтов
+		/// этого кеша он по центру, см. Sprite.Create ниже), т.е. yMax — высота верхнего края непрозрачных
+		/// пикселей НАД центром, и по одной высоте rect'а положение края не восстановить.
 		/// Берётся из <see cref="Sprite.vertices"/> — при Tight-меше Unity туда кладёт вершины полигона вокруг
 		/// непрозрачных пикселей. <see cref="Sprite.bounds"/> не подходит: он считает всю sprite.rect целиком,
 		/// и PNG с прозрачными полями искажают измерения SpriterPostImportAdjuster / fallback-normalize.
