@@ -1034,7 +1034,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 224381430704818802, guid: 7a4e32d027bc44b32bea2c73dacbd5ee, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 309.25
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 224381430704818802, guid: 7a4e32d027bc44b32bea2c73dacbd5ee, type: 3}
       propertyPath: m_SizeDelta.y
@@ -4650,7 +4650,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 224924297674140736, guid: c8e9e0dc2eb174635861b990cee2b0bb, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 309.25
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 224924297674140736, guid: c8e9e0dc2eb174635861b990cee2b0bb, type: 3}
       propertyPath: m_SizeDelta.y
@@ -5712,7 +5712,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 224533762602920118, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 309.25
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 224533762602920118, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
       propertyPath: m_SizeDelta.y
@@ -11196,7 +11196,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 224533762602920118, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 309.25
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 224533762602920118, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
       propertyPath: m_SizeDelta.y
@@ -11318,7 +11318,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 224533762602920118, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
       propertyPath: m_SizeDelta.x
-      value: 303.007
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 224533762602920118, guid: e77155f227ae543e79d0513e09253c2e, type: 3}
       propertyPath: m_SizeDelta.y
@@ -11887,8 +11887,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -178.31818, y: 6.5250244}
-  m_SizeDelta: {x: -1494.7542, y: -13.05}
+  m_AnchoredPosition: {x: -245.5, y: 6.5250244}
+  m_SizeDelta: {x: -1361, y: -13.05}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &3046298429504445855
 GameObject:
@@ -12115,7 +12115,7 @@ MonoBehaviour:
   m_Spacing: 20
   m_ChildForceExpandWidth: 1
   m_ChildForceExpandHeight: 0
-  m_ChildControlWidth: 0
+  m_ChildControlWidth: 1
   m_ChildControlHeight: 0
   m_ChildScaleWidth: 0
   m_ChildScaleHeight: 0

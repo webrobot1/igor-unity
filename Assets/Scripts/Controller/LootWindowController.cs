@@ -56,14 +56,17 @@ namespace Mmogick
 		private static Button _takeAllButton;
 
 		// Маркер трупа, с которым работает окно (открытого либо того, к которому идём). Кеш нужен
-		// потому, что состояние окна пересчитывается КАЖДЫЙ кадр: истечение чужого эксклюзива — не
-		// событие, пакета в этот момент нет (сервер шлёт только изменения), а кнопки обязаны
-		// разблокироваться сами. GameObject.Find на каждом кадре для этого слишком дорог.
+		// потому, что состояние окна пересчитывается КАЖДЫЙ кадр — сход с клетки и распад тела закрывают
+		// его без всякого пакета, — а GameObject.Find на каждом кадре для этого слишком дорог.
 		private static CorpseLootMarker _marker;
 		private static string _markerKey;
 
 		// Версия добычи, по которой отрисованы слоты сейчас (-1 — окно закрыто/не отрисовано).
 		private static int _renderedVersion = -1;
+
+		// Нажато «забрать всё» и ответа ещё нет: опустевший контейнер закроет окна, непустой оставит
+		// открытыми — часть предметов могла не влезть в инвентарь.
+		private static bool _closeWhenEmpty;
 
 		// Инстанс контроллера для статических точек входа (Item.Use, кнопка, RefreshWindow): единственный
 		// на сцене, заполняется в Awake — Find не нужен.
@@ -323,23 +326,29 @@ namespace Mmogick
 				}
 			}
 
-			// Чужая добыча до истечения срока — окно видно (что лежит и сколько ждать), но не активно:
-			// зеркалим серверную проверку права, чтобы не слать заведомо отбиваемую команду.
-			bool canTake = marker.CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
-
+			// Право на добычу окно не гасит: чужой состав сервер не присылает вовсе, и открыться ему не на
+			// чем. Открытое окно запретным уже не станет — круг допущенных только ширится.
 			if (_lootGroup != null)
 			{
 				_lootGroup.alpha = 1;
 				_lootGroup.blocksRaycasts = true;
-				_lootGroup.interactable = canTake;
+				_lootGroup.interactable = true;
 			}
 
 			// Пустой контейнер («обыскал — пусто») кнопку не показывает вовсе: забирать нечего, а сама
 			// кнопка лежит поверх сетки и мешала бы класть в него своё.
 			if (_takeAllButton != null)
-			{
 				_takeAllButton.gameObject.SetActive(marker.HasLoot);
-				_takeAllButton.interactable = canTake;
+
+			// «Забрать всё» закрывает оба окна — но по опустевшему контейнеру, а не по самому нажатию:
+			// невместившееся остаётся в трупе, и закрытие вслепую унесло бы остаток с глаз молча.
+			if (_closeWhenEmpty && !marker.HasLoot)
+			{
+				_closeWhenEmpty = false;
+				Hide();
+				instance.inventoryGroup.alpha = 0;
+				instance.inventoryGroup.blocksRaycasts = false;
+				return;
 			}
 
 			// Перетаскивание труп↔инвентарь требует оба окна: инвентарь открываем вместе с добычей —
@@ -406,6 +415,7 @@ namespace Mmogick
 		{
 			_containerKey = null;
 			_renderedVersion = -1;
+			_closeWhenEmpty = false;
 			if (_lootGroup != null)
 			{
 				_lootGroup.alpha = 0;
@@ -439,7 +449,11 @@ namespace Mmogick
 			response.Send();
 		}
 
-		/// <summary>Забрать всё: одна команда со списком всех занятых позиций.</summary>
+		/// <summary>
+		/// Забрать всё: одна команда со списком всех занятых позиций. Опустевший после неё контейнер
+		/// закроет окна сам (см. ShowLoot) — по факту пустоты, а не по нажатию: часть предметов могла
+		/// не влезть в инвентарь и остаться в трупе.
+		/// </summary>
 		public static void SendTakeAll()
 		{
 			if (_containerKey == null) return;
@@ -447,6 +461,7 @@ namespace Mmogick
 			CorpseLootMarker marker = FindMarker(_containerKey);
 			if (marker == null) return;
 
+			_closeWhenEmpty = true;
 			SendTake(marker.OccupiedSlots());
 		}
 
