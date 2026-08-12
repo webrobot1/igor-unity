@@ -8,10 +8,8 @@ namespace Mmogick
 	/// появления. Сроки ведут РАЗНЫЕ группы событий, и совпадать они не обязаны — потому каждая сторона
 	/// читает СВОЮ группу, а не общую.
 	///
-	/// Полная длина полоски — САМЫЙ БОЛЬШОЙ остаток, который эта сущность показала: длительность срока
-	/// сервер сообщает только владельцу события, а над чужим телом её взять неоткуда. Подошедший к телу
-	/// позже видит полоску от своего окна наблюдения — «сколько ещё есть время» она показывает верно,
-	/// сравнивать по ней два разных тела нельзя.
+	/// Полная длина полоски — длительность самого срока: сервер шлёт её всем видящим тело рядом с
+	/// остатком, потому подошедший позже видит ту же полоску, что и стоявший рядом с самого начала.
 	///
 	/// Компонент навешивает сама сущность при входе в смерть (ObjectModel) — по действию, а не по составу
 	/// компонентов: тело без добычи тоже имеет срок.
@@ -27,9 +25,8 @@ namespace Mmogick
 		public const string GROUP_PLAYER = "status/resurrect";
 		public const string GROUP_ENTITY = "status/despawn";
 
-		// Под ногами тела, с запасом от спрайта: сущность привязана ногами, и полоска у самого нуля легла бы
-		// поверх лежащего тела. Очередь на добычу висит НАД телом — так две полоски не спорят за место.
-		private const float WorldOffsetY = -0.2f;
+		// Первая полоска под телом: срок относится к самому телу, потому он ближе к нему, а очередь на
+		// добычу укладывается следующей ниже (WorldBar.PlaceUnder).
 		private const int Order = 71;
 
 		// Уход тела — красным, воскрешение — синим: первое отсчитывает потерю (тело и невынесенная
@@ -42,9 +39,6 @@ namespace Mmogick
 		private EnemyModel _model;
 		private WorldBar _bar;
 
-		private string _group;
-		private double _full;
-
 		private void Awake()
 		{
 			_model = GetComponent<EnemyModel>();
@@ -54,7 +48,7 @@ namespace Mmogick
 		{
 			if (_model == null || _model.hp != 0)
 			{
-				Reset();
+				Hide();
 				return;
 			}
 
@@ -64,22 +58,17 @@ namespace Mmogick
 			bool isPlayer = _model is PlayerModel;
 			string group = isPlayer ? GROUP_PLAYER : GROUP_ENTITY;
 
-			// Смена вида отсчёта обнуляет запомненную длину: сроки у групп разные.
-			if (group != _group)
-			{
-				_group = group;
-				_full = 0;
-			}
-
 			double remain = _model.GetEventRemain(group);
 			if (remain <= 0)
 			{
-				Reset();
+				Hide();
 				return;
 			}
 
-			if (remain > _full)
-				_full = remain;
+			// Полная длина шкалы — длительность самого срока. Ещё не пришла (первый кадр после смерти) —
+			// считаем от текущего остатка, полоска стартует полной.
+			double? length = _model.getEvent(group).timeout;
+			double full = length.HasValue && length.Value > 0 ? length.Value : remain;
 
 			if (_bar == null)
 				_bar = WorldBar.Create(transform, "DeathBar", Order);
@@ -88,8 +77,8 @@ namespace Mmogick
 				return;
 
 			_bar.Show(
-				transform.position + new Vector3(0f, WorldOffsetY, 0f),
-				(float)(remain / _full),
+				WorldBar.PlaceUnder(_model, transform, 0f),
+				(float)(remain / full),
 				isPlayer ? ResurrectColor : DespawnColor,
 				null,
 				GameIcons.Skull
@@ -99,12 +88,6 @@ namespace Mmogick
 		private void Hide()
 		{
 			if (_bar != null) _bar.Hide();
-		}
-
-		private void Reset()
-		{
-			_full = 0;
-			Hide();
 		}
 
 		private void OnDestroy()

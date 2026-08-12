@@ -50,6 +50,56 @@ namespace Mmogick
 		[NonSerialized]
 		public string prefab;
 
+		// Готовое имя и то, из чего оно собрано. Имя спрашивают каждый кадр (надпись под курсором, рамка
+		// цели), а сборка режет строки — пересобираем только когда сменилось исходное.
+		private string _displayName;
+		private string _displayNameOfPrefab;
+		private string _displayNameOfSlug;
+
+		/// <summary>
+		/// Имя сущности для подписей интерфейса (надпись в мире, рамка цели, очередь на добычу).
+		/// У игрока это логин аккаунта: сервер кладёт его в <see cref="slug"/>. У прочих — имя prefab'а
+		/// из серверной library, заданное в админке; не задано — сам slug prefab'а, он тоже читаем.
+		/// Единая точка: имена сущностей у всех фронтов интерфейса должны совпадать.
+		/// </summary>
+		public string DisplayName
+		{
+			get
+			{
+				if (_displayName == null || _displayNameOfPrefab != prefab || _displayNameOfSlug != slug)
+				{
+					_displayNameOfPrefab = prefab;
+					_displayNameOfSlug = slug;
+					_displayName = BuildDisplayName();
+				}
+
+				return _displayName;
+			}
+		}
+
+		private string BuildDisplayName()
+		{
+			if (type == "player")
+				return !string.IsNullOrEmpty(slug) ? slug : key;
+
+			if (string.IsNullOrEmpty(prefab))
+				return !string.IsNullOrEmpty(slug) ? slug : key;
+
+			return CleanName(AnimationCacheService.GetPrefabName(prefab) ?? prefab);
+		}
+
+		/// <summary>
+		/// Имя prefab'а в library задаётся именем файла картинки ("iron_sword.png"), а игроку показывают
+		/// вещь, а не файл: снимаем расширение и разделяем слова.
+		/// </summary>
+		private static string CleanName(string raw)
+		{
+			if (string.IsNullOrEmpty(raw)) return raw;
+			int dot = raw.LastIndexOf('.');
+			if (dot > 0) raw = raw.Substring(0, dot);
+			return raw.Replace('_', ' ');
+		}
+
 		/// <summary>
 		/// Placeholder-спрайт kind-only сущности (нет ни image, ни SCML — рисуется "unknow" с Resources-префаба).
 		/// Запоминается в UpdateController.ApplyVisualPrefab. Нужен чтобы ВЕРНУТЬ его на корневой SpriteRenderer

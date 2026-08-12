@@ -117,9 +117,17 @@ namespace Mmogick
             // recive.prefab непуст только в полном пакете спавна и при смене prefab (на дельтах == null),
             // поэтому IsGroundItem не считается каждый кадр. EquipableGroundMarker — игровой слой
             // (Assembly-CSharp), поэтому триггерим здесь, а не во фреймворчном UpdateController (firstpass его не видит).
-            if (go != null && !string.IsNullOrEmpty(recive.prefab)
-                && AnimationCacheService.IsGroundItem(recive.prefab))
-                EquipableGroundMarker.Apply(go, recive.prefab);
+            if (go != null && !string.IsNullOrEmpty(recive.prefab))
+            {
+                if (AnimationCacheService.IsGroundItem(recive.prefab))
+                    EquipableGroundMarker.Apply(go);
+
+                // Существа подписываются именем под курсором (у игрока — логин, у моба — название из
+                // library). Декор и снаряды (kind=object) — нет: имени у них по смыслу нет, а курсор
+                // над каждым кустом давал бы плашку. Вещам надпись даёт маркер выше — своим видом.
+                else if (go.GetComponent<EntityModel>() is EntityModel model && model.type != "object")
+                    HoverLabel.Apply(go, HoverLabel.PrefabCreature);
+            }
 
             return go;
         }

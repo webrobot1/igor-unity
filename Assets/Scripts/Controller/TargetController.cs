@@ -18,8 +18,15 @@ namespace Mmogick
         [SerializeField]
         private Image hpLine;
         [SerializeField]
-        private Image mpLine;        
-        
+        private Image mpLine;
+
+        /// <summary>
+        /// Имя того, кто показан в рамке: в рамке игрока — его собственный логин (та же рамка обслуживает
+        /// и игрока, и цель — см. PlayerController), в рамке цели — имя выбранного существа.
+        /// </summary>
+        [SerializeField]
+        private Text nameLabel;
+
         private Text hpText;
         private Text mpText;
 
@@ -58,6 +65,9 @@ namespace Mmogick
 
             mpText = mpLine.GetComponentInChildren<Text>();
 
+            if (nameLabel == null)
+                PlayerController.Error("не присвоен Text имени в блоке информации о цели");
+
             Target = null;
         }
 
@@ -76,6 +86,11 @@ namespace Mmogick
                     // не только скрыть но и позволить кликать по той области что бы ходить персонажем
                     targetFrame.alpha = 0;
                     //targetFrame.blocksRaycasts = false;
+
+                    // Имя гаснет вместе с рамкой: показанное имя без рамки читалось бы как живая цель.
+                    // Пока цель есть, имя ведёт FixedUpdate — оно приходит с сервера отдельным пакетом
+                    // и у своего игрока встаёт позже, чем рамка получает его самого.
+                    if (nameLabel != null) nameLabel.text = "";
                 }
                     
 
@@ -263,6 +278,9 @@ namespace Mmogick
         {
             if (_target != null)
             {
+                if (nameLabel != null)
+                    nameLabel.text = _target.DisplayName;
+
                 // Spriter мог привязаться к цели уже ПОСЛЕ нашего Target=set (асинхронная SCML-загрузка
                 // через AnimationPatcher.Get). При первом set Spriter был null → ушли в Animator-ветку,
                 // и frame застрял с legacy controller'ом. Ловим появление Spriter и переинициализируем

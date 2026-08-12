@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace Mmogick
@@ -9,13 +9,14 @@ namespace Mmogick
 	//
 	// Состав добычи ПРИВАТЕН: сервер шлёт его адресно тому, кто стоит на клетке контейнера, — по команде
 	// открытия и дальше при каждом изменении состава. Пока состав ни разу не приходил, у контейнера
-	// известно только право на добычу (оно публично).
+	// известно только право на добычу (оно публично и приходит данными команды GROUP_LOOTFREE).
 	//
 	// Сколько тело лежит на карте, решает сервер: по истечении срока он убирает сущность обычным
 	// удалением. Клиент видимостью тела не управляет — есть сущность, значит рисуем.
 	//
-	// На карте над телом висит полоска очереди на добычу с именами тех, кому она уже открыта: она тает
-	// до расширения круга и пропадает вместе с самой очередью, когда добыча становится общей.
+	// На карте под телом висит полоска ожидания — она показывается ТОЛЬКО тому, кому добыча пока закрыта:
+	// перечёркнутый мешок отвечает «сейчас нельзя», а сама полоска тает до расширения круга допущенных.
+	// Допущенному показывать нечего: полоска исчезает, а сколько тело ещё пролежит, говорит полоска срока.
 	//
 	// Компонента НЕТ у сущностей без компонента добычи (игроки, животные).
 	public class CorpseLootMarker : MonoBehaviour
@@ -23,17 +24,17 @@ namespace Mmogick
 		// --- Очередь на добычу ---
 
 		/// <summary>
-		/// Группа события, ведущего ступени очереди: сервер шлёт остаток секунд до расширения круга
-		/// допущенных, а пройдя очередь целиком — гасит право в loot_owner.
+		/// Группа команды, ведущей ступени очереди. Она же НЕСЁТ само право: список допущенных приходит её
+		/// данными, длина ступени — её длительностью, остаток — сколько до расширения круга. Допускать
+		/// больше некого — сервер команду не перевешивает, право гаснет вместе с ней.
 		/// </summary>
 		public const string GROUP_LOOTFREE = "status/lootfree";
 
-		private const float BarWorldOffsetY = 1f;       // над телом: срок самого тела показан ПОД ним
+		// Вторая полоска под телом: первой идёт срок самого тела (DeathTimer), очередь ложится под ней —
+		// над телом место занято подписью имени и полоской здоровья.
 		private const int BarOrder = 71;                // поверх тела
 
-		// Моя очередь подошла — зелёным, жду — оранжевым: цвет отвечает на «мне-то уже можно?» раньше,
-		// чем игрок прочтёт имена.
-		private static readonly Color MineColor = new Color(0.45f, 0.85f, 0.45f, 1f);
+		// Ожидание — оранжевым: тот же цвет, каким игра метит «пока нельзя».
 		private static readonly Color WaitColor = new Color(1f, 0.7f, 0.3f, 1f);
 
 		private EntityModel _model;
@@ -41,14 +42,14 @@ namespace Mmogick
 		// Накопленное содержимое добычи: позиция → предмет либо null (пусто). Дельта сервера ЧАСТИЧНА
 		// (per-slot diff) — сливаем по ключам, не подменяем словарь целиком.
 		private Dictionary<int, ItemSlotRecive> _loot;
+
+		// Разобранное право и сырые данные команды, из которых оно разобрано. Состояние окна и полоски
+		// пересчитывается каждым кадром, а разбор JSON на кадр слишком дорог — пересобираем только когда
+		// сервер прислал новый пакет команды (сравнение по ссылке на её данные).
 		private LootOwnerRecive _owner;
+		private object _ownerOf;
 
 		private WorldBar _bar;
-
-		// Готовая подпись и состав, из которого она собрана: имена ищутся по сущностям на сцене, а зовут
-		// нас каждый кадр — пересобираем только со сменой круга допущенных.
-		private string _names;
-		private string _namesOf;
 
 		// Счётчик пришедших изменений добычи. Окно перерисовывает слоты только при его сдвиге: пакеты
 		// от сервера идут каждый тик, а пересоздание Item'ов на каждом рвало бы перетаскивание.
@@ -94,20 +95,42 @@ namespace Mmogick
 		/// <summary>Разрешено ли игроку брать отсюда: владельца нет, владелец он, либо срок эксклюзива вышел.</summary>
 		public bool CanTake(string playerKey)
 		{
-			return _owner == null || _owner.CanTake(playerKey);
+			LootOwnerRecive owner = Owner();
+			return owner == null || owner.CanTake(playerKey);
+		}
+
+		/// <summary>
+		/// Право на добычу, как его прислал сервер данными команды <see cref="GROUP_LOOTFREE"/>;
+		/// null — команды нет, добыча свободна любому.
+		/// </summary>
+		private LootOwnerRecive Owner()
+		{
+			if (_model == null) return null;
+
+			object raw = _model.getEvent(GROUP_LOOTFREE).data;
+
+			if (!ReferenceEquals(raw, _ownerOf))
+			{
+				_ownerOf = raw;
+				_owner = raw != null ? _model.getEventData<LootOwnerRecive>(GROUP_LOOTFREE) : null;
+			}
+
+			return _owner;
 		}
 
 		/// <summary>
 		/// Принять пришедшие компоненты добычи. Вызывает контроллер, разобравший пакет: критерий
 		/// «этой сущности есть что показывать про добычу» — ответственность разбирающего, компонент
 		/// лишь хранит и рисует уже принятое (тот же порядок, что у EquipableGroundMarker).
+		/// Состава в пакете может не быть вовсе (он приватен): маркер заводится и под одно право на
+		/// добычу — его полоску видят и те, кто к телу ещё не подошёл.
 		/// </summary>
 		public static CorpseLootMarker Apply(GameObject go, EnemyComponentsRecive components)
 		{
 			CorpseLootMarker marker = go.GetComponent<CorpseLootMarker>();
 			if (marker == null) marker = go.AddComponent<CorpseLootMarker>();
 
-			if (components.loot != null)
+			if (components != null && components.loot != null)
 			{
 				if (marker._loot == null) marker._loot = new Dictionary<int, ItemSlotRecive>();
 				foreach (var kv in components.loot)
@@ -115,9 +138,6 @@ namespace Mmogick
 
 				marker._version++;
 			}
-
-			if (components.loot_owner != null)
-				marker._owner = components.loot_owner;
 
 			return marker;
 		}
@@ -153,16 +173,23 @@ namespace Mmogick
 
 		private void ShowBar()
 		{
-			// Очередь висит прямо на теле, чтобы ожидание было видно без окна. Закреплённых нет — добыча
-			// общая, показывать нечего: тело само и есть признак.
-			if (_owner == null || !_owner.HasOwner)
+			// Полоска отвечает на один вопрос: «когда станет можно мне». Закреплённых нет либо я уже среди
+			// допущенных — вопроса нет, и полоски нет: сколько тело ещё пролежит, показывает полоска срока.
+			LootOwnerRecive owner = Owner();
+
+			if (owner == null || !owner.HasOwner || CanTake(PlayerController.Player != null ? PlayerController.Player.key : null))
 			{
 				HideBar();
 				return;
 			}
 
 			double remain = _model.GetEventRemain(GROUP_LOOTFREE);
-			double step = _owner.step > 0 ? _owner.step : remain;
+
+			// Полная длина шкалы — длительность ступени: сервер шлёт её всем видящим сущность рядом с
+			// остатком. Ещё не пришла (первый кадр после закрепления) — считаем от текущего остатка,
+			// полоска стартует полной.
+			double? length = _model.getEvent(GROUP_LOOTFREE).timeout;
+			double step = length.HasValue && length.Value > 0 ? length.Value : remain;
 
 			if (remain <= 0 || step <= 0)
 			{
@@ -176,55 +203,18 @@ namespace Mmogick
 			if (_bar == null)
 				return;
 
-			bool mine = CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
-
 			_bar.Show(
-				transform.position + new Vector3(0f, BarWorldOffsetY, 0f),
+				WorldBar.PlaceUnder(_model, transform, WorldBar.StackStep),
 				(float)(remain / step),
-				mine ? MineColor : WaitColor,
-				AllowedNames(),
-				GameIcons.Loot
+				WaitColor,
+				null,
+				GameIcons.LootLocked
 			);
 		}
 
 		private void HideBar()
 		{
 			if (_bar != null) _bar.Hide();
-		}
-
-		/// <summary>Имена допущенных к добыче через запятую — подпись под полоской очереди.</summary>
-		private string AllowedNames()
-		{
-			string[] allowed = _owner.Allowed;
-			string of = string.Join("", allowed);
-
-			if (of == _namesOf)
-				return _names;
-
-			_namesOf = of;
-
-			string[] names = new string[allowed.Length];
-			for (int i = 0; i < allowed.Length; i++)
-				names[i] = NameOf(allowed[i]);
-
-			_names = string.Join(", ", names);
-			return _names;
-		}
-
-		/// <summary>
-		/// Отображаемое имя по ключу сущности: у стоящего рядом игрока берём его собственное, ушедшего с
-		/// глаз — разбираем ключ (он собран как вид_логин; логин и есть отображаемое имя).
-		/// </summary>
-		private static string NameOf(string key)
-		{
-			GameObject go = GameObject.Find(key);
-			EntityModel model = go != null ? go.GetComponent<EntityModel>() : null;
-
-			if (model != null && !string.IsNullOrEmpty(model.slug))
-				return model.slug;
-
-			int cut = key.IndexOf('_');
-			return cut >= 0 && cut + 1 < key.Length ? key.Substring(cut + 1) : key;
 		}
 	}
 }
