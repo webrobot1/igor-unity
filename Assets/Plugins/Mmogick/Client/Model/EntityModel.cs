@@ -464,7 +464,7 @@ namespace Mmogick
 		/// </summary>
 		public virtual double GetEventRemain(string group)
 		{
-			// тут пинг не выитаем тк для анимации еще используется (она ведь должна продолжаться пока пакет идет).а если отправка команд идет в ConnectController - сверяясь вычитая пол пинга 
+			// тут пинг не выитаем тк для анимации еще используется (она ведь должна продолжаться пока пакет идет).а если отправка команд идет в ConnectController - сверяясь вычитая пол пинга
 			return ((DateTime)getEvent(group).finish).Subtract(DateTime.Now).TotalSeconds;
 		}
 

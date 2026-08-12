@@ -15,6 +15,11 @@ namespace Mmogick
 	///
 	/// Компонент навешивает сама сущность при входе в смерть (ObjectModel) — по действию, а не по составу
 	/// компонентов: тело без добычи тоже имеет срок.
+	///
+	/// Идёт ли срок, решает ПУСТОЙ ЗАПАС ЗДОРОВЬЯ — тем же условием сервер этот срок и заводит. Ни
+	/// действие сущности, ни остаток события признаком не годятся: тело двигают, и по действию отсчёт
+	/// пропадал бы у идущего срока, а остаток сервер после срабатывания отсчитывает заново — у сроков,
+	/// которые уже вышли, он такой же ненулевой, как у идущих.
 	/// </summary>
 	public class DeathTimer : MonoBehaviour
 	{
@@ -27,12 +32,14 @@ namespace Mmogick
 		private const float WorldOffsetY = -0.2f;
 		private const int Order = 71;
 
-		// Уход тела — красным, своё воскрешение — синим: первое отсчитывает потерю (тело и невынесенная
+		// Уход тела — красным, воскрешение — синим: первое отсчитывает потерю (тело и невынесенная
 		// добыча пропадут), второе ожидание возврата в игру.
 		private static readonly Color DespawnColor = new Color(0.85f, 0.25f, 0.25f, 1f);
 		private static readonly Color ResurrectColor = new Color(0.45f, 0.7f, 1f, 1f);
 
-		private EntityModel _model;
+		// Запас здоровья объявлен у EnemyModel: срок лежания есть только у того, кто умирает. Прочие
+		// носители ObjectModel (сундук) в смерть не входят, и компонент им не навешивается.
+		private EnemyModel _model;
 		private WorldBar _bar;
 
 		private string _group;
@@ -40,21 +47,24 @@ namespace Mmogick
 
 		private void Awake()
 		{
-			_model = GetComponent<EntityModel>();
+			_model = GetComponent<EnemyModel>();
 		}
 
 		private void LateUpdate()
 		{
-			if (_model == null || _model.action != "dead")
+			if (_model == null || _model.hp != 0)
 			{
 				Reset();
 				return;
 			}
 
-			bool mine = PlayerController.Player != null && _model.key == PlayerController.Player.key;
-			string group = mine ? GROUP_PLAYER : GROUP_ENTITY;
+			// Группа — по ВИДУ тела, не по тому, моё оно или чужое: у чужого игрока исход тот же, что у
+			// своего, и срок ему ведёт та же группа. По владельцу над чужим телом спрашивался бы срок
+			// ухода, которого у игрока нет вовсе, — отсчёт до его подъёма пропадал бы у всех, кроме него.
+			bool isPlayer = _model is PlayerModel;
+			string group = isPlayer ? GROUP_PLAYER : GROUP_ENTITY;
 
-			// Смена стороны отсчёта (своё тело ↔ чужое) обнуляет запомненную длину: сроки у групп разные.
+			// Смена вида отсчёта обнуляет запомненную длину: сроки у групп разные.
 			if (group != _group)
 			{
 				_group = group;
@@ -64,7 +74,7 @@ namespace Mmogick
 			double remain = _model.GetEventRemain(group);
 			if (remain <= 0)
 			{
-				Hide();
+				Reset();
 				return;
 			}
 
@@ -80,7 +90,7 @@ namespace Mmogick
 			_bar.Show(
 				transform.position + new Vector3(0f, WorldOffsetY, 0f),
 				(float)(remain / _full),
-				mine ? ResurrectColor : DespawnColor,
+				isPlayer ? ResurrectColor : DespawnColor,
 				null,
 				GameIcons.Skull
 			);
