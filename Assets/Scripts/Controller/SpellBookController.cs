@@ -62,7 +62,7 @@ namespace Mmogick
                
         }
 
-        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
         {
             if (recive.spellBook != null)
             {

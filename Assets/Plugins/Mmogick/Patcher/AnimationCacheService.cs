@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -39,7 +40,8 @@ namespace Mmogick
 		// (добавление/удаление полей) → EnsureLoaded форсит полный refetch каталога /prefabs (см. cache_schema_version).
 		// v2: actions сменил форму словарь(action→angle→clip) → плоский список ActionBinding[].
 		// v3: добавлено component (имена компонентов prefab'а).
-		private const int CACHE_SCHEMA_VERSION = 3;
+		// v4: добавлено component_value (эффективные значения публичных компонентов вида).
+		private const int CACHE_SCHEMA_VERSION = 4;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
@@ -239,6 +241,17 @@ namespace Mmogick
 			/// </summary>
 			public System.Collections.Generic.List<string> component;
 
+			/// <summary>
+			/// Эффективные значения ПУБЛИЧНЫХ компонентов вида этого prefab'а: slug → значение (заданное
+			/// prefab'у, иначе умолчание справочника компонента) — то же, что получит сущность этого prefab'а
+			/// при создании. Ключа нет вовсе — у вида нет публичных значений. Форма значения задана типом
+			/// компонента: число/строка у скалярных, объект либо массив у структурных, — потому JToken,
+			/// а не строка.
+			/// Общее значение свойства предмета живёт ЗДЕСЬ, а не в слоте хранилища: слот несёт только
+			/// отличия экземпляра (см. GetComponentValue).
+			/// </summary>
+			public Dictionary<string, JToken> component_value;
+
 			public bool IsImage => !string.IsNullOrEmpty(sha256);
 
 			/// <summary>Полное имя файла спрайта (sha256.extension) или null если у prefab'а SCML-анимация.</summary>
@@ -353,6 +366,59 @@ namespace Mmogick
 			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.component == null)
 				return new System.Collections.Generic.List<string>();
 			return e.component;
+		}
+
+		// Значение компонента у КОНКРЕТНОГО экземпляра: своё, иначе префабное. Единственная точка этого
+		// правила — потребители (цена предмета и т.п.) спрашивают значение только здесь.
+		// own — компоненты слота хранилища (инвентарь, добыча): сервер кладёт туда ТОЛЬКО отличия
+		// экземпляра от prefab'а, общее значение туда не копируется — иначе правка prefab'а до предмета
+		// не доезжала бы, а разный набор компонентов разводил бы одинаковые предметы по разным позициям.
+		// Общее берётся из манифеста (PrefabEntry.component_value).
+		// Контракт по _library тот же, что у GetPrefabComponents — throw на _library==null (вызов до SyncAll).
+		// null — значения нет ни у экземпляра, ни у prefab'а (компонент виду не задан либо не публичен):
+		// легитимное отсутствие, вызывающий решает сам (нет цены — предмет вне торговли).
+		public static JToken GetComponentValue(string prefab, string component, IDictionary<string, string> own)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetComponentValue вызван до SyncAll (_library == null). prefab=" + prefab + ", component=" + component);
+			if (string.IsNullOrEmpty(component))
+				return null;
+
+			if (own != null && own.TryGetValue(component, out string mine) && mine != null)
+				return mine;
+
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.component_value == null)
+				return null;
+
+			return e.component_value.TryGetValue(component, out JToken value) ? value : null;
+		}
+
+		// ВЕСЬ набор свойств конкретного экземпляра разом: slug → эффективное значение по тому же правилу
+		// («своё, иначе префабное»), что и точечный GetComponentValue, — оно и вызывается на каждый ключ,
+		// второй копии правила тут нет. Ключи — объединение префабных и своих: экземпляр может нести и то,
+		// чего у вида нет вовсе.
+		// Собирается ОДИН раз при разборе слота хранилища (см. InventoryController.RenderSlotItem), дальше
+		// предмет отвечает о себе сам, а окна читают готовые значения и правила разрешения не повторяют:
+		// иначе каждый новый компонент предмета (атака, защита) пришлось бы подключать в каждом окне.
+		// Снимок: манифест префабов клиент тянет один раз за вход, и значения вида за сессию не меняются.
+		// Контракт по _library тот же, что у GetComponentValue — throw на _library==null (вызов до SyncAll).
+		public static Dictionary<string, JToken> GetComponentValues(string prefab, IDictionary<string, string> own)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetComponentValues вызван до SyncAll (_library == null). prefab=" + prefab);
+
+			Dictionary<string, JToken> values = new Dictionary<string, JToken>();
+
+			if (!string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e) && e.component_value != null)
+				foreach (string slug in e.component_value.Keys)
+					values[slug] = GetComponentValue(prefab, slug, own);
+
+			if (own != null)
+				foreach (string slug in own.Keys)
+					if (!values.ContainsKey(slug))
+						values[slug] = GetComponentValue(prefab, slug, own);
+
+			return values;
 		}
 
 		// Подбираемый ли это «предмет на земле» (для подсветки/надписи лежащих вещей в мире).

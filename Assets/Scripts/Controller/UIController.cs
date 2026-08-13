@@ -117,6 +117,12 @@ namespace Mmogick
                 if ((canvasGroup != null && canvasGroup == child.GetComponent<CanvasGroup>()) || (child.GetComponent<CanvasGroup>() == null))
                     continue;
 
+                // Окно, ждущее ответа игрока (сколько штук), общим закрытием не гасим: поднимает его
+                // то же действие, после которого меню и закрываются, — иначе вопрос исчезал бы в том
+                // же кадре, в котором задан. Такое окно закрывает только его собственный ответ.
+                if (child.GetComponent<ModalWindowMarker>() != null)
+                    continue;
+
                 child.GetComponent<CanvasGroup>().alpha = 0;
                 child.GetComponent<CanvasGroup>().blocksRaycasts = false;
             }

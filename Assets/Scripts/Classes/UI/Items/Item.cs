@@ -1,9 +1,10 @@
+using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace Mmogick
 {
-    public class Item : MoveableObject, IPointerClickHandler
+    public class Item : MoveableObject
     {
         private string _prefab;
 
@@ -17,6 +18,41 @@ namespace Mmogick
         /// </summary>
         public int Count { get; set; }
 
+        /// <summary>
+        /// Отличия ЭТОГО экземпляра от префаба (компоненты слота хранилища): своя цена и тому подобное.
+        /// null — обычный предмет, все свойства префабные. Едут вместе с предметом, а не с ячейкой:
+        /// предмет переезжает между слотами и курсором, а ячейка при этом остаётся на месте — из неё
+        /// отличия терялись бы на первом же перекладывании и уходили на сервер пустыми (SnapshotSlots).
+        /// Значение свойства спрашивать не отсюда, а у Values: здесь лежит только своя половина, и
+        /// уезжает она обратно на сервер как есть (SnapshotSlots) — дообогащать её нельзя.
+        /// </summary>
+        public Dictionary<string, string> Components { get; set; }
+
+        /// <summary>
+        /// Свойства предмета целиком: slug компонента → значение этого экземпляра (своё, иначе префабное).
+        /// Собирается один раз при разборе слота (AnimationCacheService.GetComponentValues), дальше предмет
+        /// отвечает о себе сам — окнам не нужно знать, чем отличие экземпляра дополняется до полного набора.
+        /// </summary>
+        public Dictionary<string, JToken> Values { get; set; }
+
+        /// <summary>
+        /// Базовая цена предмета — сколько он стоит сам по себе, без торговца рядом: та же величина
+        /// и в инвентаре, и в сундуке, и в лавке. Цену СДЕЛКИ (со множителем торговца) считает ценник
+        /// лавки, не предмет. null — цены у предмета нет (вещь вне торговли).
+        /// Монета — единица неделимая, поэтому дробная база показывается округлённой.
+        /// </summary>
+        public int? Price
+        {
+            get
+            {
+                if (Values == null || !Values.TryGetValue(TradeRecive.COMPONENT_PRICE, out JToken value) || value == null)
+                    return null;
+
+                int price = Mathf.RoundToInt(value.Value<float>());
+                return price > 0 ? price : (int?)null;
+            }
+        }
+
         public string Prefab { get { return _prefab; } }
 
         public void SetData(string prefab)
@@ -27,31 +63,35 @@ namespace Mmogick
             ApplyPrefabImage(prefab);
         }
 
-        public void SetTooltip(Tooltip t)
-        {
-            tooltip = t;
-        }
-
+        /// <summary>
+        /// Подсказка предмета: что это, что о нём известно и сколько он стоит. Цены тут две и они о разном:
+        /// БАЗОВАЯ — свойство самого предмета, одинаковое и в инвентаре, и в сундуке, и в лавке; строка
+        /// скупки — предложение конкретного торговца, и появляется она только пока его лавка открыта.
+        /// Роли строк размечает сама подсказка (Tooltip) — предмет их только называет.
+        /// </summary>
         public override string GetTooltipText()
         {
             string title = AnimationCacheService.GetPrefabName(_prefab) ?? _prefab;
             string description = AnimationCacheService.GetPrefabDescription(_prefab);
-            return string.IsNullOrEmpty(description) ? title : title + "\n" + description;
-        }
+            int? price = Price;
 
-        void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
-        {
-            // Защита от двойного взятия (см. MoveableObject).
-            if (CursorController.MyMoveable != null)
-                return;
+            string text = Tooltip.Title(title);
 
-            // Чужая добыча до истечения срока: сервер откажет молча — не даём даже взять предмет
-            // в курсор, иначе игрок таскал бы то, что забрать нельзя. CanvasGroup.interactable тут
-            // не помощник: он гасит Selectable-контролы, а слот ловит клик своим IPointerClickHandler.
-            if (GetComponentInParent<LootSlotMarker>() != null && !LootWindowController.CanTakeFromOpen())
-                return;
+            if (!string.IsNullOrEmpty(description))
+                text += "\n" + Tooltip.Hint(description);
 
-            CursorController.TakeMoveable(this);
+            if (price != null)
+                text += "\n" + Tooltip.Value("Цена: " + InventoryController.Coins(price.Value));
+
+            // Сколько за него дадут ЗДЕСЬ — величина торговца, а не предмета, и стоит отдельной строкой
+            // под базовой ценой: стак из одной штуки продаётся сразу, без вопроса о количестве, и другого
+            // места узнать цену у игрока нет.
+            string trade = LootWindowController.TradeHint(this);
+
+            if (trade != null)
+                text += "\n" + Tooltip.Value(trade);
+
+            return text;
         }
 
         public override void Use(Vector2 pos = new Vector2(), GameObject obj = null)
@@ -60,14 +100,18 @@ namespace Mmogick
             // (SlotNum у него 0 — инвентарные ветки ниже не срабатывают).
             LootSlotMarker myLootSlot = GetComponentInParent<LootSlotMarker>();
             LootSlotMarker targetLootSlot = obj != null ? obj.GetComponentInParent<LootSlotMarker>() : null;
+            LootWindowMarker targetLootWindow = obj != null ? obj.GetComponentInParent<LootWindowMarker>() : null;
 
-            // Дроп на слот окна добычи
-            if (targetLootSlot != null)
+            // Дроп в окно добычи: попал в ячейку — кладём в неё, промахнулся мимо ячеек (отступы сетки,
+            // заголовок, фон), но попал в окно — позицию подбирает сервер. Намерение у обоих попаданий
+            // одно и то же, и терять его из-за нескольких пикселей промаха незачем: у лавки это читалось
+            // бы отказом от продажи, хотя игрок нёс вещь именно торговцу.
+            if (targetLootSlot != null || targetLootWindow != null)
             {
                 // Внутри добычи предметы не переставляются: у ui/inventory/index нет адресации чужого
                 // контейнера, писать в добычу может только серверный код механик.
                 if (myLootSlot == null && SlotNum > 0 && CursorController.SourceEquipmentSlot == null)
-                    LootWindowController.SendPut(SlotNum, targetLootSlot.Num);              // свой предмет — в добычу
+                    LootWindowController.SendPut(SlotNum, targetLootSlot != null ? targetLootSlot.Num : (int?)null);
                 // экипированное сперва снимается в инвентарь — напрямую в добычу не кладём
                 return;
             }
@@ -174,6 +218,21 @@ namespace Mmogick
             // Дроп в мир — выбросить предмет
             else if (obj == null)
             {
+                // Стак уходит на землю столько, сколько назвал игрок: выброшенного не вернуть, и
+                // терять весь запас из-за одного движения он не должен. Одна единица вопроса не стоит.
+                if (SlotNum > 0 && Count > 1)
+                {
+                    int slot = SlotNum;
+                    string title = "Выбросить: " + (AnimationCacheService.GetPrefabName(Prefab) ?? Prefab);
+
+                    QuantityPromptController.Ask(title, Count, count =>
+                    {
+                        InventoryController.LocalDropCount(slot, count);
+                        InventoryController.SendIfDirty();
+                    });
+                    return;
+                }
+
                 if (SlotNum > 0)
                     InventoryController.LocalDrop(SlotNum);
                 InventoryController.SendIfDirty();

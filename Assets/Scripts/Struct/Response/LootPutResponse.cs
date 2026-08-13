@@ -17,6 +17,10 @@ namespace Mmogick
 
         public int? to = null;
 
+        // Сколько единиц позиции отдаём; пусто — позицию целиком. Игрок продаёт часть стака (двадцать
+        // шесть яблок торговцу нужны не всегда), и остаток обязан остаться у него.
+        public int? count = null;
+
         public LootPutResponse()
         {
             action = "put";

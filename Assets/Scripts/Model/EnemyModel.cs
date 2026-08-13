@@ -59,16 +59,16 @@ namespace Mmogick
 
 		public override void SetData(EntityRecive recive)
 		{
-			this.SetData((EnemyRecive)recive);
+			this.SetData((CreatureRecive)recive);
 		}
 
-        protected void SetData(EnemyRecive recive)
+        protected void SetData(CreatureRecive recive)
         {
 			PrepareComponents(recive.components);
 			base.SetData(recive);		
 		}
 
-		protected void PrepareComponents(EnemyComponentsRecive components)
+		protected void PrepareComponents(CreatureComponentsRecive components)
         {
 			if (components != null)
 			{

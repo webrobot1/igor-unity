@@ -160,21 +160,53 @@ namespace Mmogick
         /// </summary>
         private void RefreshMoney()
         {
-            int total = 0;
-
-            for (int i = 0; i < _slots.Length; i++)
-            {
-                Item item = _slots[i].Item;
-
-                if (item != null && item.Prefab == MONEY_PREFAB)
-                    total += item.Count;
-            }
-
             // Тот же резерв, что у иконок предметов (MoveableObject.ApplyPrefabImage): без него
             // Image с пустым sprite рисует белый прямоугольник, неотличимый от поломки вёрстки.
             moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(GAME_ID, MONEY_PREFAB)
                 ?? Resources.Load<Sprite>("unknow");
-            moneyAmount.text = total.ToString();
+            moneyAmount.text = Money.ToString();
+        }
+
+        /// <summary>
+        /// Запас денег игрока — сумма по всем его слотам: отдельного счёта сервер не ведёт, а монеты лежат
+        /// несколькими стаками. Считается по UI-слотам (полная картина инвентаря независимо от того, какие
+        /// позиции были в последнем пакете) — тот же источник, что у плашки денег, второго носителя суммы
+        /// нет. Инвентарь ещё не приходил — 0.
+        /// </summary>
+        public static int Money
+        {
+            get
+            {
+                int total = 0;
+                if (_slots == null) return total;
+
+                for (int i = 0; i < _slots.Length; i++)
+                {
+                    Item item = _slots[i].Item;
+
+                    if (item != null && item.Prefab == MONEY_PREFAB)
+                        total += item.Count;
+                }
+
+                return total;
+            }
+        }
+
+        /// <summary>
+        /// Сумма прописью для интерфейса: «1 монета», «2 монеты», «5 монет». Форма слова — здесь, у
+        /// единственного места, знающего про валюту игры (см. MONEY_PREFAB).
+        /// </summary>
+        public static string Coins(int amount)
+        {
+            int tens = amount % 100;
+            int ones = amount % 10;
+
+            string word = tens >= 11 && tens <= 14 ? "монет"
+                : ones == 1 ? "монета"
+                : ones >= 2 && ones <= 4 ? "монеты"
+                : "монет";
+
+            return amount + " " + word;
         }
 
         // создает пустые ячейки инвентаря в количестве count
@@ -186,7 +218,8 @@ namespace Mmogick
 
         /// <summary>
         /// Наполнить UI-слот предметом из данных слота инвентаря (общий рендер для окна инвентаря и окна
-        /// контейнера): инстанс префаба, спрайт, тултип, счётчик. slotNum — номер СВОЕГО инвентаря
+        /// контейнера): инстанс префаба, спрайт, счётчик. Подсказку показывает сам слот (SlotScript),
+        /// предмет в нём деактивирован. slotNum — номер СВОЕГО инвентаря
         /// (по нему ветвятся Item.Use/equip); 0 — предмет чужого контейнера (позицию несёт LootSlotMarker).
         /// </summary>
         protected Item RenderSlotItem(SlotScript slotUI, Item prefab, ItemSlotRecive data, int slotNum)
@@ -194,11 +227,16 @@ namespace Mmogick
             Item item = Instantiate(prefab, slotUI.transform);
             item.gameObject.SetActive(false);
             item.SetData(data.prefab);
-            item.SetTooltip(tooltip);
             item.SlotNum = slotNum;
             item.Count = data.count;
+            // Отличия экземпляра от префаба (своя цена и т.п.) — свойство самого предмета, а не ячейки.
+            // Обратно на сервер уходят ровно они (SnapshotSlots), поэтому храним их как пришли.
+            item.Components = data.components;
+            // Единственная точка сборки: дальше предмет знает о себе всё, и окна читают его свойства
+            // готовыми — правило «своё, иначе префабное» ни одно из них не повторяет.
+            item.Values = AnimationCacheService.GetComponentValues(data.prefab, data.components);
 
-            slotUI.SetItem(item, data.count, data.components);
+            slotUI.SetItem(item, data.count);
             return item;
         }
 
@@ -213,7 +251,7 @@ namespace Mmogick
             {
                 SlotScript src = slots[i];
                 snapshot[i + 1] = src.Item != null
-                    ? new ItemSlotRecive(src.Item.Prefab, src.Item.Count, src.Components)
+                    ? new ItemSlotRecive(src.Item.Prefab, src.Item.Count, src.Item.Components)
                     : null;
             }
 
@@ -266,10 +304,7 @@ namespace Mmogick
             SlotScript to = _slots[toSlot - 1];
 
             Item fromItem = from.Item;
-            Dictionary<string, string> fromComp = from.Components;
-
             Item toItem = to.Item;
-            Dictionary<string, string> toComp = to.Components;
 
             _dirty = true;
 
@@ -280,13 +315,13 @@ namespace Mmogick
             if (fromItem != null)
             {
                 fromItem.SlotNum = toSlot;
-                to.SetItem(fromItem, fromItem.Count, fromComp);
+                to.SetItem(fromItem, fromItem.Count);
             }
 
             if (toItem != null)
             {
                 toItem.SlotNum = fromSlot;
-                from.SetItem(toItem, toItem.Count, toComp);
+                from.SetItem(toItem, toItem.Count);
             }
         }
 
@@ -321,6 +356,30 @@ namespace Mmogick
         {
             if (_slots == null) return;
             _slots[slotNum - 1].Clear();
+            _dirty = true;
+        }
+
+        /// <summary>
+        /// Локально убрать из слота count единиц: часть стака либо весь. Остаток остаётся в слоте —
+        /// сколько выбросить, игрок назвал сам (QuantityPromptController), и унести заодно остальное
+        /// нельзя. count больше стака трактуем как весь стак: потолок ввода — дело спрашивающего.
+        /// </summary>
+        public static void LocalDropCount(int slotNum, int count)
+        {
+            if (_slots == null) return;
+
+            SlotScript slot = _slots[slotNum - 1];
+            Item item = slot.Item;
+
+            if (item == null || count >= item.Count)
+            {
+                slot.Clear();
+                _dirty = true;
+                return;
+            }
+
+            item.Count -= count;
+            slot.SetItem(item, item.Count);
             _dirty = true;
         }
 

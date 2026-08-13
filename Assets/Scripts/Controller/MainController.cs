@@ -94,7 +94,7 @@ namespace Mmogick
             base.Update();
         }
 
-        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
         {
             base.HandleData(recive);
             if (recive.unixtime > 0)

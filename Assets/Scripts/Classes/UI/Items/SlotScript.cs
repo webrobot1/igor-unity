@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -13,12 +12,11 @@ namespace Mmogick
         [SerializeField] private Text _stackText;
 
         // Тултип показывает СЛОТ, а не Item: Item в слоте деактивирован (SetActive(false)
-        // в InventoryController.UpdateObject) и pointer-события не получает.
+        // в InventoryController.RenderSlotItem) и pointer-события не получает.
         protected Tooltip tooltip;
 
         private Item _item;
         private int _slotNum;
-        private Dictionary<string, string> _components;
 
         public int SlotNum
         {
@@ -33,17 +31,12 @@ namespace Mmogick
             get { return _item; }
         }
 
-        public Dictionary<string, string> Components
-        {
-            get { return _components; }
-        }
-
         // count=1 по умолчанию — для экипировки на теле всегда «один экземпляр», stack-текст
         // не показывается (count > 1 == false). В инвентаре вызываем с явным item.Count из сервера.
-        public void SetItem(Item item, int count = 1, Dictionary<string, string> components = null)
+        // Отличия экземпляра (Item.Components) ячейка не хранит: они едут с самим предметом.
+        public void SetItem(Item item, int count = 1)
         {
             _item = item;
-            _components = components;
 
             if (item != null)
             {
@@ -64,7 +57,6 @@ namespace Mmogick
             if (_item != null)
                 Destroy(_item.gameObject);
             _item = null;
-            _components = null;
             _icon.sprite = null;
             _icon.color = new Color(1, 1, 1, 0);
             _stackText.text = "";
@@ -73,12 +65,11 @@ namespace Mmogick
         // Отвязать слот от Item, НЕ уничтожая Item.gameObject. Нужно при локальном swap'е:
         // Item переезжает в другой слот, старый Clear() в этой ситуации бы Destroy'ил _item.gameObject
         // (т.к. _item ещё указывает на тот же Item), и новый слот оставался бы с ссылкой на destroyed-object —
-        // клики бы не работали до прихода ответа от сервера (см. Item.OnPointerClick — там _item == null
+        // клики бы не работали до прихода ответа от сервера (см. HandlePointerClick — там _item == null
         // для destroyed Unity object возвращает true и TakeMoveable не вызывается).
         public void Detach()
         {
             _item = null;
-            _components = null;
             _icon.sprite = null;
             _icon.color = new Color(1, 1, 1, 0);
             _stackText.text = "";
@@ -140,8 +131,19 @@ namespace Mmogick
         // изменить логику (например, сразу отправить equip-запрос для EquipmentSlot).
         protected virtual void HandlePointerClick(PointerEventData eventData)
         {
-            if (CursorController.MyMoveable == null && _item != null)
-                CursorController.TakeMoveable(_item);
+            if (CursorController.MyMoveable != null || _item == null)
+                return;
+
+            // Слот чужого контейнера: берём в курсор лишь то, что нам отдадут. Чужую добычу до истечения
+            // срока и не по карману товар лавки сервер отбивает молча — без гейта предмет висел бы на
+            // курсоре, а команда потом никуда не уходила. Взятие ловит слот, а не сам предмет: Item в
+            // слоте деактивирован и pointer-событий не получает.
+            LootSlotMarker loot = GetComponent<LootSlotMarker>();
+
+            if (loot != null && !LootWindowController.CanTakeSlot(loot.Num))
+                return;
+
+            CursorController.TakeMoveable(_item);
         }
     }
 }

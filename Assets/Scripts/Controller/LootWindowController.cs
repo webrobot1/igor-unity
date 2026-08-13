@@ -4,7 +4,16 @@ using UnityEngine.UI;
 
 namespace Mmogick
 {
-	// Окно добычи контейнера — трупа существа либо объекта-сундука: сетка слотов по паттерну инвентаря.
+	// Окно добычи контейнера — трупа существа, объекта-сундука либо лавки торговца: сетка слотов по
+	// паттерну инвентаря.
+	//
+	// Лавка — тот же контейнер, только платный: покупка это забор из него (take), продажа — укладывание
+	// в него (put), отдельных команд сделки нет. Отличает её ЗАПОЛНЕННЫЙ ценник (компонент trade, см.
+	// TradeRecive): он публичен, приходит всем видящим и несёт множители обеих сторон, а у неторгующих
+	// объектов приходит пустым. Базовая цена предмета лежит у самого предмета и приезжает манифестом
+	// префабов (AnimationCacheService.GetComponentValue) — множители лишь пересчитывают её на свою сторону.
+	// Считает цену и решает, состоялась ли сделка, сервер — клиент её только показывает и не шлёт
+	// заведомо отбиваемого (нечем платить, вещь без цены скупки, пустая касса торговца).
 	// Контракт сервера:
 	//   - состав добычи ПРИВАТЕН: приходит только тому, кто стоит на клетке контейнера, — по команде
 	//     открытия (ui/loot/open) и дальше при каждом изменении состава. Данные оседают на самой
@@ -13,10 +22,10 @@ namespace Mmogick
 	//     повторяет открытие до прибытия — своего подхода клиент не изобретает;
 	//   - пустой состав тоже приходит и показывается пустым окном («обыскал — пусто»); окно держится,
 	//     пока игрок стоит на клетке, и закрывается сходом с неё либо исчезновением самой сущности;
-	//   - право на добычу (данные команды status/lootfree) сервер проверяет на попытке взять: пока
-	//     владелец назначен, берёт только он, отказ остальным тихий; по истечении срока эксклюзива
-	//     сервер команду не перевешивает — право гаснет вместе с ней. Клиент это ЗЕРКАЛИТ неактивными
-	//     кнопками — UX-фильтр, а не замена серверной проверки;
+	//   - право на добычу (список допущенных в данных команды status/lootfree) держит сервер: пока добыча
+	//     закреплена, состав уходит только допущенным — недопущенному не приходит ни содержимое, ни само
+	//     окно, а сколько ему ждать, показывает полоска над телом; допускать больше некого — сервер
+	//     команду не перевешивает, и добыча свободна любому;
 	//   - каждая операция (take/put) отвечает свежим составом — окно перерисовывается по нему, локально
 	//     ничего не двигаем (сервер — source of truth).
 	// Взятие предмета контейнера в курсор делает базовый SlotScript-клик; принадлежность слота
@@ -44,6 +53,11 @@ namespace Mmogick
 		[SerializeField]
 		private Button lootTakeAllButton;
 
+		// Заголовок окна: над ним стоит имя самого контейнера («Торговец», «Сундук») — торг и обыск
+		// тела разные занятия, и одним словом их не назвать.
+		[SerializeField]
+		private Text lootTitle;
+
 		// key открытого трупа; null — окно закрыто. static — Item.Use шлёт команды take/put без поиска
 		// инстанса контроллера (паттерн InventoryController._slots).
 		private static string _containerKey;
@@ -54,6 +68,11 @@ namespace Mmogick
 		private static SlotScript[] _lootSlots;
 		private static CanvasGroup _lootGroup;
 		private static Button _takeAllButton;
+
+		// Заголовок окна и подпись из сцены: она остаётся запасной на случай, когда имени у префаба
+		// контейнера нет вовсе, — потому исходную запоминаем, а не переписываем в одну сторону.
+		private static Text _title;
+		private static string _titleDefault;
 
 		// Маркер трупа, с которым работает окно (открытого либо того, к которому идём). Кеш нужен
 		// потому, что состояние окна пересчитывается КАЖДЫЙ кадр — сход с клетки и распад тела закрывают
@@ -111,6 +130,20 @@ namespace Mmogick
 				return;
 			}
 
+			if (lootTitle == null)
+			{
+				Error("не назначен заголовок окна добычи (Text) — у лавки его менять нечем");
+				return;
+			}
+
+			_title = lootTitle;
+			_titleDefault = lootTitle.text;
+
+			// Метка окна целиком: по ней Item.Use узнаёт промах мимо ячейки, но внутрь окна.
+			// Ставится кодом, как и метки самих ячеек: их число и состав задаёт сервер, а не сцена.
+			if (lootGroup.GetComponent<LootWindowMarker>() == null)
+				lootGroup.gameObject.AddComponent<LootWindowMarker>();
+
 			lootTakeAllButton.onClick.RemoveListener(SendTakeAll);
 			lootTakeAllButton.onClick.AddListener(SendTakeAll);
 
@@ -133,16 +166,16 @@ namespace Mmogick
 		// его inventory наполняет InventoryController.
 		protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
 		{
-			EnemyComponentsRecive components = null;
+			CreatureComponentsRecive components = null;
 
 			if (key != player_key)
 			{
 				// components полиморфны (shadowed new): у player-группы Newtonsoft заполняет
-				// PlayerRecive.components, у entity-группы — EnemyRecive.components; loot лежит
-				// в общем базовом EnemyComponentsRecive, поэтому читаем через базовый тип.
+				// PlayerRecive.components, у entity-группы — CreatureRecive.components; loot лежит
+				// в общем базовом CreatureComponentsRecive, поэтому читаем через базовый тип.
 				components = recive is PlayerRecive playerRecive
 					? playerRecive.components
-					: ((EnemyRecive)recive).components;
+					: ((CreatureRecive)recive).components;
 			}
 
 			GameObject prefab = base.UpdateObject(map_id, key, recive);
@@ -158,7 +191,13 @@ namespace Mmogick
 				&& recive.events.TryGetValue(CorpseLootMarker.GROUP_LOOTFREE, out lootfree)
 				&& lootfree.data != null;
 
-			if (prefab != null && (right || (components != null && components.loot != null)))
+			// Ценник лавки — такой же публичный повод завести маркер, как право на добычу: он приходит
+			// раньше состава (тот приватен и ждёт подхода игрока) и НЕ повторяется — дельта шлёт компонент
+			// один раз, поэтому без маркера в этот момент ценник потерялся бы совсем. Повод даёт только
+			// ЗАПОЛНЕННЫЙ ценник: пустой приходит каждому объекту, и маркер висел бы на всём подряд.
+			bool trades = components != null && components.trade != null && components.trade.Trades;
+
+			if (prefab != null && (right || trades || (components != null && components.loot != null)))
 				CorpseLootMarker.Apply(prefab, components);
 
 			// Немедленный пересчёт на пришедшей дельте: игрок сдвинулся (сошёл с клетки / дошёл до цели)
@@ -170,15 +209,19 @@ namespace Mmogick
 			return prefab;
 		}
 
-		// Имена серверных компонентов добычи: у объекта-сундука состав задан самим префабом (loot),
+		// Имена серверных компонентов добычи: у объекта-сундука и у лавки состав задан самим префабом (loot),
 		// у существа он разыгрывается при смерти по таблице дропа (loot_table) — до смерти компонента
 		// добычи на нём нет вовсе. Оба приходят в составе префаба (манифест /prefabs).
+		// Ценника (trade) в этом списке НЕТ намеренно: компонент со структурным значением платформа заводит
+		// всему виду object, поэтому в составе префаба он есть и у портала с алтарём — признаком лавки
+		// служить не может. Лавку признаём по её товару, как любой контейнер, а торгует она или нет,
+		// решают уже пришедшие множители (CorpseLootMarker.Trade).
 		private const string COMPONENT_LOOT = "loot";
 		private const string COMPONENT_LOOT_TABLE = "loot_table";
 
 		/// <summary>
-		/// Открываемый ли это контейнер — труп существа с дропом либо объект-сундук. UX-фильтр перед
-		/// отправкой открытия: зеркалит серверные гейты ui/loot/open (живую цель и сущность без добычи
+		/// Открываемый ли это контейнер — труп существа с дропом, объект-сундук либо лавка торговца. UX-фильтр
+		/// перед отправкой открытия: зеркалит серверные гейты ui/loot/open (живую цель и сущность без добычи
 		/// сервер отбивает молча) — без него клик по любому объекту без запаса здоровья (портал, алтарь)
 		/// слал бы заведомо отбиваемую команду. Тем же признаком решается и подсветка кликабельного:
 		/// кольцо обещает открытие ровно там, где оно состоится.
@@ -193,6 +236,60 @@ namespace Mmogick
 
 			List<string> components = AnimationCacheService.GetPrefabComponents(entity.prefab);
 			return components.Contains(COMPONENT_LOOT) || components.Contains(COMPONENT_LOOT_TABLE);
+		}
+
+		/// <summary>
+		/// Ценник ОТКРЫТОГО контейнера; null — окно закрыто либо контейнер не торгует (пустой ценник
+		/// отсеивает CorpseLootMarker.Trade). Единственная точка, по которой остальной интерфейс
+		/// (подсказка предмета, подпись кнопки) узнаёт, что перед игроком лавка.
+		/// </summary>
+		public static TradeRecive OpenTrade
+		{
+			get
+			{
+				if (_containerKey == null) return null;
+
+				CorpseLootMarker marker = FindMarker(_containerKey);
+				return marker != null ? marker.Trade : null;
+			}
+		}
+
+		/// <summary>
+		/// Строка сделки для подсказки предмета, пока открыта лавка: у её товара — почём берут штуку,
+		/// у своей вещи — сколько за штуку дадут. Обе стороны считаются и подаются одинаково, разнится
+		/// лишь смысл: цену видно у любого предмета, на который игрок смотрит, с какой бы стороны прилавка
+		/// тот ни лежал.
+		/// ЗА ШТУКУ, а не за стак: стак из одной единицы уходит сразу, без вопроса о количестве, и цену
+		/// игрок должен видеть ДО клика; сколько выйдет за несколько, считает окно выбора количества.
+		/// Вещь вне торговли — словами, а не нулём: ноль монет читался бы ценой, хотя сделки не будет вовсе.
+		/// null — лавка не открыта либо предмет в ней не участвует (монеты, предмет в руке).
+		/// Знание о торговле держит окно лавки, а не предмет: предмет один и тот же и в инвентаре, и на
+		/// прилавке — сторону сделки задаёт то, где он лежит.
+		/// </summary>
+		public static string TradeHint(Item item)
+		{
+			TradeRecive trade = OpenTrade;
+
+			if (trade == null || item == null || string.IsNullOrEmpty(item.Prefab))
+				return null;
+
+			// Товар прилавка узнаём по метке слота, в котором он лежит: инвентарного номера у него нет
+			// (SlotNum = 0), и от предмета в руке отличает его только место.
+			if (item.GetComponentInParent<LootSlotMarker>() != null)
+			{
+				int? buy = trade.BuyPrice(item.Prefab, item.Components, 1);
+
+				return buy != null ? "Купить за штуку: " + Coins(buy.Value) : "Торговец это не продаёт";
+			}
+
+			if (item.SlotNum <= 0) return null;
+
+			// Монеты — сама плата, торговцу их не продают.
+			if (item.Prefab == MONEY_PREFAB) return null;
+
+			int? sell = trade.SellPrice(item.Prefab, item.Components, 1);
+
+			return sell != null ? "Продать за штуку: " + Coins(sell.Value) : "Торговец это не покупает";
 		}
 
 		/// <summary>
@@ -229,45 +326,72 @@ namespace Mmogick
 		/// </summary>
 		private static void RefreshWindow()
 		{
-			string key = _containerKey ?? _pendingKey;
-			if (key == null) return;
+			bool gone;
 
-			PlayerModel me = PlayerController.Player;
+			// Сперва — контейнер, к которому игрок ИДЁТ: он вытесняет открытое окно, как только готов
+			// показаться сам (дошли, и состав пришёл). Пока не готов, на экране остаётся прежнее окно —
+			// иначе оно гасло бы на всю дорогу до новой цели. Решает готовность НОВОГО, а не сход с клетки
+			// старого: контейнеры бывают и на одной клетке (тело упало на сундук), и сходить тогда не с чего.
+			if (_pendingKey != null)
+			{
+				if (TryShow(_pendingKey, out gone)) return;
+
+				// Цель распалась, пока игрок шёл, — идти больше не к чему.
+				if (gone) _pendingKey = null;
+			}
+
+			// Открытое окно держится, пока игрок стоит на клетке своего контейнера.
+			if (_containerKey != null && !TryShow(_containerKey, out gone))
+				Hide();
+		}
+
+		/// <summary>
+		/// Показать окно контейнера key, если ему есть что показать прямо сейчас, и сообщить, состоялся ли
+		/// показ. Показывается контейнер, который ещё в мире и чей состав добычи пришёл, — игроку живому и
+		/// стоящему на его клетке (мёртвый не лутает: тот же гейт держит сервер, а умереть на клетке трупа
+		/// обычное дело). SameTile — тот же порог, что гейтит серверную проверку клетки на попытке взять.
+		/// Пустой состав показу НЕ мешает: он и есть ответ «обыскал — пусто».
+		/// gone — самой сущности в мире больше нет (тело распалось): ждать её бессмысленно, в отличие от
+		/// прочих отказов, которые снимаются приходом состава либо приходом самого игрока.
+		/// </summary>
+		private static bool TryShow(string key, out bool gone)
+		{
+			gone = false;
+
 			CorpseLootMarker marker = FindMarker(key);
 
 			// Сам контейнер ищем в мире, а маркер добычи — отдельно: у объекта-сундука публичного
-			// признака добычи нет вовсе, и до прихода приватного состава маркера на нём ЕЩЁ НЕТ.
+			// признака добычи нет вовсе (у лавки он есть — заполненный ценник), и до прихода приватного
+			// состава маркера на сундуке ЕЩЁ НЕТ.
 			// Считать «нет маркера» за «контейнер исчез» нельзя — отложенное открытие гасло бы на
 			// первом же кадре ожидания, и пришедший следом состав окно уже не открывал.
 			// Поиск по сцене — только на этой ветке: у открытого окна маркер есть и берётся из кеша.
-			EntityModel container = marker != null ? marker.GetComponent<EntityModel>() : FindEntity(key);
+			EntityModel container = marker != null ? marker.GetComponent<EntityModel>() : FindContainer(key);
 
-			// Сущность исчезла (тело распалось) — отложенное открытие больше не состоится.
 			if (container == null)
 			{
-				_pendingKey = null;
-				Hide();
-				return;
+				gone = true;
+				return false;
 			}
 
-			// Состав ни разу не приходил (запрос ещё в пути либо сервер его отбил), игрок сошёл с клетки
-			// либо сам мёртв (мёртвый не лутает — тот же гейт держит сервер, а умереть на клетке трупа
-			// обычное дело) — окна нет. Пустой состав окно НЕ закрывает: он и есть ответ «обыскал — пусто».
-			// SameTile — тот же порог, что гейтит серверную проверку клетки на попытке взять.
+			PlayerModel me = PlayerController.Player;
+
 			if (me == null || (me.hp != null && me.hp <= 0) || marker == null || marker.Loot == null
 				|| !EntityModel.SameTile(me.position, container.position))
-			{
-				Hide();
-				return;
-			}
+				return false;
 
-			ShowLoot(key, marker);
+			ShowLoot(key, marker, container);
+			return true;
 		}
 
-		/// <summary>Сущность-контейнер по её ключу — есть ли она ещё в мире (маркера добычи может не быть).</summary>
-		private static EntityModel FindEntity(string key)
+		/// <summary>
+		/// Сущность-контейнер по её ключу — есть ли она ещё в мире (маркера добычи может не быть).
+		/// Спрашиваем общий реестр сущностей, а не сцену: ответ нужен КАЖДЫЙ кадр всю дорогу до цели,
+		/// пока состав ещё не пришёл, а поиск по сцене обходит её целиком на каждый такой вопрос.
+		/// </summary>
+		private static EntityModel FindContainer(string key)
 		{
-			GameObject go = !string.IsNullOrEmpty(key) ? GameObject.Find(key) : null;
+			GameObject go = !string.IsNullOrEmpty(key) ? FindEntity(key) : null;
 			return go != null ? go.GetComponent<EntityModel>() : null;
 		}
 
@@ -284,8 +408,11 @@ namespace Mmogick
 			return _marker;
 		}
 
-		/// <summary>Открыть/перерисовать окно по содержимому добычи трупа key.</summary>
-		private static void ShowLoot(string key, CorpseLootMarker marker)
+		/// <summary>
+		/// Открыть/перерисовать окно по содержимому добычи контейнера key. container — сама сущность
+		/// (её префаб даёт заголовок окна); вызывающий её уже нашёл, второй раз не ищем.
+		/// </summary>
+		private static void ShowLoot(string key, CorpseLootMarker marker, EntityModel container)
 		{
 			LootWindowController instance = _instance;
 			if (instance == null) return;
@@ -296,7 +423,11 @@ namespace Mmogick
 			bool rebuild = opening || _renderedVersion != marker.Version;
 
 			_containerKey = key;
-			_pendingKey = null;
+
+			// Снимаем ТОЛЬКО своё отложенное открытие: пока показывается один контейнер, игрок мог уже
+			// кликнуть по другому — его намерение живёт своей жизнью, и стирать его чужим показом нельзя,
+			// иначе дойдя до новой цели игрок остался бы вовсе без окна.
+			if (_pendingKey == key) _pendingKey = null;
 
 			if (_lootSlots == null)
 			{
@@ -304,6 +435,10 @@ namespace Mmogick
 				if (_lootSlots == null) return;
 				rebuild = true;
 			}
+
+			// Ценник контейнера (null — не лавка). Он же двигает Version, поэтому запоздавший ценник сам
+			// вызывает пересборку слотов и цены появляются на уже открытом окне.
+			TradeRecive trade = marker.Trade;
 
 			if (rebuild)
 			{
@@ -321,6 +456,8 @@ namespace Mmogick
 						// SlotNum=0: предмет НЕ в инвентаре игрока — инвентарные ветки Item.Use
 						// (LocalSwap/equip по SlotNum) не должны срабатывать; позицию добычи
 						// несёт LootSlotMarker слота-родителя.
+						// Цену тут не проставляем: она стоит в подсказке предмета, у обеих сторон прилавка
+						// в одном виде (TradeHint), а угол ячейки занят количеством в стаке.
 						instance.RenderSlotItem(slotUI, instance.lootItemPrefab, data, 0);
 					}
 				}
@@ -335,26 +472,38 @@ namespace Mmogick
 				_lootGroup.interactable = true;
 			}
 
+			// Заголовок — имя самого контейнера, как его назвали префабу в админке («Торговец», «Сундук»):
+			// торг и обыск тела разные занятия, и общей подписью их не назвать. Имя необязательно —
+			// не задано, остаётся подпись из сцены: slug на её месте игроку ничего не говорит.
+			if (_title != null)
+				_title.text = AnimationCacheService.GetPrefabName(container.prefab) ?? _titleDefault;
+
 			// Пустой контейнер («обыскал — пусто») кнопку не показывает вовсе: забирать нечего, а сама
-			// кнопка лежит поверх сетки и мешала бы класть в него своё.
+			// кнопка лежит поверх сетки и мешала бы класть в него своё. У лавки кнопки нет ни при каком
+			// составе — скупать прилавок целиком одним нажатием игроку незачем (решение пользователя),
+			// а денег на это не хватало бы почти всегда.
 			if (_takeAllButton != null)
-				_takeAllButton.gameObject.SetActive(marker.HasLoot);
+			{
+				_takeAllButton.gameObject.SetActive(marker.HasLoot && trade == null);
+				_takeAllButton.interactable = true;
+			}
 
 			// «Забрать всё» закрывает оба окна — но по опустевшему контейнеру, а не по самому нажатию:
 			// невместившееся остаётся в трупе, и закрытие вслепую унесло бы остаток с глаз молча.
+			// Инвентарь закрывает сам Hide — он открывался вместе с контейнером.
 			if (_closeWhenEmpty && !marker.HasLoot)
 			{
 				_closeWhenEmpty = false;
 				Hide();
-				instance.inventoryGroup.alpha = 0;
-				instance.inventoryGroup.blocksRaycasts = false;
 				return;
 			}
 
 			// Перетаскивание труп↔инвентарь требует оба окна: инвентарь открываем вместе с добычей —
 			// но только В МОМЕНТ открытия, иначе покадровый пересчёт не давал бы игроку закрыть
 			// инвентарь клавишей, пока он стоит на трупе.
-			if (opening)
+			// У лавки инвентарь держим открытым ВСЁ время торга: в нём и товар на продажу, и плашка денег —
+			// сколько монет осталось, игрок обязан видеть, пока покупает.
+			if (opening || trade != null)
 			{
 				instance.inventoryGroup.alpha = 1;
 				instance.inventoryGroup.blocksRaycasts = true;
@@ -413,6 +562,12 @@ namespace Mmogick
 
 		private static void Hide()
 		{
+			// Инвентарь открывался вместе с контейнером (см. ShowLoot) — вместе с ним и убирается:
+			// отошёл от торговца, тела либо сундука — экран чист, как до подхода. Закрываем только
+			// то, что БЫЛО открыто: покадровое ожидание подхода (_containerKey ещё null, идём к цели)
+			// иначе держало бы инвентарь закрытым всю дорогу, не давая игроку открыть его самому.
+			bool wasOpen = _containerKey != null;
+
 			_containerKey = null;
 			_renderedVersion = -1;
 			_closeWhenEmpty = false;
@@ -422,6 +577,85 @@ namespace Mmogick
 				_lootGroup.blocksRaycasts = false;
 				_lootGroup.interactable = true;
 			}
+
+			if (wasOpen && _instance != null && _instance.inventoryGroup != null)
+			{
+				_instance.inventoryGroup.alpha = 0;
+				_instance.inventoryGroup.blocksRaycasts = false;
+			}
+		}
+
+		/// <summary>
+		/// Во сколько обойдётся покупка позиций idx у этого торговца; null — среди них есть то, чего он не
+		/// продаёт: сервер такую сделку отбивает целиком («ноль значит сделки нет»), значит и покупки нет.
+		/// </summary>
+		private static int? TotalPrice(CorpseLootMarker trader, List<int> idx)
+		{
+			TradeRecive trade = trader != null ? trader.Trade : null;
+			if (trade == null || trader.Loot == null || idx == null) return 0;
+
+			int total = 0;
+
+			for (int i = 0; i < idx.Count; i++)
+			{
+				ItemSlotRecive data;
+				if (!trader.Loot.TryGetValue(idx[i], out data) || data == null || string.IsNullOrEmpty(data.prefab))
+					continue;
+
+				int? price = trade.BuyPrice(data.prefab, data.components, data.count);
+				if (price == null) return null;
+
+				total += price.Value;
+			}
+
+			return total;
+		}
+
+		/// <summary>
+		/// Касса контейнера — сколько монет лежит в нём самом: отдельного счёта у торговца нет, выручку он
+		/// платит из тех же позиций, что и товар (счёт игрока считается так же — InventoryController.Money).
+		/// </summary>
+		private static int CashOf(CorpseLootMarker trader)
+		{
+			int total = 0;
+			if (trader == null || trader.Loot == null) return total;
+
+			foreach (var kv in trader.Loot)
+				if (kv.Value != null && kv.Value.prefab == MONEY_PREFAB)
+					total += kv.Value.count;
+
+			return total;
+		}
+
+		/// <summary>
+		/// Отдаст ли открытый контейнер позицию num: право на добычу разрешает, а у лавки предмет ещё и
+		/// продаётся и по карману. Спрашивается ДО взятия предмета в курсор — иначе товар прилипал бы к
+		/// курсору, а команда потом молча не уходила бы (те же условия в SendTake).
+		/// У лавки порог — ОДНА единица, а не весь стак: сколько штук взять, игрок называет сам
+		/// (окно количества в SendTake), и запирать от него стак, который он в состоянии купить
+		/// частями, незачем.
+		/// </summary>
+		public static bool CanTakeSlot(int num)
+		{
+			if (!CanTakeFromOpen()) return false;
+
+			CorpseLootMarker trader = FindMarker(_containerKey);
+			if (trader == null || trader.Trade == null) return true;
+
+			ItemSlotRecive item = SlotOf(trader, num);
+			if (item == null) return false;
+
+			int? unit = trader.Trade.BuyPrice(item.prefab, item.components, 1);
+			return unit != null && unit.Value <= Money;
+		}
+
+		/// <summary>Предмет позиции num контейнера; null — позиция пуста либо состава ещё нет.</summary>
+		private static ItemSlotRecive SlotOf(CorpseLootMarker container, int num)
+		{
+			ItemSlotRecive item;
+			if (container == null || container.Loot == null || !container.Loot.TryGetValue(num, out item))
+				return null;
+			return item != null && !string.IsNullOrEmpty(item.prefab) ? item : null;
 		}
 
 		/// <summary>Разрешает ли право на добычу забирать из ОТКРЫТОГО трупа (нет открытого — нет и забора).</summary>
@@ -442,17 +676,90 @@ namespace Mmogick
 			if (_containerKey == null || idx == null || idx.Count == 0) return;
 			if (!CanTakeFromOpen()) return;
 
+			CorpseLootMarker trader = FindMarker(_containerKey);
+			TradeRecive trade = trader != null ? trader.Trade : null;
+
+			// Обычный контейнер: забор бесплатен и идёт позициями целиком — спрашивать не о чем,
+			// количество не шлём вовсе.
+			if (trade == null)
+			{
+				SendTakeCommand(_containerKey, idx, to, null);
+				return;
+			}
+
+			// Забор из лавки — покупка: не хватает монет либо просят непродаваемое (её же касса), и сервер
+			// отказывает молча и целиком (частичной сделки у него нет). Заведомо отбиваемую команду не шлём.
+			// Истина всё равно за сервером: он считает по свежему кошельку, мы — по последнему пришедшему
+			// состоянию инвентаря, поэтому запоздалая дельта даёт лишь на миг заблокированную покупку.
+			// Пачка позиций («забрать всё») у лавки не набирается — кнопки у неё нет (см. ShowLoot),
+			// поэтому количество спрашиваем у одиночной позиции, а список берётся целиком по общей цене.
+			if (idx.Count > 1)
+			{
+				int? total = TotalPrice(trader, idx);
+				if (total == null || total.Value > Money) return;
+
+				SendTakeCommand(_containerKey, idx, to, null);
+				return;
+			}
+
+			ItemSlotRecive item = SlotOf(trader, idx[0]);
+			if (item == null) return;
+
+			// Цена ЕДИНИЦЫ, а не всего стака: по ней видно, сколько штук потянет кошелёк. Нет её —
+			// товар не продаётся вовсе, и спрашивать количество не о чем (то же у продажи — SendPut).
+			int? unit = trade.BuyPrice(item.prefab, item.components, 1);
+			if (unit == null) return;
+
+			int affordable = Money / unit.Value;
+			if (affordable <= 0) return;                       // не по карману даже одна штука
+
+			int max = Mathf.Min(item.count, affordable);
+
+			// Одна единица вопроса не стоит: окно спрашивало бы то, на что ответ единственный. Число
+			// всё равно шлём — весь стак игроку может быть не по карману, и «целиком» тут не то же самое.
+			if (max <= 1)
+			{
+				SendTakeCommand(_containerKey, idx, to, max);
+				return;
+			}
+
+			// Пока игрок вводит число, окно лавки может закрыться (сошёл с клетки) либо смениться на
+			// другой контейнер — команду шлём, только если перед нами всё тот же торговец.
+			string key = _containerKey;
+			string title = "Купить: " + (AnimationCacheService.GetPrefabName(item.prefab) ?? item.prefab);
+
+			QuantityPromptController.Ask(title, max, count =>
+			{
+				if (_containerKey == key)
+					SendTakeCommand(key, idx, to, count);
+			},
+			// Сколько игрок отдаст за выбранное количество — считает тот же ценник, что и на ячейке товара.
+			count =>
+			{
+				int? price = trade.BuyPrice(item.prefab, item.components, count);
+				return price != null ? "Заплатите: " + Coins(price.Value) : null;
+			});
+		}
+
+		/// <summary>
+		/// Сама команда забора. count — сколько единиц суммарно забираем; пусто — позиции целиком
+		/// (обычный контейнер, где дробить нечего и незачем).
+		/// </summary>
+		private static void SendTakeCommand(string key, List<int> idx, int? to, int? count)
+		{
 			LootTakeResponse response = new LootTakeResponse();
-			response.key = _containerKey;
+			response.key = key;
 			response.idx = idx;
 			response.to = to;
+			response.count = count;
 			response.Send();
 		}
 
 		/// <summary>
-		/// Забрать всё: одна команда со списком всех занятых позиций. Опустевший после неё контейнер
-		/// закроет окна сам (см. ShowLoot) — по факту пустоты, а не по нажатию: часть предметов могла
-		/// не влезть в инвентарь и остаться в трупе.
+		/// Забрать всё: одна команда со списком занятых позиций. Опустевший после неё контейнер закроет
+		/// окна сам (см. ShowLoot) — по факту пустоты, а не по нажатию: часть предметов могла не влезть
+		/// в инвентарь и остаться в трупе. Кнопки этой у лавки нет (см. ShowLoot), поэтому платный забор
+		/// сюда не приходит и отбирать продаваемое из списка не от чего.
 		/// </summary>
 		public static void SendTakeAll()
 		{
@@ -465,15 +772,76 @@ namespace Mmogick
 			SendTake(marker.OccupiedSlots());
 		}
 
-		// Положить свой предмет (позиция idx своего инвентаря) в добычу трупа (to — позиция добычи).
+		// Положить свой предмет (позиция idx своего инвентаря) в контейнер (to — позиция в нём); у лавки
+		// то же укладывание и есть продажа.
 		public static void SendPut(int idx, int? to = null)
 		{
 			if (_containerKey == null) return;
 
+			// Укладывание в лавку — продажа: даром вещь не уходит. Сервер молча отбивает и вещь без цены
+			// скупки, и сделку, на которую у торговца не хватает кассы, — оба условия зеркалим, иначе
+			// предмет уезжал бы в чужое окно без всякого ответа. Что вещь не берут, игрок видит заранее
+			// по её подсказке: скупка идёт от базовой цены предмета, и вещи без цены не торгуются вовсе.
+			CorpseLootMarker trader = FindMarker(_containerKey);
+			TradeRecive trade = trader != null ? trader.Trade : null;
+
+			// Обычный контейнер: перенос бесплатен и идёт позицией целиком — спрашивать не о чем.
+			if (trade == null)
+			{
+				SendPutCommand(_containerKey, idx, to, null);
+				return;
+			}
+
+			Item item = GetItemBySlot(idx);
+			if (item == null) return;
+
+			// Цена ЕДИНИЦЫ, а не всего стака: по ней видно, сколько штук потянет касса торговца. Нет
+			// её — вещь не покупают вовсе, и спрашивать количество не о чем.
+			int? unit = trade.SellPrice(item.Prefab, item.Components, 1);
+			if (unit == null) return;
+
+			int affordable = CashOf(trader) / unit.Value;
+			if (affordable <= 0) return;                       // касса пуста — сделки нет
+
+			int max = Mathf.Min(item.Count, affordable);
+
+			// Одна единица вопроса не стоит: окно спрашивало бы то, на что ответ единственный.
+			if (max <= 1)
+			{
+				SendPutCommand(_containerKey, idx, to, max);
+				return;
+			}
+
+			// Пока игрок вводит число, окно лавки может закрыться (сошёл с клетки) либо смениться на
+			// другой контейнер — команду шлём, только если перед нами всё тот же торговец.
+			string key = _containerKey;
+			string title = "Продать: " + (AnimationCacheService.GetPrefabName(item.Prefab) ?? item.Prefab);
+
+			QuantityPromptController.Ask(title, max, count =>
+			{
+				if (_containerKey == key)
+					SendPutCommand(key, idx, to, count);
+			},
+			// Сколько игрок выручит за выбранное количество: цену сделки видно там, где она и совершается,
+			// а в подсказке предмета стоит его базовая цена — она от торговца не зависит.
+			count =>
+			{
+				int? price = trade.SellPrice(item.Prefab, item.Components, count);
+				return price != null ? "Получите: " + Coins(price.Value) : null;
+			});
+		}
+
+		/// <summary>
+		/// Сама команда укладывания. count — сколько единиц позиции отдаём; пусто — позицию целиком
+		/// (обычный контейнер, где дробить нечего и незачем).
+		/// </summary>
+		private static void SendPutCommand(string key, int idx, int? to, int? count)
+		{
 			LootPutResponse response = new LootPutResponse();
-			response.key = _containerKey;
+			response.key = key;
 			response.idx = idx;
 			response.to = to;
+			response.count = count;
 			response.Send();
 		}
 	}

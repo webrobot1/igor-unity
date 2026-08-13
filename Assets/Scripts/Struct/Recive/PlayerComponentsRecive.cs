@@ -8,7 +8,7 @@ namespace Mmogick
 	/// Структура полученных данных - произвольыне поля
 	/// </summary>
 	[System.Serializable]
-	public class PlayerComponentsRecive: EnemyComponentsRecive
+	public class PlayerComponentsRecive: CreatureComponentsRecive
 	{
 		public Dictionary<string, string>? settings = null;
 		public Dictionary<string, bool>? spellBook = null;
@@ -16,7 +16,7 @@ namespace Mmogick
 
 		// Инвентарь — ПРИВАТНЫЙ компонент: сервер шлёт его только своему игроку, чужой сущности он не
 		// приходит никогда. Содержимое трупа-контейнера живёт в отдельном публичном компоненте
-		// (EnemyComponentsRecive.loot), а не здесь.
+		// (CreatureComponentsRecive.loot), а не здесь.
 		//   null      — поля нет в пакете (no-op);
 		//   позиция → предмет либо null (пустая позиция). Дельта частична — приходят только изменившиеся.
 		public Dictionary<int, ItemSlotRecive>? inventory = null;

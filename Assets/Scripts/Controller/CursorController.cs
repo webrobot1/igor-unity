@@ -100,6 +100,15 @@ namespace Mmogick
 
             UpdateHoverHighlight(Input.mousePosition);
 
+            // Удерживаемый предмет мог быть уничтожен, пока висел на курсоре: пересборка слотов окна
+            // добычи (пришла дельта состава) уничтожает Item'ы вместе со слотами. Unity-сравнение с null
+            // для уничтоженного объекта истинно, поэтому блок освобождения ниже — он стоит под
+            // «MyMoveable != null» — не выполнялся вовсе: картинка предмета висела на курсоре и не
+            // снималась никаким кликом, а подсветка допустимых слотов экипировки не гасла. Курсор
+            // обязан освобождаться ВСЕГДА, поэтому потерю предмета снимаем здесь, до разбора клика.
+            if (!ReferenceEquals(MyMoveable, null) && MyMoveable == null)
+                ReleaseCursor();
+
             if (MyMoveable!=null)
                 cursor.raycastTarget = true;
             else
@@ -168,10 +177,7 @@ namespace Mmogick
                     // если Use() установил новый moveable (chain-swap) — не сбрасывать
                     if (MyMoveable == held)
                     {
-                        MyMoveable = null;
-                        SourceEquipmentSlot = null;
-                        EquipmentController.ClearHighlight();
-                        cursor.color = new Color(0, 0, 0, 0);
+                        ReleaseCursor();
 
                         bool droppedOnInventorySlot = gameObject != null && gameObject.GetComponentInParent<SlotScript>() != null;
                         if (!droppedOnInventorySlot)
@@ -492,6 +498,22 @@ namespace Mmogick
             // inventory_idx > 0 (equip хранит ссылку на слот инвентаря) — предмет контейнера
             // (SlotNum == 0) надеть напрямую нельзя, подсветка обещала бы невозможное.
             EquipmentController.HighlightForItem(moveable is Item item && item.SlotNum > 0 ? item : null);
+        }
+
+        /// <summary>
+        /// Отпустить всё, что держит курсор: сам предмет, слот-источник экипировки, подсветку допустимых
+        /// слотов и картинку. Состояние «в руке» размазано по нескольким полям, и снимать их порознь —
+        /// значит рано или поздно забыть одно: одна точка освобождения на все пути (отпустил, потерял
+        /// предмет, отменил). Сам предмет тут не трогаем: он живёт в своём слоте, курсор лишь рисует его
+        /// копию, а истинное положение вещей приезжает дельтой сервера.
+        /// </summary>
+        private void ReleaseCursor()
+        {
+            MyMoveable = null;
+            SourceEquipmentSlot = null;
+            EquipmentController.ClearHighlight();
+            cursor.color = new Color(0, 0, 0, 0);
+            cursor.raycastTarget = false;
         }
     }
 }

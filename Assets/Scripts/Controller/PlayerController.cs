@@ -78,11 +78,11 @@ namespace Mmogick
         {
             // NullValueHandling.Ignore обязателен: сервер шлёт null-скаляры (null ≡ дефолт поля),
             // без Ignore Newtonsoft пишет null в не-nullable C#-поле и падает (канон CLAUDE.md).
-            HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, EnemyRecive>>(json,
+            HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, CreatureRecive>>(json,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
         }
 
-        protected virtual void HandleData(NewRecive<PlayerRecive, EnemyRecive> recive)
+        protected virtual void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
         {
             // после ACTION_LOAD старые объекты будут заменены новыми объектами клонами и надо сохранить все ключи что нам нужно будет залинковать с игроком (напрмиер цель)
             string tmp_target = null;

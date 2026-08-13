@@ -1,10 +1,9 @@
 ﻿using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Mmogick
 {
-    public abstract class MoveableObject : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
+    public abstract class MoveableObject : MonoBehaviour
     {
         [SerializeField]
         protected Image image;
@@ -15,11 +14,6 @@ namespace Mmogick
         // в prefab'е. Если icon==null — fallback на старое поведение (sprite на корне).
         [SerializeField]
         protected Image icon;
-
-        /// <summary>
-        /// Назначается контроллером при создании объекта
-        /// </summary>
-        protected Tooltip tooltip;
 
         /// <summary>
         /// Нужен для курсора (перетаскивание картинки предмета)
@@ -83,16 +77,6 @@ namespace Mmogick
                 ConnectController.Error("не найден объект sprite в для элемента Заклинания в книге");
         }
 
-        void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
-        {
-            // Защита от двойного взятия: если в курсоре уже что-то — игнорируем, иначе старый
-            // moveable теряется без места (был баг "при взятии apple пропадал меч").
-            // Перенос предыдущего в этот слот делает CursorController.Update через Use().
-            if (CursorController.MyMoveable != null)
-                return;
-            CursorController.TakeMoveable(this);
-        }
-
         public virtual string GetTooltipText() { return null; }
 
         /// <summary>
@@ -109,19 +93,5 @@ namespace Mmogick
         /// Стоимость маны объекта (заклинание и т.д.). 0 = нет стоимости.
         /// </summary>
         public virtual int ManaCost { get { return 0; } set { } }
-
-        void IPointerEnterHandler.OnPointerEnter(PointerEventData eventData)
-        {
-            if (tooltip == null) return;
-            string text = GetTooltipText();
-            if (text != null)
-                tooltip.Show(transform.position, text);
-        }
-
-        void IPointerExitHandler.OnPointerExit(PointerEventData eventData)
-        {
-            if (tooltip != null)
-                tooltip.Hide();
-        }
     }
 }

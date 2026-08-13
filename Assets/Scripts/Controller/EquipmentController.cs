@@ -9,7 +9,7 @@ namespace Mmogick
     //
     // Контракт сервера (см. base/config.yaml equipment_slot и components/equip.php):
     //   - SigninRecive.equipment_slot: список slug-ов слотов разрешённых в игре.
-    //   - EnemyComponentsRecive.equip: slot_slug → {idx, prefab}, null значение = слот пуст.
+    //   - CreatureComponentsRecive.equip: slot_slug → {idx, prefab}, null значение = слот пуст.
     //     Компонент ПУБЛИЧНЫЙ: приходит на любую видимую сущность, потому наложение предметов на скелет
     //     делается и для чужих игроков с мобами; idx (ячейка инвентаря) полезен только своему игроку —
     //     чужой инвентарь не приходит вовсе, внешний вид несёт prefab.
@@ -84,7 +84,7 @@ namespace Mmogick
             // базовое (new PlayerComponentsRecive) — базовое остаётся пустым, потому тип разбираем явно.
             Dictionary<string, EquipSlotRecive> equip = recive is PlayerRecive playerRecive
                 ? playerRecive.components?.equip
-                : (recive as EnemyRecive)?.components?.equip;
+                : (recive as CreatureRecive)?.components?.equip;
 
             // Контракт сервера (см. base/components/equip.yaml):
             //   equip == null         — поля equip нет в delta = no-op (экипировку не трогать);

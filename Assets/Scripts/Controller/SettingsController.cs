@@ -9,7 +9,7 @@ namespace Mmogick
     /// <summary>
 	/// Класс для обновления Меню настрое игрока
 	/// </summary>
-    abstract public class SettingsController : CursorController
+    abstract public class SettingsController : QuantityPromptController
     {
         [Header("Для работы с меню настроек")]
 
@@ -106,7 +106,7 @@ namespace Mmogick
 #endif           
         }
 
-        protected override void HandleData(NewRecive<PlayerRecive, EnemyRecive> recive)
+        protected override void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
         {
             if (recive.settings != null)
             {
