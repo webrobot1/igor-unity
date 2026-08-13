@@ -58,6 +58,20 @@ namespace Mmogick
 		[SerializeField]
 		private Text lootTitle;
 
+		[Header("Плашка кассы торговца")]
+
+		// Касса лавки — та же плашка, что деньги игрока в инвентаре: запас монет торговца конечен, и
+		// им решается, возьмёт ли он вещь. У неторгующего контейнера плашка выключена — его монеты
+		// лежат в тех же слотах и видны сами.
+		[SerializeField]
+		private GameObject lootMoneyPanel;
+
+		[SerializeField]
+		private Image lootMoneyIcon;
+
+		[SerializeField]
+		private Text lootMoneyAmount;
+
 		// key открытого трупа; null — окно закрыто. static — Item.Use шлёт команды take/put без поиска
 		// инстанса контроллера (паттерн InventoryController._slots).
 		private static string _containerKey;
@@ -73,6 +87,19 @@ namespace Mmogick
 		// контейнера нет вовсе, — потому исходную запоминаем, а не переписываем в одну сторону.
 		private static Text _title;
 		private static string _titleDefault;
+
+		private static GameObject _moneyPanel;
+		private static Image _moneyIcon;
+		private static Text _moneyAmount;
+
+		// Кошелёк, по которому сейчас погашены ячейки: доступность товара меняется и без смены состава
+		// лавки (потратил монеты в другом окне), а пересчёт цен каждый кадр на всю сетку не нужен.
+		// -1 — гашение ещё не считалось.
+		private static int _dimmedMoney = -1;
+
+		// Касса, по которой нарисована плашка лавки: разницей с ней считается всплывающая цифра.
+		// -1 — окно ещё не открывалось либо открылось только что.
+		private static int _shownCash = -1;
 
 		// Маркер трупа, с которым работает окно (открытого либо того, к которому идём). Кеш нужен
 		// потому, что состояние окна пересчитывается КАЖДЫЙ кадр — сход с клетки и распад тела закрывают
@@ -102,6 +129,8 @@ namespace Mmogick
 			_renderedVersion = -1;
 			_marker = null;
 			_markerKey = null;
+			_dimmedMoney = -1;
+			_shownCash = -1;
 			_lootGroup = lootGroup;
 			_takeAllButton = lootTakeAllButton;
 			_instance = this;
@@ -136,8 +165,17 @@ namespace Mmogick
 				return;
 			}
 
+			if (lootMoneyPanel == null || lootMoneyIcon == null || lootMoneyAmount == null)
+			{
+				Error("не назначена плашка кассы торговца (панель, иконка монеты, число) в окне добычи");
+				return;
+			}
+
 			_title = lootTitle;
 			_titleDefault = lootTitle.text;
+			_moneyPanel = lootMoneyPanel;
+			_moneyIcon = lootMoneyIcon;
+			_moneyAmount = lootMoneyAmount;
 
 			// Метка окна целиком: по ней Item.Use узнаёт промах мимо ячейки, но внутрь окна.
 			// Ставится кодом, как и метки самих ячеек: их число и состав задаёт сервер, а не сцена.
@@ -239,6 +277,16 @@ namespace Mmogick
 		}
 
 		/// <summary>
+		/// Открыто ли окно контейнера: по нему ячейка своего инвентаря понимает, есть ли куда класть
+		/// вещь одним нажатием. Отложенное открытие (игрок ещё идёт к цели) окном не считается —
+		/// команда до прибытия всё равно отбивается.
+		/// </summary>
+		public static bool IsOpen
+		{
+			get { return _containerKey != null; }
+		}
+
+		/// <summary>
 		/// Ценник ОТКРЫТОГО контейнера; null — окно закрыто либо контейнер не торгует (пустой ценник
 		/// отсеивает CorpseLootMarker.Trade). Единственная точка, по которой остальной интерфейс
 		/// (подсказка предмета, подпись кнопки) узнаёт, что перед игроком лавка.
@@ -279,7 +327,13 @@ namespace Mmogick
 			{
 				int? buy = trade.BuyPrice(item.Prefab, item.Components, 1);
 
-				return buy != null ? "Купить за штуку: " + Coins(buy.Value) : "Торговец это не продаёт";
+				if (buy == null) return "Торговец это не продаёт";
+
+				// Почему ячейка погашена, игрок должен прочитать здесь: сервер отказывает молча, а клик
+				// по недоступному товару не даёт вовсе ничего — без причины это читается поломкой.
+				return buy.Value > Money
+					? "Купить за штуку: " + Coins(buy.Value) + " — не хватает монет"
+					: "Купить за штуку: " + Coins(buy.Value);
 			}
 
 			if (item.SlotNum <= 0) return null;
@@ -289,7 +343,13 @@ namespace Mmogick
 
 			int? sell = trade.SellPrice(item.Prefab, item.Components, 1);
 
-			return sell != null ? "Продать за штуку: " + Coins(sell.Value) : "Торговец это не покупает";
+			if (sell == null) return "Торговец это не покупает";
+
+			// Касса торговца конечна: вещь он берёт, пока есть чем расплатиться, — и молчаливый отказ
+			// на дорогой вещи иначе неотличим от «не покупает вовсе».
+			return CashOf(FindMarker(_containerKey)) < sell.Value
+				? "Продать за штуку: " + Coins(sell.Value) + " — у торговца не хватает монет"
+				: "Продать за штуку: " + Coins(sell.Value);
 		}
 
 		/// <summary>
@@ -463,6 +523,42 @@ namespace Mmogick
 				}
 			}
 
+			// Касса торговца: сколько монет у него самого. Иконку берём здесь, а не в Awake, — картинка
+			// лежит в кеше префабов, который наполняется входом в игру (тот же порядок, что у плашки
+			// денег игрока).
+			if (_moneyPanel != null)
+			{
+				_moneyPanel.SetActive(trade != null);
+
+				if (trade != null)
+				{
+					_moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(GAME_ID, MONEY_PREFAB)
+						?? Resources.Load<Sprite>("unknow");
+
+					int cash = CashOf(marker);
+
+					// Убыль и прибыль кассы — той же цифрой, что и у своей плашки: по ней видно, что
+					// торговца опустошают, а скупать он перестанет, когда платить станет нечем.
+					// Открытие окна разницей не считается — там касса просто появилась на экране.
+					if (_shownCash >= 0 && cash != _shownCash)
+						ShowMoneyPopup(_moneyAmount.transform.parent as RectTransform, cash - _shownCash);
+
+					_shownCash = cash;
+					_moneyAmount.text = cash.ToString();
+				}
+			}
+
+			// Недоступный товар гасим: у лавки это «не по карману» и «торговец такое не продаёт»,
+			// у трупа — чужая добыча. Пересчёт идёт на перерисовке состава и на смене кошелька, а не
+			// каждый кадр: цена считается по всей сетке, а меняется только от этих двух событий.
+			if (rebuild || _dimmedMoney != Money)
+			{
+				_dimmedMoney = Money;
+
+				for (int i = 0; i < _lootSlots.Length; i++)
+					_lootSlots[i].SetDimmed(!CanTakeSlot(i + 1));
+			}
+
 			// Право на добычу окно не гасит: чужой состав сервер не присылает вовсе, и открыться ему не на
 			// чем. Открытое окно запретным уже не станет — круг допущенных только ширится.
 			if (_lootGroup != null)
@@ -571,6 +667,8 @@ namespace Mmogick
 			_containerKey = null;
 			_renderedVersion = -1;
 			_closeWhenEmpty = false;
+			_dimmedMoney = -1;
+			_shownCash = -1;
 			if (_lootGroup != null)
 			{
 				_lootGroup.alpha = 0;

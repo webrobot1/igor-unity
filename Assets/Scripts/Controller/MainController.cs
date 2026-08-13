@@ -11,7 +11,7 @@ namespace Mmogick
     /// <summary>
 	/// Класс верхнего уровня. Служит в том числе для обновления статистика соединения
 	/// </summary>
-    public class MainController : DebugPanelController
+    public class MainController : InfoWindowController
     {
         private float deltaTime;
 
@@ -89,9 +89,33 @@ namespace Mmogick
 
             // Пока блок скрыт (обычный режим игры), подписи не пересчитываем — их всё равно никто не видит.
             if (this.fps.transform.parent.gameObject.activeSelf)
+            {
                 this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString();
+                MapLabel();
+            }
 
             base.Update();
+        }
+
+        /// <summary>
+        /// Подпись карты: номер адресует её в инструментах, название говорит, где игрок находится.
+        /// Собирается каждый кадр, а не по приходу пакета игрока: карта грузится асинхронно и название
+        /// приезжает вместе с ней — по пакету оно встало бы только у той карты, что успела загрузиться.
+        /// </summary>
+        private void MapLabel()
+        {
+            if (PlayerController.Player == null)
+                return;
+
+            int mapId = PlayerController.Player.map;
+            string label = "Карта: " + mapId;
+
+            MapDecode decoded;
+            if (getMaps().TryGetValue(mapId, out decoded) && !string.IsNullOrEmpty(decoded.name))
+                label += " " + decoded.name;
+
+            if (map.text != label)
+                map.text = label;
         }
 
         protected override void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
@@ -103,12 +127,6 @@ namespace Mmogick
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
         {
-            if (key == player_key)
-            {
-                if (recive.map != null)
-                    map.text = "Карта: " + recive.map;
-            }
-
             GameObject go = base.UpdateObject(map_id, key, recive);
 
             // Маяк-подсветка на подбираемых предметах, лежащих в мире (kind=item / экипируемые). Решаем

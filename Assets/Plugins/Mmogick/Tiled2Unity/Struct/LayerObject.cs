@@ -10,6 +10,13 @@ namespace Mmogick
 	[System.Serializable]
 	public class LayerObject
 	{
+		// id и shape кладёт в срез карты сама сборка (сервер): по id объект адресуют страницы админки, по shape
+		// рисуют его форму, не повторяя у себя правило её выбора. Срез общий, потому оба поля приходят и клиенту.
+		public int id;
+
+		// Форма объекта одним значением: rectangle / ellipse / point / polygon / polyline.
+		public string shape;
+
 		public string tile;
 
 		public bool flipH;
@@ -34,6 +41,9 @@ namespace Mmogick
 		public bool visible = true;
 
 		public bool ellipse;
+
+		// Объект — точка (взаимоисключающе с ellipse/polygon/polyline).
+		public bool point;
 
 		public Point[] polygon;
 		public Point[] polyline;

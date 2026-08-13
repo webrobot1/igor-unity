@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -80,6 +81,20 @@ namespace Mmogick
             tooltip = t;
         }
 
+        /// <summary>
+        /// Погасить ячейку недоступного предмета: сделка по нему не состоится (не по карману, торговец
+        /// его не продаёт), и сервер такую команду отбивает молча. Ячейка остаётся видимой и с подсказкой —
+        /// причину называет она, гашение лишь показывает, что клик тут ничего не даст.
+        /// Ставится ПОСЛЕ SetItem: тот возвращает иконке полный цвет на каждой перерисовке.
+        /// </summary>
+        public void SetDimmed(bool dimmed)
+        {
+            if (_item == null || _icon == null || _icon.sprite == null)
+                return;
+
+            _icon.color = dimmed ? new Color(0.4f, 0.4f, 0.4f, 0.7f) : Color.white;
+        }
+
         // Общий каркас сетки слотов для инвентаря игрока (InventoryController) и окна контейнера
         // (LootWindowController): чистит area, создаёт count слотов из prefab, вешает tooltip.
         // Различия (номер слота / метка контейнера LootSlotMarker) наследник задаёт через configure.
@@ -142,6 +157,20 @@ namespace Mmogick
 
             if (loot != null && !LootWindowController.CanTakeSlot(loot.Num))
                 return;
+
+            // Правая кнопка — сама сделка, без переноса через курсор: у ячейки контейнера это забрать
+            // (у лавки — купить), у своей ячейки при открытом контейнере — положить (продать).
+            // Перетаскивание остаётся вторым путём — им игрок выбирает КОНКРЕТНУЮ ячейку-цель, чего
+            // одним нажатием не выразить. Количество, как и при переносе, спрашивает окно сделки.
+            if (eventData.button == PointerEventData.InputButton.Right)
+            {
+                if (loot != null)
+                    LootWindowController.SendTake(new List<int> { loot.Num });
+                else if (SlotNum > 0 && LootWindowController.IsOpen)
+                    LootWindowController.SendPut(SlotNum);
+
+                return;
+            }
 
             CursorController.TakeMoveable(_item);
         }

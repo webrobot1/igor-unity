@@ -11,7 +11,11 @@ namespace Mmogick
 	public class PlayerComponentsRecive: CreatureComponentsRecive
 	{
 		public Dictionary<string, string>? settings = null;
-		public Dictionary<string, bool>? spellBook = null;
+		// Заклинания, выученные ЭТОЙ сущностью: ключ — префаб заклинания, значение — true. Имя поля —
+		// slug серверного компонента (spell_book), а не camelCase: приходит внутри components штатным
+		// разбором по именам. Не путать с одноимённым верхнеуровневым полем пакета (NewRecive.spellBook) —
+		// то СПРАВОЧНИК всех заклинаний игры с названиями и стоимостью, по нему строится само окно книги.
+		public Dictionary<string, bool>? spell_book = null;
 		public Dictionary<int, ActionBarsRecive?>? actionbars = null;
 
 		// Инвентарь — ПРИВАТНЫЙ компонент: сервер шлёт его только своему игроку, чужой сущности он не

@@ -50,6 +50,17 @@ namespace Mmogick
 		[NonSerialized]
 		public string prefab;
 
+		/// <summary>
+		/// Когда сущность заведена на сервере (у игрока — дата регистрации) и когда её данные меняли в
+		/// последний раз (у игрока — последний вход). Строки ISO-8601 как пришли с сервера; показывает их
+		/// окно информации о цели, разбирая в местное время при показе.
+		/// </summary>
+		[NonSerialized]
+		public string created;
+
+		[NonSerialized]
+		public string updated;
+
 		// Готовое имя и то, из чего оно собрано. Имя спрашивают каждый кадр (надпись под курсором, рамка
 		// цели), а сборка режет строки — пересобираем только когда сменилось исходное.
 		private string _displayName;
@@ -439,6 +450,12 @@ namespace Mmogick
 
 			if (recive.slug != null)
 				this.slug = recive.slug;
+
+			if (recive.created != null)
+				this.created = recive.created;
+
+			if (recive.updated != null)
+				this.updated = recive.updated;
 
 			if (recive.events!=null && recive.events.Count > 0)
 			{

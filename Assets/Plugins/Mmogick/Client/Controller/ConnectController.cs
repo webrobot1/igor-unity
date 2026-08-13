@@ -497,7 +497,11 @@ namespace Mmogick
 					// Здесь, в сетевом потоке, разбираются ТОЛЬКО служебные поля конверта: сам мир разбирает
 					// главный поток (Handle), причём в свой, более конкретный тип. Разбор всего пакета и тут, и
 					// там означал бы двойную сборку сотен объектов сущностей на каждый кадр.
-					ReciveEnvelope recive = JsonConvert.DeserializeObject<ReciveEnvelope>(text);
+					// Конверт читает пакет НЕ ЦЕЛИКОМ (см. его докблок), потому строгая проверка неизвестных полей
+					// (BaseController.InitJsonSettings) к нему неприменима: поля мира ему и не полагается знать.
+					// Гасится точечно здесь, а не отменой проверки — на своих типах она нужна.
+					ReciveEnvelope recive = JsonConvert.DeserializeObject<ReciveEnvelope>(text,
+						new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Ignore });
 
 					if (recive.error != null)
 					{

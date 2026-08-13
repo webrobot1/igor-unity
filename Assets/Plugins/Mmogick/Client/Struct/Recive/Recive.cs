@@ -15,6 +15,6 @@ namespace Mmogick
         /// <summary>
         ///  с какой стороны какой номер карты (мы мо этим номерам при пеерходе на другую карту смещаем карты что бы не запрашивать их снова)
         /// </summary>
-        public Dictionary<int, Point> sides;
+        public Dictionary<int, MapSide> sides;
     }
 }

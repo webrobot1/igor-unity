@@ -10,6 +10,15 @@ namespace Mmogick
 	{
 		public string name;
 
+		// Тип слоя Tiled: tilelayer (тайлы), objectgroup (объекты-разметка), group (контейнер дочерних).
+		public string type;
+
+		// Порядок сортировки слоя (0 — авто, по позиции в карте).
+		public int sort;
+
+		// Цвет тонирования слоя из Tiled (#RRGGBB либо #AARRGGBB); пусто — тонирования нет.
+		public string tintcolor;
+
 		// class слоя из Tiled (напр. "collision" у слоя непроходимых зон). Debug-рендер объектов-разметки
 		// (DebugObjects в MapDecodeModel) исключает слой коллизий по этому признаку — он уже в DebugCollision.
 		public string @class;
@@ -33,5 +42,8 @@ namespace Mmogick
 		public LayerObject[] @object;
 
 		public Dictionary<string, LayerProperty> property;
+
+		// Дочерние слои слоя-контейнера (type=group), ключ — id слоя. Структура рекурсивна.
+		public Dictionary<int, Layer> layer;
 	}
 }

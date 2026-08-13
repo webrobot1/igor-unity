@@ -28,7 +28,7 @@ namespace Mmogick
 		/// <summary>
 		/// массив с перечнем с какой стороны какая смежная карта
 		/// </summary>
-		private static Dictionary<int, Point> _sides = new Dictionary<int, Point>();
+		private static Dictionary<int, MapSide> _sides = new Dictionary<int, MapSide>();
 
 		/// <summary>
 		/// массив декодированных с сервера карт
@@ -155,7 +155,7 @@ namespace Mmogick
 
 				// загрузим отвутвующую графику центральной и смежных карт 
 				// TODO сделать загрузку смежных карт если мы рядок к их краю и удалять графику если далеко (думаю это в CameraController можно сделать) в Update (и помечать что мы уже загружаем карту в корутине)
-				foreach (KeyValuePair<int, Point> side in recive.sides)
+				foreach (KeyValuePair<int, MapSide> side in recive.sides)
 				{
 					if (!_maps.ContainsKey(side.Key))
 					{
@@ -222,7 +222,7 @@ namespace Mmogick
 			return _maps;
 		}		
 		
-		public static Dictionary<int, Point> getSides()
+		public static Dictionary<int, MapSide> getSides()
         {
 			return _sides;
 		}

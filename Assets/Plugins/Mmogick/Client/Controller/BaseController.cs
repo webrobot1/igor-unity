@@ -1,5 +1,5 @@
 using System;
-using Newtonsoft.Json; // для InitJsonSettings (закомментирован)
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -7,15 +7,22 @@ namespace Mmogick
 {
 	abstract public class BaseController : MonoBehaviour
 	{
-		// Включить для отладки несовпадений JSON-полей между сервером и клиентом:
-		// [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-		// static void InitJsonSettings()
-		// {
-		// 	JsonConvert.DefaultSettings = () => new JsonSerializerSettings
-		// 	{
-		// 		MissingMemberHandling = MissingMemberHandling.Error
-		// 	};
-		// }
+		// Пришедшее с сервера поле, которого нет в структуре клиента, роняет разбор пакета целиком — расхождение
+		// вскрывается сразу, а не молчаливой потерей данных. Гейт по типу сборки, а не по настройке игрока
+		// «Тестовый режим»: та приезжает отдельным пакетом уже ПОСЛЕ входа (см. Awake ниже) и первый — самый
+		// полный — пакет не покрыла бы, а падение разбора у играющего значит неработающий клиент, чинимый только
+		// правкой структур и пересборкой. Ставится до загрузки сцены: JsonConvert.DefaultSettings действует и там,
+		// где вызов передаёт свои JsonSerializerSettings (CreateDefault мержит их поверх умолчаний).
+		#if UNITY_EDITOR || DEVELOPMENT_BUILD
+			[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+			static void InitJsonSettings()
+			{
+				JsonConvert.DefaultSettings = () => new JsonSerializerSettings
+				{
+					MissingMemberHandling = MissingMemberHandling.Error
+				};
+			}
+		#endif
 
 		// Настройки соединения с сервером
 		public static int GAME_ID = 1;                     // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://mmogick.ru  раздела Игры

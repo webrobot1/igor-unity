@@ -75,6 +75,47 @@ namespace Mmogick
 			return true;
 		}
 
+		/// <summary>
+		/// Мировые границы фигуры под <paramref name="root"/> по НЕПРОЗРАЧНЫМ пикселям её частей: у каждой
+		/// берётся плотная рамка (<see cref="TryGetTightRect"/>) и переводится в мир своим трансформом.
+		/// Прямоугольник спрайта тут не годится — части скелета нарисованы с большим запасом пустого поля,
+		/// по нему фигура выходит заметно крупнее и смещённой (поля у частей несимметричны).
+		/// Плотной рамки у части нет (не Tight-меш) — идёт её обычный bounds, иначе часть выпала бы из замера.
+		/// <paramref name="onlyEnabled"/>: считать лишь включённые части. Нужно замеру НА ХОДУ сборки
+		/// (выключенные там ещё не готовы); показу собранной фигуры наоборот вредно — аниматор на отдельных
+		/// кадрах гасит часть деталей, и замер по включённым дал бы прыгающий результат.
+		/// false — ничего не намерено (пустой корень либо нулевая высота у всех частей).
+		/// </summary>
+		public static bool TryGetVisibleBounds(Transform root, out Bounds bounds, bool onlyEnabled = false)
+		{
+			bounds = default;
+			if (root == null) return false;
+
+			bool any = false;
+			foreach (var sr in root.GetComponentsInChildren<SpriteRenderer>(true))
+			{
+				if (sr == null || sr.sprite == null) continue;
+				if (onlyEnabled && !sr.enabled) continue;
+
+				Bounds part;
+				if (TryGetTightRect(sr.sprite, out Rect tight) && tight.width > 0 && tight.height > 0)
+				{
+					part = new Bounds(sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMin, 0)), Vector3.zero);
+					part.Encapsulate(sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMin, 0)));
+					part.Encapsulate(sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMax, 0)));
+					part.Encapsulate(sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMax, 0)));
+				}
+				else
+					part = sr.bounds;
+
+				if (part.size.sqrMagnitude < 0.0001f) continue;
+				if (!any) { bounds = part; any = true; }
+				else bounds.Encapsulate(part);
+			}
+
+			return any && bounds.size.y > 0.0001f;
+		}
+
 		[Serializable]
 		public class SyncManifest
 		{
@@ -115,14 +156,17 @@ namespace Mmogick
 
 		// Одна привязка action→clip prefab'а (элемент actions[] из /prefabs, формат общий с серверным
 		// PrefabAnimation::actionList). Один action-slug ПОВТОРЯЕТСЯ по клипу на направление; angle —
-		// нарисованный facing-угол клипа (0=вправо), null = клип без направления. Серверные id/entity
-		// клиенту не нужны — поля не объявляем (Newtonsoft молча игнорит лишние ключи).
+		// нарисованный facing-угол клипа (0=вправо), null = клип без направления.
 		[Serializable]
 		public class ActionBinding
 		{
 			public string action;
 			public string clip;
 			public int? angle;   // null = клип без направления (прежний ключ "" словарной формы)
+
+			// Серверный номер записи привязки. Клиенту не нужен, но объявлен обязательно: разбор
+			// строгий (BaseController), и неизвестное поле роняет манифест целиком — а с ним вход в игру.
+			public int id;
 		}
 
 		public class PrefabEntry
@@ -457,6 +501,28 @@ namespace Mmogick
 			if (_library == null)
 				throw new InvalidOperationException("AnimationCacheService.GetPrefabDescription вызван до SyncAll (_library == null). prefab=" + prefab);
 			return !string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e) ? e.description : null;
+		}
+
+		// Действия prefab'а (slug'и action его привязок, без повторов и в порядке сервера). Нужны показу,
+		// который перебирает, что существо умеет делать: сами клипы там резолвятся обычным GetClipName —
+		// с нужным ракурсом, поэтому здесь только действия, не клипы. Порядок сохраняем: он задан админкой
+		// и в нём action'ы читаются осмысленно (покой, ходьба, удар), а не как попало.
+		// Контракт по _library тот же (throw на _library==null — вызов до SyncAll); пустой список —
+		// у prefab'а нет привязок (image-prefab либо не настроено).
+		public static System.Collections.Generic.List<string> GetPrefabActions(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabActions вызван до SyncAll (_library == null). prefab=" + prefab);
+
+			var result = new System.Collections.Generic.List<string>();
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.actions == null)
+				return result;
+
+			foreach (var binding in e.actions)
+				if (binding != null && !string.IsNullOrEmpty(binding.action) && !result.Contains(binding.action))
+					result.Add(binding.action);
+
+			return result;
 		}
 
 		[Serializable]

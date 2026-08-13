@@ -36,6 +36,18 @@ namespace Mmogick
         [SerializeField]
         private Text moneyAmount;
 
+        // Всплывающая цифра над плашкой: прибыль и убыль показываются там, где игрок эти деньги и
+        // видит. Префаб один на обе плашки — свою и торговца, поэтому ссылка живёт здесь, у владельца
+        // знания о валюте (MONEY_PREFAB, Money, Coins).
+        [SerializeField]
+        private GameObject moneyPopupPrefab;
+
+        private static GameObject _moneyPopupPrefab;
+
+        // Кошелёк, по которому нарисована плашка сейчас: разницей с ним считается всплывающая цифра.
+        // -1 — инвентарь ещё не приходил, показывать нечего (первый приход не прибыль).
+        private static int _shownMoney = -1;
+
         private static SlotScript[] _slots;
         private static bool _dirty;
         private Dictionary<string, Item> _items;
@@ -53,6 +65,9 @@ namespace Mmogick
             _items = new Dictionary<string, Item>();
             _slots = null;
             _dirty = false;
+
+            // статики чистить вручную: Enter Play Mode без Domain Reload их не сбрасывает
+            _shownMoney = -1;
 
             if (inventorySlotArea == null)
             {
@@ -95,6 +110,14 @@ namespace Mmogick
                 Error("плашка денег не является частью CanvasGroup инвентаря");
                 return;
             }
+
+            if (moneyPopupPrefab == null)
+            {
+                Error("не назначен префаб всплывающей цифры денег");
+                return;
+            }
+
+            _moneyPopupPrefab = moneyPopupPrefab;
         }
 
         protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
@@ -164,7 +187,47 @@ namespace Mmogick
             // Image с пустым sprite рисует белый прямоугольник, неотличимый от поломки вёрстки.
             moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(GAME_ID, MONEY_PREFAB)
                 ?? Resources.Load<Sprite>("unknow");
-            moneyAmount.text = Money.ToString();
+
+            int money = Money;
+
+            // Разницу показываем цифрой у самой плашки — это единственное место, где игрок видит
+            // деньги. Первый приход инвентаря разницей не считается: там весь кошелёк «появился».
+            if (_shownMoney >= 0 && money != _shownMoney)
+                ShowMoneyPopup(moneyAmount.transform.parent as RectTransform, money - _shownMoney);
+
+            _shownMoney = money;
+            moneyAmount.text = money.ToString();
+        }
+
+        /// <summary>
+        /// Всплывающая цифра изменения денег над плашкой: у своей — сколько прибыло или ушло у игрока,
+        /// у плашки лавки — сколько прибавилось либо убыло у торговца. Показ идёт ИМЕННО у плашки:
+        /// цифра над персонажем во время торга закрыта окном, а у плашки видна всегда, пока видно и
+        /// сами деньги. Плашка скрыта (инвентарь закрыт) — вместе с ней скрыта и цифра, это норма.
+        /// </summary>
+        public static void ShowMoneyPopup(RectTransform panel, int delta)
+        {
+            if (_moneyPopupPrefab == null || panel == null || delta == 0)
+                return;
+
+            GameObject go = Instantiate(_moneyPopupPrefab, panel);
+            RectTransform rt = go.transform as RectTransform;
+
+            // Над плашкой по центру: якорь берём у самой плашки, чтобы правка её размеров в сцене
+            // не тянула за собой правку кода.
+            rt.anchorMin = new Vector2(0.5f, 1f);
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(0, 2);
+            rt.localScale = Vector3.one;
+
+            Text text = go.GetComponentInChildren<Text>(true);
+
+            if (text != null)
+            {
+                text.text = (delta > 0 ? "+" : "-") + Mathf.Abs(delta);
+                text.color = new Color(1f, 0.84f, 0.2f);
+            }
         }
 
         /// <summary>

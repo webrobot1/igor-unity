@@ -13,7 +13,7 @@ namespace Mmogick
     [ExecuteInEditMode]
     public class CameraController : MonoBehaviour
     {
-        private Dictionary<int, Point> last_sides;
+        private Dictionary<int, MapSide> last_sides;
         private int last_lifeRadius;
 
         private float minX;
@@ -57,8 +57,8 @@ namespace Mmogick
                 // Player.map ещё про старую) — UpdateView посчитал бы границы по чужой карте (реального соседа приняв
                 // за текущую), а кламп дёрнул бы камеру по урезанной границе. Пока рассогласовано — идём в else (камера
                 // плавно следует за игроком без клампа); согласуется — пересчёт по свежему sides (last_sides != ссылка).
-                Dictionary<int, Point> sides = PlayerController.getSides();
-                if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getMaps().Count > 0 && sides.Count == PlayerController.getMaps().Count && sides.Keys.SequenceEqual(PlayerController.getMaps().Keys) && sides.TryGetValue(PlayerController.Player.map, out Point current) && current.x == 0 && current.y == 0)
+                Dictionary<int, MapSide> sides = PlayerController.getSides();
+                if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getMaps().Count > 0 && sides.Count == PlayerController.getMaps().Count && sides.Keys.SequenceEqual(PlayerController.getMaps().Keys) && sides.TryGetValue(PlayerController.Player.map, out MapSide current) && current.x == 0 && current.y == 0)
                 {
                     if (last_sides != sides || last_lifeRadius != PlayerController.Player.lifeRadius)
                     {
@@ -90,7 +90,7 @@ namespace Mmogick
             if (last_sides.Count > 1)
             {
                 Debug.Log("Камера: ищем соседнии области карты " + PlayerController.Player.map + " для захвата камеры ");
-                foreach (KeyValuePair<int, Point> side in last_sides)
+                foreach (KeyValuePair<int, MapSide> side in last_sides)
                 {
                     // текущая карта нас не интересует
                     if (side.Key == PlayerController.Player.map)

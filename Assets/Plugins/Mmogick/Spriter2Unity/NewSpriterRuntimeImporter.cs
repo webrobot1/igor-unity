@@ -260,30 +260,12 @@ namespace Mmogick
             metadataRoot.localPosition = spritesRoot.localPosition;
         }
 
-        // Агрегированный world-AABB всех активных SR-детей spritesRoot по tight-rect (непрозрачные пиксели).
-        // Возвращает false, если ещё ничего не анимировалось/не отрендерилось (bounds.y ~ 0).
+        // Агрегированный world-AABB активных SR-детей spritesRoot по непрозрачным пикселям — общий замер
+        // (AnimationCacheService.TryGetVisibleBounds), тот же, которым портрет интерфейса наводит камеру.
+        // Здесь считаем только включённые части: во время сборки выключенные ещё не расставлены.
         private bool TryComputeAggBounds(out Bounds agg)
         {
-            agg = default;
-            bool hasAny = false;
-            foreach (var sr in spritesRoot.GetComponentsInChildren<SpriteRenderer>(true))
-            {
-                if (sr == null || sr.sprite == null || !sr.enabled) continue;
-                Bounds b;
-                if (AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight))
-                {
-                    Vector3 w00 = sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMin, 0));
-                    Vector3 w10 = sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMin, 0));
-                    Vector3 w01 = sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMax, 0));
-                    Vector3 w11 = sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMax, 0));
-                    b = new Bounds(w00, Vector3.zero);
-                    b.Encapsulate(w10); b.Encapsulate(w01); b.Encapsulate(w11);
-                }
-                else b = sr.bounds;
-                if (!hasAny) { agg = b; hasAny = true; }
-                else agg.Encapsulate(b);
-            }
-            return hasAny && agg.size.y > 0.0001f;
+            return AnimationCacheService.TryGetVisibleBounds(spritesRoot, out agg, onlyEnabled: true);
         }
     }
 

@@ -22,10 +22,24 @@ namespace Mmogick
 
 		public float? forwardX = null;
 		public float? forwardY = null;
+		public float? forwardZ = null;
 	
 		public int? sort = null;
 		public int? lifeRadius = null;
-		
+
+		/// <summary>
+		/// Когда запись сущности заведена на сервере, строка ISO-8601. У игрока это дата регистрации аккаунта.
+		/// Приходит один раз, при появлении сущности: значение неизменно.
+		/// </summary>
+		public string created = null;
+
+		/// <summary>
+		/// Когда данные сущности меняли в последний раз, строка ISO-8601. У существа — правка автором
+		/// (админка либо инструменты), у игрока — его последний вход в игру. Движение сущности по карте
+		/// и бой отметку не двигают.
+		/// </summary>
+		public string updated = null;
+
 
 		public Dictionary<string, EventRecive> events;
 

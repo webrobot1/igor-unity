@@ -1,9 +1,17 @@
+using System;
 using UnityEngine;
 
 namespace Mmogick
 {
 	public class PlayerModel : EnemyModel
 	{
+		/// <summary>
+		/// Адрес подключения игрока: сервер берёт его из самого соединения и шлёт всем, кто видит игрока.
+		/// Показывает окно сведений о цели.
+		/// </summary>
+		[NonSerialized]
+		public string ip;
+
         public override void SetData(EntityRecive recive)
 		{
 			PrepareComponents(((PlayerRecive)recive).components);
@@ -12,6 +20,9 @@ namespace Mmogick
 
 		private void SetData(PlayerRecive recive)
 		{
+			if (recive.ip != null)
+				this.ip = recive.ip;
+
 			base.SetData(recive);
 		}
 
