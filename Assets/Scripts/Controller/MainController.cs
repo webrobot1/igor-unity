@@ -87,33 +87,39 @@ namespace Mmogick
             deltaTime += (Time.deltaTime - deltaTime) * 0.1f;
             float fps = 1.0f / deltaTime;
 
-            // Пока блок скрыт (обычный режим игры), подписи не пересчитываем — их всё равно никто не видит.
+            // Название карты видно в обычной игре (подпись у радара) — считаем всегда, независимо от
+            // служебного блока. Пока блок скрыт, его подписи не пересчитываем — их никто не видит.
+            MapLabel(this.fps.transform.parent.gameObject.activeSelf);
+
             if (this.fps.transform.parent.gameObject.activeSelf)
-            {
                 this.fps.text = "FPS: " + Mathf.Ceil(fps).ToString();
-                MapLabel();
-            }
 
             base.Update();
         }
 
         /// <summary>
-        /// Подпись карты: номер адресует её в инструментах, название говорит, где игрок находится.
-        /// Собирается каждый кадр, а не по приходу пакета игрока: карта грузится асинхронно и название
-        /// приезжает вместе с ней — по пакету оно встало бы только у той карты, что успела загрузиться.
+        /// Подписи карты: номер адресует её в инструментах (служебный блок), название говорит игроку,
+        /// где он находится (подпись у радара). Собираются каждый кадр, а не по приходу пакета игрока:
+        /// карта грузится асинхронно и название приезжает вместе с ней — по пакету оно встало бы только
+        /// у той карты, что успела загрузиться.
         /// </summary>
-        private void MapLabel()
+        /// <param name="withNumber">Служебный блок показан — обновляем и подпись с номером карты.</param>
+        private void MapLabel(bool withNumber)
         {
             if (PlayerController.Player == null)
                 return;
 
             int mapId = PlayerController.Player.map;
-            string label = "Карта: " + mapId;
 
             MapDecode decoded;
-            if (getMaps().TryGetValue(mapId, out decoded) && !string.IsNullOrEmpty(decoded.name))
-                label += " " + decoded.name;
+            SetMapName(getMaps().TryGetValue(mapId, out decoded) && !string.IsNullOrEmpty(decoded.name)
+                ? decoded.name
+                : "");
 
+            if (!withNumber)
+                return;
+
+            string label = "Карта: " + mapId;
             if (map.text != label)
                 map.text = label;
         }

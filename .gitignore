@@ -72,7 +72,8 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 *.log
-.claude/
+.claude/*
+!.claude/hooks/
 
 # Assets/Plugins: track only known plugins, ignore auto-generated (NuGet, etc.)
 Assets/Plugins/*

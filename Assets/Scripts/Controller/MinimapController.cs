@@ -55,6 +55,14 @@ namespace Mmogick
         private Image playerMarker;
 
         /// <summary>
+        /// Подпись с названием текущей карты под панелью радара. Название говорит игроку, где он
+        /// находится, — нужно в обычной игре, а не только в тестовом режиме, поэтому висит у радара,
+        /// а не в служебном блоке счётчиков (там остаётся только номер карты — адрес для инструментов).
+        /// </summary>
+        [SerializeField]
+        private Text mapNameLabel;
+
+        /// <summary>
         /// Множитель охвата радара относительно основной камеры: minimapSize = mainCamera.size × factor.
         /// Дефолт 2 — радар видит вдвое дальше по стороне (площадь ∝ size², т.е. вчетверо по площади).
         /// Подбирается в инспекторе.
@@ -106,6 +114,12 @@ namespace Mmogick
                 return;
             }
 
+            if (mapNameLabel == null)
+            {
+                Error("Мини-карта: не присвоена подпись названия карты mapNameLabel");
+                return;
+            }
+
             // Ортокамеру фиксируем кодом; охват (orthographicSize) привязан к основной камере и
             // пересчитывается в Update — её размер может меняться в рантайме (под разрешение/aspect).
             minimapCamera.orthographic = true;
@@ -149,6 +163,15 @@ namespace Mmogick
 
             if (!enabled)
                 HideAllMarkers();
+        }
+
+        /// <summary>
+        /// Название текущей карты в подписи радара. Пустая строка — карта ещё не загружена, названия нет.
+        /// </summary>
+        protected void SetMapName(string name)
+        {
+            if (mapNameLabel.text != name)
+                mapNameLabel.text = name;
         }
 
         /// <summary>
