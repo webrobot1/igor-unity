@@ -14,6 +14,17 @@ namespace Mmogick
 
         private Text text;
 
+        // Чья это надпись и когда появилась — по ним CombatTextController разводит соседние во времени надписи
+        // одной сущности, чтобы они не летели одна в другой.
+        public Transform Owner { get; private set; }
+        public float Born { get; private set; }
+
+        public void Init(Transform owner)
+        {
+            Owner = owner;
+            Born = Time.time;
+        }
+
         void Start()
         {
             text = GetComponentInChildren<Text>();

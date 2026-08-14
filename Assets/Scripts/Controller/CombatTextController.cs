@@ -52,30 +52,49 @@ namespace Mmogick
                 int hpDelta = hpBefore != null && enemy.hp != null ? (int)enemy.hp - (int)hpBefore : 0;
                 int mpDelta = mpBefore != null && enemy.mp != null ? (int)enemy.mp - (int)mpBefore : 0;
 
-                // Один пакет меняет и жизнь, и ману (лечение за ману) — надписи стартуют из одной точки и летят
-                // с одной скоростью, то есть полностью перекрывают друг друга. Разводим по горизонтали.
-                float shift = hpDelta != 0 && mpDelta < 0 ? SIMULTANEOUS_SHIFT : 0f;
-
                 if (hpDelta != 0)
-                    CreateCombatText(enemy.transform.position, Mathf.Abs(hpDelta),
-                        hpDelta < 0 ? CombatTextType.DAMAGE : CombatTextType.HEAL, -shift);
+                    CreateCombatText(enemy.transform, Mathf.Abs(hpDelta),
+                        hpDelta < 0 ? CombatTextType.DAMAGE : CombatTextType.HEAL);
 
                 if (mpDelta < 0)
-                    CreateCombatText(enemy.transform.position, -mpDelta, CombatTextType.MANA, shift);
+                    CreateCombatText(enemy.transform, -mpDelta, CombatTextType.MANA);
             }
 
             return result;
         }
 
-        // Полуразнос двух одновременных надписей по X (в клетках карты)
-        private const float SIMULTANEOUS_SHIFT = 0.4f;
+        // Шаг разноса соседних по времени надписей по X (в клетках карты) и окно, внутри которого надписи
+        // считаются соседними.
+        private const float NEIGHBOUR_SHIFT = 0.4f;
+        private const float NEIGHBOUR_WINDOW = 0.3f;
 
-        private void CreateCombatText(Vector3 worldPosition, int value, CombatTextType type, float shiftX = 0f)
+        /// <summary>
+        /// Надписи одной сущности, появившиеся почти одновременно (лечение за ману: сервер везёт прибавку
+        /// здоровья и списание маны РАЗНЫМИ обновлениями сущности, приходящими в одном кадре), стартуют из
+        /// одной точки и летят с одной скоростью — то есть полностью перекрывают друг друга. Потому разносим
+        /// по горизонтали не по дельтам одного пакета, а по соседству ЖИВЫХ надписей этой сущности во времени.
+        /// </summary>
+        private void CreateCombatText(Transform owner, int value, CombatTextType type)
         {
+            int neighbours = 0;
+            foreach (Transform child in combatTextParent)
+            {
+                CombatText ct = child.GetComponent<CombatText>();
+                if (ct != null && ct.Owner == owner && Time.time - ct.Born < NEIGHBOUR_WINDOW)
+                    neighbours++;
+            }
+
+            // 0 → по центру, дальше попеременно вправо-влево с нарастающим шагом.
+            float shiftX = neighbours == 0
+                ? 0f
+                : (neighbours % 2 == 1 ? 1f : -1f) * NEIGHBOUR_SHIFT * ((neighbours + 1) / 2);
+
+            Vector3 worldPosition = owner.position;
             worldPosition.y += 0.8f;
             worldPosition.x += shiftX;
 
             GameObject go = Instantiate(combatTextPrefab, worldPosition, Quaternion.identity, combatTextParent);
+            go.GetComponent<CombatText>().Init(owner);
             Text text = go.GetComponentInChildren<Text>();
 
             string prefix;

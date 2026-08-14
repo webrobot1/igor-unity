@@ -44,10 +44,10 @@ namespace Mmogick
             string title = AnimationCacheService.GetPrefabName(_prefab) ?? _prefab;
             string description = AnimationCacheService.GetPrefabDescription(_prefab);
 
-            string text = Tooltip.Title(title);
+            string text = TextStyle.Title(title);
 
             if (!string.IsNullOrEmpty(description))
-                text += "\n" + Tooltip.Hint(description);
+                text += "\n" + TextStyle.Hint(description);
 
             return text;
         }

@@ -84,10 +84,13 @@ namespace Mmogick
 
                 if (_target != value)
                 {
-                    // если с прошлого существа есть
-                    if (_target != null && ((EnemyModel)_target).lifeBar != null)
+                    // Полоска жизни над прежней целью гаснет вместе со снятием выбора. Целью бывает и не
+                    // существо (сундук, лавка, портал, лежащая вещь) — своей полоски у такой цели нет.
+                    EnemyModel previous = _target as EnemyModel;
+
+                    if (previous != null && previous.lifeBar != null)
                     {
-                        DisableLine(((EnemyModel)_target).lifeBar);
+                        DisableLine(previous.lifeBar);
                     }
 
                     _target = value;
@@ -98,7 +101,17 @@ namespace Mmogick
 
                     if (value != null)
                     {
+                        // Целью бывает не только существо: сундук, лавка, портал, лежащая вещь — у них
+                        // ни запаса здоровья, ни маны, и полоскам показывать нечего.
                         EnemyModel enemyValue = value as EnemyModel;
+
+                        if (enemyValue == null)
+                        {
+                            DisableLine(hpLine);
+                            DisableLine(mpLine);
+                            targetFrame.alpha = 1;
+                            return;
+                        }
 
                         // заполним поле жизней сразу
                         if (enemyValue.hp != null)
@@ -170,6 +183,15 @@ namespace Mmogick
                 }
 
                 EnemyModel enemyTarget = _target as EnemyModel;
+
+                // Цель не существо (сундук, лавка, портал, лежащая вещь) — рассказывать полоскам нечего,
+                // остаётся имя и портрет.
+                if (enemyTarget == null)
+                {
+                    DisableLine(hpLine);
+                    DisableLine(mpLine);
+                    return;
+                }
 
                 if (enemyTarget.hp != null)
                 {

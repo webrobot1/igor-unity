@@ -61,9 +61,16 @@ namespace Mmogick
             base.Awake();
         }
 
+        /// <summary>
+        /// Название, описание и стоимость — те же, что стоят на самой карточке заклинания в книге: своего
+        /// источника у неё нет, карточку наполняет книга. Роли строк размечает <see cref="TextStyle"/>,
+        /// как и у прочих подсказок.
+        /// </summary>
         public override string GetTooltipText()
         {
-            return title.text + "\n" + description.text + "\nMana: " + ManaCost;
+            return TextStyle.Title(title.text)
+                + "\n" + TextStyle.Hint(description.text)
+                + "\n" + TextStyle.Value("Мана: " + ManaCost);
         }
 
 
@@ -155,19 +162,25 @@ namespace Mmogick
                             BoltResponse response = new BoltResponse();
                             response.spell = Magic;
 
-                            if (obj != null && obj.GetComponent<ObjectModel>()!=null)
+                            // Стрелять можно лишь по тому, у кого есть запас здоровья: сундук, лавка, портал
+                            // и лежащая вещь целью выбираются (окно сведений рассказывает и о них), но
+                            // выстрел по ним сервер отбивает молча, а пауза заклинания у игрока уже пошла бы.
+                            ObjectModel clicked = obj != null ? obj.GetComponent<ObjectModel>() : null;
+                            EnemyModel shootable = clicked as EnemyModel;
+                            EnemyModel chosen = MainController.Instance.Target as EnemyModel;
+
+                            if (shootable != null && shootable.hp > 0)
                             {
-                                ObjectModel clicked = obj.GetComponent<ObjectModel>();
-                                response.target = clicked.key;
+                                response.target = shootable.key;
 
                                 // Выбранной целью становится тот, ПО КОМУ кликнули: следующий выстрел с панели
                                 // быстрых действий пойдёт по ней же, без повторного клика по существу.
                                 if(MainController.Instance.Target == null)
-                                    MainController.Instance.Target = clicked;
+                                    MainController.Instance.Target = shootable;
                             }
-                            else if (MainController.Instance.Target != null)
+                            else if (chosen != null && chosen.hp > 0)
                             {
-                                response.target = MainController.Instance.Target.key;
+                                response.target = chosen.key;
                             }
                             else if(pos != Vector2.zero)
                             {

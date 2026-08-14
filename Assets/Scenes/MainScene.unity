@@ -736,6 +736,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 538313457}
     m_Modifications:
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1.9380889
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1.9380889
+      objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506844, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -1105,11 +1113,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 142407069}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1 &143541699
 GameObject:
@@ -1556,11 +1564,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 166597910}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 1, y: -1}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1001 &167283942
 PrefabInstance:
@@ -1570,6 +1578,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 538313457}
     m_Modifications:
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1.9380889
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1.9380889
+      objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506844, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -2831,11 +2847,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 376761666}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 3.8761778, y: -3.8761778}
   m_UseGraphicAlpha: 1
 --- !u!1 &385679133
 GameObject:
@@ -3920,11 +3936,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 555981317}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1 &564954441
 GameObject:
@@ -4160,11 +4176,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 580027233}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1 &592707721
 GameObject:
@@ -4271,6 +4287,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1782924111}
     m_Modifications:
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1.9380889
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1.9380889
+      objectReference: {fileID: 0}
     - target: {fileID: 4265025725675675859, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: _cooldownText
       value: 
@@ -4579,6 +4603,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 538313457}
     m_Modifications:
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1.9380889
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1.9380889
+      objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506844, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -4806,6 +4838,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 538313457}
     m_Modifications:
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1.9380889
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1.9380889
+      objectReference: {fileID: 0}
     - target: {fileID: 5750596226409506844, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -5140,11 +5180,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 689199225}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 3.8761778, y: -3.8761778}
   m_UseGraphicAlpha: 1
 --- !u!1 &708801410
 GameObject:
@@ -7506,11 +7546,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1002601195}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1 &1026516761
 GameObject:
@@ -7601,11 +7641,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1026516761}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 1, y: -1}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1 &1045432124
 GameObject:
@@ -7698,6 +7738,7 @@ GameObject:
   - component: {fileID: 1058119831}
   - component: {fileID: 1058119830}
   - component: {fileID: 1058119832}
+  - component: {fileID: 1058119833}
   m_Layer: 5
   m_Name: Text
   m_TagString: Untagged
@@ -7786,6 +7827,21 @@ MonoBehaviour:
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
+--- !u!114 &1058119833
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1058119828}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
+  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
+  m_UseGraphicAlpha: 1
 --- !u!1 &1059221861
 GameObject:
   m_ObjectHideFlags: 0
@@ -8881,6 +8937,30 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.y
       value: -45.616
       objectReference: {fileID: 0}
+    - target: {fileID: 1481019324562608080, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 6.3999996
+      objectReference: {fileID: 0}
+    - target: {fileID: 1481019324562608080, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -6.3999996
+      objectReference: {fileID: 0}
+    - target: {fileID: 1489467181363501401, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 9.690445
+      objectReference: {fileID: 0}
+    - target: {fileID: 1489467181363501401, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -9.690445
+      objectReference: {fileID: 0}
+    - target: {fileID: 2302654977973789677, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 8.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 2302654977973789677, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -8.8
+      objectReference: {fileID: 0}
     - target: {fileID: 3740563763946859520, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
       propertyPath: m_AnchoredPosition.x
       value: 120.27683
@@ -8893,16 +8973,43 @@ PrefabInstance:
       propertyPath: m_AnchoredPosition.x
       value: 58.8
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 1553448255772941675, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+    - {fileID: 3974059515698490092, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+    - {fileID: 8837367385314678408, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+    - {fileID: 6341950615173448065, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 956592208815011848, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1183647582}
   m_SourcePrefab: {fileID: 100100000, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
 --- !u!224 &1183647579 stripped
 RectTransform:
   m_CorrespondingSourceObject: {fileID: 956592208919310232, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
   m_PrefabInstance: {fileID: 1183647578}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1183647581 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 956592208815011848, guid: 01c4cf4b8aada1642820ff95584e1bbd, type: 3}
+  m_PrefabInstance: {fileID: 1183647578}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1183647582
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1183647581}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
+  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
+  m_EffectDistance: {x: 9.690445, y: -9.690445}
+  m_UseGraphicAlpha: 1
 --- !u!1 &1183807958
 GameObject:
   m_ObjectHideFlags: 0
@@ -9324,7 +9431,7 @@ GameObject:
   - component: {fileID: 1197489439}
   - component: {fileID: 1197489438}
   - component: {fileID: 1197489436}
-  - component: {fileID: 1197489437}
+  - component: {fileID: 1197489440}
   m_Layer: 0
   m_Name: MapName
   m_TagString: Untagged
@@ -9366,21 +9473,6 @@ MonoBehaviour:
     m_VerticalOverflow: 1
     m_LineSpacing: 1
   m_Text: 001-1 (Tulimshar Port)
---- !u!114 &1197489437
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1197489435}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
-  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 1, y: -1}
-  m_UseGraphicAlpha: 1
 --- !u!222 &1197489438
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -9408,6 +9500,21 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -10}
   m_SizeDelta: {x: 380, y: 30}
   m_Pivot: {x: 1, y: 1}
+--- !u!114 &1197489440
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1197489435}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
+  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
+  m_UseGraphicAlpha: 1
 --- !u!1 &1218365881
 GameObject:
   m_ObjectHideFlags: 0
@@ -10022,7 +10129,7 @@ GameObject:
   - component: {fileID: 1329512729}
   - component: {fileID: 1329512730}
   - component: {fileID: 1329512728}
-  - component: {fileID: 1329512727}
+  - component: {fileID: 1329512731}
   m_Layer: 0
   m_Name: LootTitle
   m_TagString: Untagged
@@ -10049,21 +10156,6 @@ RectTransform:
   m_AnchoredPosition: {x: 224.9415, y: -159.42856}
   m_SizeDelta: {x: 437.883, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1329512727
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1329512725}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
-  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
-  m_UseGraphicAlpha: 1
 --- !u!114 &1329512728
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10120,6 +10212,21 @@ MonoBehaviour:
     m_VerticalOverflow: 0
     m_LineSpacing: 1
   m_Text: 
+--- !u!114 &1329512731
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1329512725}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
+  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
+  m_UseGraphicAlpha: 1
 --- !u!1 &1342826442
 GameObject:
   m_ObjectHideFlags: 0
@@ -10663,6 +10770,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1782924111}
     m_Modifications:
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1.9380889
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1.9380889
+      objectReference: {fileID: 0}
     - target: {fileID: 4265025725675675859, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: _cooldownText
       value: 
@@ -11155,11 +11270,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1465688622}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 3.8761778, y: -3.8761778}
   m_UseGraphicAlpha: 1
 --- !u!1 &1494851754
 GameObject:
@@ -12458,6 +12573,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1782924111}
     m_Modifications:
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1.9380889
+      objectReference: {fileID: 0}
+    - target: {fileID: 1089415718296100231, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1.9380889
+      objectReference: {fileID: 0}
     - target: {fileID: 4265025725675675859, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
       propertyPath: _cooldownText
       value: 
@@ -13125,11 +13248,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1751185734}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1 &1763374936
 GameObject:
@@ -13361,11 +13484,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1787424154}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
   m_UseGraphicAlpha: 1
 --- !u!1 &1814429788
 GameObject:
@@ -14091,6 +14214,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1911095937398189061, guid: e1ebfed3f95d4a9409669c65ec791925, type: 3}
+      propertyPath: m_EffectDistance.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1911095937398189061, guid: e1ebfed3f95d4a9409669c65ec791925, type: 3}
+      propertyPath: m_EffectDistance.y
+      value: -1
+      objectReference: {fileID: 0}
     - target: {fileID: 5846600426338211091, guid: e1ebfed3f95d4a9409669c65ec791925, type: 3}
       propertyPath: m_Pivot.x
       value: 0.5
@@ -15888,8 +16019,7 @@ GameObject:
   - component: {fileID: 3046298430399257458}
   - component: {fileID: 3046298430399257463}
   - component: {fileID: 3046298430399257460}
-  - component: {fileID: 3046298430399257461}
-  - component: {fileID: 3046298430399257462}
+  - component: {fileID: 3046298430399257464}
   m_Layer: 5
   m_Name: Title
   m_TagString: Untagged
@@ -15931,36 +16061,6 @@ MonoBehaviour:
     m_VerticalOverflow: 0
     m_LineSpacing: 1
   m_Text: "\u041D\u0410\u0421\u0422\u0420\u041E\u0419\u041A\u0418"
---- !u!114 &3046298430399257461
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3046298430399257459}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cfabb0440166ab443bba8876756fdfa9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_EffectColor: {r: 0, g: 0, b: 0, a: 0.5}
-  m_EffectDistance: {x: 1, y: -1}
-  m_UseGraphicAlpha: 1
---- !u!114 &3046298430399257462
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3046298430399257459}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 1, y: -1}
-  m_UseGraphicAlpha: 1
 --- !u!222 &3046298430399257463
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -15969,6 +16069,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3046298430399257459}
   m_CullTransparentMesh: 1
+--- !u!114 &3046298430399257464
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3046298430399257459}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
+  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
+  m_EffectDistance: {x: 1.9380889, y: -1.9380889}
+  m_UseGraphicAlpha: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

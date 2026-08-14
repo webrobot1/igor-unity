@@ -30,6 +30,9 @@ namespace Mmogick
         /// <summary>То же для маны.</summary>
         private const string GROUP_REGENERATION_MP = "status/regenerationmp";
 
+        /// <summary>Команда контейнера: её срок — как часто он возвращает вынесенное к своему составу.</summary>
+        private const string GROUP_CONTAINER = "object/container";
+
         /// <summary>
         /// Имена данных команд восстановления: сколько прибавляется за раз. Величина приходит вместе с
         /// самой командой; своего значения на этот случай у клиента нет и быть не может — умолчание
@@ -37,6 +40,9 @@ namespace Mmogick
         /// </summary>
         private const string DATA_LIFE = "life";
         private const string DATA_MANA = "mana";
+
+        /// <summary>Множители торговца к базовой цене предмета — пара buy/sell (см. TradeLine).</summary>
+        private const string COMPONENT_TRADE = "trade";
 
         /// <summary>
         /// Характеристики — числа, которыми существо меряют. Запас (здоровье, мана) идёт парой
@@ -82,15 +88,14 @@ namespace Mmogick
             new InfoLine(GROUP_REGENERATION_MP, null,
                 (period, amount) => Recovery("маны", period, amount),
                 pairKey: DATA_MANA, source: InfoSource.Command),
-        };
 
-        /// <summary>
-        /// Приглушение строки, взятой у вида, а не у самого существа: тот же белый, что у точных
-        /// сведений, но вполсилы. Текст окна набран светлым по тёмной обводке (как служебные счётчики
-        /// поверх карты), поэтому приглушают прозрачностью, а не серым — серый на светлом фоне окна
-        /// потерялся бы вовсе.
-        /// </summary>
-        private const string MUTED_COLOR = "#FFFFFFB3";
+            // Срок пополнения контейнера: через него сундук и лавка возвращают вынесенное к заданному
+            // виду составу. Величины у команды нет — она приводит состав целиком, а не добавляет по
+            // штуке, поэтому говорим только о сроке.
+            new InfoLine(GROUP_CONTAINER, null,
+                (period, amount) => "Пополняется раз в " + Seconds(period),
+                source: InfoSource.Command),
+        };
 
         [Header("Для работы с окном сведений о цели")]
 
@@ -335,7 +340,7 @@ namespace Mmogick
             // Пустую строку описания гасим целиком: в потоке блоков она заняла бы место наравне с заполненной.
             // Курсивом — это рассказ о виде, а не сведения об этой особи, и начертание отделяет его от строк ниже.
             string description = player == null ? (AnimationCacheService.GetPrefabDescription(target.prefab) ?? "") : "";
-            infoDescription.text = description.Length > 0 ? "<i>" + description + "</i>" : "";
+            infoDescription.text = description.Length > 0 ? TextStyle.Hint(description) : "";
             infoDescription.gameObject.SetActive(description.Length > 0);
 
             FillBlock(infoStats, "Характеристики", STATS, target);
@@ -392,7 +397,7 @@ namespace Mmogick
                     text = line.Title + ": " + text;
 
                 if (typical)
-                    text = Muted(text);
+                    text = TextStyle.Muted(text);
                 else
                     allTypical = false;
 
@@ -441,6 +446,14 @@ namespace Mmogick
         {
             bool allTypical;
             List<string> shown = Collect(lines, subject, out allTypical);
+
+            // Торговля стоит особняком от прочих особенностей: её значение — пара множителей, а не число,
+            // и перечнем строк её не описать. Собираем отдельно и дописываем в тот же список — для игрока
+            // это такое же свойство существа, как бегство или зов сородичей.
+            string trade = TradeLine(subject);
+
+            if (trade != null)
+                shown.Add(trade);
 
             if (shown.Count == 0)
             {
@@ -530,10 +543,10 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Добыча сеткой иконок: с существа она ПАДАЕТ по шансу, в контейнере ЛЕЖИТ заданным составом.
-        /// Оба случая — свойства вида из каталога, потому и показаны одним блоком: в бою и у сундука
-        /// игрока занимает один вопрос — что отсюда достанется. Рассказывает о каждой строке подсказка:
-        /// у выпадающей — шанс и разброс, у лежащей — точное количество.
+        /// Добыча сеткой иконок: что с этой цели выпадает и с каким шансом. У существа розыгрыш решает
+        /// смерть, у контейнера — срок пополнения, а стопроцентная строка значит «лежит наверняка». Это
+        /// свойство вида из каталога, потому в бою и у сундука показано одним блоком: игрока занимает один
+        /// вопрос — что отсюда достанется. Подробности каждой строки — в подсказке.
         /// </summary>
         private void FillLoot(ObjectModel subject)
         {
@@ -550,9 +563,11 @@ namespace Mmogick
             infoLootTitle.gameObject.SetActive(true);
             infoLootArea.gameObject.SetActive(true);
 
-            // Пометка «как у всех такого вида» тут не нужна: добыча и есть свойство вида, у этой особи
-            // своей не бывает — что выпадет, решится только в момент смерти.
-            infoLootTitle.text = Head(loot[0].Chance > 0 ? "Возможная добыча" : "Содержимое", false);
+            // Заголовок один на оба случая: игрока занимает, что отсюда достанется, а разыгрывается это
+            // или лежит заданным — видно по самим строкам. Пометка «как у всех такого вида» тут не нужна:
+            // добыча и есть свойство вида, у этой особи своей не бывает — с существа что выпадет, решится
+            // в момент смерти, а состав контейнера сервер приводит к заданному его виду.
+            infoLootTitle.text = Head("Добыча", false);
 
             List<string> shown = new List<string>();
             foreach (LootRow row in loot)
@@ -573,11 +588,7 @@ namespace Mmogick
             foreach (LootRow row in loot)
             {
                 InfoLoot icon = Instantiate(infoLootPrefab, infoLootArea);
-
-                if (row.Chance > 0)
-                    icon.SetLoot(row.Prefab, tooltip, row.Chance, row.Min, row.Max);
-                else
-                    icon.SetContent(row.Prefab, tooltip, row.Min);
+                icon.SetLoot(row.Prefab, tooltip, row.Chance, row.Min, row.Max);
             }
 
             _lootShown.Clear();
@@ -585,8 +596,38 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Строка добычи: что за предмет, с каким шансом и сколько. Шанс ноль — предмет не разыгрывается,
-        /// а лежит в контейнере заданным количеством.
+        /// Чем торгует эта цель: во сколько раз дороже базовой цены она продаёт и во сколько дешевле
+        /// скупает. Множители — свойство вида из каталога, они же рассылаются живой лавке. Нулевой
+        /// множитель закрывает свою сторону торговли, и говорить о ней нечего. null — не торгует вовсе.
+        /// </summary>
+        private static string TradeLine(ObjectModel subject)
+        {
+            JObject trade = AnimationCacheService.GetComponentValue(subject.prefab, COMPONENT_TRADE, null) as JObject;
+
+            if (trade == null)
+                return null;
+
+            float buy = Number(trade, "buy");
+            float sell = Number(trade, "sell");
+
+            if (buy <= 0 && sell <= 0)
+                return null;
+
+            string text = "Торгует: ";
+
+            if (buy > 0)
+                text += "продаёт по цене ×" + Number(buy);
+            if (buy > 0 && sell > 0)
+                text += ", ";
+            if (sell > 0)
+                text += "скупает по ×" + Number(sell);
+
+            return text + " от обычной цены предмета";
+        }
+
+        /// <summary>
+        /// Строка добычи: что за предмет, с каким шансом и сколько его выпадает. Шанс единица — предмет
+        /// достаётся наверняка.
         /// </summary>
         private struct LootRow
         {
@@ -597,9 +638,10 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Что достанется с этой цели. У существа берётся таблица дропа (что и с каким шансом падает при
-        /// смерти), у контейнера — заданный его виду состав. Оба свойства живут в каталоге: с чем существо
-        /// умрёт и что лежит в сундуке сейчас, сервер до поры не рассказывает, а вид известен заранее.
+        /// Что достанется с этой цели — таблица её вида: с каким шансом и сколько чего выпадает. У существа
+        /// она разыгрывается в момент смерти, у контейнера — каждым сроком пополнения, и стопроцентная
+        /// строка значит «лежит наверняка». Свойство это видовое: чем цель богата СЕЙЧАС, сервер до поры не
+        /// рассказывает, а вид известен заранее.
         /// </summary>
         private static List<LootRow> LootOf(ObjectModel subject)
         {
@@ -607,48 +649,25 @@ namespace Mmogick
 
             JObject table = AnimationCacheService.GetComponentValue(subject.prefab, EnemyModel.COMPONENT_LOOT_TABLE, null) as JObject;
 
-            if (table != null)
-            {
-                foreach (KeyValuePair<string, JToken> item in table)
-                {
-                    JObject roll = item.Value as JObject;
-
-                    if (roll == null)
-                        continue;
-
-                    LootRow row = new LootRow();
-                    row.Prefab = item.Key;
-                    // Шанс сервер держит в сотых долях процента: 10000 — всегда, 800 — восемь процентов.
-                    row.Chance = Number(roll, "chance") / 10000f;
-                    row.Min = Mathf.RoundToInt(Number(roll, "min"));
-                    row.Max = Mathf.RoundToInt(Number(roll, "max"));
-
-                    if (row.Chance > 0)
-                        rows.Add(row);
-                }
-
-                return rows;
-            }
-
-            JObject content = AnimationCacheService.GetComponentValue(subject.prefab, EnemyModel.COMPONENT_LOOT, null) as JObject;
-
-            if (content == null)
+            if (table == null)
                 return rows;
 
-            // Позиции хранилища идут ключами словаря, и пустая позиция — законное значение: она значит
-            // «место есть, предмета нет», и строки о ней быть не должно.
-            foreach (KeyValuePair<string, JToken> slot in content)
+            foreach (KeyValuePair<string, JToken> item in table)
             {
-                JObject item = slot.Value as JObject;
+                JObject roll = item.Value as JObject;
 
-                if (item == null || item["prefab"] == null)
+                if (roll == null)
                     continue;
 
                 LootRow row = new LootRow();
-                row.Prefab = item["prefab"].Value<string>();
-                row.Chance = 0f;
-                row.Min = row.Max = Mathf.RoundToInt(Number(item, "count"));
-                rows.Add(row);
+                row.Prefab = item.Key;
+                // Шанс сервер держит в сотых долях процента: 10000 — всегда, 800 — восемь процентов.
+                row.Chance = Number(roll, "chance") / 10000f;
+                row.Min = Mathf.RoundToInt(Number(roll, "min"));
+                row.Max = Mathf.RoundToInt(Number(roll, "max"));
+
+                if (row.Chance > 0)
+                    rows.Add(row);
             }
 
             return rows;
@@ -835,13 +854,8 @@ namespace Mmogick
         /// <summary>Заголовок блока; всё в нём видовое — пометка стоит здесь, а не в каждой строке.</summary>
         private static string Head(string title, bool typical)
         {
-            return "<b>" + title + "</b>" + (typical ? " " + Muted("— как у всех такого вида") : "");
-        }
-
-        /// <summary>Строка о виде, а не об этом существе: приглушена, чтобы отличаться от точных сведений.</summary>
-        private static string Muted(string text)
-        {
-            return "<color=" + MUTED_COLOR + ">" + text + "</color>";
+            return TextStyle.HEAD_GAP + TextStyle.Title(title)
+                + (typical ? " " + TextStyle.Muted("— как у всех такого вида") : "");
         }
 
         /// <summary>Целое показываем без хвоста, дробное — с сотыми.</summary>
@@ -875,9 +889,15 @@ namespace Mmogick
                 + "раз в " + Seconds(period);
         }
 
-        /// <summary>Секунды с окончанием по числу: раз в 1 секунду, в 2 секунды, в 10 секунд.</summary>
+        /// <summary>
+        /// Срок словами. От минуты и дольше считаем минутами: «раз в 120 секунд» игрок в уме и так
+        /// переводит, а сроки у контейнеров и прочих долгих механик именно такие.
+        /// </summary>
         private static string Seconds(float value)
         {
+            if (value >= 60f)
+                return Minutes(value / 60f);
+
             string count = Number(value);
 
             if (value != Mathf.Floor(value))
@@ -895,6 +915,29 @@ namespace Mmogick
                 case 3:
                 case 4: return count + " секунды";
                 default: return count + " секунд";
+            }
+        }
+
+        /// <summary>Минуты с окончанием по числу: 1 минуту, 2 минуты, 5 минут, 2,5 минуты.</summary>
+        private static string Minutes(float value)
+        {
+            string count = Number(value);
+
+            if (value != Mathf.Floor(value))
+                return count + " минуты";
+
+            int tail = Mathf.Abs(Mathf.RoundToInt(value)) % 100;
+
+            if (tail >= 11 && tail <= 14)
+                return count + " минут";
+
+            switch (tail % 10)
+            {
+                case 1: return count + " минуту";
+                case 2:
+                case 3:
+                case 4: return count + " минуты";
+                default: return count + " минут";
             }
         }
 

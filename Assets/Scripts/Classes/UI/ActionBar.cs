@@ -178,14 +178,16 @@ namespace Mmogick
         // Ближняя атака с пустого слота. Цель берём ту же, что заклинания (MainController.Instance.Target),
         // и по тем же правилам: живой цели шлём её ключ — сервер сам подойдёт и ударит; без цели бьём
         // по направлению взгляда (fight/melee принимает вектор forward вместо ключа).
-        // Мёртвую цель не шлём: сервер такую команду молча отбрасывает — бьём по направлению.
+        // Мёртвую цель не шлём: сервер такую команду молча отбрасывает — бьём по направлению. Не шлём и
+        // цель без запаса здоровья вовсе (сундук, лавка, портал, лежащая вещь): выбрать их можно —
+        // окно сведений рассказывает и о них, — но бить там некого, и сервер такую команду тоже отбивает.
         private void SendMelee()
         {
             MeleeResponse response = new MeleeResponse();
             ObjectModel target = MainController.Instance.Target;
             EnemyModel enemy = target as EnemyModel;
 
-            if (target != null && (enemy == null || enemy.hp > 0))
+            if (enemy != null && enemy.hp > 0)
                 response.target = target.key;
             else
             {

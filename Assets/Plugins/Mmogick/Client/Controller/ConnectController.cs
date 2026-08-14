@@ -777,16 +777,32 @@ namespace Mmogick
 		{
 			Debug.LogWarning("WebSocket: загружаем сцену регистрации");
 
-			if (!SceneManager.GetSceneByName("RegisterScene").IsValid())
+			const string REGISTER_SCENE = "RegisterScene";
+
+			if (!SceneManager.GetSceneByName(REGISTER_SCENE).IsValid())
 			{
 				//SceneManager.UnloadScene("MainScene");
-				AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("RegisterScene", new LoadSceneParameters(LoadSceneMode.Additive));
+				AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(REGISTER_SCENE, new LoadSceneParameters(LoadSceneMode.Additive));
+
+				// Unity отказалась начинать загрузку и вернула пустую операцию вместо неё. Отказ штатен, пока
+				// игра сворачивается — остановлен Play Mode либо закрывается приложение: экран входа показывать
+				// уже некому, а сам отказ приходит РАНЬШЕ OnApplicationQuit, поэтому завершение по нему не
+				// опознать. Лежащая в сборке сцена другой причины отказать не имеет — доступность сборке и
+				// отделяет эту гонку от поломки самой сборки клиента. Поломка идёт исключением, а не ошибкой
+				// игроку: показать её негде, надпись ошибки живёт на той же не загрузившейся сцене.
+				if (asyncLoad == null)
+				{
+					if (Application.CanStreamedLevelBeLoaded(REGISTER_SCENE))
+						yield break;
+
+					throw new Exception("WebSocket: сцены входа " + REGISTER_SCENE + " нет в сборке клиента — вернуть игрока на экран входа нечем");
+				}
 
 				// Wait until the asynchronous scene fully loads
 				while (!asyncLoad.isDone)
 				{
 					yield return null;
-				}	
+				}
 			}
 
 			SceneManager.UnloadScene("MainScene");

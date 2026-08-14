@@ -36,26 +36,6 @@ namespace Mmogick
             canvasGroup.blocksRaycasts = false;
         }
 
-        /// <summary>
-        /// Разметка ролей текста подсказки: заголовок, пояснение, значение. Собирающему текст (предмет,
-        /// заклинание) остаётся назвать роль строки, а не подбирать оформление — своего у него нет.
-        /// Теги читает сам Text подсказки (rich text).
-        ///
-        /// Роли разведены НАЧЕРТАНИЕМ и весом, а не цветом: цвет тут занят смыслом — им отмечены деньги,
-        /// как и на плашке кошелька. Название — обычный цвет текста подсказки, жирным: сплошная заливка
-        /// цветом спорила бы с деньгами за то же средство различения.
-        /// </summary>
-        public static string Title(string text) { return "<b>" + text + "</b>"; }
-
-        /// <summary>Пояснение: приглушено, как подписи слотов в окнах, — с названием за внимание не спорит.</summary>
-        public static string Hint(string text) { return "<i><color=#FFFFFFB3>" + text + "</color></i>"; }
-
-        /// <summary>
-        /// Строка-значение: цена и тому подобное. Цвет монет — тот же, которым сумма стоит на плашке
-        /// кошелька и подписаны заголовки окон.
-        /// </summary>
-        public static string Value(string text) { return "<b><color=#FFD700>" + text + "</color></b>"; }
-
         public void Show(Vector3 position, string text)
         {
             tooltipText.text = text;

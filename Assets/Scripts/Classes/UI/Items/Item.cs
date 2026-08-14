@@ -67,7 +67,7 @@ namespace Mmogick
         /// Подсказка предмета: что это, что о нём известно и сколько он стоит. Цены тут две и они о разном:
         /// БАЗОВАЯ — свойство самого предмета, одинаковое и в инвентаре, и в сундуке, и в лавке; строка
         /// скупки — предложение конкретного торговца, и появляется она только пока его лавка открыта.
-        /// Роли строк размечает сама подсказка (Tooltip) — предмет их только называет.
+        /// Роли строк размечает <see cref="TextStyle"/> — предмет их только называет.
         /// </summary>
         public override string GetTooltipText()
         {
@@ -75,13 +75,13 @@ namespace Mmogick
             string description = AnimationCacheService.GetPrefabDescription(_prefab);
             int? price = Price;
 
-            string text = Tooltip.Title(title);
+            string text = TextStyle.Title(title);
 
             if (!string.IsNullOrEmpty(description))
-                text += "\n" + Tooltip.Hint(description);
+                text += "\n" + TextStyle.Hint(description);
 
             if (price != null)
-                text += "\n" + Tooltip.Value("Цена: " + InventoryController.Coins(price.Value));
+                text += "\n" + TextStyle.Value("Цена: " + InventoryController.Coins(price.Value));
 
             // Сколько за него дадут ЗДЕСЬ — величина торговца, а не предмета, и стоит отдельной строкой
             // под базовой ценой: стак из одной штуки продаётся сразу, без вопроса о количестве, и другого
@@ -89,7 +89,7 @@ namespace Mmogick
             string trade = LootWindowController.TradeHint(this);
 
             if (trade != null)
-                text += "\n" + Tooltip.Value(trade);
+                text += "\n" + TextStyle.Value(trade);
 
             return text;
         }

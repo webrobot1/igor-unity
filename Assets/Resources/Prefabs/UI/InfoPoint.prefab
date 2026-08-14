@@ -11,8 +11,8 @@ GameObject:
   - component: {fileID: 7265689872271253807}
   - component: {fileID: 2220427595851842056}
   - component: {fileID: 1692699920858123909}
-  - component: {fileID: 866836267364557940}
   - component: {fileID: 7555908725086171595}
+  - component: {fileID: 2695968453385939833}
   m_Layer: 0
   m_Name: Bullet
   m_TagString: Untagged
@@ -81,21 +81,6 @@ MonoBehaviour:
     m_VerticalOverflow: 0
     m_LineSpacing: 1
   m_Text: "\u2022"
---- !u!114 &866836267364557940
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 874771490647548313}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
-  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
-  m_UseGraphicAlpha: 1
 --- !u!114 &7555908725086171595
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -116,6 +101,21 @@ MonoBehaviour:
   m_FlexibleWidth: -1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
+--- !u!114 &2695968453385939833
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 874771490647548313}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
+  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
+  m_EffectDistance: {x: 1, y: -1}
+  m_UseGraphicAlpha: 1
 --- !u!1 &6387437789354623177
 GameObject:
   m_ObjectHideFlags: 0
@@ -220,8 +220,8 @@ GameObject:
   - component: {fileID: 5401609376301758695}
   - component: {fileID: 9091693035745721205}
   - component: {fileID: 1329335642904791184}
-  - component: {fileID: 4710022904761911341}
   - component: {fileID: 991180775965075210}
+  - component: {fileID: 314491102217918425}
   m_Layer: 0
   m_Name: Text
   m_TagString: Untagged
@@ -290,21 +290,6 @@ MonoBehaviour:
     m_VerticalOverflow: 0
     m_LineSpacing: 1
   m_Text: 
---- !u!114 &4710022904761911341
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7658850669332082211}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e19747de3f5aca642ab2be37e372fb86, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Outline
-  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
-  m_UseGraphicAlpha: 1
 --- !u!114 &991180775965075210
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -325,3 +310,18 @@ MonoBehaviour:
   m_FlexibleWidth: 1
   m_FlexibleHeight: -1
   m_LayoutPriority: 1
+--- !u!114 &314491102217918425
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7658850669332082211}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d14a6d46306a1ae4b9c3ae34bf8cb293, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
+  m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
+  m_EffectDistance: {x: 1, y: -1}
+  m_UseGraphicAlpha: 1

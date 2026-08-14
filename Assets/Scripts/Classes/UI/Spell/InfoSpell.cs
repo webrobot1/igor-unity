@@ -22,7 +22,7 @@ namespace Mmogick
             JToken cost = AnimationCacheService.GetComponentValue(_prefab, SpellBookController.COMPONENT_MP_COST, null);
 
             if (cost != null)
-                text += "\n" + Tooltip.Value("Мана: " + cost.Value<int>());
+                text += "\n" + TextStyle.Value("Мана: " + cost.Value<int>());
 
             return text;
         }

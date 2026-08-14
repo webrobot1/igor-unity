@@ -957,77 +957,53 @@ namespace Mmogick
 		private static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
 			long since = (_library != null && _library.Count > 0) ? _manifest.prefab_version : 0;
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + since;
+			Debug.Log("Запрашиваю список префабов " + url);
 
-			// Две попытки: дельта, а при недостаче — полный список (since=0). Недостача возможна потому, что
-			// all и items живут по РАЗНЫМ правилам: all — полный состав игры на сейчас, items — только записи
-			// свежее since. Пропажу из all мы отрабатываем ниже удалением, а вот обратный ход сервер догнать
-			// не даёт: элемент, побывавший помеченным на удаление, возвращается в all с ПРЕЖНЕЙ датой (пометку
-			// снимает удаление строки БД, дата снова файловая) и в дельту не попадает уже никогда. Без добора
-			// такой prefab исчезает у нас навсегда, а игрок с этим предметом либо заклинанием не может войти —
-			// SpellBookController ругается на отсутствующую группу команды.
-			for (int attempt = 0; ; attempt++)
+			UnityWebRequest req = UnityWebRequest.Get(url);
+			yield return req.SendWebRequest();
+
+			if (req.result != UnityWebRequest.Result.Success)
 			{
-				string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + since;
-				Debug.Log("Запрашиваю список префабов " + url);
-
-				UnityWebRequest req = UnityWebRequest.Get(url);
-				yield return req.SendWebRequest();
-
-				if (req.result != UnityWebRequest.Result.Success)
-				{
-					onError?.Invoke("AnimationCache library: " + ExtractError(req));
-					req.Dispose();
-					yield break;
-				}
-
-				string text = req.downloadHandler.text;
+				onError?.Invoke("AnimationCache library: " + ExtractError(req));
 				req.Dispose();
-
-				PrefabSyncResponse parsed;
-				try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text); }
-				catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
-
-				if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
-
-				if (_library == null) _library = new Dictionary<string, PrefabEntry>();
-
-				// Мёрж изменившихся entry (replace по slug).
-				int changed = 0;
-				if (parsed.items != null)
-					foreach (var kv in parsed.items) { _library[kv.Key] = kv.Value; changed++; }
-
-				// Удаление: всё, чего нет в all (full-pack семантика removal). all шлётся всегда.
-				int missing = 0;
-				if (parsed.all != null)
-				{
-					var keep = new HashSet<string>(parsed.all);
-					var toRemove = new List<string>();
-					foreach (var slug in _library.Keys)
-						if (!keep.Contains(slug)) toRemove.Add(slug);
-					foreach (var slug in toRemove) _library.Remove(slug);
-
-					foreach (var slug in parsed.all)
-						if (!_library.ContainsKey(slug)) missing++;
-				}
-
-				// Справочник компонентов приходит целиком (не дельтой) — замещаем прежний.
-				if (parsed.component != null)
-					_components = parsed.component;
-
-				_manifest.prefab_version = parsed.version;
-				Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed + ", всего " + _library.Count + ", недостаёт " + missing);
-				SaveLibrary(gameId);
-				SaveManifest(gameId);
-
-				// Добор — только когда шли дельтой и после мёржа состав всё равно неполон. Вторая попытка идёт
-				// с since=0 и приносит весь каталог; третьей не бывает — недостача после полного списка значила бы
-				// расхождение самого ответа сервера (all несёт slug, которого нет в items), и её место в его спеке.
-				if (missing == 0 || attempt >= 1 || since == 0)
-					yield break;
-
-				Debug.LogWarning("AnimationCache: в каталоге сервера " + missing + " prefab'ов, которых нет локально — добираю полным списком");
-				since = 0;
+				yield break;
 			}
+
+			string text = req.downloadHandler.text;
+			req.Dispose();
+
+			PrefabSyncResponse parsed;
+			try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text); }
+			catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
+
+			if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
+
+			if (_library == null) _library = new Dictionary<string, PrefabEntry>();
+
+			// Мёрж изменившихся entry (replace по slug).
+			int changed = 0;
+			if (parsed.items != null)
+				foreach (var kv in parsed.items) { _library[kv.Key] = kv.Value; changed++; }
+
+			// Удаление: всё, чего нет в all (full-pack семантика removal). all шлётся всегда.
+			if (parsed.all != null)
+			{
+				var keep = new HashSet<string>(parsed.all);
+				var toRemove = new List<string>();
+				foreach (var slug in _library.Keys)
+					if (!keep.Contains(slug)) toRemove.Add(slug);
+				foreach (var slug in toRemove) _library.Remove(slug);
+			}
+
+			// Справочник компонентов приходит целиком (не дельтой) — замещаем прежний.
+			if (parsed.component != null)
+				_components = parsed.component;
+
+			_manifest.prefab_version = parsed.version;
+			Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed + ", всего " + _library.Count);
+			SaveLibrary(gameId);
+			SaveManifest(gameId);
 		}
 
 		// Резолв action → имя SCML-клипа для данного prefab с учётом направления (angle).

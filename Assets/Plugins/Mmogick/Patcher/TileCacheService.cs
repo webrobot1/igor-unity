@@ -30,6 +30,13 @@ namespace Mmogick
 		private const string TILESET_DIR = "tileset";
 		private const string MAPS_DIR = "maps";
 
+		// Версия формата локального кеша меты тайлсетов (TilesetMeta/Tile/TileObjectGroup/TileObject). Бамп при
+		// смене состава этих структур → EnsureLoaded форсит полный refetch меты (tileset_versions очищается,
+		// см. cache_schema_version). Отметка свежести с сервера строится по датам данных и смену формата не
+		// выражает: без бампа набор с прежней датой не перекачается, а старый кеш останется в прежней форме.
+		// v2: TileObjectGroup.class и TileObject.visible — до них разбор меты падал, кеш затирался пустым.
+		private const int CACHE_SCHEMA_VERSION = 2;
+
 		private static SyncManifest _manifest;
 		private static Dictionary<string, TilesetMeta> _tilesets;
 		private static Dictionary<string, Tile> _meta;
@@ -41,6 +48,10 @@ namespace Mmogick
 			public string archive_last_modified;
 			public Dictionary<string, long> tileset_versions = new Dictionary<string, long>();
 			public Dictionary<int, string> map_versions = new Dictionary<int, string>();
+
+			// Версия формата кеша меты на диске. При несовпадении с CACHE_SCHEMA_VERSION EnsureLoaded чистит
+			// tileset_versions (разовый полный refetch меты уже в новом формате).
+			public int cache_schema_version;
 		}
 
 
@@ -97,6 +108,16 @@ namespace Mmogick
 				_manifest = File.Exists(mp)
 					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
 					: new SyncManifest();
+
+				// Миграция схемы кеша: структуры меты расширились, а сервер отдаёт версию по датам ДАННЫХ —
+				// набор с прежней датой не перекачался бы, и на диске остался бы кеш прежней формы (в т.ч.
+				// пустой, записанный когда разбор падал). Разово форсим полный refetch меты.
+				if (_manifest.cache_schema_version != CACHE_SCHEMA_VERSION)
+				{
+					_manifest.cache_schema_version = CACHE_SCHEMA_VERSION;
+					_manifest.tileset_versions.Clear();
+					SaveManifest(gameId);
+				}
 			}
 			if (_tilesets == null)
 			{

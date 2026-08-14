@@ -164,6 +164,10 @@ namespace Mmogick
 
         private bool CanBeTarget(ObjectModel gameObject)
         {
+            // Прежняя цель бывает и не существом (сундук, лавка, портал, лежащая вещь) — запаса здоровья
+            // у неё нет, и держаться за такую цель, когда напали, незачем: она уступает нападающему.
+            EnemyModel current = Target as EnemyModel;
+
             return
             (
                 Vector3.Distance(player.transform.position, gameObject.transform.position) < player.lifeRadius
@@ -177,9 +181,11 @@ namespace Mmogick
                          (
                              (!persist_target && Vector3.Distance(Target.position, player.position) > Vector3.Distance(gameObject.transform.position, player.position))
                                  ||
-                             ((EnemyModel)Target).hp == null
+                             current == null
                                  ||
-                             ((EnemyModel)Target).hp == 0
+                             current.hp == null
+                                 ||
+                             current.hp == 0
                          )
                      )
                  )
