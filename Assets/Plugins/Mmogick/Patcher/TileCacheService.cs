@@ -126,6 +126,10 @@ namespace Mmogick
 						{
 							Debug.LogError("TileCache: битый кеш тайлсета " + id + ", удаляем: " + ex.Message);
 							File.Delete(file);
+							// Версию снимаем вместе с файлом: SyncMeta сверяет ТОЛЬКО её, и оставшаяся запись
+							// выдала бы удалённый кеш за актуальный — мета набора не вернулась бы никогда.
+							if (_manifest.tileset_versions.Remove(id))
+								SaveManifest(gameId);
 						}
 					}
 				}

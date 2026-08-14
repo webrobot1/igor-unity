@@ -49,29 +49,31 @@ namespace Mmogick
 
             if (enemy != null)
             {
-                if (hpBefore != null && enemy.hp != null && enemy.hp != hpBefore)
-                {
-                    int delta = (int)enemy.hp - (int)hpBefore;
-                    if (delta < 0)
-                        CreateCombatText(enemy.transform.position, -delta, CombatTextType.DAMAGE);
-                    else if (delta > 0)
-                        CreateCombatText(enemy.transform.position, delta, CombatTextType.HEAL);
-                }
+                int hpDelta = hpBefore != null && enemy.hp != null ? (int)enemy.hp - (int)hpBefore : 0;
+                int mpDelta = mpBefore != null && enemy.mp != null ? (int)enemy.mp - (int)mpBefore : 0;
 
-                if (mpBefore != null && enemy.mp != null && enemy.mp != mpBefore)
-                {
-                    int delta = (int)enemy.mp - (int)mpBefore;
-                    if (delta < 0)
-                        CreateCombatText(enemy.transform.position, -delta, CombatTextType.MANA);
-                }
+                // Один пакет меняет и жизнь, и ману (лечение за ману) — надписи стартуют из одной точки и летят
+                // с одной скоростью, то есть полностью перекрывают друг друга. Разводим по горизонтали.
+                float shift = hpDelta != 0 && mpDelta < 0 ? SIMULTANEOUS_SHIFT : 0f;
+
+                if (hpDelta != 0)
+                    CreateCombatText(enemy.transform.position, Mathf.Abs(hpDelta),
+                        hpDelta < 0 ? CombatTextType.DAMAGE : CombatTextType.HEAL, -shift);
+
+                if (mpDelta < 0)
+                    CreateCombatText(enemy.transform.position, -mpDelta, CombatTextType.MANA, shift);
             }
 
             return result;
         }
 
-        private void CreateCombatText(Vector3 worldPosition, int value, CombatTextType type)
+        // Полуразнос двух одновременных надписей по X (в клетках карты)
+        private const float SIMULTANEOUS_SHIFT = 0.4f;
+
+        private void CreateCombatText(Vector3 worldPosition, int value, CombatTextType type, float shiftX = 0f)
         {
             worldPosition.y += 0.8f;
+            worldPosition.x += shiftX;
 
             GameObject go = Instantiate(combatTextPrefab, worldPosition, Quaternion.identity, combatTextParent);
             Text text = go.GetComponentInChildren<Text>();

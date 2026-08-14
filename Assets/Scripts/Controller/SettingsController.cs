@@ -1,3 +1,4 @@
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -11,6 +12,9 @@ namespace Mmogick
 	/// </summary>
     abstract public class SettingsController : QuantityPromptController
     {
+        /// <summary>Компонент игрока, чьё умолчание задаёт схему настроек (типы, заголовки, границы).</summary>
+        public const string COMPONENT_SETTINGS = "settings";
+
         [Header("Для работы с меню настроек")]
 
         /// <summary>
@@ -106,9 +110,26 @@ namespace Mmogick
 #endif           
         }
 
-        protected override void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
+        /// <summary>
+        /// Схема настроек (какие они бывают, как называются и в каких границах) — умолчание компонента settings
+        /// у префаба игрока: клиент берёт его из каталога префабов, который тянет до входа в мир. Значения же
+        /// приходят своим каналом, компонентами игрока (UpdateObject ниже), и схема обязана быть построена
+        /// раньше них — иначе применять значения не к чему.
+        /// Пересборка идёт при каждом появлении своего игрока: за сессию схема не меняется, а вот окно после
+        /// пере-входа собирается заново.
+        /// </summary>
+        private void BuildSettingsSchema(string prefabSlug)
         {
-            if (recive.settings != null)
+            JToken schema = AnimationCacheService.GetComponentValue(prefabSlug, COMPONENT_SETTINGS, null);
+            if (schema == null)
+                return;
+
+            Dictionary<string, SettingRecive> settings =
+                schema.ToObject<Dictionary<string, SettingRecive>>();
+
+            if (settings == null)
+                return;
+
             {
                 foreach (Transform child in settingArea)
                 {
@@ -116,7 +137,7 @@ namespace Mmogick
                 }
 
                 _types = new Dictionary<string, string>();
-                foreach (var setting in recive.settings)
+                foreach (var setting in settings)
                 {
                     GameObject prefab;
                     switch (setting.Value.type)
@@ -168,8 +189,6 @@ namespace Mmogick
                     _types[setting.Key] = setting.Value.type;
                 }
             }
-
-            base.HandleData(recive);
         }
 
         /// <summary>
@@ -204,6 +223,13 @@ namespace Mmogick
                 Dictionary<string, string> settings = ((PlayerRecive)recive).components.settings;
                 if (settings != null)
                 {
+                    // Схема — из каталога префабов, и строится ровно перед применением значений: значения
+                    // раскладываются по её типам, без неё раскладывать не по чему. Пере-собирается только
+                    // при появлении своего игрока (там приходит prefab); на дельте значений её не трогаем —
+                    // иначе окно настроек пересобиралось бы на каждое переключение галочки.
+                    if (_types == null || _types.Count == 0)
+                        BuildSettingsSchema(recive.prefab);
+
                     if (settings.ContainsKey("fps"))
                         Application.targetFrameRate = int.Parse(settings["fps"]);
 
@@ -216,13 +242,13 @@ namespace Mmogick
                     if (settings.ContainsKey("minimap"))
                         SetMinimapEnabled(int.Parse(settings["minimap"]) > 0);
 
-                    // Пакет настроек приходит целиком, поэтому отсутствие ключа значит, что игра такой
-                    // настройки не объявляет. Для галочки «Тестовый режим» это равно выключенному
-                    // состоянию: вход в игру включает логи собранного билда (BaseController), и без
-                    // явного выключения они остались бы на всю сессию.
+                    // Пакет несёт РАЗНИЦУ значений, поэтому отсутствие ключа тут значит «не менялось» —
+                    // объявлена настройка игрой или нет, говорит схема. Для галочки «Тестовый режим» это
+                    // важно: вход в игру включает логи собранного билда (BaseController), и не объявленная
+                    // игрой галочка обязана их погасить, а просто не пришедшая — оставить как было.
                     if (settings.ContainsKey("debug"))
                         SetTestMode(int.Parse(settings["debug"]) > 0);
-                    else
+                    else if (!_types.ContainsKey("debug"))
                         SetTestMode(false);
 
                     foreach (var setting in settings)

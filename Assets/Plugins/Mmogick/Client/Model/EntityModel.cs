@@ -461,7 +461,7 @@ namespace Mmogick
 			{
 				foreach (KeyValuePair<string, EventRecive> kvp in recive.events)
 				{
-					Event ev = getEvent(kvp.Key);			
+					Event ev = getEvent(kvp.Key);
 
 					// если мы сбрасяваем таймаут (например из каких то механик) - придет это поле (оно придет кстати и при таймауте события и может еще более точно скорректировать время таймаута)
 					if (kvp.Value.remain != null) 
@@ -471,11 +471,12 @@ namespace Mmogick
 						Log("События: Новое значение оставшегося времени "+ kvp.Key + " "+GetEventRemain(kvp.Key));
 					}
 
-					if (kvp.Value.timeout != null) 
+					if (kvp.Value.timeout != null)
 					{
 						ev.timeout = kvp.Value.timeout;
-					}				
-					
+					}
+
+
 					if (kvp.Value.data != null) 
 					{
 						ev.data = kvp.Value.data;
@@ -500,7 +501,20 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// получение данных события (без поля data)
+		/// Срок, которым обходится тот, кому считать надо прямо сейчас, а сервер о группе ещё не говорил:
+		/// первый шаг до ответа на команду движения, откат кнопки в первый миг после нажатия. Живёт у
+		/// потребителей (<see cref="EventTimeout"/>), а не в самой записи: запись обязана отличать
+		/// названный сервером срок от неназванного, и подстановка числа прямо в неё это различие стирала.
+		/// </summary>
+		public const double DEFAULT_TIMEOUT = 0.5;
+
+		/// <summary>
+		/// Запись группы, ЗАВОДЯ её при надобности. Зовут те, кто событие ставит: разбор пришедшего пакета
+		/// и отправка своей команды (там же проставляется срок её завершения). Читающим сюда нельзя —
+		/// вопрос о чужой группе оставил бы у сущности запись о команде, которой у неё не бывает: у
+		/// торговца — о ходьбе, у предмета на земле — о лечении. Для чтения есть <see cref="TryGetEvent"/>
+		/// и стоящие на нём <see cref="EventTimeout"/>, <see cref="HasEventTimeout"/>,
+		/// <see cref="GetEventRemain"/>.
 		/// </summary>
 		public virtual Event getEvent(string group)
 		{
@@ -508,7 +522,6 @@ namespace Mmogick
 			{
 				events.Add(group, new Event());
 				events[group].action = null;
-				events[group].timeout = 0.5;
 				events[group].from_client = true;
 				events[group].finish = DateTime.Now;
 			}
@@ -517,22 +530,56 @@ namespace Mmogick
 		}
 
 		/// <summary>
+		/// Запись группы, если она у сущности есть; иначе null и ничего не заводится.
+		/// </summary>
+		public Event TryGetEvent(string group)
+		{
+			Event ev;
+			return events.TryGetValue(group, out ev) ? ev : null;
+		}
+
+		/// <summary>
+		/// Назвал ли сервер срок этой группы для ЭТОЙ сущности. Спрашивают те, кто по сроку СЧИТАЕТ
+		/// величину для показа (скорость шага, частота восстановления): пока команда не приходила, срока
+		/// нет — свой персонаж до первого шага, только что появившееся существо, — и посчитанное число
+		/// выглядело бы настоящим.
+		/// </summary>
+		public bool HasEventTimeout(string group)
+		{
+			Event ev = TryGetEvent(group);
+			return ev != null && ev.timeout != null;
+		}
+
+		/// <summary>
+		/// Срок группы для работы самой команды: названный сервером, иначе <see cref="DEFAULT_TIMEOUT"/>.
+		/// Ждать названного тут нельзя — команду отправляют и откатывают её кнопку с первого мига, когда
+		/// сервер о сроке ещё не говорил.
+		/// </summary>
+		public double EventTimeout(string group)
+		{
+			Event ev = TryGetEvent(group);
+			return ev != null && ev.timeout != null ? ev.timeout.Value : DEFAULT_TIMEOUT;
+		}
+
+		/// <summary>
 		/// получения поля data события , нужно указвать какой cnnhernehs данных мы ожидаем будет это поле (по умолчанию это просто объект)
 		/// </summary>
 		public T getEventData<T>(string group) where T : new()
 		{
-			EventRecive ev = getEvent(group);
-			return ev.data != null ? ev.data.ToObject<T>() : new T();
+			Event ev = TryGetEvent(group);
+			return ev != null && ev.data != null ? ev.data.ToObject<T>() : new T();
 		}
 
 		/// <summary>
-		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами). из него уже был вычтено время затраченное на получение пакета с этим значением отсервера на сюда клиент (пол пинга) 
+		/// вернет количество секунд которых осталось до времени когда событие может быть сработано (тк есть события что шлем мы , а есть что шлются сами). из него уже был вычтено время затраченное на получение пакета с этим значением отсервера на сюда клиент (пол пинга)
 		/// если включена интерполяция при отправке команды будет еще вычтено пол пинга (время на доставку пакета команды на сервер ) для проверки можно ли уже слать запрос
+		/// Команды у сущности нет вовсе — ждать нечего, ноль: она не идёт, а не «вот-вот завершится».
 		/// </summary>
 		public virtual double GetEventRemain(string group)
 		{
 			// тут пинг не выитаем тк для анимации еще используется (она ведь должна продолжаться пока пакет идет).а если отправка команд идет в ConnectController - сверяясь вычитая пол пинга
-			return ((DateTime)getEvent(group).finish).Subtract(DateTime.Now).TotalSeconds;
+			Event ev = TryGetEvent(group);
+			return ev != null && ev.finish != null ? ev.finish.Value.Subtract(DateTime.Now).TotalSeconds : 0;
 		}
 
 		/// <summary>

@@ -125,7 +125,8 @@ namespace Mmogick
 		{
 			if (_model == null) return null;
 
-			object raw = _model.getEvent(GROUP_LOOTFREE).data;
+			Event command = _model.TryGetEvent(GROUP_LOOTFREE);
+			object raw = command != null ? command.data : null;
 
 			if (!ReferenceEquals(raw, _ownerOf))
 			{
@@ -215,7 +216,8 @@ namespace Mmogick
 			// Полная длина шкалы — длительность ступени: сервер шлёт её всем видящим сущность рядом с
 			// остатком. Ещё не пришла (первый кадр после закрепления) — считаем от текущего остатка,
 			// полоска стартует полной.
-			double? length = _model.getEvent(GROUP_LOOTFREE).timeout;
+			Event stage = _model.TryGetEvent(GROUP_LOOTFREE);
+			double? length = stage != null ? stage.timeout : null;
 			double step = length.HasValue && length.Value > 0 ? length.Value : remain;
 
 			if (remain <= 0 || step <= 0)

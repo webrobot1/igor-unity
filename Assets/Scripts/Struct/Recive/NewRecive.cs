@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace Mmogick
 {
     /// <summary>
@@ -8,7 +6,5 @@ namespace Mmogick
     [System.Serializable]
     public class NewRecive<P, E> : Recive<PlayerRecive, CreatureRecive> where P : EntityRecive where E : EntityRecive
     {
-        public Dictionary<string, SettingRecive> settings = null;
-        public Dictionary<string, SpellRecive> spellBook = null;
     }
 }

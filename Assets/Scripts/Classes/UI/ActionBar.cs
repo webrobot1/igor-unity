@@ -122,7 +122,7 @@ namespace Mmogick
                 {
                     if (_cooldownOverlay != null)
                     {
-                        double timeout = (double)PlayerController.Player.getEvent(MeleeResponse.GROUP).timeout;
+                        double timeout = PlayerController.Player.EventTimeout(MeleeResponse.GROUP);
                         _cooldownOverlay.fillAmount = timeout > 0 ? (float)(meleeRemain / timeout) : 0f;
                         _cooldownOverlay.enabled = true;
                     }

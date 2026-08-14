@@ -43,10 +43,20 @@ namespace Mmogick
 		private float _lockedFov;
 		private Vector3 _lockedPosition;
 
-		// Сколько кадров замерено до закрепления. Первый кадр после сборки зеркала берут не все части
-		// скелета — по нему габариты вышли бы неполными, и закреплённый кадр оказался бы кривым.
+		// Сколько кадров подряд габариты фигуры держатся неизменными. Зеркало собирается не мгновенно:
+		// части встают по местам и получают масштаб источника в течение нескольких кадров, и всё это
+		// время фигура заметно крупнее итоговой. Замер по ней запирал кадр вокруг раздутых границ —
+		// тело выходило мелким и смещённым, а спасало бы только переоткрытие окна. Поэтому считаем не
+		// кадры от начала, а кадры БЕЗ изменений, и сбрасываем счёт, едва габариты поехали.
 		private int _measured;
 		private const int MEASURE_FRAMES = 5;
+
+		// Насколько габариты вправе дрогнуть, оставаясь «теми же»: доля от высоты фигуры. Поза дышит
+		// даже в покое, и требовать полного совпадения значило бы не закрепить кадр никогда.
+		private const float MEASURE_TOLERANCE = 0.02f;
+
+		// Высота фигуры на прошлом кадре — с ней и сверяемся. 0 — ещё не мерили.
+		private float _measuredHeight;
 
 		protected Animator animator;
 		protected SpriteRenderer spriteRender;
@@ -130,6 +140,7 @@ namespace Mmogick
 			_mirrorSpriter = null;
 			_frameLocked = false;
 			_measured = 0;
+			_measuredHeight = 0;
 		}
 
 		/// <summary>
@@ -237,11 +248,23 @@ namespace Mmogick
 					float needVFromW = 2f * Mathf.Atan(targetW / (camAspect * 2f * worldDistance)) * Mathf.Rad2Deg;
 					face_camera.fieldOfView = Mathf.Clamp(Mathf.Max(needV, needVFromW), 1f, 179f);
 
-					if (lockFrame && ++_measured >= MEASURE_FRAMES)
+					if (lockFrame)
 					{
-						_lockedPosition = transform.localPosition;
-						_lockedFov = face_camera.fieldOfView;
-						_frameLocked = true;
+						// Габариты те же, что кадром раньше — фигура собралась; поехали — счёт заново.
+						if (_measuredHeight > 0
+							&& Mathf.Abs(agg.size.y - _measuredHeight) <= _measuredHeight * MEASURE_TOLERANCE)
+							_measured++;
+						else
+							_measured = 0;
+
+						_measuredHeight = agg.size.y;
+
+						if (_measured >= MEASURE_FRAMES)
+						{
+							_lockedPosition = transform.localPosition;
+							_lockedFov = face_camera.fieldOfView;
+							_frameLocked = true;
+						}
 					}
 
 					return;

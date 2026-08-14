@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Mmogick
 {
     abstract public class ActionBarsController : EquipmentController
     {
+        /// <summary>Компонент игрока, чьё умолчание объявляет слоты панели быстрых действий.</summary>
+        public const string COMPONENT_ACTIONBARS = "actionbars";
+
         [Header("Для работы с меню быстрого доступа")]
 
         [SerializeField]
@@ -65,6 +69,19 @@ namespace Mmogick
             }
         }
 
+        /// <summary>
+        /// Сколько слотов у панели быстрых действий: число ключей в умолчании компонента actionbars — оно же
+        /// объявление самой панели («столько слотов игра даёт игроку»). Умолчания в каталоге нет (компонент
+        /// без него либо префаб неизвестен) — берём размер пришедшего набора: при первом входе он полный.
+        /// </summary>
+        private int SlotCount(string prefab, int fallback)
+        {
+            Newtonsoft.Json.Linq.JToken declared = AnimationCacheService.GetComponentValue(prefab, COMPONENT_ACTIONBARS, null);
+            int count = declared != null ? declared.Children().Count() : 0;
+
+            return count > 0 ? count : fallback;
+        }
+
         private void InitializeActionBars(int totalSlots)
         {
             if (_actionBars != null) return;
@@ -101,8 +118,11 @@ namespace Mmogick
                 Dictionary<int, ActionBarsRecive?> actionbars = ((PlayerRecive)recive).components.actionbars;
                 if (actionbars != null)
                 {
+                    // Сколько всего слотов у панели, говорит умолчание компонента в каталоге: пакет несёт
+                    // РАЗНИЦУ (изменившиеся слоты), и его размер числом слотов не является — панель, собранная
+                    // по нему, вышла бы короче при первой же дельте.
                     if (_actionBars == null)
-                        InitializeActionBars(actionbars.Count);
+                        InitializeActionBars(SlotCount(recive.prefab, actionbars.Count));
 
                     foreach (var action in actionbars)
                     {

@@ -592,7 +592,7 @@ namespace Mmogick
 							remain<=0
 								||
 							// на сервере нет текущего события — можно слать, но только если мы ещё не отправляли (from_client != true предотвращает повторную отправку до ответа сервера)
-							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.getEvent(data.group).timeout && player.getEvent(data.group).from_client != true)
+							(player.getEvent(data.group).action != null && player.getEvent(data.group).action == "" && remain <= player.EventTimeout(data.group) && player.getEvent(data.group).from_client != true)
 								||
 							// серверное событие (from_client=false) — можно перехватить. null исключён чтобы не срабатывало на неинициализированном
 							(player.getEvent(data.group).from_client != true && player.getEvent(data.group).from_client != null)
@@ -677,8 +677,9 @@ namespace Mmogick
 		/// </summary>
 		private static void SetTimeout(string group)
 		{
-			// поставим примерно время когда наступит таймаут (с ответом он нам более точно скажет тк таймаут может и плавающий в механике быть)
-			double timeout = (double)player.getEvent(group).timeout;
+			// поставим примерно время когда наступит таймаут (с ответом он нам более точно скажет тк таймаут может и плавающий в механике быть).
+			// Команду шлём и до первого ответа сервера — тогда срока он ещё не называл, и берётся умолчание.
+			double timeout = player.EventTimeout(group);
 
 			if (player.GetEventRemain(group) > Ping() / 2)								// если до конца события осталось больше чем успеет дойти запрос до сервера (время = половины пинга) то учитываем
 				timeout += player.GetEventRemain(group);

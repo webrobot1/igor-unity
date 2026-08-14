@@ -67,7 +67,8 @@ namespace Mmogick
 
 			// Полная длина шкалы — длительность самого срока. Ещё не пришла (первый кадр после смерти) —
 			// считаем от текущего остатка, полоска стартует полной.
-			double? length = _model.getEvent(group).timeout;
+			Event countdown = _model.TryGetEvent(group);
+			double? length = countdown != null ? countdown.timeout : null;
 			double full = length.HasValue && length.Value > 0 ? length.Value : remain;
 
 			if (_bar == null)

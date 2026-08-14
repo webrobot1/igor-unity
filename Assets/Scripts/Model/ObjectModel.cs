@@ -264,8 +264,9 @@ namespace Mmogick
 			if (action == ConnectController.ACTION_REMOVE)
             {
 				// если расчетное время получения пакета меньше чем обычно анимация шага у персонажа - делаем время анимации шага персонада
-				if (timeout < getEvent(WalkResponse.GROUP).timeout)
-					timeout = (double)getEvent(WalkResponse.GROUP).timeout;
+				double step = EventTimeout(WalkResponse.GROUP);
+				if (timeout < step)
+					timeout = step;
 			}
 			//мы не знаем будет ли существо идти дальше (новый пакет с запазданием придет после завершения текущего движения даже если пришлел ровно к нему)
 			//это времени для возврата с сервера нам результата назад уже следующего события движения
@@ -307,7 +308,8 @@ namespace Mmogick
 				if (distance < distancePerUpdate)
 				{
 					// если ожидается пакет на движение или мы удаляемся — экстраполируем на полный шаг с замедлением
-					if ((getEvent(WalkResponse.GROUP).action!=null && getEvent(WalkResponse.GROUP).action.Length>0 || action == ConnectController.ACTION_REMOVE) && !extrapolation)
+					Event walking = TryGetEvent(WalkResponse.GROUP);
+					if (((walking != null && walking.action != null && walking.action.Length > 0) || action == ConnectController.ACTION_REMOVE) && !extrapolation)
 					{
 						extrapolation = true;
 						extrapolationStart = DateTime.Now;

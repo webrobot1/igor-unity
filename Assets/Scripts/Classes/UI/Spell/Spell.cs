@@ -73,12 +73,28 @@ namespace Mmogick
             return PlayerController.Player != null && PlayerController.Player.GetEventRemain(@event) > 0;
         }
 
+        /// <summary>
+        /// Лечить нечего: заклинание лечебное, а запас здоровья уже полон. Зеркалит серверный отказ — там такое
+        /// применение гаснет, не тронув ману, — поэтому иконка гасится, как при нехватке маны, и клик не уходит.
+        /// Цель тут своя: лечение чужого игрока идёт кликом по нему, и полнота ЕГО запаса решается на сервере.
+        /// </summary>
+        private bool NothingToHeal
+        {
+            get
+            {
+                return @event == HealResponse.GROUP
+                    && PlayerController.Player != null
+                    && PlayerController.Player.hpMax > 0
+                    && PlayerController.Player.hp >= PlayerController.Player.hpMax;
+            }
+        }
+
         public override (float fillAmount, float remainSeconds) GetCooldownProgress()
         {
             if (PlayerController.Player == null) return (0f, 0f);
             double remainTime = PlayerController.Player.GetEventRemain(@event);
             if (remainTime <= 0) return (0f, 0f);
-            double timeout = (double)PlayerController.Player.getEvent(@event).timeout;
+            double timeout = PlayerController.Player.EventTimeout(@event);
             float fill = timeout > 0 ? (float)(remainTime / timeout) : 0f;
             return (fill, (float)remainTime);
         }
@@ -88,7 +104,7 @@ namespace Mmogick
             if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
             {
                 bool onCooldown = IsOnCooldown();
-                bool unavailable = PlayerController.Player.hp <= 0 || ManaCost > PlayerController.Player.mp;
+                bool unavailable = PlayerController.Player.hp <= 0 || ManaCost > PlayerController.Player.mp || NothingToHeal;
 
                 remain.text = onCooldown ? PlayerController.Player.GetEventRemain(@event) + " сек." : "0 сек.";
 
@@ -141,9 +157,13 @@ namespace Mmogick
 
                             if (obj != null && obj.GetComponent<ObjectModel>()!=null)
                             {
-                                response.target = obj.GetComponent<ObjectModel>().key;
+                                ObjectModel clicked = obj.GetComponent<ObjectModel>();
+                                response.target = clicked.key;
+
+                                // Выбранной целью становится тот, ПО КОМУ кликнули: следующий выстрел с панели
+                                // быстрых действий пойдёт по ней же, без повторного клика по существу.
                                 if(MainController.Instance.Target == null)
-                                    MainController.Instance.Target = gameObject.GetComponent<ObjectModel>();
+                                    MainController.Instance.Target = clicked;
                             }
                             else if (MainController.Instance.Target != null)
                             {
@@ -164,6 +184,40 @@ namespace Mmogick
                             }
 
                             response.Send();
+                        break;
+                        case "magic/heal":
+                            HealResponse heal = new HealResponse();
+                            heal.spell = Magic;
+
+                            // Лечить себя при полном запасе нечего — сервер такую команду гасит, не тронув ману.
+                            // Проверка тут, а не только в подсветке иконки: применение приходит и с панели
+                            // быстрых действий, и кликом по себе, и обе двери ведут сюда.
+                            if (NothingToHeal && (obj == null || obj.GetComponent<PlayerModel>() == PlayerController.Player))
+                            {
+                                Debug.Log("Заклинание " + Magic + ": запас здоровья полон, лечить нечего");
+                                return;
+                            }
+
+                            if (obj != null && obj.GetComponent<ObjectModel>() != null)
+                            {
+                                // Сервер лечит только игроков: по мобу и объекту команду не отправляем вовсе,
+                                // иначе она молча гасится у сервера, а пауза заклинания у игрока уже пошла бы.
+                                if (obj.GetComponent<PlayerModel>() == null)
+                                {
+                                    Debug.LogWarning("Заклинание " + Magic + ": лечить можно только игрока");
+                                    return;
+                                }
+
+                                heal.target = obj.GetComponent<ObjectModel>().key;
+                            }
+                            // Выбранная ранее цель берётся только при запуске с панели быстрых действий (pos пустой):
+                            // клик в мире мимо существа — намеренное лечение себя, и старая цель его перебивать не должна.
+                            else if (pos == Vector2.zero && MainController.Instance.Target is PlayerModel)
+                            {
+                                heal.target = MainController.Instance.Target.key;
+                            }
+
+                            heal.Send();
                         break;
                         default:
                             ConnectController.Error("неизвестный тип группы "+ @event+" у заклинания "+Magic);

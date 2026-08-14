@@ -214,11 +214,13 @@ namespace Mmogick
                             {
                                 if (player != null)
                                 {
-                                    // фрейм цели показывает кликнутый труп (кого лутаем); persist не
-                                    // держим — нападающий перебьёт труп-цель автоматически (CanBeTarget
-                                    // пропускает смену цели, у которой hp == 0). Объект-сундук целью не
-                                    // держим вовсе — рамка цели предназначена врагам.
-                                    Target = container is EnemyModel ? container : null;
+                                    // Рамка цели показывает кликнутый контейнер — и труп, и сундук с лавкой:
+                                    // по выбранному открывается окно сведений, а там о торговце и сундуке
+                                    // есть что рассказать. Полоски состояния у них погаснут сами — значений,
+                                    // которых у вида нет, сервер не пришлёт. persist не держим: нападающий
+                                    // перебьёт такую цель автоматически (CanBeTarget пропускает смену цели,
+                                    // у которой hp == 0).
+                                    Target = container;
                                     persist_target = false;
 
                                     LootWindowController.RequestOpen(container);
@@ -233,12 +235,13 @@ namespace Mmogick
                             // предмету (или по его кликабельной надписи EquipableGroundMarker, чей collider
                             // через GetComponentInParent резолвится в этот же ObjectModel) трактуем как
                             // "идти к нему": ставим move_to в позицию предмета — дальше FixedUpdate шлёт
-                            // WalkResponse "to", игрок подходит, сервер подбирает. Цель атаки (Target) для
-                            // предмета не выставляем — UI-рамка цели предназначена врагам (см. TargetController).
+                            // WalkResponse "to", игрок подходит, сервер подбирает. Целью предмет при этом
+                            // выбираем: по выбранному открывается окно сведений, и о лежащей вещи там есть
+                            // что рассказать — что это, чего стоит.
                             if (!string.IsNullOrEmpty(new_target.prefab)
                                 && AnimationCacheService.IsGroundItem(new_target.prefab))
                             {
-                                Target = null;
+                                Target = new_target;
                                 persist_target = false;
                                 LootWindowController.CancelPending();
                                 if (player != null)
@@ -252,12 +255,13 @@ namespace Mmogick
                                 LootWindowController.CancelPending();
                             }
                             // Сущность без добычи — объект без неё (портал, алтарь) либо труп существа,
-                            // с которого нечего взять: взаимодействия нет, целью не держим, а сам клик
-                            // трактуем как клик по земле — иначе кликабельная зона объекта работала бы
-                            // «мёртвой» клеткой, на которую персонажа не отправить.
+                            // с которого нечего взять: взаимодействия нет, поэтому клик заодно трактуем
+                            // как клик по земле — иначе кликабельная зона объекта работала бы «мёртвой»
+                            // клеткой, на которую персонажа не отправить. Целью выбираем и её: рассказать
+                            // о выбранном окно сведений может о ком угодно.
                             else
                             {
-                                Target = null;
+                                Target = new_target;
                                 persist_target = false;
                                 LootWindowController.CancelPending();
                                 WalkToCursor();
@@ -351,7 +355,7 @@ namespace Mmogick
                         }
 
                         // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
-                        block_forward = DateTime.Now.AddSeconds((double)player.getEvent(WalkResponse.GROUP).timeout);
+                        block_forward = DateTime.Now.AddSeconds(player.EventTimeout(WalkResponse.GROUP));
                     }
                 }
                 catch (Exception ex)

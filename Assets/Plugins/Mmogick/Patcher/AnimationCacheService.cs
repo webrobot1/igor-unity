@@ -41,10 +41,15 @@ namespace Mmogick
 		// v2: actions сменил форму словарь(action→angle→clip) → плоский список ActionBinding[].
 		// v3: добавлено component (имена компонентов prefab'а).
 		// v4: добавлено component_value (эффективные значения публичных компонентов вида).
-		private const int CACHE_SCHEMA_VERSION = 4;
+		// v5: component убран (имена = ключи component_value), component_value несёт ВСЕ компоненты вида.
+		private const int CACHE_SCHEMA_VERSION = 5;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
+
+		// Справочник компонентов игры: component.slug → умолчание + виды. На диск не пишется намеренно —
+		// сервер шлёт его целиком при каждой синхронизации, и файл был бы второй копией, живущей своей жизнью.
+		private static Dictionary<string, ComponentEntry> _components;
 		private static Dictionary<int, Dictionary<int, string>> _files;              // animationId → idx → sha256.ext
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
@@ -278,21 +283,18 @@ namespace Mmogick
 			public System.Collections.Generic.List<string> equipable_slot;
 
 			/// <summary>
-			/// Имена (slug) компонентов, заданных prefab'у на сервере — БЕЗ значений по умолчанию (клиенту
-			/// они не нужны, часть из них игровой баланс). Состав компонентов задаёт игра, поэтому смысл имён
-			/// знает клиент конкретной игры: по составу он отличает свои виды сущностей в своих механиках.
-			/// Пустой набор сервер шлёт как [] (список, каста в объект не требует).
-			/// </summary>
-			public System.Collections.Generic.List<string> component;
-
-			/// <summary>
-			/// Эффективные значения ПУБЛИЧНЫХ компонентов вида этого prefab'а: slug → значение (заданное
-			/// prefab'у, иначе умолчание справочника компонента) — то же, что получит сущность этого prefab'а
-			/// при создании. Ключа нет вовсе — у вида нет публичных значений. Форма значения задана типом
+			/// Эффективные значения компонентов вида этого prefab'а: slug → значение (заданное prefab'у, иначе
+			/// умолчание справочника компонента) — то же, что получит сущность этого prefab'а при создании.
+			/// Ключа нет вовсе — у вида нет компонентов с действующим значением. Форма значения задана типом
 			/// компонента: число/строка у скалярных, объект либо массив у структурных, — потому JToken,
 			/// а не строка.
+			/// Ключи набора несут и СОСТАВ: отдельного списка имён сервер не шлёт, компонент без действующего
+			/// значения в набор не идёт (GetPrefabComponents отдаёт эти же ключи).
 			/// Общее значение свойства предмета живёт ЗДЕСЬ, а не в слоте хранилища: слот несёт только
 			/// отличия экземпляра (см. GetComponentValue).
+			/// Набор справочный — он про КОНТЕНТ, одинаковый у всех: свойства ЖИВОЙ сущности (чьё здоровье
+			/// кому видно) приходят своим каналом, и показывать их надо оттуда, иначе наружу полезет то,
+			/// что игроку знать не положено (шансы дропа лежат тут же).
 			/// </summary>
 			public Dictionary<string, JToken> component_value;
 
@@ -399,28 +401,40 @@ namespace Mmogick
 			return e.equipable_slot;
 		}
 
-		// Имена компонентов prefab'а (PrefabEntry.component) — по ним игровые механики клиента отличают
-		// виды сущностей (что это за существо/объект по его составу). Контракт по _library тот же, что
-		// у GetPrefabSize — throw на _library==null (timing-баг: вызов до SyncAll). «Prefab нет в library
-		// / компонентов нет» → пустой список: легитимное отсутствие, вызывающий просто не находит искомого.
+		// Компоненты, ДЕЙСТВУЮЩИЕ у prefab'а: заданные ему плюс положенные его виду (у последних значение даёт
+		// умолчание справочника). По этому составу игровые механики клиента отличают виды сущностей — что это
+		// за существо или объект. Контракт по _library тот же, что у GetPrefabSize — throw на _library==null
+		// (timing-баг: вызов до SyncAll). «Prefab нет в library» → пустой список: легитимное отсутствие,
+		// вызывающий просто не находит искомого.
 		public static System.Collections.Generic.List<string> GetPrefabComponents(string prefab)
 		{
 			if (_library == null)
 				throw new InvalidOperationException("AnimationCacheService.GetPrefabComponents вызван до SyncAll (_library == null). prefab=" + prefab);
-			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.component == null)
-				return new System.Collections.Generic.List<string>();
-			return e.component;
+
+			var names = new System.Collections.Generic.List<string>();
+			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e))
+				return names;
+
+			if (e.component_value != null)
+				names.AddRange(e.component_value.Keys);
+
+			if (_components != null && !string.IsNullOrEmpty(e.kind))
+				foreach (var kv in _components)
+					if (kv.Value != null && kv.Value.kind != null && kv.Value.kind.Contains(e.kind) && !names.Contains(kv.Key))
+						names.Add(kv.Key);
+
+			return names;
 		}
 
-		// Значение компонента у КОНКРЕТНОГО экземпляра: своё, иначе префабное. Единственная точка этого
-		// правила — потребители (цена предмета и т.п.) спрашивают значение только здесь.
+		// Значение компонента у КОНКРЕТНОГО экземпляра — цепочкой «своё → заданное prefab'у → умолчание
+		// компонента». Единственная точка этого правила: потребители (цена предмета и т.п.) спрашивают
+		// значение только здесь, и та же цепочка действует на сервере при создании сущности.
 		// own — компоненты слота хранилища (инвентарь, добыча): сервер кладёт туда ТОЛЬКО отличия
 		// экземпляра от prefab'а, общее значение туда не копируется — иначе правка prefab'а до предмета
 		// не доезжала бы, а разный набор компонентов разводил бы одинаковые предметы по разным позициям.
-		// Общее берётся из манифеста (PrefabEntry.component_value).
 		// Контракт по _library тот же, что у GetPrefabComponents — throw на _library==null (вызов до SyncAll).
-		// null — значения нет ни у экземпляра, ни у prefab'а (компонент виду не задан либо не публичен):
-		// легитимное отсутствие, вызывающий решает сам (нет цены — предмет вне торговли).
+		// null — значения нет ни у экземпляра, ни у prefab'а, ни в умолчании (компонент виду не положен либо
+		// значения не несёт): легитимное отсутствие, вызывающий решает сам (нет цены — предмет вне торговли).
 		public static JToken GetComponentValue(string prefab, string component, IDictionary<string, string> own)
 		{
 			if (_library == null)
@@ -431,10 +445,19 @@ namespace Mmogick
 			if (own != null && own.TryGetValue(component, out string mine) && mine != null)
 				return mine;
 
-			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e) || e.component_value == null)
-				return null;
+			if (!string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e))
+			{
+				if (e.component_value != null && e.component_value.TryGetValue(component, out JToken value) && value != null && value.Type != JTokenType.Null)
+					return value;
 
-			return e.component_value.TryGetValue(component, out JToken value) ? value : null;
+				// Умолчание действует, только если компонент положен ВИДУ этого prefab'а: у чужого вида
+				// значения быть не должно, иначе предмет получил бы свойство существа.
+				if (_components != null && _components.TryGetValue(component, out ComponentEntry entry)
+					&& entry != null && entry.kind != null && !string.IsNullOrEmpty(e.kind) && entry.kind.Contains(e.kind))
+					return entry.@default;
+			}
+
+			return null;
 		}
 
 		// ВЕСЬ набор свойств конкретного экземпляра разом: slug → эффективное значение по тому же правилу
@@ -453,9 +476,8 @@ namespace Mmogick
 
 			Dictionary<string, JToken> values = new Dictionary<string, JToken>();
 
-			if (!string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e) && e.component_value != null)
-				foreach (string slug in e.component_value.Keys)
-					values[slug] = GetComponentValue(prefab, slug, own);
+			foreach (string slug in GetPrefabComponents(prefab))
+				values[slug] = GetComponentValue(prefab, slug, own);
 
 			if (own != null)
 				foreach (string slug in own.Keys)
@@ -912,7 +934,20 @@ namespace Mmogick
 		{
 			public Dictionary<string, PrefabEntry> items;  // только изменившиеся с since (slug → entry)
 			public List<string> all;                       // все текущие slug игры (для детекции удалений)
+			public Dictionary<string, ComponentEntry> component;  // справочник компонентов игры, шлётся целиком
 			public long version;                            // max updated отданных items — клиент шлёт как since далее
+		}
+
+		/// <summary>
+		/// Компонент игры в справочнике: умолчание значения и виды, которым компонент положен. Умолчание —
+		/// последнее звено цепочки «своё у экземпляра → заданное префабу → умолчание компонента»; в записях
+		/// префабов его нет, иначе одно значение размножилось бы по всем записям вида.
+		/// </summary>
+		[Serializable]
+		public class ComponentEntry
+		{
+			public JToken @default;
+			public List<string> kind;
 		}
 
 		// Дельта-синхронизация библиотеки prefab'ов. Мёржит изменившиеся entry в _library и удаляет slug'и,
@@ -922,49 +957,77 @@ namespace Mmogick
 		private static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
 			long since = (_library != null && _library.Count > 0) ? _manifest.prefab_version : 0;
-			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + since;
-			Debug.Log("Запрашиваю список префабов " + url);
 
-			UnityWebRequest req = UnityWebRequest.Get(url);
-			yield return req.SendWebRequest();
-
-			if (req.result != UnityWebRequest.Result.Success)
+			// Две попытки: дельта, а при недостаче — полный список (since=0). Недостача возможна потому, что
+			// all и items живут по РАЗНЫМ правилам: all — полный состав игры на сейчас, items — только записи
+			// свежее since. Пропажу из all мы отрабатываем ниже удалением, а вот обратный ход сервер догнать
+			// не даёт: элемент, побывавший помеченным на удаление, возвращается в all с ПРЕЖНЕЙ датой (пометку
+			// снимает удаление строки БД, дата снова файловая) и в дельту не попадает уже никогда. Без добора
+			// такой prefab исчезает у нас навсегда, а игрок с этим предметом либо заклинанием не может войти —
+			// SpellBookController ругается на отсутствующую группу команды.
+			for (int attempt = 0; ; attempt++)
 			{
-				onError?.Invoke("AnimationCache library: " + ExtractError(req));
+				string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + since;
+				Debug.Log("Запрашиваю список префабов " + url);
+
+				UnityWebRequest req = UnityWebRequest.Get(url);
+				yield return req.SendWebRequest();
+
+				if (req.result != UnityWebRequest.Result.Success)
+				{
+					onError?.Invoke("AnimationCache library: " + ExtractError(req));
+					req.Dispose();
+					yield break;
+				}
+
+				string text = req.downloadHandler.text;
 				req.Dispose();
-				yield break;
+
+				PrefabSyncResponse parsed;
+				try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text); }
+				catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
+
+				if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
+
+				if (_library == null) _library = new Dictionary<string, PrefabEntry>();
+
+				// Мёрж изменившихся entry (replace по slug).
+				int changed = 0;
+				if (parsed.items != null)
+					foreach (var kv in parsed.items) { _library[kv.Key] = kv.Value; changed++; }
+
+				// Удаление: всё, чего нет в all (full-pack семантика removal). all шлётся всегда.
+				int missing = 0;
+				if (parsed.all != null)
+				{
+					var keep = new HashSet<string>(parsed.all);
+					var toRemove = new List<string>();
+					foreach (var slug in _library.Keys)
+						if (!keep.Contains(slug)) toRemove.Add(slug);
+					foreach (var slug in toRemove) _library.Remove(slug);
+
+					foreach (var slug in parsed.all)
+						if (!_library.ContainsKey(slug)) missing++;
+				}
+
+				// Справочник компонентов приходит целиком (не дельтой) — замещаем прежний.
+				if (parsed.component != null)
+					_components = parsed.component;
+
+				_manifest.prefab_version = parsed.version;
+				Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed + ", всего " + _library.Count + ", недостаёт " + missing);
+				SaveLibrary(gameId);
+				SaveManifest(gameId);
+
+				// Добор — только когда шли дельтой и после мёржа состав всё равно неполон. Вторая попытка идёт
+				// с since=0 и приносит весь каталог; третьей не бывает — недостача после полного списка значила бы
+				// расхождение самого ответа сервера (all несёт slug, которого нет в items), и её место в его спеке.
+				if (missing == 0 || attempt >= 1 || since == 0)
+					yield break;
+
+				Debug.LogWarning("AnimationCache: в каталоге сервера " + missing + " prefab'ов, которых нет локально — добираю полным списком");
+				since = 0;
 			}
-
-			string text = req.downloadHandler.text;
-			req.Dispose();
-
-			PrefabSyncResponse parsed;
-			try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text); }
-			catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
-
-			if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
-
-			if (_library == null) _library = new Dictionary<string, PrefabEntry>();
-
-			// Мёрж изменившихся entry (replace по slug).
-			int changed = 0;
-			if (parsed.items != null)
-				foreach (var kv in parsed.items) { _library[kv.Key] = kv.Value; changed++; }
-
-			// Удаление: всё, чего нет в all (full-pack семантика removal). all шлётся всегда.
-			if (parsed.all != null)
-			{
-				var keep = new HashSet<string>(parsed.all);
-				var toRemove = new List<string>();
-				foreach (var slug in _library.Keys)
-					if (!keep.Contains(slug)) toRemove.Add(slug);
-				foreach (var slug in toRemove) _library.Remove(slug);
-			}
-
-			_manifest.prefab_version = parsed.version;
-			Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed + ", всего " + _library.Count);
-			SaveLibrary(gameId);
-			SaveManifest(gameId);
 		}
 
 		// Резолв action → имя SCML-клипа для данного prefab с учётом направления (angle).

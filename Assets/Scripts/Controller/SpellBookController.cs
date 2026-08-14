@@ -1,3 +1,4 @@
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -11,6 +12,19 @@ namespace Mmogick
 	/// </summary>
     abstract public class SpellBookController : UIController
     {
+        /// <summary>Компонент префаба заклинания: группа команды, которой оно применяется.</summary>
+        public const string COMPONENT_EVENT = "event";
+
+        /// <summary>Компонент префаба заклинания: стоимость применения в мане.</summary>
+        public const string COMPONENT_MP_COST = "mp_cost";
+
+        /// <summary>
+        /// Компонент существа: какие заклинания у него есть (ключ — префаб заклинания, значение — true).
+        /// У своего игрока состав приходит пакетом, у чужой цели — нет: компонент приватный, и о ней
+        /// известно лишь типовое для её вида из каталога префабов.
+        /// </summary>
+        public const string COMPONENT_SPELL_BOOK = "spell_book";
+
         [Header("Для работы с книгой заклинаний")]
 
         /// <summary>
@@ -62,33 +76,76 @@ namespace Mmogick
                
         }
 
+        /// <summary>
+        /// Книга собирается из ДВУХ источников: состав — компонент spell_book своего игрока (какие заклинания
+        /// выучены), а чем каждое является (название, описание, стоимость маны, группа команды) — каталог
+        /// префабов, который клиент тянет до входа в мир. Отдельного справочника заклинаний сервер не шлёт:
+        /// заклинание — обычный префаб, и его свойства лежат там же, где свойства прочего контента.
+        ///
+        /// Собирается в HandleData, до обхода сущностей пакета: панель быстрых действий ищет свои заклинания
+        /// в готовой книге, а её контроллер стоит в цепочке ВЫШЕ этого — на обходе сущностей книга была бы
+        /// ещё пуста, и панель ругалась бы на «не найдено заклинание».
+        /// </summary>
         protected override void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
         {
-            if (recive.spellBook != null)
+            PlayerRecive player = FindOwnPlayer(recive);
+
+            if (player != null && player.components != null)
             {
-                // если книга заклинаний пришла по новой с сервера
-                _spells = new Dictionary<string, Spell>();
-                foreach (Transform child in spellGroupArea)
+                Dictionary<string, bool> book = player.components.spell_book;
+                if (book != null)
                 {
-                    Destroy(child.gameObject);
-                }
+                    _spells = new Dictionary<string, Spell>();
+                    foreach (Transform child in spellGroupArea)
+                    {
+                        Destroy(child.gameObject);
+                    }
 
-                foreach (var spell in recive.spellBook)
-                {
-                    Spell prefab = Instantiate(spellPrefab, spellGroupArea) as Spell;
+                    foreach (var spell in book)
+                    {
+                        if (!spell.Value)
+                            continue;
 
-                    prefab.Magic = spell.Key;
-                    prefab.@event = spell.Value.@event;
+                        JToken group = AnimationCacheService.GetComponentValue(spell.Key, COMPONENT_EVENT, null);
+                        JToken cost  = AnimationCacheService.GetComponentValue(spell.Key, COMPONENT_MP_COST, null);
 
-                    prefab.title.text = spell.Value.name;
-                    prefab.description.text = spell.Value.description;
-                    prefab.ManaCost = spell.Value.mp;
+                        if (group == null)
+                        {
+                            Error("У заклинания " + spell.Key + " не задана группа команды (компонент " + COMPONENT_EVENT + ")");
+                            return;
+                        }
 
-                    _spells.Add(spell.Key, prefab);
+                        Spell prefab = Instantiate(spellPrefab, spellGroupArea) as Spell;
+
+                        prefab.Magic = spell.Key;
+                        prefab.@event = group.Value<string>();
+
+                        prefab.title.text = AnimationCacheService.GetPrefabName(spell.Key) ?? spell.Key;
+                        prefab.description.text = AnimationCacheService.GetPrefabDescription(spell.Key) ?? "";
+                        prefab.ManaCost = cost != null ? cost.Value<int>() : 0;
+
+                        _spells.Add(spell.Key, prefab);
+                    }
                 }
             }
 
             base.HandleData(recive);
+        }
+
+        /// <summary>
+        /// Свой игрок в пакете мира: он приходит внутри своей карты, а карт в пакете несколько (соседние
+        /// локации открытого мира). null — в этом пакете своего игрока нет (обычная дельта чужих сущностей).
+        /// </summary>
+        private PlayerRecive FindOwnPlayer(NewRecive<PlayerRecive, CreatureRecive> recive)
+        {
+            if (recive.world == null)
+                return null;
+
+            foreach (var map in recive.world)
+                if (map.Value != null && map.Value.player != null && map.Value.player.TryGetValue(player_key, out PlayerRecive player))
+                    return player;
+
+            return null;
         }
     }
 }

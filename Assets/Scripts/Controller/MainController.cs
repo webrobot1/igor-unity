@@ -106,8 +106,12 @@ namespace Mmogick
         /// <param name="withNumber">Служебный блок показан — обновляем и подпись с номером карты.</param>
         private void MapLabel(bool withNumber)
         {
+            // До спавна игрока карты нет — подпись пустая, иначе в кадрах загрузки висит образец из сцены.
             if (PlayerController.Player == null)
+            {
+                SetMapName("");
                 return;
+            }
 
             int mapId = PlayerController.Player.map;
 
