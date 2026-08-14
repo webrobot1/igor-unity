@@ -228,6 +228,13 @@ namespace Mmogick
 				// До Connect: карта приходит следом, и её разбор уже должен знать, что помечать свечением.
 				ConnectController.warp_class = data.warp;
 
+				// Мир текущей карты — им обзорная карта отбирает свои карты из общего кеша (см. поля).
+				if (data.world == 0)
+					throw new System.Exception("Сервер не отдал поле 'world' в /auth response. По контракту оно обязательно.");
+
+				ConnectController.world = data.world;
+				ConnectController.world_name = data.world_name;
+
 				// equipment_slot — справочник slug-ов слотов экипировки игры. По контракту приходит непустой
 				// (см. SigninRecive.equipment_slot). UI рисует ровно эти ячейки.
 				if (data.equipment_slot == null || data.equipment_slot.Count == 0)

@@ -11,7 +11,7 @@ namespace Mmogick
     /// <summary>
 	/// Класс верхнего уровня. Служит в том числе для обновления статистика соединения
 	/// </summary>
-    public class MainController : InfoWindowController
+    public class MainController : WorldMapController
     {
         private float deltaTime;
 

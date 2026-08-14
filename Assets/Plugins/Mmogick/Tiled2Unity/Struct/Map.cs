@@ -13,6 +13,11 @@ namespace Mmogick
 		public int id;
 		public string name;
 
+		// Мир, которому принадлежит карта. Скачанные карты копятся в одном кеше независимо от мира, а
+		// координаты открытого мира у миров свои — по этому полю из кеша отбираются карты текущего мира
+		// (обзорная карта строится только по ним). Мир игрока приходит при входе (SigninRecive.world).
+		public int world;
+
 		// Тип проекции: orthogonal / isometric / staggered / hexagonal.
 		public string orientation;
 

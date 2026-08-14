@@ -29,18 +29,46 @@ namespace Mmogick
 		private const string TILES_DIR = "tiles";
 		private const string TILESET_DIR = "tileset";
 		private const string MAPS_DIR = "maps";
+		// Нарисованные миниатюры карт для обзорной карты мира: рисуются из тайлов один раз на версию данных.
+		private const string WORLDMAP_DIR = "worldmap";
 
-		// Версия формата локального кеша меты тайлсетов (TilesetMeta/Tile/TileObjectGroup/TileObject). Бамп при
-		// смене состава этих структур → EnsureLoaded форсит полный refetch меты (tileset_versions очищается,
-		// см. cache_schema_version). Отметка свежести с сервера строится по датам данных и смену формата не
-		// выражает: без бампа набор с прежней датой не перекачается, а старый кеш останется в прежней форме.
+		// Версия формата локального кеша — И меты тайлсетов (TilesetMeta/Tile/TileObjectGroup/TileObject),
+		// И разбора карт (Map). Бамп при смене состава любой из этих структур → EnsureLoaded форсит полный
+		// refetch: версии наборов и карт очищаются, скачанные карты удаляются. Отметка свежести с сервера
+		// строится по датам данных и смену формата не выражает: без бампа набор либо карта с прежней датой
+		// не перекачается, а на диске останется кеш прежней формы. Карту при этом мало пометить устаревшей —
+		// пере-скачивается она лишь при заходе игрока на неё, а читают кеш и те, кто карту сейчас не грузит.
 		// v2: TileObjectGroup.class и TileObject.visible — до них разбор меты падал, кеш затирался пустым.
-		private const int CACHE_SCHEMA_VERSION = 2;
+		// v3: Map.world — по нему из кеша отбираются карты текущего мира.
+		private const int CACHE_SCHEMA_VERSION = 3;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, TilesetMeta> _tilesets;
 		private static Dictionary<string, Tile> _meta;
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
+
+		// Шапка скачанной карты: мир, имя и место в открытом мире. Держится в манифесте, а не читается из
+		// самих карт: обзорной карте мира нужны шапки ВСЕХ скачанных карт, а разбор их файлов целиком —
+		// сотни килобайт тайлов ради шести полей. Пишется при скачивании карты из её же файла, потому
+		// расходиться с ним не может; при смене формата кеша уходит вместе с картами (cache_schema_version).
+		[System.Serializable]
+		public class CachedMap
+		{
+			public int world;
+			public string name;
+
+			// Левый-верхний угол карты в тайлах открытого мира. Запись заводится только для РАЗМЕЩЁННЫХ карт:
+			// интерьеры и подземелья в раскладке не стоят, на обзорной карте им места нет.
+			public int x;
+			public int y;
+			public int width;
+			public int height;
+
+			// Отпечаток данных, по которым нарисована миниатюра карты (см. WorldMapStamp): версия самой карты
+			// плюс версия архива графики. Разошёлся с текущим — картинка устарела, её перерисовывают: карту
+			// могли перерисовать в редакторе, а тайлы — перезалить, и второе миниатюру меняет так же.
+			public string render;
+		}
 
 		[System.Serializable]
 		public class SyncManifest
@@ -48,6 +76,7 @@ namespace Mmogick
 			public string archive_last_modified;
 			public Dictionary<string, long> tileset_versions = new Dictionary<string, long>();
 			public Dictionary<int, string> map_versions = new Dictionary<int, string>();
+			public Dictionary<int, CachedMap> maps = new Dictionary<int, CachedMap>();
 
 			// Версия формата кеша меты на диске. При несовпадении с CACHE_SCHEMA_VERSION EnsureLoaded чистит
 			// tileset_versions (разовый полный refetch меты уже в новом формате).
@@ -71,6 +100,7 @@ namespace Mmogick
 
 		private static string TilesPath(int gameId)  => Path.Combine(GamePath(gameId), TILES_DIR);
 		private static string MapsPath(int gameId)   => Path.Combine(GamePath(gameId), MAPS_DIR);
+		private static string WorldMapPath(int gameId) => Path.Combine(GamePath(gameId), WORLDMAP_DIR);
 
 		private static string ManifestPath(int gameId) => Path.Combine(GamePath(gameId), MANIFEST_FILE);
 		private static string TilesetPath(int gameId) => Path.Combine(GamePath(gameId), TILESET_DIR);
@@ -109,13 +139,25 @@ namespace Mmogick
 					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
 					: new SyncManifest();
 
-				// Миграция схемы кеша: структуры меты расширились, а сервер отдаёт версию по датам ДАННЫХ —
-				// набор с прежней датой не перекачался бы, и на диске остался бы кеш прежней формы (в т.ч.
-				// пустой, записанный когда разбор падал). Разово форсим полный refetch меты.
+				// Миграция схемы кеша: разбираемые структуры расширились, а сервер отдаёт версию по датам
+				// ДАННЫХ — набор либо карта с прежней датой не перекачались бы, и на диске остался бы кеш
+				// прежней формы (в т.ч. пустой, записанный когда разбор падал). Разово форсим полный refetch.
+				// Карты сносим ФАЙЛАМИ, не одними версиями: файл прежней формы иначе доживает до захода игрока
+				// на эту карту, а читают кеш и те, кому карта сейчас не грузится (обзорная карта мира).
 				if (_manifest.cache_schema_version != CACHE_SCHEMA_VERSION)
 				{
 					_manifest.cache_schema_version = CACHE_SCHEMA_VERSION;
 					_manifest.tileset_versions.Clear();
+					_manifest.map_versions.Clear();
+					_manifest.maps.Clear();
+					if (Directory.Exists(MapsPath(gameId)))
+						foreach (string file in Directory.GetFiles(MapsPath(gameId), "*.json"))
+							File.Delete(file);
+					// Миниатюры уходят вместе с картами: рисуются они из тех же файлов, а их отпечаток
+					// (WorldMapStamp) остался бы без записи карты и годность картинки было бы нечем мерить.
+					if (Directory.Exists(WorldMapPath(gameId)))
+						foreach (string file in Directory.GetFiles(WorldMapPath(gameId), "*.png"))
+							File.Delete(file);
 					SaveManifest(gameId);
 				}
 			}
@@ -158,6 +200,7 @@ namespace Mmogick
 			if (!Directory.Exists(TilesPath(gameId))) Directory.CreateDirectory(TilesPath(gameId));
 			if (!Directory.Exists(TilesetPath(gameId))) Directory.CreateDirectory(TilesetPath(gameId));
 			if (!Directory.Exists(MapsPath(gameId))) Directory.CreateDirectory(MapsPath(gameId));
+			if (!Directory.Exists(WorldMapPath(gameId))) Directory.CreateDirectory(WorldMapPath(gameId));
 		}
 
 		private static void SaveManifest(int gameId)
@@ -185,12 +228,14 @@ namespace Mmogick
 				if (Directory.Exists(TilesPath(gameId)))   Directory.Delete(TilesPath(gameId), true);
 				if (Directory.Exists(TilesetPath(gameId))) Directory.Delete(TilesetPath(gameId), true);
 				if (Directory.Exists(MapsPath(gameId)))    Directory.Delete(MapsPath(gameId), true);
+				if (Directory.Exists(WorldMapPath(gameId))) Directory.Delete(WorldMapPath(gameId), true);
 			}
 			catch (Exception ex) { Debug.LogWarning("TileCache: ошибка при сбросе кеша: " + ex.Message); }
 
 			Directory.CreateDirectory(TilesPath(gameId));
 			Directory.CreateDirectory(TilesetPath(gameId));
 			Directory.CreateDirectory(MapsPath(gameId));
+			Directory.CreateDirectory(WorldMapPath(gameId));
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
 			#endif
@@ -412,7 +457,12 @@ namespace Mmogick
 			if (req.responseCode == 304 && File.Exists(mapFile))
 			{
 				Debug.Log("TileCache: карта " + mapId + " из кеша");
-				callback(File.ReadAllText(mapFile), null);
+				string cached = File.ReadAllText(mapFile);
+				// Шапку из кеш-файла перечитываем, только если её нет: запись пишется при скачивании, а
+				// разбор карты ради уже известного стоил бы полного парса файла на каждый заход на карту.
+				if (!_manifest.maps.ContainsKey(mapId))
+					RememberMap(gameId, mapId, cached);
+				callback(cached, null);
 				req.Dispose();
 				yield break;
 			}
@@ -429,16 +479,109 @@ namespace Mmogick
 
 			File.WriteAllText(mapFile, json);
 			if (!string.IsNullOrEmpty(newLastMod))
-			{
 				_manifest.map_versions[mapId] = newLastMod;
-				SaveManifest(gameId);
-			}
+			RememberMap(gameId, mapId, json);   // сам сохраняет манифест — вместе с версией выше
 			#if UNITY_WEBGL && !UNITY_EDITOR
 				JsSync();
 			#endif
 
 			Debug.Log("TileCache: карта " + mapId + " скачана с сервера");
 			callback(json, null);
+		}
+
+		// Запоминает шапку карты (мир, имя, место в открытом мире) в манифесте — см. CachedMap.
+		// Карта без координат открытого мира (интерьер, подземелье) записи не получает: на обзорной карте
+		// её не разместить, а прежняя запись такой карты снимается — карту могли снять с раскладки.
+		private static void RememberMap(int gameId, int mapId, string json)
+		{
+			Map map = JsonConvert.DeserializeObject<Map>(json, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+
+			if (map == null)
+				throw new InvalidOperationException("TileCache: карта " + mapId + " не разобрана");
+
+			if (map.openworldX.HasValue && map.openworldY.HasValue)
+				_manifest.maps[mapId] = new CachedMap {
+					world  = map.world,
+					name   = map.name,
+					x      = map.openworldX.Value,
+					y      = map.openworldY.Value,
+					width  = map.width,
+					height = map.height,
+				};
+			else
+				_manifest.maps.Remove(mapId);
+
+			SaveManifest(gameId);
+		}
+
+		// Скачанные карты указанного мира — источник обзорной карты: показывается ровно то, что игрок уже
+		// видел (кеш пополняют только загруженные карты — своя и смежные). Ключ — id карты.
+		public static Dictionary<int, CachedMap> GetWorldMaps(int gameId, int worldId)
+		{
+			EnsureLoaded(gameId);
+
+			Dictionary<int, CachedMap> result = new Dictionary<int, CachedMap>();
+			foreach (KeyValuePair<int, CachedMap> pair in _manifest.maps)
+				if (pair.Value.world == worldId)
+					result.Add(pair.Key, pair.Value);
+
+			return result;
+		}
+
+		// Скачанная карта из кеша (тот же JSON, что отдаёт GetMap) — для отрисовки миниатюры карты, которую
+		// игрок сейчас не грузит. Сети не трогает: обзорная карта показывает уже скачанное, а докачивать
+		// непосещённое ей нечего. Карты нет в кеше — null.
+		public static string ReadCachedMap(int gameId, int mapId)
+		{
+			EnsureLoaded(gameId);
+
+			string path = Path.Combine(MapsPath(gameId), mapId + ".json");
+			return File.Exists(path) ? File.ReadAllText(path) : null;
+		}
+
+		// Отпечаток миниатюры карты: версия самой карты, версия архива графики и версия правил отрисовки.
+		// Первые две двигает сервер по датам данных, и обе меняют картинку — перерисованный тайл виден на
+		// миниатюре так же, как правка самой карты. Третья — наша: смену правил рисования даты данных не
+		// выражают, без неё уже нарисованное осталось бы навсегда (php «Свежесть производного артефакта»).
+		private static string WorldMapStamp(int mapId)
+		{
+			_manifest.map_versions.TryGetValue(mapId, out string mapVersion);
+			return mapVersion + "|" + _manifest.archive_last_modified + "|v" + WorldMapRenderer.RENDER_VERSION;
+		}
+
+		private static string WorldMapImagePath(int gameId, int mapId) => Path.Combine(WorldMapPath(gameId), mapId + ".png");
+
+		// Готовая миниатюра карты либо null — её нет или она устарела (карту или графику перерисовали).
+		// Устаревший файл здесь и удаляется: оставленный, он дожил бы до следующей отрисовки и был бы отдан
+		// как годный тем, кто отпечаток не сверяет.
+		public static byte[] GetWorldMapImage(int gameId, int mapId)
+		{
+			EnsureLoaded(gameId);
+
+			string path = WorldMapImagePath(gameId, mapId);
+			if (!File.Exists(path))
+				return null;
+
+			if (!_manifest.maps.TryGetValue(mapId, out CachedMap cached) || cached.render != WorldMapStamp(mapId))
+			{
+				File.Delete(path);
+				return null;
+			}
+
+			return File.ReadAllBytes(path);
+		}
+
+		// Кладёт нарисованную миниатюру карты в кеш вместе с отпечатком данных, по которым она нарисована.
+		public static void SaveWorldMapImage(int gameId, int mapId, byte[] png)
+		{
+			EnsureLoaded(gameId);
+
+			if (!_manifest.maps.TryGetValue(mapId, out CachedMap cached))
+				throw new InvalidOperationException("TileCache: миниатюра карты " + mapId + ", которой нет в кеше");
+
+			File.WriteAllBytes(WorldMapImagePath(gameId, mapId), png);
+			cached.render = WorldMapStamp(mapId);
+			SaveManifest(gameId);
 		}
 
 		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш

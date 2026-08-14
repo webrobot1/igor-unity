@@ -105,17 +105,21 @@ namespace Mmogick
                _playerFaceController.Target = Player;
             }
 
+            // Перезагрузка мира пересоздаёт сущности, и цель в новом снимке может не появиться вовсе —
+            // это штатный исход, а не сбой: рамке просто некого держать. Потому обе ветки пишутся
+            // диагностикой, а не ошибкой — иначе журнал ошибок забивается на каждой перезагрузке, и
+            // настоящие сбои в нём тонут.
             if (recive.action == ACTION_LOAD && tmp_target != null && Target == null)
             {
-                player.LogError("Потерялась цель игрока при загрузке " + tmp_target);
                 GameObject gameObject = GameObject.Find(tmp_target);
                 if (gameObject == null)
                 {
+                    player.Log("Цель не пережила перезагрузку мира: " + tmp_target);
                     _targetFaceController.Target = null;
                 }
                 else
                 {
-                    player.LogError("Цель была найдена снова " + tmp_target);
+                    player.Log("Цель нашлась после перезагрузки мира: " + tmp_target);
                     _targetFaceController.Target = gameObject.GetComponent<ObjectModel>();
                 }
             }

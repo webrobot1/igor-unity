@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -5,23 +6,19 @@ using UnityEngine.UI;
 namespace Mmogick
 {
     /// <summary>
-    /// Клиентская мини-карта (радар вокруг игрока). Сервер её НЕ шлёт — всё берётся из уже построенной
-    /// клиентом тайл-карты (mapObject) и живого мира (worldObject).
+    /// Клиентская мини-карта (радар вокруг игрока). Сервер её НЕ шлёт — всё берётся из локального кеша карт
+    /// и живого мира (worldObject).
     ///
-    /// Фон — реальная графика тайлов: отдельная ортографическая камера <see cref="minimapCamera"/> висит
-    /// над картой, следует за игроком (позиция XY = позиция игрока) и рендерит в маленький RenderTexture,
-    /// показанный <see cref="RawImage"/> в углу. Culling камеры — только слой тайлов «Minimap» (см. ниже),
-    /// чтобы не тянуть сущности, мировой UI (LifeBar/боевой текст) и эффекты.
+    /// Фон — нарисованные картинки карт (<see cref="WorldMapRenderer"/>, кеш ведёт TileCacheService), те же,
+    /// что показывает обзорная карта мира: карты кладутся по своим местам в открытом мире, а контейнер
+    /// сдвигается так, чтобы игрок был в середине панели. Прежде фон рисовала вторая камера над реальными
+    /// тайлами — картинка выходила та же, а стоила почти половины кадра (замер: 18,5 мс с ней против 9,8 мс
+    /// без неё), потому от неё отказались.
     ///
     /// Маркеры сущностей — UI-точки поверх (<see cref="entityMarkerPrefab"/>), позиция считается как
-    /// разница МИРОВЫХ позиций (сущность − игрок) × масштаб. И камера, и маркеры работают в мировых
-    /// координатах: TILE_OFFSET уже «запечён» в позициях тайлов (MapController.SortMap сдвигает grid),
-    /// камера видит мир как есть, а сущности (zone) стоят на чистой позиции — поэтому точка над сущностью
-    /// ложится ровно туда же, где сущность видна в основном окне относительно игрока. Отдельно offset
-    /// применять НЕ нужно: он в одной системе координат с камерой.
-    ///
-    /// Выравнивание держится за счёт того, что слой тайлов «Minimap» (Tilemap.prefab.m_Layer) виден и
-    /// основной камерой (её cullingMask = Everything), и minimap-камерой — единственный источник фона.
+    /// разница МИРОВЫХ позиций (сущность − игрок) × масштаб. Фон и точки живут в одном масштабе: обоим
+    /// половина стороны панели соответствует охвату радара, потому точка над сущностью ложится ровно туда
+    /// же, где сущность видна в основном окне относительно игрока.
     /// </summary>
     abstract public class MinimapController : PlayerController
     {
@@ -34,9 +31,17 @@ namespace Mmogick
         [SerializeField]
         private GameObject minimapRoot;
 
-        /// <summary>Ортокамера-радар: targetTexture = RenderTexture панели, cullingMask = только слой «Minimap».</summary>
+        /// <summary>
+        /// Контейнер картинок карт под точками. Фон радара — те же нарисованные миниатюры карт, что и у
+        /// обзорной карты мира (кеш ведёт TileCacheService): карты кладутся сюда по своим местам в открытом
+        /// мире, а контейнер сдвигается так, чтобы игрок был в середине панели.
+        /// </summary>
         [SerializeField]
-        private Camera minimapCamera;
+        private RectTransform minimapMaps;
+
+        /// <summary>Префаб картинки одной карты — тот же, что у обзорной карты мира.</summary>
+        [SerializeField]
+        private GameObject minimapMapPrefab;
 
         /// <summary>Основная игровая камера — источник охвата радара (его orthographicSize может меняться в рантайме).</summary>
         [SerializeField]
@@ -70,11 +75,17 @@ namespace Mmogick
         [SerializeField]
         private float minimapZoomFactor = 2f;
 
-        /// <summary>Z камеры-радара (как у основной 2D-камеры — чтобы слои тайлов попадали в кадр).</summary>
-        private const float CAMERA_Z = -10f;
+        /// <summary>Сторона текстуры метки игрока — общей у радара и обзорной карты.</summary>
+        private const int MARKER_TEXTURE_SIZE = 32;
 
         /// <summary>Пул точек сущностей (переиспользуем, не пересоздаём каждый кадр — паттерн боевого текста/слотов).</summary>
         private readonly List<GameObject> _markerPool = new List<GameObject>();
+
+        /// <summary>Уже показанные картинки карт (id карты → её место на панели): создаются один раз на карту.</summary>
+        private readonly Dictionary<int, RectTransform> _minimapTiles = new Dictionary<int, RectTransform>();
+
+        /// <summary>Идёт отрисовка картинки карты — вторую одновременно не начинаем.</summary>
+        private bool _minimapRendering;
 
         protected override void Awake()
         {
@@ -84,9 +95,15 @@ namespace Mmogick
                 return;
             }
 
-            if (minimapCamera == null)
+            if (minimapMaps == null)
             {
-                Error("Мини-карта: не присвоена камера minimapCamera");
+                Error("Мини-карта: не присвоен контейнер картинок карт minimapMaps");
+                return;
+            }
+
+            if (minimapMapPrefab == null)
+            {
+                Error("Мини-карта: не присвоен префаб картинки карты minimapMapPrefab");
                 return;
             }
 
@@ -120,9 +137,11 @@ namespace Mmogick
                 return;
             }
 
-            // Ортокамеру фиксируем кодом; охват (orthographicSize) привязан к основной камере и
-            // пересчитывается в Update — её размер может меняться в рантайме (под разрешение/aspect).
-            minimapCamera.orthographic = true;
+            // Метка игрока — та же, что на обзорной карте (жёлтая точка в тёмной кайме): белая точка на
+            // пёстром фоне терялась, а искать себя игрок должен взглядом, не приглядываясь. Один вид метки
+            // на оба показа — и узнаётся сразу, и правится в одном месте.
+            playerMarker.sprite = BuildPlayerMarkerSprite();
+            playerMarker.color = Color.white;   // цвет несёт спрайт
 
             base.Awake();
         }
@@ -134,10 +153,6 @@ namespace Mmogick
             if (!minimapRoot.activeSelf)
                 return;
 
-            // Охват радара = основная камера × коэффициент. Читаем её orthographicSize КАЖДЫЙ кадр
-            // (может меняться в рантайме), не кешируем.
-            minimapCamera.orthographicSize = mainCamera.orthographicSize * minimapZoomFactor;
-
             // Игрок ещё не заспавнен (до /load) — прятать все маркеры, включая центральную точку.
             if (player == null)
             {
@@ -145,11 +160,11 @@ namespace Mmogick
                 return;
             }
 
-            // Камера-радар следует за игроком. Берём transform.position (сглаженная визуальная позиция —
-            // ровно то, что рендерит основная камера), чтобы фон мини-карты совпадал с большим видом.
+            // Берём transform.position (сглаженная визуальная позиция — ровно то, что рендерит основная
+            // камера), чтобы фон радара совпадал с большим видом.
             Vector3 playerPos = player.transform.position;
-            minimapCamera.transform.position = new Vector3(playerPos.x, playerPos.y, CAMERA_Z);
 
+            UpdateMinimapMaps(playerPos);
             UpdateMarkers(playerPos);
         }
 
@@ -159,7 +174,6 @@ namespace Mmogick
         protected void SetMinimapEnabled(bool enabled)
         {
             minimapRoot.SetActive(enabled);
-            minimapCamera.enabled = enabled;   // скрытую карту не рендерим в RenderTexture (экономия)
 
             if (!enabled)
                 HideAllMarkers();
@@ -175,19 +189,189 @@ namespace Mmogick
         }
 
         /// <summary>
+        /// Метка игрока: светлая точка в тёмной кайме. Кайма и есть суть — одноцветная точка сливается
+        /// то с песком, то с водой, то с крышами, а обведённая читается на любом фоне. Рисуется кодом,
+        /// отдельного ассета не просит; ею же помечен игрок на радаре — метка одна на оба показа.
+        /// </summary>
+        protected static Sprite BuildPlayerMarkerSprite()
+        {
+            Texture2D texture = new Texture2D(MARKER_TEXTURE_SIZE, MARKER_TEXTURE_SIZE, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+
+            float center = (MARKER_TEXTURE_SIZE - 1) / 2f;
+            float outer = MARKER_TEXTURE_SIZE * 0.46f;   // внешний край каймы
+            float inner = MARKER_TEXTURE_SIZE * 0.30f;   // где кайма переходит в тело метки
+
+            Color body = new Color(1f, 0.92f, 0.30f);        // тёплый жёлтый: такого на картах почти нет
+            Color border = new Color(0.05f, 0.05f, 0.08f);
+
+            for (int y = 0; y < MARKER_TEXTURE_SIZE; y++)
+            {
+                for (int x = 0; x < MARKER_TEXTURE_SIZE; x++)
+                {
+                    float distance = Mathf.Sqrt((x - center) * (x - center) + (y - center) * (y - center));
+
+                    Color color;
+                    if (distance <= inner)
+                        color = body;
+                    else if (distance <= outer)
+                        color = border;
+                    else
+                        color = new Color(0f, 0f, 0f, 0f);
+
+                    // Край сглаживаем по последнему полупикселю, иначе кружок выходит ступенчатым.
+                    if (distance > outer - 1f && distance <= outer)
+                        color.a = Mathf.Clamp01(outer - distance);
+
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply();
+
+            return Sprite.Create(texture, new Rect(0, 0, MARKER_TEXTURE_SIZE, MARKER_TEXTURE_SIZE), new Vector2(0.5f, 0.5f));
+        }
+
+        /// <summary>
+        /// Держит фон радара: картинки карт из кеша, сдвинутые так, чтобы игрок оказался в середине панели.
+        /// Прежде фон рисовала вторая камера над реальными тайлами — она стоила почти половины кадра
+        /// (замер: 18,5 мс с ней против 9,8 мс без неё), а показывала то же самое.
+        ///
+        /// Карта, картинки которой ещё нет, рисуется по одной за раз в фоне: рисование стоит сборки целой
+        /// карты, и пачкой оно подвесило бы игру. До готовности место карты остаётся пустым.
+        /// </summary>
+        private void UpdateMinimapMaps(Vector3 playerPos)
+        {
+            Dictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
+
+            // Карта игрока не размещена в открытом мире (интерьер, подземелье) — раскладки нет, фон пустой.
+            if (!maps.TryGetValue(player.map, out TileCacheService.CachedMap current))
+            {
+                foreach (KeyValuePair<int, RectTransform> shown in _minimapTiles)
+                    shown.Value.gameObject.SetActive(false);
+                return;
+            }
+
+            // Пикселей панели на клетку карты: половина стороны области соответствует охвату радара,
+            // а он привязан к основной камере (её размер меняется в рантайме — читаем каждый кадр).
+            float halfPx = markerArea.rect.height * 0.5f;
+            if (halfPx <= 0f)
+                return;
+
+            float radius = mainCamera.orthographicSize * minimapZoomFactor;
+            float pixelsPerTile = halfPx / radius;
+
+            // Где игрок во всём мире: место его карты плюс он внутри неё (внутри карты ось Y вверх,
+            // а раскладка мира считает вниз — отсюда знак).
+            float playerWorldX = current.x + playerPos.x;
+            float playerWorldY = current.y - playerPos.y;
+
+            foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in maps)
+            {
+                RectTransform tile = EnsureMinimapTile(pair.Key);
+                if (tile == null)
+                    continue;
+
+                // Углы округляем до целого пикселя — против субпиксельной щели на стыке соседних карт
+                // (разбор — у обзорной карты, там же почему нельзя растягивать картинку с запасом).
+                Vector2 position = new Vector2(
+                    Mathf.Round( (pair.Value.x - playerWorldX) * pixelsPerTile),
+                    Mathf.Round(-(pair.Value.y - playerWorldY) * pixelsPerTile)
+                );
+                Vector2 size = new Vector2(
+                    Mathf.Round( (pair.Value.x + pair.Value.width  - playerWorldX) * pixelsPerTile) - position.x,
+                    position.y - Mathf.Round(-(pair.Value.y + pair.Value.height - playerWorldY) * pixelsPerTile)
+                );
+
+                // Карта целиком вне панели — гасим: в мире их десятки, а видно от силы четыре. Рисовать
+                // остальные значит гонять большие картинки мимо кадра (маска их обрежет уже ПОСЛЕ отрисовки).
+                bool visible = position.x < halfPx && position.x + size.x > -halfPx
+                            && position.y > -halfPx && position.y - size.y < halfPx;
+
+                if (tile.gameObject.activeSelf != visible)
+                    tile.gameObject.SetActive(visible);
+
+                if (!visible)
+                    continue;
+
+                tile.sizeDelta = size;
+                tile.anchoredPosition = position;
+            }
+
+            // Карты, ушедшие из набора (игрок сменил мир), с панели убираем.
+            foreach (KeyValuePair<int, RectTransform> shown in _minimapTiles)
+                if (!maps.ContainsKey(shown.Key) && shown.Value.gameObject.activeSelf)
+                    shown.Value.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Картинка карты на панели: берётся из кеша, при первом показе создаётся. Картинки ещё нет —
+        /// ставит карту в очередь на отрисовку и возвращает null (в этом кадре её просто не видно).
+        /// </summary>
+        private RectTransform EnsureMinimapTile(int mapId)
+        {
+            if (_minimapTiles.TryGetValue(mapId, out RectTransform known))
+                return known;
+
+            byte[] png = TileCacheService.GetWorldMapImage(GAME_ID, mapId);
+            if (png == null)
+            {
+                if (!_minimapRendering)
+                    StartCoroutine(RenderMinimapTile(mapId));
+
+                return null;
+            }
+
+            Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            texture.LoadImage(png);
+            // Без сглаживания — см. обзорную карту: фильтрация подмешивает прозрачность из-за края карты,
+            // и стык соседних карт читается тёмной полосой.
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Clamp;
+
+            GameObject tile = Instantiate(minimapMapPrefab, minimapMaps);
+            tile.name = mapId.ToString();
+            tile.GetComponent<Image>().sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), Vector2.zero);
+
+            RectTransform rect = tile.GetComponent<RectTransform>();
+            // Якорь — середина панели: раскладка считается от игрока, который стоит ровно в центре.
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0f, 1f);
+
+            _minimapTiles[mapId] = rect;
+            return rect;
+        }
+
+        /// <summary>
+        /// Рисует картинку одной карты и кладёт её в кеш. По одной за раз: рисование стоит сборки карты
+        /// целиком, и параллельные заходы отняли бы кадры у самой игры.
+        /// </summary>
+        private IEnumerator RenderMinimapTile(int mapId)
+        {
+            _minimapRendering = true;
+            yield return null;   // отдаём кадр: рисование пойдёт следующим, не в середине текущего
+
+            byte[] png = WorldMapRenderer.Render(GAME_ID, mapId);
+            if (png != null)
+                TileCacheService.SaveWorldMapImage(GAME_ID, mapId, png);
+
+            _minimapRendering = false;
+        }
+
+        /// <summary>
         /// Перерисовывает точки: игрок — в центре, остальные сущности мира — по разнице мировых позиций.
         /// </summary>
         private void UpdateMarkers(Vector3 playerPos)
         {
-            // Пиксель markerArea на мировой юнит. markerArea квадратный и совпадает с RawImage, а тот
-            // показывает квадратный RenderTexture камеры с охватом 2×RADIUS юнитов → полу-сторона области
-            // (в пикселях) соответствует RADIUS юнитам.
+            // Пиксель markerArea на мировой юнит: полу-сторона квадратной области соответствует охвату
+            // радара в юнитах (тайл = юнит).
             float halfPx = markerArea.rect.height * 0.5f;
             if (halfPx <= 0f)
                 return;   // layout ещё не посчитан (первый кадр) — пропускаем, отрисуем в следующем
-            // Масштаб — от АКТУАЛЬНОГО размера радара (Update уже пересчитал его от основной камеры),
-            // иначе точки разъедутся с фоном при новом зуме.
-            float pixelsPerUnit = halfPx / minimapCamera.orthographicSize;
+            // Охват берём от АКТУАЛЬНОГО размера основной камеры (он меняется в рантайме) — тем же
+            // выражением, что и фон карт, иначе точки разъедутся с картинкой.
+            float pixelsPerUnit = halfPx / (mainCamera.orthographicSize * minimapZoomFactor);
 
             // Игрок всегда в центре.
             if (!playerMarker.gameObject.activeSelf)
