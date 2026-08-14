@@ -18,7 +18,8 @@ namespace Mmogick
     /// Маркеры сущностей — UI-точки поверх (<see cref="entityMarkerPrefab"/>), позиция считается как
     /// разница МИРОВЫХ позиций (сущность − игрок) × масштаб. Фон и точки живут в одном масштабе: обоим
     /// половина стороны панели соответствует охвату радара, потому точка над сущностью ложится ровно туда
-    /// же, где сущность видна в основном окне относительно игрока.
+    /// же, где сущность видна в основном окне относительно игрока. Тем же порядком показаны переходы на
+    /// другие карты — они не сущности, а разметка самой карты (<see cref="DrawWarps"/>).
     /// </summary>
     abstract public class MinimapController : PlayerController
     {
@@ -80,6 +81,9 @@ namespace Mmogick
 
         /// <summary>Пул точек сущностей (переиспользуем, не пересоздаём каждый кадр — паттерн боевого текста/слотов).</summary>
         private readonly List<GameObject> _markerPool = new List<GameObject>();
+
+        /// <summary>Нарисованные точки по цвету тела: рисунок один, цветов у радара считанные единицы.</summary>
+        private static readonly Dictionary<Color, Sprite> _markerSprites = new Dictionary<Color, Sprite>();
 
         /// <summary>Уже показанные картинки карт (id карты → её место на панели): создаются один раз на карту.</summary>
         private readonly Dictionary<int, RectTransform> _minimapTiles = new Dictionary<int, RectTransform>();
@@ -189,12 +193,28 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Метка игрока: светлая точка в тёмной кайме. Кайма и есть суть — одноцветная точка сливается
-        /// то с песком, то с водой, то с крышами, а обведённая читается на любом фоне. Рисуется кодом,
-        /// отдельного ассета не просит; ею же помечен игрок на радаре — метка одна на оба показа.
+        /// Метка игрока: светлая точка в тёмной кайме. Цвет тела — тёплый жёлтый, такого на картах
+        /// почти нет. Ею же помечен игрок на обзорной карте мира — метка одна на оба показа.
         /// </summary>
         protected static Sprite BuildPlayerMarkerSprite()
         {
+            return MarkerSprite(new Color(1f, 0.92f, 0.30f));
+        }
+
+        /// <summary>
+        /// Точка метки заданного цвета: светлое тело в тёмной кайме. Кайма и есть суть — одноцветная
+        /// точка сливается то с песком, то с водой, то с крышами, а обведённая читается на любом фоне,
+        /// потому обведены ВСЕ точки радара, не только своя. Рисуется кодом, отдельного ассета не просит;
+        /// цветов у радара считанные единицы, потому нарисованное держим готовым.
+        /// </summary>
+        private static Sprite MarkerSprite(Color body)
+        {
+            // Живость проверяем обязательно: словарь статический и переживает остановку игры, а сами
+            // картинки рисуются в рантайме и уничтожаются вместе с ней — иначе следующий запуск берёт
+            // из кеша уничтоженную картинку и точки рисуются белыми квадратами.
+            if (_markerSprites.TryGetValue(body, out Sprite known) && known != null)
+                return known;
+
             Texture2D texture = new Texture2D(MARKER_TEXTURE_SIZE, MARKER_TEXTURE_SIZE, TextureFormat.RGBA32, false);
             texture.wrapMode = TextureWrapMode.Clamp;
 
@@ -202,7 +222,6 @@ namespace Mmogick
             float outer = MARKER_TEXTURE_SIZE * 0.46f;   // внешний край каймы
             float inner = MARKER_TEXTURE_SIZE * 0.30f;   // где кайма переходит в тело метки
 
-            Color body = new Color(1f, 0.92f, 0.30f);        // тёплый жёлтый: такого на картах почти нет
             Color border = new Color(0.05f, 0.05f, 0.08f);
 
             for (int y = 0; y < MARKER_TEXTURE_SIZE; y++)
@@ -229,7 +248,10 @@ namespace Mmogick
 
             texture.Apply();
 
-            return Sprite.Create(texture, new Rect(0, 0, MARKER_TEXTURE_SIZE, MARKER_TEXTURE_SIZE), new Vector2(0.5f, 0.5f));
+            Sprite sprite = Sprite.Create(texture, new Rect(0, 0, MARKER_TEXTURE_SIZE, MARKER_TEXTURE_SIZE), new Vector2(0.5f, 0.5f));
+            _markerSprites[body] = sprite;
+
+            return sprite;
         }
 
         /// <summary>
@@ -378,7 +400,10 @@ namespace Mmogick
                 playerMarker.gameObject.SetActive(true);
             playerMarker.rectTransform.anchoredPosition = Vector2.zero;
 
-            int used = 0;
+            // Переходы — первыми: точки берутся из пула по порядку, и ранние ложатся в иерархии ниже.
+            // Существо, стоящее на переходе, должно быть видно поверх него, а не наоборот.
+            int used = DrawWarps(playerPos, pixelsPerUnit, halfPx, 0);
+
             foreach (Transform mapZone in worldObject.transform)
             {
                 foreach (Transform entityTransform in mapZone)
@@ -398,9 +423,7 @@ namespace Mmogick
                     if (markerPos.magnitude > halfPx)
                         continue;
 
-                    GameObject marker = GetPooledMarker(used++);
-                    marker.GetComponent<RectTransform>().anchoredPosition = markerPos;
-                    marker.GetComponent<Image>().color = MarkerColor(model.type);
+                    PlaceMarker(GetPooledMarker(used++), markerPos, MarkerColor(model.type));
                 }
             }
 
@@ -408,6 +431,50 @@ namespace Mmogick
             for (int i = used; i < _markerPool.Count; i++)
                 if (_markerPool[i].activeSelf)
                     _markerPool[i].SetActive(false);
+        }
+
+        /// <summary>
+        /// Точки переходов на другие карты. Сущности под переходом нет — переход исполняет сама разметка
+        /// карты (<see cref="WarpMarker"/>), потому точки берутся из уже построенного слоя меток: свечение
+        /// на земле и точка на радаре зажигаются от одного источника, второго разбора разметки радар не
+        /// заводит. Обходятся все карты в сцене — соседние тоже видны на радаре, а переход у их края
+        /// игроку нужен ровно затем, чтобы дойти до него.
+        /// </summary>
+        private int DrawWarps(Vector3 playerPos, float pixelsPerUnit, float halfPx, int used)
+        {
+            foreach (Transform grid in mapObject.transform)
+            {
+                Transform warps = grid.Find(WarpMarker.LAYER);
+                if (warps == null)
+                    continue;   // игра переходами по разметке не пользуется либо карта ещё строится
+
+                foreach (Transform warp in warps)
+                {
+                    Vector3 delta = warp.position - playerPos;
+                    Vector2 markerPos = new Vector2(delta.x, delta.y) * pixelsPerUnit;
+
+                    if (markerPos.magnitude > halfPx)
+                        continue;   // за границей видимой области радара
+
+                    PlaceMarker(GetPooledMarker(used++), markerPos, WARP_COLOR);
+                }
+            }
+
+            return used;
+        }
+
+        /// <summary>
+        /// Ставит точку на место и красит её. Цвет несёт нарисованная метка, а не оттенок картинки:
+        /// кайма у всех точек одна и та же тёмная, красится только тело — иначе обводка красилась бы
+        /// вместе с ним и пропадала.
+        /// </summary>
+        private static void PlaceMarker(GameObject marker, Vector2 position, Color body)
+        {
+            marker.GetComponent<RectTransform>().anchoredPosition = position;
+
+            Image image = marker.GetComponent<Image>();
+            image.sprite = MarkerSprite(body);
+            image.color = Color.white;
         }
 
         /// <summary>Прячет все точки (нет игрока / карта выключена).</summary>
@@ -431,6 +498,12 @@ namespace Mmogick
 
             return _markerPool[index];
         }
+
+        /// <summary>
+        /// Цвет точки перехода. Взят зелёный: остальные заняты существами, а на радаре игрок различает
+        /// точки только цветом — формы у них одинаковые.
+        /// </summary>
+        private static readonly Color WARP_COLOR = new Color(0.35f, 0.95f, 0.45f);
 
         /// <summary>Цвет точки по типу сущности (kind с сервера).</summary>
         private static Color MarkerColor(string type)
