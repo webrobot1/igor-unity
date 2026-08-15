@@ -12,8 +12,14 @@ namespace Mmogick
 	/// </summary>
     abstract public class SpellBookController : UIController
     {
-        /// <summary>Компонент префаба заклинания: группа команды, которой оно применяется.</summary>
+        /// <summary>Компонент префаба заклинания: чем оно применяется и к какой стихии относится.</summary>
         public const string COMPONENT_EVENT = "event";
+
+        /// <summary>Ключ компонента: группа команды, которой заклинание применяется.</summary>
+        public const string FIELD_GROUP = "group";
+
+        /// <summary>Ключ компонента: стихия заклинания, она же вкладка книги.</summary>
+        public const string FIELD_ELEMENT = "element";
 
         /// <summary>Компонент префаба заклинания: стоимость применения в мане.</summary>
         public const string COMPONENT_MP_COST = "mp_cost";
@@ -31,8 +37,8 @@ namespace Mmogick
         /// префаб заклинания в книге
         /// </summary>
         [SerializeField]
-        private Spell spellPrefab;       
-        
+        private Spell spellPrefab;
+
         /// <summary>
         /// префаб заклинания в книге
         /// </summary>
@@ -40,9 +46,33 @@ namespace Mmogick
         private Transform spellGroupArea;
 
         /// <summary>
-        /// список доступных заклинаний с их характеристиками 
+        /// префаб вкладки — группы команд, которой применяются её заклинания
+        /// </summary>
+        [SerializeField]
+        private SpellTab tabPrefab;
+
+        /// <summary>
+        /// лента вкладок над списком заклинаний: вкладок столько, сколько групп в книге,
+        /// поэтому лента прокручивается вбок, а ширина каждой вкладки — по её подписи
+        /// </summary>
+        [SerializeField]
+        private Transform tabGroupArea;
+
+        /// <summary>
+        /// список доступных заклинаний с их характеристиками
         /// </summary>
         private static Dictionary<string, Spell> _spells;
+
+        /// <summary>
+        /// вкладки, созданные по стихиям заклинаний книги
+        /// </summary>
+        private List<SpellTab> _tabs;
+
+        /// <summary>
+        /// стихия открытой вкладки — держится между пересборками книги, чтобы приход пакета
+        /// не сбрасывал игрока на первую вкладку
+        /// </summary>
+        private string _activeElement;
 
         public Dictionary<string, Spell> Spells
         {
@@ -56,24 +86,43 @@ namespace Mmogick
            
             // объявлять тут тк мы используем в unity Editor опцию при который вызод из play моде НЕ очищает статику (зато быстро выходит и заходит, но надо очищать вручную везде в Awake)
             _spells = new Dictionary<string, Spell>();
-            if (spellPrefab == null) 
-            { 
+            _tabs = new List<SpellTab>();
+
+            if (spellPrefab == null)
+            {
                 Error("не указан префаб заклинания в книге");
                 return;
             }
-                              
-            if (spellGroupArea == null) 
-            { 
+
+            if (spellGroupArea == null)
+            {
                 Error("не указан Transform книги на которую буду загружаться с сервера заклинаний");
                 return;
             }
-                
-            if (!spellGroupArea.IsChildOf(spellGroup.transform)) 
-            {  
+
+            if (!spellGroupArea.IsChildOf(spellGroup.transform))
+            {
                 Error("указанный объект Transform книги заклинаний книги на которую буду загружаться с сервера заклинаний не является часть CanvasGroup указанной как книга заклинаний");
                 return;
             }
-               
+
+            if (tabPrefab == null)
+            {
+                Error("не указан префаб вкладки книги заклинаний");
+                return;
+            }
+
+            if (tabGroupArea == null)
+            {
+                Error("не указан Transform ряда вкладок книги заклинаний");
+                return;
+            }
+
+            if (!tabGroupArea.IsChildOf(spellGroup.transform))
+            {
+                Error("указанный объект Transform ряда вкладок не является частью CanvasGroup указанной как книга заклинаний");
+                return;
+            }
         }
 
         /// <summary>
@@ -106,8 +155,10 @@ namespace Mmogick
                         if (!spell.Value)
                             continue;
 
-                        JToken group = AnimationCacheService.GetComponentValue(spell.Key, COMPONENT_EVENT, null);
+                        JToken apply = AnimationCacheService.GetComponentValue(spell.Key, COMPONENT_EVENT, null);
                         JToken cost  = AnimationCacheService.GetComponentValue(spell.Key, COMPONENT_MP_COST, null);
+
+                        JToken group = apply != null ? apply[FIELD_GROUP] : null;
 
                         if (group == null)
                         {
@@ -127,16 +178,84 @@ namespace Mmogick
                         prefab.Magic = spell.Key;
                         prefab.@event = group.Value<string>();
 
+                        // Стихия необязательна: заклинание без неё собирается во вкладку без подписи,
+                        // а не выпадает из книги — иначе выученное заклинание пропало бы у игрока молча.
+                        JToken element = apply[FIELD_ELEMENT];
+                        prefab.element = element != null ? element.Value<string>() : "";
+
                         prefab.title.text = AnimationCacheService.GetPrefabName(spell.Key) ?? spell.Key;
                         prefab.description.text = AnimationCacheService.GetPrefabDescription(spell.Key) ?? "";
                         prefab.ManaCost = cost != null ? cost.Value<int>() : 0;
 
                         _spells.Add(spell.Key, prefab);
                     }
+
+                    RebuildTabs();
                 }
             }
 
             base.HandleData(recive);
+        }
+
+        /// <summary>
+        /// Вкладка на каждую стихию, что фактически есть в книге игрока: пустых вкладок не бывает, а
+        /// выученное заклинание новой стихии заводит вкладку само — перечень стихий нигде не задан, он
+        /// целиком следствие книги. Подпись — само название стихии, как оно записано заклинанию.
+        /// Открытая вкладка сохраняется, пока её стихия в книге есть; исчезла — открывается первая.
+        /// </summary>
+        private void RebuildTabs()
+        {
+            foreach (Transform child in tabGroupArea)
+            {
+                Destroy(child.gameObject);
+            }
+
+            _tabs = new List<SpellTab>();
+
+            List<string> elements = new List<string>();
+            foreach (var spell in _spells)
+            {
+                if (!elements.Contains(spell.Value.element))
+                    elements.Add(spell.Value.element);
+            }
+
+            elements.Sort();
+
+            if (!elements.Contains(_activeElement))
+                _activeElement = elements.Count > 0 ? elements[0] : null;
+
+            foreach (string element in elements)
+            {
+                SpellTab tab = Instantiate(tabPrefab, tabGroupArea) as SpellTab;
+                tab.Setup(element, SelectTab);
+                _tabs.Add(tab);
+            }
+
+            ApplyTab();
+        }
+
+        private void SelectTab(SpellTab tab)
+        {
+            _activeElement = tab.Element;
+            ApplyTab();
+        }
+
+        /// <summary>
+        /// Показ открытой вкладки. Карточки чужих стихий выключаются целиком — их иконки и остаток отката
+        /// перестают считаться, и панель быстрых действий берёт доступность своим счётом
+        /// (<see cref="MoveableObject.IsUnavailable"/>), а не цветом карточки.
+        /// </summary>
+        private void ApplyTab()
+        {
+            foreach (SpellTab tab in _tabs)
+            {
+                tab.SetSelected(tab.Element == _activeElement);
+            }
+
+            foreach (var spell in _spells)
+            {
+                spell.Value.gameObject.SetActive(spell.Value.element == _activeElement);
+            }
         }
 
         /// <summary>

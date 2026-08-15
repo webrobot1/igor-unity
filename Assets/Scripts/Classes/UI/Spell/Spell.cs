@@ -15,7 +15,13 @@ namespace Mmogick
     public class Spell: MoveableObject, IPointerClickHandler
     {
         public Text title;
+
+        /// <summary>Группа команды, которой заклинание применяется («fight/bolt»).</summary>
         public string @event;
+
+        /// <summary>Стихия заклинания — по ней книга раскладывает его по вкладкам.</summary>
+        public string element;
+
         public Text description;
 
         [SerializeField] private Text mp;
@@ -96,6 +102,14 @@ namespace Mmogick
             }
         }
 
+        public override bool IsUnavailable()
+        {
+            return PlayerController.Player == null
+                || PlayerController.Player.hp <= 0
+                || ManaCost > PlayerController.Player.mp
+                || NothingToHeal;
+        }
+
         public override (float fillAmount, float remainSeconds) GetCooldownProgress()
         {
             if (PlayerController.Player == null) return (0f, 0f);
@@ -111,7 +125,7 @@ namespace Mmogick
             if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
             {
                 bool onCooldown = IsOnCooldown();
-                bool unavailable = PlayerController.Player.hp <= 0 || ManaCost > PlayerController.Player.mp || NothingToHeal;
+                bool unavailable = IsUnavailable();
 
                 remain.text = onCooldown ? PlayerController.Player.GetEventRemain(@event) + " сек." : "0 сек.";
 
