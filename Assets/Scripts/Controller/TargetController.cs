@@ -82,7 +82,10 @@ namespace Mmogick
                 }
 
 
-                if (_target != value)
+                // Сравнение ссылочное, не Unity-оператором: уничтоженная цель равна null ПО UNITY, и по
+                // Unity-сравнению сброс `Target = null` выглядел бы «значение не изменилось» — рамка,
+                // имя и зеркало анимации прежней цели остались бы висеть.
+                if (!ReferenceEquals(_target, value))
                 {
                     // Полоска жизни над прежней целью гаснет вместе со снятием выбора. Целью бывает и не
                     // существо (сундук, лавка, портал, лежащая вещь) — своей полоски у такой цели нет.
@@ -167,62 +170,71 @@ namespace Mmogick
 
         private void FixedUpdate()
         {
-            if (_target != null)
+            // Цель исчезла с карты сама (умерла, ушла, мир перезагрузился): объект уничтожен, а сеттер
+            // никто не звал — Unity-ссылка стала мёртвой без присвоения. Признак тот же, которым гаснет
+            // иконка сведений у рамки (InfoWindowController), и рамка обязана сниматься вместе с ней:
+            // иначе имя и портрет прежней цели остаются на экране как живая цель.
+            if (_target == null)
             {
-                if (nameLabel != null)
-                    nameLabel.text = _target.DisplayName;
-
-                // Портрет: поздняя привязка Spriter, кадр статичной цели, зеркало анимации и наводка камеры.
-                PortraitUpdate();
-
-                // если ушли слишком далеко от существа уберем его как цель
-                if (PlayerController.Player == null || (_target.key != PlayerController.Player.key && Vector3.Distance(PlayerController.Player.transform.position, _target.transform.position) >= PlayerController.Player.lifeRadius))
-                {
+                if (!ReferenceEquals(_target, null))
                     Target = null;
-                    return;
-                }
 
-                EnemyModel enemyTarget = _target as EnemyModel;
+                return;
+            }
 
-                // Цель не существо (сундук, лавка, портал, лежащая вещь) — рассказывать полоскам нечего,
-                // остаётся имя и портрет.
-                if (enemyTarget == null)
-                {
+            if (nameLabel != null)
+                nameLabel.text = _target.DisplayName;
+
+            // Портрет: поздняя привязка Spriter, кадр статичной цели, зеркало анимации и наводка камеры.
+            PortraitUpdate();
+
+            // если ушли слишком далеко от существа уберем его как цель
+            if (PlayerController.Player == null || (_target.key != PlayerController.Player.key && Vector3.Distance(PlayerController.Player.transform.position, _target.transform.position) >= PlayerController.Player.lifeRadius))
+            {
+                Target = null;
+                return;
+            }
+
+            EnemyModel enemyTarget = _target as EnemyModel;
+
+            // Цель не существо (сундук, лавка, портал, лежащая вещь) — рассказывать полоскам нечего,
+            // остаётся имя и портрет.
+            if (enemyTarget == null)
+            {
+                DisableLine(hpLine);
+                DisableLine(mpLine);
+                return;
+            }
+
+            if (enemyTarget.hp != null)
+            {
+                if (enemyTarget.hp > 0 || (PlayerController.Player != null && _target.key == PlayerController.Player.key))
+                    EnableLine(hpLine);
+                else
                     DisableLine(hpLine);
+
+                FillUpdate(hpLine, (float)enemyTarget.hp, enemyTarget.hpMax, hpText);
+
+                if (enemyTarget.lifeBar != null && (PlayerController.Player == null || enemyTarget.key != PlayerController.Player.key))
+                {
+                    if (enemyTarget.hp>0)
+                        EnableLine(enemyTarget.lifeBar);
+                    else
+                        DisableLine(enemyTarget.lifeBar);
+
+                    FillUpdate(enemyTarget.lifeBar, (float)enemyTarget.hp, enemyTarget.hpMax);
+                }
+            }
+
+            if (enemyTarget.mp!=null)
+            {
+                // ДА! Тоже завязан показ на жизни
+                if (enemyTarget.mpMax>0 && ((enemyTarget.hp!=null && enemyTarget.hp>0) || (PlayerController.Player != null && enemyTarget.key == PlayerController.Player.key)))
+                    EnableLine(mpLine);
+                else
                     DisableLine(mpLine);
-                    return;
-                }
 
-                if (enemyTarget.hp != null)
-                {
-                    if (enemyTarget.hp > 0 || (PlayerController.Player != null && _target.key == PlayerController.Player.key))
-                        EnableLine(hpLine);
-                    else
-                        DisableLine(hpLine);
-
-                    FillUpdate(hpLine, (float)enemyTarget.hp, enemyTarget.hpMax, hpText);
-
-                    if (enemyTarget.lifeBar != null && (PlayerController.Player == null || enemyTarget.key != PlayerController.Player.key))
-                    {
-                        if (enemyTarget.hp>0)
-                            EnableLine(enemyTarget.lifeBar);
-                        else
-                            DisableLine(enemyTarget.lifeBar);
-
-                        FillUpdate(enemyTarget.lifeBar, (float)enemyTarget.hp, enemyTarget.hpMax);
-                    }
-                }
-
-                if (enemyTarget.mp!=null)
-                {
-                    // ДА! Тоже завязан показ на жизни
-                    if (enemyTarget.mpMax>0 && ((enemyTarget.hp!=null && enemyTarget.hp>0) || (PlayerController.Player != null && enemyTarget.key == PlayerController.Player.key)))
-                        EnableLine(mpLine);
-                    else
-                        DisableLine(mpLine);
-
-                    FillUpdate(mpLine, (float)enemyTarget.mp, enemyTarget.mpMax, mpText);
-                }
+                FillUpdate(mpLine, (float)enemyTarget.mp, enemyTarget.mpMax, mpText);
             }
         }
 

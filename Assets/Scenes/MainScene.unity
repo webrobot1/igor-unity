@@ -896,7 +896,7 @@ MonoBehaviour:
   m_StartAxis: 0
   m_CellSize: {x: 56, y: 56}
   m_Spacing: {x: 6, y: 6}
-  m_Constraint: 1
+  m_Constraint: 0
   m_ConstraintCount: 8
 --- !u!1 &98328255
 GameObject:
@@ -1697,7 +1697,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 1, y: -1}
+  m_EffectDistance: {x: 0.75, y: -0.75}
   m_UseGraphicAlpha: 1
 --- !u!1001 &167283942
 PrefabInstance:
@@ -1862,12 +1862,12 @@ MonoBehaviour:
     m_Right: 0
     m_Top: 0
     m_Bottom: 0
-  m_ChildAlignment: 0
+  m_ChildAlignment: 1
   m_StartCorner: 0
   m_StartAxis: 0
   m_CellSize: {x: 56, y: 56}
   m_Spacing: {x: 6, y: 6}
-  m_Constraint: 1
+  m_Constraint: 0
   m_ConstraintCount: 8
 --- !u!1 &201437675
 GameObject:
@@ -3297,7 +3297,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.5, y: -1.5}
   m_UseGraphicAlpha: 1
 --- !u!1 &385679133
 GameObject:
@@ -4744,7 +4744,7 @@ MonoBehaviour:
     m_BestFit: 0
     m_MinSize: 10
     m_MaxSize: 40
-    m_Alignment: 0
+    m_Alignment: 1
     m_AlignByGeometry: 0
     m_RichText: 1
     m_HorizontalOverflow: 0
@@ -6088,7 +6088,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 2, y: -2}
+  m_EffectDistance: {x: 1.5, y: -1.5}
   m_UseGraphicAlpha: 1
 --- !u!1 &704178605
 GameObject:
@@ -9055,7 +9055,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 1, y: -1}
+  m_EffectDistance: {x: 0.75, y: -0.75}
   m_UseGraphicAlpha: 1
 --- !u!1 &1045432124
 GameObject:
@@ -10421,7 +10421,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 5, y: -5}
+  m_EffectDistance: {x: 3.7499998, y: -3.7499998}
   m_UseGraphicAlpha: 1
 --- !u!1 &1183807958
 GameObject:
@@ -10926,7 +10926,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Mmogick.TextOutline
   m_EffectColor: {r: 0, g: 0, b: 0, a: 1}
-  m_EffectDistance: {x: 1, y: -1}
+  m_EffectDistance: {x: 0.75, y: -0.75}
   m_UseGraphicAlpha: 1
 --- !u!1 &1218365881
 GameObject:
@@ -12685,7 +12685,7 @@ MonoBehaviour:
   m_StartAxis: 0
   m_CellSize: {x: 56, y: 56}
   m_Spacing: {x: 6, y: 6}
-  m_Constraint: 1
+  m_Constraint: 0
   m_ConstraintCount: 8
 --- !u!1 &1451349093
 GameObject:
