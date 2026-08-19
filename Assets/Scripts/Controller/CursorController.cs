@@ -99,6 +99,7 @@ namespace Mmogick
             cursor.transform.position = Input.mousePosition + cursor_offset;
 
             UpdateHoverHighlight(Input.mousePosition);
+            UpdateCursorShape();
 
             // Удерживаемый предмет мог быть уничтожен, пока висел на курсоре: пересборка слотов окна
             // добычи (пришла дельта состава) уничтожает Item'ы вместе со слотами. Unity-сравнение с null
@@ -270,6 +271,61 @@ namespace Mmogick
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Переиспользуемые буферы разбора наведения: он идёт каждый кадр, а новый список и событие на
+        /// кадр — мусор на ровном месте.
+        /// </summary>
+        private readonly List<RaycastResult> hoverHits = new List<RaycastResult>();
+
+        private PointerEventData hoverPointer;
+
+        /// <summary>
+        /// Форма указателя на всю игру решается здесь одной точкой: элементы интерфейса лишь отвечают,
+        /// возьмёт ли их нажатие (<see cref="ITakeable"/>), и своей формы не ставят — иначе одно окно
+        /// ставило бы ладонь, а соседнее её тут же снимало.
+        ///
+        /// Пока предмет несут, указатель обычный: его картинку курсор уже рисует сам, и ладонь поверх
+        /// неё только мешала бы разглядеть, что именно в руке.
+        /// </summary>
+        private void UpdateCursorShape()
+        {
+            // Тянут карту мира — форму держит она сама: указатель при тяге уходит за края области.
+            if (WorldMapDrag.Dragging)
+                return;
+
+            if (MyMoveable != null || EventSystem.current == null)
+            {
+                HandCursor.Set(HandCursor.Shape.Default);
+                return;
+            }
+
+            if (hoverPointer == null)
+                hoverPointer = new PointerEventData(EventSystem.current);
+
+            hoverPointer.position = Input.mousePosition;
+
+            hoverHits.Clear();
+            EventSystem.current.RaycastAll(hoverPointer, hoverHits);
+
+            HandCursor.Shape shape = HandCursor.Shape.Default;
+
+            for (int i = 0; i < hoverHits.Count; i++)
+            {
+                // Признак ищем ВВЕРХ по иерархии: попадание приходит в надпись либо рамку внутри
+                // карточки, а отвечает за взятие сама карточка либо ячейка.
+                ITakeable takeable = hoverHits[i].gameObject.GetComponentInParent<ITakeable>();
+
+                if (takeable == null)
+                    continue;
+
+                // Верхний элемент решает за всех: он и перехватит нажатие, а лежащее под ним недоступно.
+                shape = takeable.CanTake ? HandCursor.Shape.Open : HandCursor.Shape.Default;
+                break;
+            }
+
+            HandCursor.Set(shape);
         }
 
         /// <summary>

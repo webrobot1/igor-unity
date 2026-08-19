@@ -1,4 +1,4 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -12,24 +12,40 @@ namespace Mmogick
 	/// </summary>
     abstract public class SpellBookController : UIController
     {
-        /// <summary>Компонент префаба заклинания: чем оно применяется и к какой стихии относится.</summary>
+        /// <summary>Компонент префаба заклинания: группа команды, которой оно применяется.</summary>
         public const string COMPONENT_EVENT = "event";
-
-        /// <summary>Ключ компонента: группа команды, которой заклинание применяется.</summary>
-        public const string FIELD_GROUP = "group";
-
-        /// <summary>Ключ компонента: стихия заклинания, она же вкладка книги.</summary>
-        public const string FIELD_ELEMENT = "element";
 
         /// <summary>Компонент префаба заклинания: стоимость применения в мане.</summary>
         public const string COMPONENT_MP_COST = "mp_cost";
+
+        /// <summary>Раздел справочника книги: заклинание → название его стихии.</summary>
+        public const string SECTION_SPELL = "spell";
+
+        /// <summary>Раздел справочника книги: стихия → её цвет в интерфейсе, вида «#RRGGBB».</summary>
+        public const string SECTION_ELEMENT = "element";
 
         /// <summary>
         /// Компонент существа: какие заклинания у него есть (ключ — префаб заклинания, значение — true).
         /// У своего игрока состав приходит пакетом, у чужой цели — нет: компонент приватный, и о ней
         /// известно лишь типовое для её вида из каталога префабов.
+        /// Умолчание же этого компонента — справочник «заклинание → название стихии», один на всю игру:
+        /// значение говорит о КОНКРЕТНОМ существе, умолчание — о контенте, одинаковом для всех.
         /// </summary>
         public const string COMPONENT_SPELL_BOOK = "spell_book";
+
+        /// <summary>
+        /// Раздел справочника стихий — умолчания компонента книги. Умолчание книгой не является: это
+        /// справочник, одинаковый для всей игры, и разделов в нём два — состав школ и их цвета.
+        /// Раздела нет (справочник ещё старой формы либо его не завели) — null, и каждый потребитель
+        /// решает сам: без состава школ заклинание идёт во вкладку без подписи, без цвета стихия
+        /// красится по своему названию.
+        /// </summary>
+        public static JObject ElementDirectory(string section)
+        {
+            JObject directory = AnimationCacheService.GetComponentDefault(COMPONENT_SPELL_BOOK) as JObject;
+
+            return directory != null ? directory[section] as JObject : null;
+        }
 
         [Header("Для работы с книгой заклинаний")]
 
@@ -128,8 +144,9 @@ namespace Mmogick
         /// <summary>
         /// Книга собирается из ДВУХ источников: состав — компонент spell_book своего игрока (какие заклинания
         /// выучены), а чем каждое является (название, описание, стоимость маны, группа команды) — каталог
-        /// префабов, который клиент тянет до входа в мир. Отдельного справочника заклинаний сервер не шлёт:
-        /// заклинание — обычный префаб, и его свойства лежат там же, где свойства прочего контента.
+        /// префабов, который клиент тянет до входа в мир: заклинание там обычный префаб, и его свойства лежат
+        /// рядом со свойствами прочего контента. Стихия — исключение: она одинакова для всех и приходит
+        /// справочником в умолчании компонента книги, а не свойством каждого заклинания.
         ///
         /// Собирается в HandleData, до обхода сущностей пакета: панель быстрых действий ищет свои заклинания
         /// в готовой книге, а её контроллер стоит в цепочке ВЫШЕ этого — на обходе сущностей книга была бы
@@ -150,6 +167,10 @@ namespace Mmogick
                         Destroy(child.gameObject);
                     }
 
+                    // Стихия живёт не у самого заклинания, а справочником в умолчании компонента книги —
+                    // он один на всю игру, потому и читается разом до обхода.
+                    JObject elements = ElementDirectory(SECTION_SPELL);
+
                     foreach (var spell in book)
                     {
                         if (!spell.Value)
@@ -158,9 +179,9 @@ namespace Mmogick
                         JToken apply = AnimationCacheService.GetComponentValue(spell.Key, COMPONENT_EVENT, null);
                         JToken cost  = AnimationCacheService.GetComponentValue(spell.Key, COMPONENT_MP_COST, null);
 
-                        JToken group = apply != null ? apply[FIELD_GROUP] : null;
+                        string group = apply != null ? apply.Value<string>() : null;
 
-                        if (group == null)
+                        if (string.IsNullOrEmpty(group))
                         {
                             // Сервер держит заклинание в книге игрока, а в нашем каталоге его свойств нет — каталог
                             // разошёлся с сервером. Сбрасываем его, чтобы следующий заход перекачал целиком: без
@@ -176,12 +197,12 @@ namespace Mmogick
                         Spell prefab = Instantiate(spellPrefab, spellGroupArea) as Spell;
 
                         prefab.Magic = spell.Key;
-                        prefab.@event = group.Value<string>();
+                        prefab.@event = group;
 
                         // Стихия необязательна: заклинание без неё собирается во вкладку без подписи,
                         // а не выпадает из книги — иначе выученное заклинание пропало бы у игрока молча.
-                        JToken element = apply[FIELD_ELEMENT];
-                        prefab.element = element != null ? element.Value<string>() : "";
+                        JToken element = elements != null ? elements[spell.Key] : null;
+                        prefab.Element = element != null ? element.Value<string>() : "";
 
                         prefab.title.text = AnimationCacheService.GetPrefabName(spell.Key) ?? spell.Key;
                         prefab.description.text = AnimationCacheService.GetPrefabDescription(spell.Key) ?? "";
@@ -200,7 +221,7 @@ namespace Mmogick
         /// <summary>
         /// Вкладка на каждую стихию, что фактически есть в книге игрока: пустых вкладок не бывает, а
         /// выученное заклинание новой стихии заводит вкладку само — перечень стихий нигде не задан, он
-        /// целиком следствие книги. Подпись — само название стихии, как оно записано заклинанию.
+        /// целиком следствие книги. Подпись — само название стихии, как оно записано в справочнике.
         /// Открытая вкладка сохраняется, пока её стихия в книге есть; исчезла — открывается первая.
         /// </summary>
         private void RebuildTabs()
@@ -215,8 +236,8 @@ namespace Mmogick
             List<string> elements = new List<string>();
             foreach (var spell in _spells)
             {
-                if (!elements.Contains(spell.Value.element))
-                    elements.Add(spell.Value.element);
+                if (!elements.Contains(spell.Value.Element))
+                    elements.Add(spell.Value.Element);
             }
 
             elements.Sort();
@@ -254,7 +275,7 @@ namespace Mmogick
 
             foreach (var spell in _spells)
             {
-                spell.Value.gameObject.SetActive(spell.Value.element == _activeElement);
+                spell.Value.gameObject.SetActive(spell.Value.Element == _activeElement);
             }
         }
 

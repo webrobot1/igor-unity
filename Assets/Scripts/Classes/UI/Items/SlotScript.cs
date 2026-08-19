@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 namespace Mmogick
 {
-    public class SlotScript : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
+    public class SlotScript : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, ITakeable
     {
         // protected — EquipmentSlot переиспользует тот же binding из Inspector
         // (свой _icon-биндинг в prefab'е equipment-слота уже привязан к этому полю).
@@ -82,6 +82,25 @@ namespace Mmogick
         }
 
         /// <summary>
+        /// Возьмёт ли нажатие предмет ячейки на курсор. Слот чужого контейнера отдаёт лишь то, что нам
+        /// отдадут: чужую добычу до истечения срока и не по карману товар лавки сервер отбивает молча —
+        /// без этого предмет висел бы на курсоре, а команда потом никуда не уходила. Тем же признаком
+        /// указатель принимает форму руки, поэтому правило одно на нажатие и на курсор.
+        /// </summary>
+        public bool CanTake
+        {
+            get
+            {
+                if (CursorController.MyMoveable != null || Item == null)
+                    return false;
+
+                LootSlotMarker loot = GetComponent<LootSlotMarker>();
+
+                return loot == null || LootWindowController.CanTakeSlot(loot.Num);
+            }
+        }
+
+        /// <summary>
         /// Погасить ячейку недоступного предмета: сделка по нему не состоится (не по карману, торговец
         /// его не продаёт), и сервер такую команду отбивает молча. Ячейка остаётся видимой и с подсказкой —
         /// причину называет она, гашение лишь показывает, что клик тут ничего не даст.
@@ -131,7 +150,7 @@ namespace Mmogick
             {
                 string text = Item.GetTooltipText();
                 if (text != null)
-                    tooltip.Show(transform.position, text);
+                    tooltip.Show((RectTransform)transform, text);
             }
         }
 
@@ -146,17 +165,11 @@ namespace Mmogick
         // изменить логику (например, сразу отправить equip-запрос для EquipmentSlot).
         protected virtual void HandlePointerClick(PointerEventData eventData)
         {
-            if (CursorController.MyMoveable != null || _item == null)
+            if (!CanTake)
                 return;
 
-            // Слот чужого контейнера: берём в курсор лишь то, что нам отдадут. Чужую добычу до истечения
-            // срока и не по карману товар лавки сервер отбивает молча — без гейта предмет висел бы на
-            // курсоре, а команда потом никуда не уходила. Взятие ловит слот, а не сам предмет: Item в
-            // слоте деактивирован и pointer-событий не получает.
+            // Метка ячейки чужого контейнера: по ней сделка идёт в контейнер, а не по инвентарю.
             LootSlotMarker loot = GetComponent<LootSlotMarker>();
-
-            if (loot != null && !LootWindowController.CanTakeSlot(loot.Num))
-                return;
 
             // Правая кнопка — сама сделка, без переноса через курсор: у ячейки контейнера это забрать
             // (у лавки — купить), у своей ячейки при открытом контейнере — положить (продать).

@@ -38,11 +38,15 @@ namespace Mmogick
 
 		// Версия формата локального кеша (PrefabEntry/library.json). Бамп при смене состава entry
 		// (добавление/удаление полей) → EnsureLoaded форсит полный refetch каталога /prefabs (см. cache_schema_version).
+		// Бампится и на смену ФОРМЫ значения компонента внутри component_value: состав entry при этом прежний,
+		// а разбор идёт по форме — на лежалой записи он падает, и дельта по дате её не подменит (сервер шлёт
+		// только записи, изменившиеся с прошлой синхронизации, а у давно не правленного prefab'а дата прежняя).
 		// v2: actions сменил форму словарь(action→angle→clip) → плоский список ActionBinding[].
 		// v3: добавлено component (имена компонентов prefab'а).
 		// v4: добавлено component_value (эффективные значения публичных компонентов вида).
 		// v5: component убран (имена = ключи component_value), component_value несёт ВСЕ компоненты вида.
-		private const int CACHE_SCHEMA_VERSION = 5;
+		// v6: значение компонента event у заклинания — строка (имя группы команды) вместо словаря.
+		private const int CACHE_SCHEMA_VERSION = 6;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
@@ -485,6 +489,54 @@ namespace Mmogick
 						values[slug] = GetComponentValue(prefab, slug, own);
 
 			return values;
+		}
+
+		// Умолчание компонента игры из справочника по его slug — значение, одинаковое для всех, кому
+		// компонент положен. Точечный GetComponentValue сюда не годится: он резолвит значение ДЛЯ
+		// prefab'а и умолчание отдаёт лишь тому, чьему виду компонент положен, — а справочное значение
+		// бывает нужно из компонента, которого у самого prefab'а нет вовсе.
+		// Контракт по _library тот же, что у GetComponentValue — throw на _library==null (вызов до SyncAll).
+		// null — компонента нет в справочнике либо умолчания у него нет: легитимное отсутствие,
+		// вызывающий решает сам.
+		public static JToken GetComponentDefault(string component)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetComponentDefault вызван до SyncAll (_library == null). component=" + component);
+			if (string.IsNullOrEmpty(component))
+				return null;
+
+			return _components != null && _components.TryGetValue(component, out ComponentEntry entry) && entry != null
+				? entry.@default : null;
+		}
+
+		// Имя файла иконки компонента в общем архиве картинок игры — том же, откуда берутся спрайты
+		// предметов. Справочник отдаёт его готовым (у entry префаба клиент склеивает имя сам из
+		// sha256+extension; тут склеивать нечего — второго применения у частей нет).
+		// null — иконки у компонента нет либо самого компонента в справочнике нет: легитимное отсутствие,
+		// показ рисует компонент как рисовал. Контракт по _library тот же, что у GetComponentDefault
+		// (throw на _library==null — вызов до SyncAll).
+		public static string GetComponentImage(string component)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetComponentImage вызван до SyncAll (_library == null). component=" + component);
+			if (string.IsNullOrEmpty(component))
+				return null;
+
+			return _components != null && _components.TryGetValue(component, out ComponentEntry entry)
+				&& entry != null && !string.IsNullOrEmpty(entry.image) ? entry.image : null;
+		}
+
+		// Готовый Sprite иконки компонента — пара к GetPrefabSprite: то же чтение картинки из локального
+		// кеша, только имя файла берётся из справочника компонентов, а не из entry префаба.
+		// null — иконки у компонента нет либо картинка битая (битый кеш чистится TryGetSprite,
+		// перекачается на следующем sync); показу этого довольно, чтобы остаться текстовым.
+		// Контракт по _library — через GetComponentImage (throw на вызове до SyncAll).
+		public static Sprite GetComponentSprite(int gameId, string component)
+		{
+			string imageFile = GetComponentImage(component);
+			if (imageFile == null) return null;
+			try { return TryGetSprite(gameId, imageFile); }
+			catch (Exception ex) { Debug.LogWarning("GetComponentSprite '" + component + "': " + ex.Message); return null; }
 		}
 
 		// Подбираемый ли это «предмет на земле» (для подсветки/надписи лежащих вещей в мире).
@@ -948,6 +1000,12 @@ namespace Mmogick
 		{
 			public JToken @default;
 			public List<string> kind;
+
+			/// <summary>
+			/// Иконка компонента: имя файла в общем архиве картинок игры (том же, откуда берутся спрайты
+			/// предметов) — готовым, склеивать из частей тут нечего. null — иконки у компонента нет.
+			/// </summary>
+			public string image;
 		}
 
 		// Дельта-синхронизация библиотеки prefab'ов. Мёржит изменившиеся entry в _library и удаляет slug'и,

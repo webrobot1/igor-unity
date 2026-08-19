@@ -38,6 +38,18 @@ namespace Mmogick
 		// (CursorController.HIGHLIGHT_GAP) — кольцо лежит ВНУТРИ хит-области, клик по кольцу всегда попадает по трупу.
 		private const float CORPSE_HIT_GAP = 1.2f;
 
+		// Скорость полёта подобранной вещи к тому, кто её взял, в клетках за секунду: время полёта считается от
+		// пройденного расстояния, а не задаётся готовым. Заданное время само подстраивало бы скорость под дальность —
+		// вещь с соседней клетки ползла бы, а взятая издалека (телекинез) прыгала бы мгновенно.
+		private const float FlightSpeed = 12f;
+
+		// Потолок времени полёта: он объясняет игроку, КУДА делась вещь, и не задерживает её исчезновение
+		// настолько, чтобы её успели счесть всё ещё лежащей.
+		private const float FlightMax = 0.4f;
+
+		// Полёт короче этого времени глазу неотличим от мгновенного исчезновения — вещь взяли под ногами.
+		private const float FlightMin = 0.02f;
+
 		private CapsuleCollider2D _corpseCapsule;
 		private Vector2 _liveCapsuleSize;
 		private Vector2 _liveCapsuleOffset;
@@ -369,12 +381,62 @@ namespace Mmogick
 		}
 
 		/// <summary>
+		/// Кому сервер поручил взять ЭТУ вещь. Поручение приходит командой подбора игрока и живёт у него
+		/// (<see cref="PlayerModel.ClaimedPickup"/>): к моменту, когда вещь снимают с карты, сама команда
+		/// уже завершена, и спрашивать её в этот миг поздно.
+		/// Поручение уходит КАЖДОМУ игроку на клетке вещи, а возьмёт её один — кто именно, сервер не сообщает;
+		/// из заявивших берём ближайшего.
+		/// </summary>
+		private Transform FindTaker()
+		{
+			Transform taker = null;
+			float best = 0f;
+
+			foreach (PlayerModel candidate in FindObjectsByType<PlayerModel>())
+			{
+				if (!candidate.ClaimedPickup(key))
+					continue;
+
+				float distance = Vector3.Distance(candidate.transform.localPosition, transform.localPosition);
+
+				if (taker == null || distance < best)
+				{
+					best = distance;
+					taker = candidate.transform;
+				}
+			}
+
+			return taker;
+		}
+
+		/// <summary>
 		/// анимированное удаление объекта с карты (когда снаряд попал в цель или игрок уходит с карты).
 		/// Пытается проиграть ACTION_REMOVE через PlayAction (Spriter→Universal Animator fallback).
 		/// Если ни в SCML, ни в Universal.controller нет данных — удаление мгновенное.
 		/// </summary>
 		protected override IEnumerator Destroy()
 		{
+			// Вещь исчезает по серверной правде: она гаснет там, где лежала, — в стороне от персонажа, будто её
+			// взяли издалека. Показываем сам подбор: вещь коротко летит к тому, кому сервер поручил её взять,
+			// и лишь затем исчезает. Кто это — знает сама команда подбора (её ключи вещей запоминает PlayerModel),
+			// поэтому ни дальность подбора, ни выбор игрока клиент не решает.
+			if (GetComponent<EquipableGroundMarker>() != null)
+			{
+				Transform taker = FindTaker();
+
+				Vector3 from = transform.localPosition;
+				float flight = taker != null ? Mathf.Min(Vector3.Distance(from, taker.localPosition) / FlightSpeed, FlightMax) : 0f;
+
+				if (flight >= FlightMin)
+				{
+					for (float passed = 0f; passed < flight && taker != null; passed += Time.deltaTime)
+					{
+						transform.localPosition = Vector3.Lerp(from, taker.localPosition, passed / flight);
+						yield return null;
+					}
+				}
+			}
+
 			// Сущность уходит с карты — сразу снять подсветку-маяк и надпись (Destroy компонента → его
 			// OnDestroy сносит нарисованное), не дожидаясь конца remove-анимации (Puff висит пару секунд).
 			// Destroy(null) безвреден: обводка есть только у подбираемых предметов (item/экипировка),

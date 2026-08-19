@@ -1,4 +1,6 @@
+using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Mmogick
@@ -12,6 +14,64 @@ namespace Mmogick
 		[NonSerialized]
 		public string ip;
 
+		/// <summary>
+		/// Группа команды подбора и её действие — имена серверные.
+		/// </summary>
+		private const string PickupGroup = "item/pickup";
+		private const string PickupAction = "index";
+
+		/// <summary>
+		/// Сколько секунд поручение подобрать вещь считается свежим. Без срока вещь, пропавшая позже и по другой
+		/// причине (её взял другой, истёк срок лежания), улетала бы к тому, кто до неё так и не дошёл.
+		/// </summary>
+		private const double ClaimLifetime = 3;
+
+		/// <summary>
+		/// Вещи, которые сервер поручил взять этому игроку, и до какого момента поручение свежо. Команда подбора
+		/// приходит раньше, чем вещь снимают с карты, а в тот самый миг она уже завершена и данных не несёт —
+		/// поэтому ключи запоминаются здесь, а не читаются из команды в момент показа.
+		/// </summary>
+		private readonly Dictionary<string, DateTime> pickupClaim = new Dictionary<string, DateTime>();
+
+		/// <summary>
+		/// Поручал ли сервер этому игроку взять названную вещь и не устарело ли поручение.
+		/// </summary>
+		public bool ClaimedPickup(string entity)
+		{
+			return pickupClaim.TryGetValue(entity, out DateTime until) && until > DateTime.Now;
+		}
+
+		/// <summary>
+		/// Запоминает ключи вещей из пришедшей команды подбора. Заодно снимает просроченные: поручение по вещи,
+		/// которую игрок не взял, иначе оставалось бы в памяти до его ухода с карты.
+		/// </summary>
+		private void RememberPickup()
+		{
+			Event pickup = TryGetEvent(PickupGroup);
+
+			if (pickup == null || pickup.action != PickupAction || pickup.data == null)
+				return;
+
+			JToken target = pickup.data["target"];
+
+			if (target == null || target.Type == JTokenType.Null)
+				return;
+
+			DateTime now = DateTime.Now;
+
+			foreach (string stale in new List<string>(pickupClaim.Keys))
+				if (pickupClaim[stale] <= now)
+					pickupClaim.Remove(stale);
+
+			DateTime until = now.AddSeconds(ClaimLifetime);
+
+			if (target.Type == JTokenType.Array)
+				foreach (JToken entity in target)
+					pickupClaim[(string)entity] = until;
+			else
+				pickupClaim[(string)target] = until;
+		}
+
         public override void SetData(EntityRecive recive)
 		{
 			PrepareComponents(((PlayerRecive)recive).components);
@@ -24,6 +84,8 @@ namespace Mmogick
 				this.ip = recive.ip;
 
 			base.SetData(recive);
+
+			RememberPickup();
 		}
 
 		// Применяет альфу ко ВСЕМ SpriteRenderer'ам под сущностью (включая Spriter-детей).

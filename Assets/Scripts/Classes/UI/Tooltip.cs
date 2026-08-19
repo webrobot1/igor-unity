@@ -14,9 +14,15 @@ namespace Mmogick
         /// <summary>Предел ширины подсказки в пикселях интерфейса — дальше текст переносится по словам.</summary>
         private const float MAX_WIDTH = 420f;
 
+        /// <summary>Зазор между подсказкой и тем, о чём она: вплотную панель читается как часть окна.</summary>
+        private const float GAP = 8f;
+
         // Ширину держим через LayoutElement самого текста: ContentSizeFitter панели считает её по нему.
         private LayoutElement width;
         private RectTransform rect;
+
+        // углы того, о чём подсказка: по ним она и встаёт сбоку
+        private readonly Vector3[] corners = new Vector3[4];
 
         void Awake()
         {
@@ -36,7 +42,12 @@ namespace Mmogick
             canvasGroup.blocksRaycasts = false;
         }
 
-        public void Show(Vector3 position, string text)
+        /// <summary>
+        /// Показать подсказку о том, что занимает <paramref name="source"/>. Спрашивают её у ячейки, у
+        /// значка, у строки списка — панель шире любого из них, поэтому встаёт она СБОКУ (см. Place):
+        /// выросшая от точки внутри источника, она закрывала бы соседей, о которых речи не было.
+        /// </summary>
+        public void Show(RectTransform source, string text)
         {
             tooltipText.text = text;
 
@@ -46,19 +57,48 @@ namespace Mmogick
             // Короткому тексту потолок не мешает: у него своя ширина меньше, пустой панели не будет.
             width.preferredWidth = Mathf.Min(tooltipText.preferredWidth, MAX_WIDTH);
 
-            transform.position = position;
-            canvasGroup.alpha = 1;
-
-            // Размеры после переноса известны только пересчитанной раскладке, а зажать позицию нужно уже
-            // по ним: подсказка выросла в высоту и у нижних ячеек ушла бы за край экрана.
+            // Размер после переноса известен только пересчитанной раскладке, а он и решает, с какой
+            // стороны панель помещается и не уходит ли за край экрана.
             LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
+            Place(source);
+
+            canvasGroup.alpha = 1;
+        }
+
+        /// <summary>
+        /// Поставить подсказку рядом с источником, ничего им не закрывая: слева от него, а не хватило
+        /// места до края экрана — справа. Верх панели равняем по верху источника — так видно, о чём она.
+        /// </summary>
+        private void Place(RectTransform source)
+        {
+            source.GetWorldCorners(corners);
+
+            Vector2 size = Vector2.Scale(rect.rect.size, rect.lossyScale);
+
+            float left = corners[0].x - GAP - size.x;
+
+            if (left < 0)
+            {
+                float right = corners[2].x + GAP;
+
+                if (right + size.x <= Screen.width)
+                    left = right;
+            }
+
+            float bottom = corners[1].y - size.y;
+
+            // Позиция — точка pivot'а панели, а считали мы её края: переводим одно в другое, чтобы
+            // сам pivot можно было держать в префабе любым.
+            rect.position = new Vector3(left + rect.pivot.x * size.x, bottom + rect.pivot.y * size.y, rect.position.z);
+
             ClampToScreen();
         }
 
         /// <summary>
-        /// Удержать подсказку целиком в пределах экрана: точку показа задаёт ячейка, и у краёв панель
-        /// вылезала бы за границу — там её не прочитать. Двигаем ровно на величину выхода, чтобы
-        /// подсказка оставалась у своей ячейки.
+        /// Удержать подсказку целиком в пределах экрана: у краёв панель вылезала бы за границу — там её
+        /// не прочитать. Двигаем ровно на величину выхода, чтобы подсказка оставалась у своего места.
+        /// Место сбоку не всегда есть вовсе (узкий экран) — тогда сдвиг кладёт панель поверх источника,
+        /// и это лучше, чем нечитаемая подсказка за краем.
         /// </summary>
         private void ClampToScreen()
         {

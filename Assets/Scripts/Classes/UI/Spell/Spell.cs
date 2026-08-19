@@ -1,4 +1,5 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -12,22 +13,30 @@ namespace Mmogick
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class Spell: MoveableObject, IPointerClickHandler
+    public class Spell: MoveableObject, IPointerClickHandler, ITakeable
     {
+        /// <summary>Цвет подложки заклинания без стихии: у него нет школы, и оттенок ни о чём не говорит.</summary>
+        private static readonly Color NO_ELEMENT_COLOR = new Color(0.62f, 0.66f, 0.74f);
+
         public Text title;
 
         /// <summary>Группа команды, которой заклинание применяется («fight/bolt»).</summary>
         public string @event;
-
-        /// <summary>Стихия заклинания — по ней книга раскладывает его по вкладкам.</summary>
-        public string element;
 
         public Text description;
 
         [SerializeField] private Text mp;
         public Text remain;
 
+        /// <summary>
+        /// Подложка под иконкой: свечение в цвете стихии. Иконки приходят с сервера с прозрачным фоном,
+        /// и без неё карточки читаются как ряд картинок на пустом месте, а стихия видна только по вкладке.
+        /// </summary>
+        [SerializeField] private Image background;
+
         private string _magic;
+
+        private string _element;
 
         public override int ManaCost
         {
@@ -52,6 +61,60 @@ namespace Mmogick
             }
         }
 
+        /// <summary>
+        /// Стихия заклинания — по ней книга раскладывает его по вкладкам, и в её цвете горит подложка
+        /// под иконкой. Пустая строка — заклинание, которого нет в справочнике стихий.
+        /// </summary>
+        public string Element
+        {
+            get
+            {
+                return _element;
+            }
+            set
+            {
+                _element = value;
+
+                if (background == null)
+                {
+                    ConnectController.Error("не найден объект background в для элемента Заклинания в книге");
+                    return;
+                }
+
+                background.color = ElementColor(value);
+            }
+        }
+
+        /// <summary>
+        /// Цвет стихии. Задаёт его сама игра — разделом стихий того же справочника, что раскладывает
+        /// заклинания по школам (умолчание компонента книги, см. <see cref="SpellBookController"/>):
+        /// названия стихий свободные, их заводят и переименовывают в админке, и перечень на клиенте
+        /// разошёлся бы с игрой молча. Текстура подложки идёт от светлого центра к приглушённым краям,
+        /// а цвет её умножает — оттого одного цвета хватает и на свечение в середине, и на затемнение
+        /// по краю.
+        /// </summary>
+        private static Color ElementColor(string element)
+        {
+            if (string.IsNullOrEmpty(element))
+                return NO_ELEMENT_COLOR;
+
+            JObject colors = SpellBookController.ElementDirectory(SpellBookController.SECTION_ELEMENT);
+            JToken own = colors != null ? colors[element] : null;
+
+            if (own != null && ColorUtility.TryParseHtmlString(own.Value<string>(), out Color chosen))
+                return chosen;
+
+            // Стихии в справочнике нет либо цвет записан не как #RRGGBB: оттенок считаем из самого
+            // названия. Он произволен, но устойчив — одна и та же стихия красится одинаково у всех своих
+            // заклинаний и между входами, а новая стихия попадает в книгу не серой.
+            int hash = 0;
+            foreach (char letter in element)
+                hash = hash * 31 + letter;
+
+            return Color.HSVToRGB(Mathf.Abs(hash % 360) / 360f, 0.55f, 1f);
+        }
+
+
 
         protected override void Awake()
         {
@@ -71,6 +134,10 @@ namespace Mmogick
         /// Название, описание и стоимость — те же, что стоят на самой карточке заклинания в книге: своего
         /// источника у неё нет, карточку наполняет книга. Роли строк размечает <see cref="TextStyle"/>,
         /// как и у прочих подсказок.
+        ///
+        /// Спрашивает этот текст только панель быстрых действий: там от заклинания видна одна иконка.
+        /// Сама книга подсказку по наведению НЕ показывает намеренно — карточка уже несёт название,
+        /// описание и стоимость строками, и подсказка повторяла бы их поверх них же.
         /// </summary>
         public override string GetTooltipText()
         {
@@ -138,9 +205,26 @@ namespace Mmogick
             } 
         }
 
+        /// <summary>
+        /// Взять заклинание на курсор (чтобы положить его в панель быстрых действий) можно, лишь пока
+        /// его вообще есть чем применить: не хватает маны либо идёт откат — нажатие ничего не делает.
+        /// Тем же признаком указатель принимает форму руки — обещание руки и исход нажатия обязаны совпадать.
+        /// </summary>
+        public bool CanTake
+        {
+            get
+            {
+                // Занятый курсор тут не помеха: нажатие по карточке при полном курсоре меняет то, что
+                // в нём лежит (см. CursorController.Update, chain-swap), — заклинание берётся и так.
+                return PlayerController.Player != null
+                    && ManaCost <= PlayerController.Player.mp
+                    && PlayerController.Player.GetEventRemain(@event) <= 0;
+            }
+        }
+
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
-            if (ManaCost <= PlayerController.Player.mp && PlayerController.Player.GetEventRemain(@event)<=0)
+            if (CanTake)
             {
                 CursorController.TakeMoveable(this);
             }

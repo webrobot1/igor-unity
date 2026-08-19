@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -131,10 +130,22 @@ namespace Mmogick
         private Text infoDescription;
 
         /// <summary>
-        /// блок характеристик: заголовок и строки одним текстом
+        /// заголовок блока характеристик: сами они идут списком ниже и гаснут вместе с ним
         /// </summary>
         [SerializeField]
-        private Text infoStats;
+        private Text infoStatsTitle;
+
+        /// <summary>
+        /// список характеристик: каждая — отдельная строка, у которой подпись бывает заменена иконкой
+        /// </summary>
+        [SerializeField]
+        private RectTransform infoStatsArea;
+
+        /// <summary>
+        /// строка списка характеристик: иконка и текст
+        /// </summary>
+        [SerializeField]
+        private InfoPoint infoStatPrefab;
 
         /// <summary>
         /// заголовок блока особенностей: сами они идут списком ниже и гаснут вместе с ним
@@ -143,7 +154,7 @@ namespace Mmogick
         private Text infoTraitsTitle;
 
         /// <summary>
-        /// список особенностей: каждая — отдельный пункт со своим значком
+        /// список особенностей строками: сюда идут те, которым значка не досталось
         /// </summary>
         [SerializeField]
         private RectTransform infoTraitsArea;
@@ -153,6 +164,20 @@ namespace Mmogick
         /// </summary>
         [SerializeField]
         private InfoPoint infoTraitPrefab;
+
+        /// <summary>
+        /// сетка значков особенностей: особенность, у чьего компонента есть картинка, встаёт значком, а
+        /// рассказ о ней читается подсказкой. Отдельная от списка область нужна потому, что значки идут
+        /// в ряд, а строки — одна под другой; в общей раскладке одно из двух встало бы неверно.
+        /// </summary>
+        [SerializeField]
+        private RectTransform infoTraitsIconArea;
+
+        /// <summary>
+        /// значок одной особенности в сетке: та же строка, что и в списке, только показанная картинкой
+        /// </summary>
+        [SerializeField]
+        private InfoPoint infoTraitIconPrefab;
 
         /// <summary>
         /// заголовок блока заклинаний: сами они лежат сеткой иконок ниже, и заголовок гаснет вместе с ней
@@ -207,8 +232,14 @@ namespace Mmogick
         /// </summary>
         private readonly List<string> _spellsShown = new List<string>();
 
+        /// <summary>Характеристики, которыми набран список сейчас — по той же причине, что и заклинания.</summary>
+        private readonly List<InfoRow> _statsShown = new List<InfoRow>();
+
         /// <summary>Особенности, которыми набран список сейчас — по той же причине, что и заклинания.</summary>
-        private readonly List<string> _traitsShown = new List<string>();
+        private readonly List<InfoRow> _traitsShown = new List<InfoRow>();
+
+        /// <summary>Особенности, которыми набрана сетка значков сейчас — по той же причине.</summary>
+        private readonly List<InfoRow> _traitIconsShown = new List<InfoRow>();
 
         /// <summary>Добыча, которой набрана сетка сейчас — по той же причине, что и заклинания.</summary>
         private readonly List<string> _lootShown = new List<string>();
@@ -253,7 +284,8 @@ namespace Mmogick
                 return;
             }
 
-            if (infoStats == null || infoTraitsTitle == null || infoTraitsArea == null)
+            if (infoStatsTitle == null || infoStatsArea == null
+                || infoTraitsTitle == null || infoTraitsArea == null || infoTraitsIconArea == null)
             {
                 Error("не указаны блоки характеристик и особенностей окна сведений о цели");
                 return;
@@ -343,8 +375,8 @@ namespace Mmogick
             infoDescription.text = description.Length > 0 ? TextStyle.Hint(description) : "";
             infoDescription.gameObject.SetActive(description.Length > 0);
 
-            FillBlock(infoStats, "Характеристики", STATS, target);
-            FillTraits("Особенности", TRAITS, target);
+            FillStats(target);
+            FillTraits(target);
             FillSpells(target);
             FillLoot(target);
 
@@ -371,10 +403,17 @@ namespace Mmogick
         /// Строки блока по его перечню: значение каждой разрешается общим правилом, взятое у вида идёт
         /// приглушённым. <paramref name="allTypical"/> — о виде весь блок, тогда пометка уйдёт в его
         /// заголовок, а не повторится в каждой строке. Пустой список — рассказать нечего.
+        ///
+        /// Картинка компонента заменяет собой ту часть строки, которая называет свойство: у строки с
+        /// подписью — саму подпись (рядом остаётся значение), у строки-фразы — фразу целиком. Заменённое
+        /// уходит в подсказку значка, и без неё картинка ничего бы не сказала. Взять её негде лишь у
+        /// команды: компонента у неё нет, и такая строка всегда остаётся текстовой. Берём ИМЯ ФАЙЛА, а не
+        /// сам спрайт: перечень перебирается каждый кадр, чтение картинки же — работа для смены набора,
+        /// и делает её сам пункт списка.
         /// </summary>
-        private static List<string> Collect(InfoLine[] lines, ObjectModel subject, out bool allTypical)
+        private static List<InfoRow> Collect(InfoLine[] lines, ObjectModel subject, out bool allTypical)
         {
-            List<string> shown = new List<string>();
+            List<InfoRow> shown = new List<InfoRow>();
             allTypical = true;
 
             foreach (InfoLine line in lines)
@@ -393,59 +432,52 @@ namespace Mmogick
                 if (string.IsNullOrEmpty(text))
                     continue;
 
-                if (line.Title != null)
-                    text = line.Title + ": " + text;
+                string icon = line.Source == InfoSource.Component
+                    && AnimationCacheService.GetComponentImage(line.Key) != null ? line.Key : null;
+
+                string full = line.Title != null ? line.Title + ": " + text : text;
 
                 if (typical)
+                {
+                    full = TextStyle.Muted(full);
                     text = TextStyle.Muted(text);
+                }
                 else
                     allTypical = false;
 
-                shown.Add(text);
+                string hint = icon == null ? null
+                    : line.Title != null ? TextStyle.Title(line.Title) : full;
+
+                shown.Add(new InfoRow(full, text, icon, hint));
             }
 
             return shown;
         }
 
         /// <summary>
-        /// Блок одним текстом: заголовок и строки под ним. Рассказать нечего — блок гаснет целиком:
-        /// пустой заголовок читался бы как «у этого существа ничего такого нет», хотя мы попросту
-        /// ничего о нём не знаем.
+        /// Характеристики: заголовок и строки под ним. Одним текстом их больше не набрать — у строки,
+        /// чей компонент несёт иконку, картинка встаёт вместо подписи, а картинку в надпись не вложить.
         /// </summary>
-        private void FillBlock(Text field, string title, InfoLine[] lines, ObjectModel subject)
+        private void FillStats(ObjectModel subject)
         {
             bool allTypical;
-            List<string> shown = Collect(lines, subject, out allTypical);
+            List<InfoRow> shown = Collect(STATS, subject, out allTypical);
 
-            if (shown.Count == 0)
-            {
-                field.gameObject.SetActive(false);
-                return;
-            }
-
-            field.gameObject.SetActive(true);
-
-            StringBuilder block = new StringBuilder();
-            block.Append(Head(title, allTypical));
-
-            foreach (string text in shown)
-            {
-                block.Append("\n");
-                block.Append(text);
-            }
-
-            field.text = block.ToString();
+            Title(infoStatsTitle, "Характеристики", allTypical, shown.Count > 0);
+            FillArea(infoStatsArea, infoStatPrefab, "Характеристики", shown, _statsShown);
         }
 
         /// <summary>
-        /// Блок списком: каждая особенность — отдельный пункт со значком слева. Одним текстом их не
-        /// набрать: пункт бывает длиннее строки, и его продолжение обязано вставать под текстом, а не
+        /// Особенности: сперва значки в ряд, под ними строки. Значок достаётся той особенности, чей
+        /// компонент несёт картинку, и рассказ о ней тогда читается подсказкой; прочим — команде,
+        /// торговле, компоненту без картинки — сказать о себе нечем, кроме самой фразы, и они остаются
+        /// строками. Пункт бывает длиннее строки, и его продолжение обязано вставать под текстом, а не
         /// под значком, — иначе перенос читается как начало следующего пункта.
         /// </summary>
-        private void FillTraits(string title, InfoLine[] lines, ObjectModel subject)
+        private void FillTraits(ObjectModel subject)
         {
             bool allTypical;
-            List<string> shown = Collect(lines, subject, out allTypical);
+            List<InfoRow> shown = Collect(TRAITS, subject, out allTypical);
 
             // Торговля стоит особняком от прочих особенностей: её значение — пара множителей, а не число,
             // и перечнем строк её не описать. Собираем отдельно и дописываем в тот же список — для игрока
@@ -453,52 +485,80 @@ namespace Mmogick
             string trade = TradeLine(subject);
 
             if (trade != null)
-                shown.Add(trade);
+                shown.Add(new InfoRow(trade));
 
+            List<InfoRow> icons = new List<InfoRow>();
+            List<InfoRow> texts = new List<InfoRow>();
+
+            foreach (InfoRow row in shown)
+                (row.Icon != null ? icons : texts).Add(row);
+
+            Title(infoTraitsTitle, "Особенности", allTypical, shown.Count > 0);
+            FillArea(infoTraitsIconArea, infoTraitIconPrefab, "Особенности", icons, _traitIconsShown);
+            FillArea(infoTraitsArea, infoTraitPrefab, "Особенности", texts, _traitsShown);
+        }
+
+        /// <summary>
+        /// Заголовок блока. Рассказать нечего — гаснет: пустой заголовок читался бы как «у этого существа
+        /// ничего такого нет», хотя мы попросту ничего о нём не знаем. Ведёт его не сама область, потому
+        /// что областей у блока бывает две (значки и строки), а заголовок над ними один.
+        /// </summary>
+        private static void Title(Text titleField, string title, bool allTypical, bool any)
+        {
+            titleField.gameObject.SetActive(any);
+
+            if (any)
+                titleField.text = Head(title, allTypical);
+        }
+
+        /// <summary>
+        /// Область пунктов: гаснет вместе с пустым набором. Пункты — объекты, поэтому пересобираем их,
+        /// только когда набор действительно сменился: окно наполняется каждый кадр.
+        /// </summary>
+        private void FillArea(RectTransform area, InfoPoint prefab, string title,
+            List<InfoRow> shown, List<InfoRow> already)
+        {
             if (shown.Count == 0)
             {
-                infoTraitsTitle.gameObject.SetActive(false);
-                infoTraitsArea.gameObject.SetActive(false);
-                _traitsShown.Clear();
+                area.gameObject.SetActive(false);
+                already.Clear();
                 return;
             }
 
-            infoTraitsTitle.gameObject.SetActive(true);
-            infoTraitsArea.gameObject.SetActive(true);
-            infoTraitsTitle.text = Head(title, allTypical);
+            area.gameObject.SetActive(true);
 
-            if (Same(_traitsShown, shown))
+            if (Same(already, shown))
                 return;
 
-            if (infoTraitPrefab == null)
+            if (prefab == null)
             {
-                Error("не указан префаб пункта списка особенностей в окне сведений о цели");
+                Error("не указан префаб пункта блока «" + title + "» в окне сведений о цели");
                 return;
             }
 
-            // Число пунктов совпало — переписываем их тексты: у существа изменилось значение, а не сам
-            // набор особенностей, и пересобирать объекты незачем.
-            if (_traitsShown.Count == shown.Count)
+            // Число пунктов совпало — переписываем сами пункты: у существа изменилось значение, а не
+            // набор строк, и пересобирать объекты незачем.
+            if (already.Count == shown.Count)
             {
                 int i = 0;
-                foreach (Transform point in infoTraitsArea)
+                foreach (Transform point in area)
                 {
                     InfoPoint line = point.GetComponent<InfoPoint>();
                     if (line != null && i < shown.Count)
-                        line.Text = shown[i++];
+                        line.SetRow(shown[i++], tooltip);
                 }
             }
             else
             {
-                foreach (Transform point in infoTraitsArea)
+                foreach (Transform point in area)
                     Destroy(point.gameObject);
 
-                foreach (string text in shown)
-                    Instantiate(infoTraitPrefab, infoTraitsArea).Text = text;
+                foreach (InfoRow row in shown)
+                    Instantiate(prefab, area).SetRow(row, tooltip);
             }
 
-            _traitsShown.Clear();
-            _traitsShown.AddRange(shown);
+            already.Clear();
+            already.AddRange(shown);
         }
 
         /// <summary>
@@ -703,6 +763,12 @@ namespace Mmogick
             JObject known = book as JObject;
 
             if (known == null)
+                return spells;
+
+            // Своей книги у вида нет — вместо неё пришло УМОЛЧАНИЕ компонента, а это справочник стихий,
+            // общий для всей игры (см. SpellBookController.COMPONENT_SPELL_BOOK), не перечень заклинаний.
+            // Читать его книгой нельзя: о заклинаниях вида мы попросту ничего не знаем.
+            if (known[SpellBookController.SECTION_SPELL] != null || known[SpellBookController.SECTION_ELEMENT] != null)
                 return spells;
 
             foreach (KeyValuePair<string, JToken> spell in known)
@@ -970,14 +1036,18 @@ namespace Mmogick
             }
         }
 
-        /// <summary>Совпадают ли составы: сетку иконок пересобираем только при смене набора.</summary>
-        private static bool Same(List<string> shown, List<string> wanted)
+        /// <summary>
+        /// Совпадают ли составы: объекты списков и сеток пересобираем только при смене набора. Один на
+        /// оба вида набора — сетки помнят свой состав именами префабов, списки блоков — готовыми
+        /// строками, а правило сравнения у них общее.
+        /// </summary>
+        private static bool Same<T>(List<T> shown, List<T> wanted)
         {
             if (shown.Count != wanted.Count)
                 return false;
 
             for (int i = 0; i < shown.Count; i++)
-                if (shown[i] != wanted[i])
+                if (!EqualityComparer<T>.Default.Equals(shown[i], wanted[i]))
                     return false;
 
             return true;

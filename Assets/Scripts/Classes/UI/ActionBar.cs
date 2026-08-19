@@ -214,7 +214,7 @@ namespace Mmogick
             {
                 string text = _item.GetTooltipText();
                 if (text != null)
-                    _tooltip.Show(transform.position, text);
+                    _tooltip.Show((RectTransform)transform, text);
             }
         }
 

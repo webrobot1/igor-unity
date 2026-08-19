@@ -45,14 +45,13 @@ namespace Mmogick
 		private const int MAX_PAUSE_SEC = 30;
 
 		/// <summary>
-		/// максимальное колчиество пингов для подсчета среднего (после обрезается. средний выситывается как сумма значений из истории деленое на количество с каждого запроса на сервер)
+		/// сколько последних замеров держит окно, по которому считается задержка. Оценка окна — медиана, потому
+		/// длина нечётная: одиночный выброс (просадка сети, свёрнутое окно, простой сервера) не сдвигает её вовсе,
+		/// тогда как в среднем он держался бы, пока окно не сменится целиком. Цена выброса тут не только в числе:
+		/// завышенная задержка растягивает шаг персонажа и разрежает отправку команд, а замеры уходят вместе с
+		/// ними — окно обновляется тем медленнее, чем сильнее промах.
 		/// </summary>
 		private const int MAX_PING_HISTORY = 5;
-
-		/// <summary>
-		/// до какой длинные обрезается историй пингов после достижения максимального количества
-		/// </summary>
-		private const int MIN_PING_HISTORY = 2;
 
 		/// <summary>
 		/// через сколько секунд передавать на сервер результаты расчета пинга (не чаще чем сохраняется игрок в бд)
@@ -187,6 +186,20 @@ namespace Mmogick
 		/// сопрограммы могут менять коллекцию pings и однойременное чтение из нее невозможно, поэтому делаем фиксированное поле ping со значением которое будетп еерсчитываться
 		/// </summary>
 		private static List<double> pings = new List<double>();
+
+		/// <summary>
+		/// метка времени, снятая в момент прихода уведомления о перезагрузке карты. Замер задержки с меткой
+		/// СТАРШЕ этой ушёл на сервер до перезагрузки, а вернулся после неё — он мерит простой сервера, не сеть,
+		/// и в окно не берётся. Не снимается: эхо таких замеров приходит уже ПОСЛЕ поднятого мира — сервер
+		/// дочитывает соединение, вернувшись в свой цикл, а мир рассылает раньше этого.
+		/// </summary>
+		private static long reload_notice_unixtime;
+
+		/// <summary>
+		/// идёт ли перезагрузка карты — по этому признаку игроку рисуется надпись поверх игры (ReloadNotice).
+		/// Отдельно от паузы loading: та стоит и на входе в игру, где перезагрузки нет вовсе.
+		/// </summary>
+		private static bool reloading;
 		
 		/// <summary>
 		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
@@ -219,6 +232,8 @@ namespace Mmogick
 			ping = 0;
 			max_ping = 0;
 			last_ping_send_value = 0;
+			reload_notice_unixtime = 0;
+			reloading = false;
 
 			reload = ReloadStatus.None;
 			last_ping_request = DateTime.Now;
@@ -532,24 +547,36 @@ namespace Mmogick
 						else if (recive.map != null)
 							RequestReconnect("переход на карту " + recive.map + " — вход заново через авторизацию");
 
+						// Карта перезагружается: ближайшие секунды сервер не читает соединение. Держим ту же
+						// паузу, что и на загрузке мира, — она уже отбивает отправку команд; надпись игроку
+						// рисует отдельный признак. Снимает оба пришедший следом мир (ветка ниже).
+						if (recive.reloading)
+						{
+							reloading = true;
+							reload_notice_unixtime = (new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds();
+							loading = DateTime.Now.AddSeconds(MAX_PAUSE_SEC);
+						}
+
 						if (recive.action == ACTION_LOAD)
 						{
 							recives.Clear();
 							loading = null;
+							reloading = false;
 						}
 
-						if (recive.unixtime > 0)
+						// Метки нет — поле пришло нулём, и сравнение отсекает его тем же условием, что и замер,
+						// ушедший до перезагрузки карты: тот мерит её простой, а не сеть (reload_notice_unixtime).
+						if (recive.unixtime > reload_notice_unixtime)
 						{
-							double tmp_ping = (double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000;
-							pings.Add(tmp_ping);
+							pings.Add((double)((new DateTimeOffset(DateTime.Now)).ToUnixTimeMilliseconds() - recive.unixtime) / 1000);
 
-							if ((MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY) || pings.Count == 1 || tmp_ping > max_ping)
-							{
-								ping = Math.Round((pings.Sum() / pings.Count), 3);
-								max_ping = Math.Round(pings.Max(), 3);
-								if (MAX_PING_HISTORY > 0 && pings.Count > MAX_PING_HISTORY)
-									pings.RemoveRange(0, pings.Count - MIN_PING_HISTORY);
-							}
+							if (pings.Count > MAX_PING_HISTORY)
+								pings.RemoveRange(0, pings.Count - MAX_PING_HISTORY);
+
+							// Пересчёт на КАЖДОМ замере: прежде оценка обновлялась только на переполнении окна и
+							// на новом максимуме — однажды снятое большое значение вниз уже не шло.
+							ping = Median(pings);
+							max_ping = Math.Round(pings.Max(), 3);
 						}
 
 						if (reload == ReloadStatus.None)
@@ -676,6 +703,25 @@ namespace Mmogick
 		public static double MaxPing()
 		{
 			return max_ping;
+		}
+
+		/// <summary>
+		/// Идёт перезагрузка карты: сервер предупредил о ней и до подъёма мира соединение не читает. По этому
+		/// признаку игроку рисуется надпись поверх игры — отправка команд в это время всё равно отбита паузой.
+		/// </summary>
+		public static bool IsReloading => reloading;
+
+		/// <summary>
+		/// Медиана окна замеров. Копию сортируем, а не сам список: его наполняет поток приёма пакетов.
+		/// </summary>
+		private static double Median(List<double> values)
+		{
+			List<double> sorted = new List<double>(values);
+			sorted.Sort();
+
+			int middle = sorted.Count / 2;
+
+			return Math.Round(sorted.Count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2, 3);
 		}
 
 		/// <summary>

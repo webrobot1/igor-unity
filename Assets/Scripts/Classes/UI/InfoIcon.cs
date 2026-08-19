@@ -55,7 +55,7 @@ namespace Mmogick
         void IPointerEnterHandler.OnPointerEnter(PointerEventData eventData)
         {
             if (_tooltip != null && !string.IsNullOrEmpty(_prefab))
-                _tooltip.Show(transform.position, GetTooltipText());
+                _tooltip.Show((RectTransform)transform, GetTooltipText());
         }
 
         void IPointerExitHandler.OnPointerExit(PointerEventData eventData)

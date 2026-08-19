@@ -58,6 +58,15 @@ namespace Mmogick
 			bool isPlayer = _model is PlayerModel;
 			string group = isPlayer ? GROUP_PLAYER : GROUP_ENTITY;
 
+			// Тело уже уходит с карты (играется анимация исчезновения, сама сущность живёт до её конца):
+			// срок сработал, а сервер после срабатывания отсчитывает его ЗАНОВО — остаток приходит полным,
+			// и полоска, считаемая по нему, залилась бы обратно до конца ровно на время этой анимации.
+			if (_model.action == ConnectController.ACTION_REMOVE)
+			{
+				Hide();
+				return;
+			}
+
 			double remain = _model.GetEventRemain(group);
 			if (remain <= 0)
 			{
