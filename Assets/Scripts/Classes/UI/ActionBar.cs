@@ -13,11 +13,8 @@ namespace Mmogick
         private MoveableObject _item;
         private Tooltip _tooltip;
 
-        // Видимая иконка слота. Мирорит _item.Icon.sprite/color/preserveAspect/localScale.
-        // Раньше в ActionBar был ещё корневой _image (=GetComponent<Image>()) для рендера
-        // иконки/фона — после Icon-pattern (см. TASK_ui_icon_size.md) он не нужен и убран,
-        // вместе с Image-компонентом на GameObject "Image" prefab'а. Raycast обрабатывает
-        // ActionButton.Button (родительский GO), фон рисуется тем же ActionButton.Image (рамка слота).
+        // Видимая иконка слота — мирорит _item.Icon.sprite/color/preserveAspect/localScale.
+        // Raycast обрабатывает ActionButton.Button (родительский GO), фон рисуется тем же ActionButton.Image (рамка слота).
         [SerializeField] private Image _icon;
         [SerializeField] private Image _cooldownOverlay;
         [SerializeField] private Text _cooldownText;
@@ -32,7 +29,7 @@ namespace Mmogick
         {
             get
             {
-                return _item??null;
+                return _item;
             }
             set
             {
@@ -176,31 +173,26 @@ namespace Mmogick
                 if (MeleeRemain() > 0)
                     return;
 
-                SendMelee();
+                // Ближняя атака с пустого слота. Цель берём ту же, что заклинания (MainController.Instance.Target),
+                // и по тем же правилам: живой цели шлём её ключ — сервер сам подойдёт и ударит; без цели бьём
+                // по направлению взгляда (fight/melee принимает вектор forward вместо ключа).
+                // Мёртвую цель не шлём: сервер такую команду молча отбрасывает — бьём по направлению. Не шлём и
+                // цель без запаса здоровья вовсе (сундук, лавка, портал, лежащая вещь): выбрать их можно —
+                // окно сведений рассказывает и о них, — но бить там некого, и сервер такую команду тоже отбивает.
+                MeleeResponse response = new MeleeResponse();
+                ObjectModel target = MainController.Instance.Target;
+                EnemyModel enemy = target as EnemyModel;
+
+                if (enemy != null && enemy.hp > 0)
+                    response.target = target.key;
+                else
+                {
+                    response.x = System.Math.Round(PlayerController.Player.Forward.x, PlayerController.position_precision);
+                    response.y = System.Math.Round(PlayerController.Player.Forward.y, PlayerController.position_precision);
+                }
+
+                response.Send();
             }
-        }
-
-        // Ближняя атака с пустого слота. Цель берём ту же, что заклинания (MainController.Instance.Target),
-        // и по тем же правилам: живой цели шлём её ключ — сервер сам подойдёт и ударит; без цели бьём
-        // по направлению взгляда (fight/melee принимает вектор forward вместо ключа).
-        // Мёртвую цель не шлём: сервер такую команду молча отбрасывает — бьём по направлению. Не шлём и
-        // цель без запаса здоровья вовсе (сундук, лавка, портал, лежащая вещь): выбрать их можно —
-        // окно сведений рассказывает и о них, — но бить там некого, и сервер такую команду тоже отбивает.
-        private void SendMelee()
-        {
-            MeleeResponse response = new MeleeResponse();
-            ObjectModel target = MainController.Instance.Target;
-            EnemyModel enemy = target as EnemyModel;
-
-            if (enemy != null && enemy.hp > 0)
-                response.target = target.key;
-            else
-            {
-                response.x = System.Math.Round(PlayerController.Player.Forward.x, PlayerController.position_precision);
-                response.y = System.Math.Round(PlayerController.Player.Forward.y, PlayerController.position_precision);
-            }
-
-            response.Send();
         }
 
         public void SetTooltip(Tooltip tooltip)

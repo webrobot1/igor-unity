@@ -421,12 +421,6 @@ namespace Mmogick
             }
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
-        {
-
-            return base.UpdateObject(map_id, key, recive);
-        }
-
         // множитель кольца к рендер-границам трупа: 1.0 — ровно по спрайту (прозрачные поля текстуры
         // сами дают небольшой зазор). Держать МЕНЬШЕ зазора кликабельного коллайдера трупа
         // (ObjectModel.CORPSE_HIT_GAP) — кольцо лежит ВНУТРИ хит-области, клик по кольцу попадает по трупу.

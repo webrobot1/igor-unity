@@ -109,7 +109,7 @@ namespace Mmogick
             {
                 Sprite s;
                 try { s = AnimationCacheService.TryGetSprite(BaseController.GAME_ID, v.File); }
-                catch (System.Exception ex) { Debug.LogWarning("WeaponMount " + itemPrefab + " вариант " + v.angle + "°: " + ex.Message); continue; }
+                catch (System.Exception ex) { Debug.LogWarning("WeaponMount " + itemPrefab + " вариант " + v.angle + "°: " + ex.Message); Debug.LogException(ex); continue; }
                 if (s == null) continue;
                 sources.Add(new VariantSource { angle = v.angle, sprite = s, pivotX = v.pivotX, pivotY = v.pivotY });
             }

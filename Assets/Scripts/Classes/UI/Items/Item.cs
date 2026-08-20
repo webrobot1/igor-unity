@@ -123,7 +123,7 @@ namespace Mmogick
             {
                 if (obj != null && obj.GetComponentInParent<SlotScript>() != null && obj.GetComponentInParent<EquipmentSlot>() == null)
                     LootWindowController.SendTake(
-                        new System.Collections.Generic.List<int> { myLootSlot.Num },
+                        new List<int> { myLootSlot.Num },
                         obj.GetComponentInParent<SlotScript>().SlotNum);
                 // в мир/на экипировку из чужой добычи не выбрасываем — только через свой инвентарь
                 return;

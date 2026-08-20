@@ -117,38 +117,7 @@ namespace Mmogick
                         }
 
                         // заполним поле жизней сразу
-                        if (enemyValue.hp != null)
-                        {
-                            if (enemyValue.hp > 0)
-                                EnableLine(hpLine);
-                            else
-                                DisableLine(hpLine);
-
-                            FillUpdate(hpLine, (float)enemyValue.hp, enemyValue.hpMax, hpText, true);
-
-                            if (enemyValue.lifeBar != null && (PlayerController.Player == null || value.key != PlayerController.Player.key))
-                            {
-                                if (enemyValue.hp > 0)
-                                    EnableLine(enemyValue.lifeBar);
-
-                                FillUpdate(enemyValue.lifeBar, (float)enemyValue.hp, enemyValue.hpMax, null, true);
-                            }
-                        }
-                        else
-                            DisableLine(hpLine);
-
-                        if (enemyValue.mp != null)
-                        {
-                            // ДА! Тоже завязан показ на жизни
-                            if (enemyValue.mpMax>0 && ((enemyValue.hp != null && enemyValue.hp > 0) || (PlayerController.Player != null && _target.key == PlayerController.Player.key)))
-                                EnableLine(mpLine);
-                            else
-                                DisableLine(mpLine);
-
-                            FillUpdate(mpLine, (float)enemyValue.mp, enemyValue.mpMax, mpText, true);
-                        }
-                        else
-                            DisableLine(mpLine);
+                        UpdateHpMpLines(enemyValue, true);
 
                         // покажем целиком верхнюю группу с анимациями
                         targetFrame.alpha = 1;
@@ -206,36 +175,58 @@ namespace Mmogick
                 return;
             }
 
-            if (enemyTarget.hp != null)
+            UpdateHpMpLines(enemyTarget, false);
+        }
+
+        /// <summary>
+        /// Полоски HP/MP текущей цели: общий код для входа цели (<see cref="Target"/>, force=true — сразу,
+        /// без плавности) и каждого кадра (<see cref="FixedUpdate"/>, force=false — с lerp через <see cref="FillUpdate"/>).
+        ///
+        /// Своего игрока (own) полоска здоровья и маны не гасит при hp=0: труп-раннер продолжает двигаться
+        /// полупрозрачным призраком (см. PlayerModel), и рамка обязана показывать его состояние, а не
+        /// исчезать, будто цель пропала. У чужого существа при hp=0 обе полоски гаснут.
+        /// Полоска жизни НАД телом (lifeBar) — своя у entity, не у рамки: своему игроку она не нужна
+        /// вовсе (он видит собственный HP в рамке), поэтому у own её не трогаем совсем.
+        /// </summary>
+        private void UpdateHpMpLines(EnemyModel entity, bool force)
+        {
+            bool own = PlayerController.Player != null && entity.key == PlayerController.Player.key;
+
+            if (entity.hp != null)
             {
-                if (enemyTarget.hp > 0 || (PlayerController.Player != null && _target.key == PlayerController.Player.key))
+                if (entity.hp > 0 || own)
                     EnableLine(hpLine);
                 else
                     DisableLine(hpLine);
 
-                FillUpdate(hpLine, (float)enemyTarget.hp, enemyTarget.hpMax, hpText);
+                FillUpdate(hpLine, (float)entity.hp, entity.hpMax, hpText, force);
 
-                if (enemyTarget.lifeBar != null && (PlayerController.Player == null || enemyTarget.key != PlayerController.Player.key))
+                if (entity.lifeBar != null && !own)
                 {
-                    if (enemyTarget.hp>0)
-                        EnableLine(enemyTarget.lifeBar);
+                    if (entity.hp > 0)
+                        EnableLine(entity.lifeBar);
                     else
-                        DisableLine(enemyTarget.lifeBar);
+                        DisableLine(entity.lifeBar);
 
-                    FillUpdate(enemyTarget.lifeBar, (float)enemyTarget.hp, enemyTarget.hpMax);
+                    FillUpdate(entity.lifeBar, (float)entity.hp, entity.hpMax, null, force);
                 }
             }
+            else
+                DisableLine(hpLine);
 
-            if (enemyTarget.mp!=null)
+            if (entity.mp != null)
             {
-                // ДА! Тоже завязан показ на жизни
-                if (enemyTarget.mpMax>0 && ((enemyTarget.hp!=null && enemyTarget.hp>0) || (PlayerController.Player != null && enemyTarget.key == PlayerController.Player.key)))
+                // Мана завязана на признак жизни тем же правилом, что здоровье: гаснет у мёртвого чужого,
+                // остаётся видна у своего игрока (труп-раннер тратит ману так же, как и живой).
+                if (entity.mpMax > 0 && ((entity.hp != null && entity.hp > 0) || own))
                     EnableLine(mpLine);
                 else
                     DisableLine(mpLine);
 
-                FillUpdate(mpLine, (float)enemyTarget.mp, enemyTarget.mpMax, mpText);
+                FillUpdate(mpLine, (float)entity.mp, entity.mpMax, mpText, force);
             }
+            else
+                DisableLine(mpLine);
         }
 
         private void FillUpdate(Image line, float current, float max, Text text = null, bool force = false)

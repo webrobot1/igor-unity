@@ -36,7 +36,7 @@ namespace Mmogick
             {
                 if (_instance == null)
                 {
-                    _instance = FindObjectOfType<MainController>();
+                    _instance = FindFirstObjectByType<MainController>();
                 }
 
                 return _instance;
