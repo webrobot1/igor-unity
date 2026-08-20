@@ -117,26 +117,18 @@ namespace Mmogick
         }
 
         // Click по equipment-слоту: либо drop курсорного item (надеть), либо unequip (снять).
-        // Локальную валидацию equipable_slot НЕ делаем — сервер режет невалидное (см. CLAUDE.md).
+        // Надевание целиком (гард equipable_slot + отправка) держит EquipmentController.SendEquip —
+        // тем же путём идёт перетаскивание предмета на слот (Item.Use), и правило одно на оба.
         protected override void HandlePointerClick(PointerEventData eventData)
         {
             if (CursorController.MyMoveable != null && CursorController.MyMoveable is Item)
             {
                 Item dragging = (Item)CursorController.MyMoveable;
 
-                // Контракт ui/equip/index требует inventory_idx > 0 (item должен лежать в инвентаре).
-                if (dragging.SlotNum > 0)
+                // Команда не ушла (предмет не в инвентаре либо слот ему не положен) — курсор не
+                // отпускаем: игрок промахнулся, и вещь обязана остаться в руке.
+                if (EquipmentController.SendEquip(dragging, slotSlug))
                 {
-                    // Клиентская валидация: prefab.equipable_slot должен содержать этот slug.
-                    // Иначе сервер throws Error и дисконнектит клиента — защищаем UX.
-                    var allowed = AnimationCacheService.GetEquipableSlots(dragging.Prefab);
-                    if (allowed == null || !allowed.Contains(slotSlug))
-                        return;
-
-                    EquipmentResponse response = new EquipmentResponse();
-                    response.items[slotSlug] = dragging.SlotNum;
-                    response.Send();
-
                     // Отпускаем курсор — серверный cascade пришлёт обновления equip/inventory.
                     CursorController.MyMoveable = null;
                     EquipmentController.ClearHighlight();

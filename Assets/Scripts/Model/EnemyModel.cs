@@ -74,17 +74,16 @@ namespace Mmogick
         protected override void Awake()
         {
 			base.Awake();
-			if (lifeBar == null)
-				ConnectController.Error("Ну казкана LifeBar у префабов живых существ");
 
-			// скороет если при работе со сценой забыли скрыть (оно показается только при выделении на карте существа) 
+			// Error() не бросает — без return следующая строка разыменовала бы тот же null.
+			if (lifeBar == null)
+			{
+				ConnectController.Error("Не указана LifeBar у префаба живого существа " + name);
+				return;
+			}
+
+			// скороет если при работе со сценой забыли скрыть (оно показается только при выделении на карте существа)
 			TargetController.DisableLine(lifeBar);
-		}
-
-        protected void Start()
-		{		
-			if (lifeBar == null)
-				PlayerController.Error("Не найдено в группе поле статистики сущности "+key);
 		}
 
 		public override void SetData(EntityRecive recive)

@@ -204,17 +204,8 @@ namespace Mmogick
 		// его inventory наполняет InventoryController.
 		protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
 		{
-			CreatureComponentsRecive components = null;
-
-			if (key != player_key)
-			{
-				// components полиморфны (shadowed new): у player-группы Newtonsoft заполняет
-				// PlayerRecive.components, у entity-группы — CreatureRecive.components; loot лежит
-				// в общем базовом CreatureComponentsRecive, поэтому читаем через базовый тип.
-				components = recive is PlayerRecive playerRecive
-					? playerRecive.components
-					: ((CreatureRecive)recive).components;
-			}
+			// Разбор затенённых components — у них самих (CreatureComponentsRecive.Of).
+			CreatureComponentsRecive components = key != player_key ? CreatureComponentsRecive.Of(recive) : null;
 
 			GameObject prefab = base.UpdateObject(map_id, key, recive);
 

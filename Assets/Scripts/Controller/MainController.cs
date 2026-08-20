@@ -58,7 +58,7 @@ namespace Mmogick
                 return;
             }
 
-            if (fps == null)
+            if (map == null)
             {
                 Error("не присвоен Text для вывода номера карты");
                 return;

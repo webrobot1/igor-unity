@@ -230,8 +230,15 @@ namespace Mmogick
         private ObjectModel _shown;
 
         /// <summary>
-        /// Заклинания, которыми сетка набрана сейчас. Окно наполняется каждый кадр, а иконки — объекты:
-        /// пересобираем их, только когда состав действительно сменился.
+        /// Версия показанного (<see cref="EntityModel.Version"/>) на момент наполнения. Разошлась с
+        /// текущей — сущности пришли данные, и окно пересобирается. -1 — не наполняли.
+        /// </summary>
+        private int _shownVersion = -1;
+
+        /// <summary>
+        /// Заклинания, которыми сетка набрана сейчас. Окно наполняется на каждом пакете по цели, а
+        /// иконки — объекты: пересобираем их, только когда состав действительно сменился. Пакет о
+        /// движении меняет версию, но не состав, и таких пакетов больше всех.
         /// </summary>
         private readonly List<string> _spellsShown = new List<string>();
 
@@ -342,6 +349,7 @@ namespace Mmogick
                 if (_shown != null)
                 {
                     _shown = null;
+                    _shownVersion = -1;
                     infoPortrait.Target = null;
                 }
 
@@ -356,14 +364,20 @@ namespace Mmogick
                 return;
             }
 
-            // Наполняем каждый кадр, пока окно открыто: данные приезжают отдельными пакетами и после
-            // открытия — по одному лишь событию открытия окно осталось бы с неполными сведениями.
-            Fill(subject);
+            // По одному лишь событию открытия окно осталось бы с неполными сведениями: данные приезжают
+            // отдельными пакетами и ПОСЛЕ открытия. Но и каждый кадр пересобирать нечего — сведения окна
+            // меняет только пакет по этой сущности, а он двигает её версию (EntityModel.Version). Между
+            // пакетами данные неподвижны: существо вне чужого поля зрения стоит, и пакетов по нему не
+            // приходит вовсе — там пересчёт был бы работой вхолостую, да ещё и с мусором на каждый кадр.
+            // Сравнение носителя — ссылочное: сменившаяся цель пересобирает окно и при совпавшей версии.
+            if (!ReferenceEquals(_shown, subject) || _shownVersion != subject.Version)
+                Fill(subject);
         }
 
         private void Fill(ObjectModel target)
         {
             _shown = target;
+            _shownVersion = target.Version;
             infoPortrait.Target = target;
 
             infoName.text = target.DisplayName;
@@ -411,7 +425,7 @@ namespace Mmogick
         /// подписью — саму подпись (рядом остаётся значение), у строки-фразы — фразу целиком. Заменённое
         /// уходит в подсказку значка, и без неё картинка ничего бы не сказала. Взять её негде лишь у
         /// команды: компонента у неё нет, и такая строка всегда остаётся текстовой. Берём ИМЯ ФАЙЛА, а не
-        /// сам спрайт: перечень перебирается каждый кадр, чтение картинки же — работа для смены набора,
+        /// сам спрайт: перечень перебирается на каждом пакете, чтение картинки же — работа для смены набора,
         /// и делает её сам пункт списка.
         /// </summary>
         private static List<InfoRow> Collect(InfoLine[] lines, ObjectModel subject, out bool allTypical)
@@ -530,7 +544,8 @@ namespace Mmogick
 
         /// <summary>
         /// Область пунктов: гаснет вместе с пустым набором. Пункты — объекты, поэтому пересобираем их,
-        /// только когда набор действительно сменился: окно наполняется каждый кадр.
+        /// только когда набор действительно сменился: окно наполняется на каждом пакете по цели, а
+        /// большинство пакетов (движение) ни одной строки не меняет.
         /// </summary>
         private void FillArea(RectTransform area, InfoPoint prefab, string title,
             List<InfoRow> shown, List<InfoRow> already)
@@ -973,55 +988,15 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Срок словами. От минуты и дольше считаем минутами: «раз в 120 секунд» игрок в уме и так
-        /// переводит, а сроки у контейнеров и прочих долгих механик именно такие.
+        /// Срок словами: 1 секунду, 2 секунды, 5 секунд. От минуты и дольше считаем минутами
+        /// (1 минуту, 2,5 минуты, 5 минут): «раз в 120 секунд» игрок в уме и так переводит, а сроки
+        /// у контейнеров и прочих долгих механик именно такие.
         /// </summary>
         private static string Seconds(float value)
         {
-            if (value >= 60f)
-                return Minutes(value / 60f);
-
-            string count = Number(value);
-
-            if (value != Mathf.Floor(value))
-                return count + " секунды";
-
-            int tail = Mathf.Abs(Mathf.RoundToInt(value)) % 100;
-
-            if (tail >= 11 && tail <= 14)
-                return count + " секунд";
-
-            switch (tail % 10)
-            {
-                case 1: return count + " секунду";
-                case 2:
-                case 3:
-                case 4: return count + " секунды";
-                default: return count + " секунд";
-            }
-        }
-
-        /// <summary>Минуты с окончанием по числу: 1 минуту, 2 минуты, 5 минут, 2,5 минуты.</summary>
-        private static string Minutes(float value)
-        {
-            string count = Number(value);
-
-            if (value != Mathf.Floor(value))
-                return count + " минуты";
-
-            int tail = Mathf.Abs(Mathf.RoundToInt(value)) % 100;
-
-            if (tail >= 11 && tail <= 14)
-                return count + " минут";
-
-            switch (tail % 10)
-            {
-                case 1: return count + " минуту";
-                case 2:
-                case 3:
-                case 4: return count + " минуты";
-                default: return count + " минут";
-            }
+            return value >= 60f
+                ? Plural.Of(value / 60f, "минуту", "минуты", "минут")
+                : Plural.Of(value, "секунду", "секунды", "секунд");
         }
 
         /// <summary>Доля от целого — процентами: «четверть здоровья» игроку понятнее как «25%».</summary>
@@ -1033,24 +1008,7 @@ namespace Mmogick
         /// <summary>Расстояние клетками, с окончанием по числу: 1 клетка, 2 клетки, 5 клеток, 2,5 клетки.</summary>
         private static string Cells(float value)
         {
-            string count = Number(value);
-
-            if (value != Mathf.Floor(value))
-                return count + " клетки";
-
-            int tail = Mathf.Abs(Mathf.RoundToInt(value)) % 100;
-
-            if (tail >= 11 && tail <= 14)
-                return count + " клеток";
-
-            switch (tail % 10)
-            {
-                case 1: return count + " клетка";
-                case 2:
-                case 3:
-                case 4: return count + " клетки";
-                default: return count + " клеток";
-            }
+            return Plural.Of(value, "клетка", "клетки", "клеток");
         }
 
         /// <summary>

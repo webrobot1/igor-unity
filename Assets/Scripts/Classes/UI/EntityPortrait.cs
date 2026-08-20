@@ -75,11 +75,19 @@ namespace Mmogick
 			face_camera = transform.parent.GetComponent<Camera>();
 			spriteRender = GetComponent<SpriteRenderer>();
 
+			// Error() не бросает: без return портрет доехал бы до работы с этими null'ами
+			// (animator — в ApplyVisual, face_camera — в CameraUpdate).
 			if (animator == null)
+			{
 				PlayerController.Error("не наден компонент аниматор в портрете сущности " + name);
+				return;
+			}
 
 			if (face_camera == null)
+			{
 				PlayerController.Error("у портрета сущности " + name + " родительский объект не несёт камеру");
+				return;
+			}
 		}
 
 		/// <summary>

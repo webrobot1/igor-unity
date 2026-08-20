@@ -108,8 +108,12 @@ namespace Mmogick
 
         protected void CloseAllMenu(CanvasGroup canvasGroup = null)
         {
+            // Error() не бросает — без return обход ниже пошёл бы по тому же null.
             if (parentGroup == null)
+            {
                 Error("не присвоена группа объектов меню объекту UI");
+                return;
+            }
 
             // закроем все меню
             foreach (Transform child in parentGroup.transform)

@@ -80,11 +80,8 @@ namespace Mmogick
             // иконки для экипировки через GetItemBySlot.
             GameObject ret = base.UpdateObject(map_id, key, recive);
 
-            // Экипировка приходит на ЛЮБУЮ видимую сущность. У PlayerRecive поле components ЗАТЕНЯЕТ
-            // базовое (new PlayerComponentsRecive) — базовое остаётся пустым, потому тип разбираем явно.
-            Dictionary<string, EquipSlotRecive> equip = recive is PlayerRecive playerRecive
-                ? playerRecive.components?.equip
-                : (recive as CreatureRecive)?.components?.equip;
+            // Экипировка приходит на ЛЮБУЮ видимую сущность; разбор затенённых components — у них самих.
+            Dictionary<string, EquipSlotRecive> equip = CreatureComponentsRecive.Of(recive)?.equip;
 
             // Контракт сервера (см. base/components/equip.yaml):
             //   equip == null         — поля equip нет в delta = no-op (экипировку не трогать);
@@ -180,6 +177,34 @@ namespace Mmogick
                 else
                     slotUI.SetInventorySlotNum(0);
             }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Надеть предмет инвентаря в слот slug. Единственная точка надевания: путей к нему два —
+        /// клик по слоту экипировки (EquipmentSlot) и перетаскивание предмета на него (Item.Use), —
+        /// а правило у обоих одно, и разъехавшись, они пускали бы к серверу разное.
+        ///
+        /// Гард equipable_slot ЗЕРКАЛИТ серверную валидацию: невалидный слот сервер считает
+        /// контрактным нарушением и снимает игрока с карты, поэтому заведомо негодную команду не шлём.
+        /// Контракт ui/equip/index требует inventory_idx > 0 — предмет обязан лежать в инвентаре
+        /// (у вещи чужого контейнера SlotNum == 0, надеть её напрямую нельзя).
+        ///
+        /// false — команда НЕ ушла; вызывающему тогда нечего доделывать (курсор не отпускать).
+        /// </summary>
+        public static bool SendEquip(Item item, string slug)
+        {
+            if (item == null || item.SlotNum <= 0)
+                return false;
+
+            var allowed = AnimationCacheService.GetEquipableSlots(item.Prefab);
+            if (allowed == null || !allowed.Contains(slug))
+                return false;
+
+            EquipmentResponse response = new EquipmentResponse();
+            response.items[slug] = item.SlotNum;
+            response.Send();
 
             return true;
         }

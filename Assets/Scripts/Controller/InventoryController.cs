@@ -55,7 +55,6 @@ namespace Mmogick
         public Dictionary<string, Item> Items
         {
             get { return _items; }
-            set { }
         }
 
         protected override void Awake()
@@ -261,15 +260,7 @@ namespace Mmogick
         /// </summary>
         public static string Coins(int amount)
         {
-            int tens = amount % 100;
-            int ones = amount % 10;
-
-            string word = tens >= 11 && tens <= 14 ? "монет"
-                : ones == 1 ? "монета"
-                : ones >= 2 && ones <= 4 ? "монеты"
-                : "монет";
-
-            return amount + " " + word;
+            return Plural.Of(amount, "монета", "монеты", "монет");
         }
 
         // создает пустые ячейки инвентаря в количестве count

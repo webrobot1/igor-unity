@@ -157,22 +157,10 @@ namespace Mmogick
             }
             // Дроп на equipment-слот: отправляем ui/equip/index, не двигаем item локально
             // (item остаётся в inventory[SlotNum], серверный cascade обновит equip-компонент).
-            else if (obj != null && obj.GetComponentInParent<EquipmentSlot>())
+            // Гард и отправка — общие с кликом по слоту, см. EquipmentController.SendEquip.
+            else if (obj != null && obj.GetComponentInParent<EquipmentSlot>() is EquipmentSlot equipSlot)
             {
-                EquipmentSlot equipSlot = obj.GetComponentInParent<EquipmentSlot>();
-                if (SlotNum > 0)
-                {
-                    // Клиентская валидация: prefab.equipable_slot должен содержать целевой slug.
-                    // Иначе сервер throws Error и отключает клиента (контракт компонента equip).
-                    // Это не локальная валидация в обход сервера, а UX-защита от disconnect'а.
-                    var allowed = AnimationCacheService.GetEquipableSlots(Prefab);
-                    if (allowed == null || !allowed.Contains(equipSlot.SlotSlug))
-                        return;
-
-                    EquipmentResponse response = new EquipmentResponse();
-                    response.items[equipSlot.SlotSlug] = SlotNum;
-                    response.Send();
-                }
+                EquipmentController.SendEquip(this, equipSlot.SlotSlug);
             }
             // Дроп на слот инвентаря
             else if (obj != null && obj.GetComponentInParent<SlotScript>())

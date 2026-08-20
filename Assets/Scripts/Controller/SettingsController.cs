@@ -130,64 +130,62 @@ namespace Mmogick
             if (settings == null)
                 return;
 
+            foreach (Transform child in settingArea)
             {
-                foreach (Transform child in settingArea)
+                Destroy(child.gameObject);
+            }
+
+            _types = new Dictionary<string, string>();
+            foreach (var setting in settings)
+            {
+                GameObject prefab;
+                switch (setting.Value.type)
                 {
-                    Destroy(child.gameObject);
+                    case "checkbox":
+                        Toggle toggle;
+
+                        prefab = Instantiate(settingPrefabCheckbox, settingArea) as GameObject;
+                        toggle = prefab.GetComponentInChildren<Toggle>();
+                        toggle.onValueChanged.AddListener(delegate { CheckboxOnChange(setting.Key, toggle); });
+                    break;
+                    case "slider":
+                        Slider slider;
+
+                        prefab = Instantiate(settingPrefabScroll, settingArea) as GameObject;
+                        slider = prefab.GetComponentInChildren<Slider>();
+
+                        Text text = prefab.transform.Find("Value").GetComponent<Text>();
+
+                        if (setting.Value.min != null)
+                            slider.minValue = (float)setting.Value.min;
+                        if (setting.Value.max != null)
+                            slider.maxValue = (float)setting.Value.max;
+
+                        slider.onValueChanged.AddListener(delegate { ScrollOnChange(setting.Key, slider, text); });
+                    break;
+                    case "dropdown":
+                        Dropdown dropdown;
+
+                        prefab = Instantiate(settingPrefabDropdown, settingArea) as GameObject;
+                        dropdown = prefab.GetComponentInChildren<Dropdown>();
+
+                        List<string> list = new List<string>(setting.Value.values.Values);
+                        _lists[setting.Key] = new List<string>(setting.Value.values.Keys).ToArray();
+
+                        dropdown.ClearOptions();
+                        dropdown.AddOptions(list);
+                        dropdown.onValueChanged.AddListener(delegate { DropdownOnChange(setting.Key, dropdown); });
+                    break;
+                    default:
+                        Error("С сервера пришла настройка с остутвующим в клиенте типом " + setting.Value.type);
+                    return;
                 }
 
-                _types = new Dictionary<string, string>();
-                foreach (var setting in settings)
-                {
-                    GameObject prefab;
-                    switch (setting.Value.type)
-                    {
-                        case "checkbox":
-                            Toggle toggle;
+                prefab.name = setting.Key;
+                if (prefab.transform.Find("Title") != null && prefab.transform.Find("Title").GetComponent<Text>() != null)
+                    prefab.transform.Find("Title").GetComponent<Text>().text = setting.Value.title;
 
-                            prefab = Instantiate(settingPrefabCheckbox, settingArea) as GameObject;
-                            toggle = prefab.GetComponentInChildren<Toggle>();
-                            toggle.onValueChanged.AddListener(delegate { CheckboxOnChange(setting.Key, toggle); });
-                        break;
-                        case "slider":
-                            Slider slider;
-                            
-                            prefab = Instantiate(settingPrefabScroll, settingArea) as GameObject;
-                            slider = prefab.GetComponentInChildren<Slider>();
-
-                            Text text = prefab.transform.Find("Value").GetComponent<Text>();
-
-                            if (setting.Value.min != null)
-                                slider.minValue = (float)setting.Value.min;
-                            if (setting.Value.max != null)
-                                slider.maxValue = (float)setting.Value.max;
-
-                            slider.onValueChanged.AddListener(delegate { ScrollOnChange(setting.Key, slider, text); });
-                        break;
-                        case "dropdown":
-                            Dropdown dropdown;
-
-                            prefab = Instantiate(settingPrefabDropdown, settingArea) as GameObject;
-                            dropdown = prefab.GetComponentInChildren<Dropdown>();
-
-                            List<string> list = new List<string>(setting.Value.values.Values);
-                            _lists[setting.Key] = new List<string>(setting.Value.values.Keys).ToArray();
-
-                            dropdown.ClearOptions();
-                            dropdown.AddOptions(list);
-                            dropdown.onValueChanged.AddListener(delegate { DropdownOnChange(setting.Key, dropdown); });
-                        break;
-                        default:
-                            Error("С сервера пришла настройка с остутвующим в клиенте типом " + setting.Value.type);
-                        return;
-                    }
-
-                    prefab.name = setting.Key;
-                    if (prefab.transform.Find("Title") != null && prefab.transform.Find("Title").GetComponent<Text>() != null)
-                        prefab.transform.Find("Title").GetComponent<Text>().text = setting.Value.title;
-
-                    _types[setting.Key] = setting.Value.type;
-                }
+                _types[setting.Key] = setting.Value.type;
             }
         }
 

@@ -28,7 +28,6 @@ namespace Mmogick
         public ActionBar[] ActionBars
         {
             get { return _actionBars ?? Array.Empty<ActionBar>(); }
-            set { }
         }
 
         /// <summary>
@@ -142,7 +141,7 @@ namespace Mmogick
                             switch (action.Value.kind)
                             {
                                 case "":
-                                    _actionBars[action.Key - 1].Item = null;
+                                    barSlot.Item = null;
                                 break;
                                 case "spell":
                                     if (!Spells.ContainsKey(action.Value.id))
@@ -151,7 +150,7 @@ namespace Mmogick
                                         return null;
                                     }
 
-                                    _actionBars[action.Key - 1].Item = Spells[action.Value.id];
+                                    barSlot.Item = Spells[action.Value.id];
 
                                     Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
                                 break;
@@ -160,12 +159,12 @@ namespace Mmogick
                                     Item item = GetItemBySlot(slotNum);
                                     if (item != null)
                                     {
-                                        _actionBars[action.Key - 1].Item = item;
+                                        barSlot.Item = item;
                                         Log("Быстрая клавиша " + action.Key + ": обновили данные предметом из слота " + slotNum);
                                     }
                                     else
                                     {
-                                        _actionBars[action.Key - 1].Item = null;
+                                        barSlot.Item = null;
                                     }
                                 break;
                                 default:

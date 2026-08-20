@@ -38,10 +38,27 @@ namespace Mmogick
 
         private string _element;
 
+        /// <summary>
+        /// Стоимость применения в мане. Носитель — само число, надпись лишь его отражает.
+        ///
+        /// Обратный порядок (надпись как источник, разбор строки на каждом чтении) не годится сразу
+        /// по двум причинам. Стоимость спрашивают КАЖДЫЙ кадр — панель быстрых действий гасит по ней
+        /// недоступные иконки, — и разбор строки там стоит дороже самого значения. И он падает
+        /// разбором на пустой надписи: карточка, которую ещё не наполнили, несёт пустой Text, а
+        /// у собранного билда это уже не диагностика, а вылет.
+        /// </summary>
+        private int _manaCost;
+
         public override int ManaCost
         {
-            get { return int.Parse(mp.text); }
-            set { mp.text = value.ToString(); }
+            get { return _manaCost; }
+            set
+            {
+                _manaCost = value;
+
+                if (mp != null)
+                    mp.text = value.ToString();
+            }
         }
 
         public string Magic
@@ -118,14 +135,25 @@ namespace Mmogick
 
         protected override void Awake()
         {
+            // Error() не бросает: без return карточка доехала бы до работы с этими null'ами
+            // (title/description — в GetTooltipText, mp — в ManaCost).
             if (title == null)
+            {
                 ConnectController.Error("не найден объект title в для элемента Заклинания в книге");
+                return;
+            }
 
             if (description == null)
+            {
                 ConnectController.Error("не найден объект description в для элемента Заклинания в книге");
+                return;
+            }
 
             if (mp == null)
+            {
                 ConnectController.Error("не найден объект mana в для элемента Заклинания в книге");
+                return;
+            }
 
             base.Awake();
         }

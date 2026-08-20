@@ -93,7 +93,6 @@ namespace Mmogick
         public Dictionary<string, Spell> Spells
         {
             get { return _spells; }
-            set { }
         }
 
         protected override void Awake()

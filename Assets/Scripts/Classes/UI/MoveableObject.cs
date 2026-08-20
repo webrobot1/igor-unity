@@ -21,7 +21,6 @@ namespace Mmogick
         public Image Image
         {
             get { return image; }
-            set { }
         }
 
         /// <summary>

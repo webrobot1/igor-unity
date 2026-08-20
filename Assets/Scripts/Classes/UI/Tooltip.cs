@@ -26,17 +26,28 @@ namespace Mmogick
 
         void Awake()
         {
+            // Error() не бросает: без return строки ниже разыменовали бы те же null'ы
+            // (tooltipText — сразу, canvasGroup — в конце метода).
             if (canvasGroup == null)
+            {
                 ConnectController.Error("не указан CanvasGroup для Tooltip");
+                return;
+            }
 
             if (tooltipText == null)
+            {
                 ConnectController.Error("не указан Text для Tooltip");
+                return;
+            }
 
             rect = GetComponent<RectTransform>();
 
             width = tooltipText.GetComponent<LayoutElement>();
             if (width == null)
+            {
                 ConnectController.Error("не назначен LayoutElement на тексте подсказки — нечем ограничить её ширину");
+                return;
+            }
 
             canvasGroup.alpha = 0;
             canvasGroup.blocksRaycasts = false;

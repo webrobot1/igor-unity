@@ -40,21 +40,35 @@ namespace Mmogick
 
             targetFrame = GetComponentInParent<CanvasGroup>();
 
+            // Error() не бросает: без return следующая строка разыменовала бы тот же null,
+            // и вместо внятной жалобы игрок получал бы NRE.
             if (targetFrame == null)
+            {
                 PlayerController.Error("не наден компонент CanvasGroup в блоке информации о цели");
+                return;
+            }
 
             if (hpLine == null)
+            {
                 PlayerController.Error("не присвоен компонент Image жизней в в блоке информации о цели");
+                return;
+            }
 
             hpText = hpLine.GetComponentInChildren<Text>();
 
             if (mpLine == null)
+            {
                 PlayerController.Error("не присвоен компонент Image маны в блоке информации о цели");
+                return;
+            }
 
             mpText = mpLine.GetComponentInChildren<Text>();
 
             if (nameLabel == null)
+            {
                 PlayerController.Error("не присвоен Text имени в блоке информации о цели");
+                return;
+            }
 
             Target = null;
         }
