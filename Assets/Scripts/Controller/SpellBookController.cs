@@ -42,7 +42,7 @@ namespace Mmogick
         /// </summary>
         public static JObject ElementDirectory(string section)
         {
-            JObject directory = AnimationCacheService.GetComponentDefault(COMPONENT_SPELL_BOOK) as JObject;
+            JObject directory = ComponentCacheService.GetDefault(COMPONENT_SPELL_BOOK) as JObject;
 
             return directory != null ? directory[section] as JObject : null;
         }

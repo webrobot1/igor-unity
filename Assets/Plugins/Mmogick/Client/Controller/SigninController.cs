@@ -197,6 +197,20 @@ namespace Mmogick
 					yield break;
 				}
 
+				// Справочник компонентов игры — свой канал (компонент к анимации отношения не имеет): умолчания
+				// значений, состав видов, иконки. До кеша анимаций: цепочка разрешения значения у префаба
+				// (AnimationCacheService.GetComponentValue) последним звеном берёт умолчание отсюда.
+				// При ошибке чистим свой кеш, как у тайлов и анимаций: справочник едет дельтой, и рассинхрон
+				// сам себя вылечит полным ресинком на следующем заходе.
+				LoadingScreen.SetStage(LoadingScreen.Stage.Components);
+				yield return StartCoroutine(ComponentCacheService.Sync(SERVER, GAME_ID, data.token, err => syncError = err));
+				if (syncError != null)
+				{
+					ComponentCacheService.ResetCache(GAME_ID);
+					Error(syncError);
+					yield break;
+				}
+
 				// Аналогично для анимаций: ZIP картинок (sha256.ext) + per-game library overrides
 				yield return StartCoroutine(AnimationCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err,
 					part => LoadingScreen.SetStage(LoadingScreen.Stage.Animations, part)));

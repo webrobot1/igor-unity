@@ -24,6 +24,10 @@ namespace Mmogick
 	//   files.json                    — animationId → idx → sha256.ext (берётся из _files.json в ZIP)
 	//   library.json                  — prefab.slug → PrefabEntry (дельта-мёрж по ?since, removal по списку all)
 	//   sync.json                     — manifest (archive_last_modified, animation_versions: {id: ts})
+	//
+	// Справочник компонентов игры (умолчания, состав видов, иконки) приходит СВОИМ каналом и живёт
+	// в ComponentCacheService: компонент — элемент игры, не анимации. Здесь он нужен последним звеном
+	// цепочки разрешения значения у префаба (GetComponentValue) и именем файла иконки (GetComponentSprite).
 	public static class AnimationCacheService
 	{
 		[DllImport("__Internal")]
@@ -51,9 +55,6 @@ namespace Mmogick
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
 
-		// Справочник компонентов игры: component.slug → умолчание + виды. На диск не пишется намеренно —
-		// сервер шлёт его целиком при каждой синхронизации, и файл был бы второй копией, живущей своей жизнью.
-		private static Dictionary<string, ComponentEntry> _components;
 		private static Dictionary<int, Dictionary<int, string>> _files;              // animationId → idx → sha256.ext
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
@@ -422,10 +423,13 @@ namespace Mmogick
 			if (e.component_value != null)
 				names.AddRange(e.component_value.Keys);
 
-			if (_components != null && !string.IsNullOrEmpty(e.kind))
-				foreach (var kv in _components)
-					if (kv.Value != null && kv.Value.kind != null && kv.Value.kind.Contains(e.kind) && !names.Contains(kv.Key))
-						names.Add(kv.Key);
+			if (!string.IsNullOrEmpty(e.kind))
+				foreach (string slug in ComponentCacheService.GetSlugs())
+				{
+					var kinds = ComponentCacheService.GetKinds(slug);
+					if (kinds != null && kinds.Contains(e.kind) && !names.Contains(slug))
+						names.Add(slug);
+				}
 
 			return names;
 		}
@@ -456,9 +460,9 @@ namespace Mmogick
 
 				// Умолчание действует, только если компонент положен ВИДУ этого prefab'а: у чужого вида
 				// значения быть не должно, иначе предмет получил бы свойство существа.
-				if (_components != null && _components.TryGetValue(component, out ComponentEntry entry)
-					&& entry != null && entry.kind != null && !string.IsNullOrEmpty(e.kind) && entry.kind.Contains(e.kind))
-					return entry.@default;
+				var kinds = ComponentCacheService.GetKinds(component);
+				if (kinds != null && !string.IsNullOrEmpty(e.kind) && kinds.Contains(e.kind))
+					return ComponentCacheService.GetDefault(component);
 			}
 
 			return null;
@@ -491,49 +495,14 @@ namespace Mmogick
 			return values;
 		}
 
-		// Умолчание компонента игры из справочника по его slug — значение, одинаковое для всех, кому
-		// компонент положен. Точечный GetComponentValue сюда не годится: он резолвит значение ДЛЯ
-		// prefab'а и умолчание отдаёт лишь тому, чьему виду компонент положен, — а справочное значение
-		// бывает нужно из компонента, которого у самого prefab'а нет вовсе.
-		// Контракт по _library тот же, что у GetComponentValue — throw на _library==null (вызов до SyncAll).
-		// null — компонента нет в справочнике либо умолчания у него нет: легитимное отсутствие,
-		// вызывающий решает сам.
-		public static JToken GetComponentDefault(string component)
-		{
-			if (_library == null)
-				throw new InvalidOperationException("AnimationCacheService.GetComponentDefault вызван до SyncAll (_library == null). component=" + component);
-			if (string.IsNullOrEmpty(component))
-				return null;
-
-			return _components != null && _components.TryGetValue(component, out ComponentEntry entry) && entry != null
-				? entry.@default : null;
-		}
-
-		// Имя файла иконки компонента в общем архиве картинок игры — том же, откуда берутся спрайты
-		// предметов. Справочник отдаёт его готовым (у entry префаба клиент склеивает имя сам из
-		// sha256+extension; тут склеивать нечего — второго применения у частей нет).
-		// null — иконки у компонента нет либо самого компонента в справочнике нет: легитимное отсутствие,
-		// показ рисует компонент как рисовал. Контракт по _library тот же, что у GetComponentDefault
-		// (throw на _library==null — вызов до SyncAll).
-		public static string GetComponentImage(string component)
-		{
-			if (_library == null)
-				throw new InvalidOperationException("AnimationCacheService.GetComponentImage вызван до SyncAll (_library == null). component=" + component);
-			if (string.IsNullOrEmpty(component))
-				return null;
-
-			return _components != null && _components.TryGetValue(component, out ComponentEntry entry)
-				&& entry != null && !string.IsNullOrEmpty(entry.image) ? entry.image : null;
-		}
-
 		// Готовый Sprite иконки компонента — пара к GetPrefabSprite: то же чтение картинки из локального
 		// кеша, только имя файла берётся из справочника компонентов, а не из entry префаба.
 		// null — иконки у компонента нет либо картинка битая (битый кеш чистится TryGetSprite,
 		// перекачается на следующем sync); показу этого довольно, чтобы остаться текстовым.
-		// Контракт по _library — через GetComponentImage (throw на вызове до SyncAll).
+		// Контракт по справочнику — через ComponentCacheService.GetImage (throw на вызове до его загрузки).
 		public static Sprite GetComponentSprite(int gameId, string component)
 		{
-			string imageFile = GetComponentImage(component);
+			string imageFile = ComponentCacheService.GetImage(component);
 			if (imageFile == null) return null;
 			try { return TryGetSprite(gameId, imageFile); }
 			catch (Exception ex) { Debug.LogWarning("GetComponentSprite '" + component + "': " + ex.Message); return null; }
@@ -986,26 +955,7 @@ namespace Mmogick
 		{
 			public Dictionary<string, PrefabEntry> items;  // только изменившиеся с since (slug → entry)
 			public List<string> all;                       // все текущие slug игры (для детекции удалений)
-			public Dictionary<string, ComponentEntry> component;  // справочник компонентов игры, шлётся целиком
 			public long version;                            // max updated отданных items — клиент шлёт как since далее
-		}
-
-		/// <summary>
-		/// Компонент игры в справочнике: умолчание значения и виды, которым компонент положен. Умолчание —
-		/// последнее звено цепочки «своё у экземпляра → заданное префабу → умолчание компонента»; в записях
-		/// префабов его нет, иначе одно значение размножилось бы по всем записям вида.
-		/// </summary>
-		[Serializable]
-		public class ComponentEntry
-		{
-			public JToken @default;
-			public List<string> kind;
-
-			/// <summary>
-			/// Иконка компонента: имя файла в общем архиве картинок игры (том же, откуда берутся спрайты
-			/// предметов) — готовым, склеивать из частей тут нечего. null — иконки у компонента нет.
-			/// </summary>
-			public string image;
 		}
 
 		// Дельта-синхронизация библиотеки prefab'ов. Мёржит изменившиеся entry в _library и удаляет slug'и,
@@ -1053,10 +1003,6 @@ namespace Mmogick
 					if (!keep.Contains(slug)) toRemove.Add(slug);
 				foreach (var slug in toRemove) _library.Remove(slug);
 			}
-
-			// Справочник компонентов приходит целиком (не дельтой) — замещаем прежний.
-			if (parsed.component != null)
-				_components = parsed.component;
 
 			_manifest.prefab_version = parsed.version;
 			Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed + ", всего " + _library.Count);

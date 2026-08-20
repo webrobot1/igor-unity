@@ -80,13 +80,16 @@ namespace Mmogick
             new InfoLine(EnemyModel.COMPONENT_ASSIST, null,
                 (value, pair) => value > 0 ? "Получив урон, зовёт сородичей на помощь. Радиус — " + Cells(value) : null),
 
-            new InfoLine(GROUP_REGENERATION_HP, null,
-                (period, amount) => Recovery("здоровья", period, amount),
-                pairKey: DATA_LIFE, source: InfoSource.Command),
+            // Значок берём у запаса, который прибывает: команда своего значка не имеет, а сердце и
+            // жемчужина называют прибывающее короче любой подписи. Подпись при этом остаётся — на неё
+            // строка возвращается, если картинка не встала, и ею же читается подсказка.
+            new InfoLine(GROUP_REGENERATION_HP, "Восстановление здоровья",
+                Recovery,
+                pairKey: DATA_LIFE, source: InfoSource.Command, iconKey: EnemyModel.COMPONENT_HP),
 
-            new InfoLine(GROUP_REGENERATION_MP, null,
-                (period, amount) => Recovery("маны", period, amount),
-                pairKey: DATA_MANA, source: InfoSource.Command),
+            new InfoLine(GROUP_REGENERATION_MP, "Восстановление маны",
+                Recovery,
+                pairKey: DATA_MANA, source: InfoSource.Command, iconKey: EnemyModel.COMPONENT_MP),
 
             // Срок пополнения контейнера: через него сундук и лавка возвращают вынесенное к заданному
             // виду составу. Величины у команды нет — она приводит состав целиком, а не добавляет по
@@ -432,8 +435,14 @@ namespace Mmogick
                 if (string.IsNullOrEmpty(text))
                     continue;
 
-                string icon = line.Source == InfoSource.Component
-                    && AnimationCacheService.GetComponentImage(line.Key) != null ? line.Key : null;
+                // Значок строки: свой компонент либо названный ею чужой (запас у строки восстановления).
+                // У строки команды без такого имени значка не бывает — рассказывать о себе ей нечем, кроме
+                // самой фразы.
+                string iconKey = line.IconKey ?? (line.Source == InfoSource.Component ? line.Key : null);
+                string icon = iconKey != null && ComponentCacheService.GetImage(iconKey) != null ? iconKey : null;
+                // Значок заимствован — строка про прибыль этого запаса, и на значке встаёт стрелка роста:
+                // сердце без неё говорило бы «здоровье», а не «здоровье прибывает».
+                bool gain = line.IconKey != null;
 
                 string full = line.Title != null ? line.Title + ": " + text : text;
 
@@ -445,10 +454,18 @@ namespace Mmogick
                 else
                     allTypical = false;
 
-                string hint = icon == null ? null
-                    : line.Title != null ? TextStyle.Title(line.Title) : full;
+                // Части подсказки готовим здесь, склеивает их сам пункт: что именно он не показал —
+                // ведомо только ему, а собирать текст на месте нечем (правило сборки живёт тут).
+                // Подпись зашита в клиент и называет свойство одним словом; смысл живёт у самого элемента
+                // игры и правится в админке, потому под подписью идёт его описание.
+                // Описание берём лишь у строки про САМ компонент: у строки восстановления значок
+                // заимствован, и описание запаса объясняло бы не её.
+                string caption = icon != null && line.Title != null ? TextStyle.Title(line.Title) : null;
+                string about = icon != null && line.Source == InfoSource.Component
+                    ? ComponentCacheService.GetDescription(line.Key) : null;
 
-                shown.Add(new InfoRow(full, text, icon, hint));
+                shown.Add(new InfoRow(full, text, icon, caption,
+                    string.IsNullOrEmpty(about) ? null : TextStyle.Hint(about), gain));
             }
 
             return shown;
@@ -944,14 +961,14 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Восстановление: как часто и по сколько за раз. Величина едет вместе с самой командой; не
-        /// приехала — говорим об одной частоте. Своей единицы клиент не подставляет: сколько
-        /// прибавляется, решает сервер, и выдуманное число соврало бы молча.
+        /// Восстановление: как часто и по сколько за раз. Что именно прибывает, говорит сама строка —
+        /// её подпись и значок запаса, — поэтому здесь только числа. Величина едет вместе с самой
+        /// командой; не приехала — говорим об одной частоте. Своей единицы клиент не подставляет:
+        /// сколько прибавляется, решает сервер, и выдуманное число соврало бы молча.
         /// </summary>
-        private static string Recovery(string what, float period, float? amount)
+        private static string Recovery(float period, float? amount)
         {
-            return "Восстановление " + what + ": "
-                + (amount != null ? "+" + Number(amount.Value) + " " : "")
+            return (amount != null ? TextStyle.Gain("↑" + Number(amount.Value)) + " " : "")
                 + "раз в " + Seconds(period);
         }
 

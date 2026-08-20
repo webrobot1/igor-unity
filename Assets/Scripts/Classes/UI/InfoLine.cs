@@ -71,6 +71,15 @@ namespace Mmogick
         /// </summary>
         public readonly bool OwnOnly;
 
+        /// <summary>
+        /// Компонент, чей значок стоит у строки, когда сама строка про другое: восстановление здоровья
+        /// показывает сердце, восстановление маны — жемчужину, хотя значение обеим даёт команда. null —
+        /// строка берёт значок у своего же компонента, а строке команды значка тогда не полагается вовсе.
+        /// Взятый значок называет ЧТО прибывает, подсказка же остаётся о самой строке: описание чужого
+        /// компонента объясняло бы запас, а не его восстановление.
+        /// </summary>
+        public readonly string IconKey;
+
         public InfoLine(
             string key,
             string title,
@@ -78,7 +87,8 @@ namespace Mmogick
             string pairKey = null,
             InfoSource source = InfoSource.Component,
             Func<ObjectModel, float?> observed = null,
-            bool ownOnly = false)
+            bool ownOnly = false,
+            string iconKey = null)
         {
             Source = source;
             Key = key;
@@ -87,6 +97,7 @@ namespace Mmogick
             PairKey = pairKey;
             Observed = observed;
             OwnOnly = ownOnly;
+            IconKey = iconKey;
         }
     }
 }

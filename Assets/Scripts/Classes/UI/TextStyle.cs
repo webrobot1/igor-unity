@@ -29,6 +29,15 @@ namespace Mmogick
         /// </summary>
         public static string Hint(string text) { return "<i>" + text + "</i>"; }
 
+        /// <summary>Цвет прибавки — им же помечен прирост в строках восстановления.</summary>
+        private const string GAIN_COLOR = "#45C845";
+
+        /// <summary>
+        /// Прибавка: сколько прибывает за раз. Цветом отделена от прочего текста строки — сама величина
+        /// без пометки читается наравне с числами срока, а прибывающее и период — разные вещи.
+        /// </summary>
+        public static string Gain(string text) { return "<color=" + GAIN_COLOR + ">" + text + "</color>"; }
+
         /// <summary>Строка-значение: цена, стоимость маны, количество.</summary>
         public static string Value(string text) { return "<b><color=" + MONEY_COLOR + ">" + text + "</color></b>"; }
 
