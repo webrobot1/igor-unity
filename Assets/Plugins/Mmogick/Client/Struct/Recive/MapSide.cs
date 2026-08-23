@@ -22,6 +22,11 @@ namespace Mmogick
 		public float width;
 		public float height;
 
+		/// <summary>
+		/// Доступность локации: сервер шлёт её сменой состояния, до первого опроса соседа считает доступной.
+		/// </summary>
+		public bool ready;
+
 		new public string ToString()
 		{
 			return x + "," + y;

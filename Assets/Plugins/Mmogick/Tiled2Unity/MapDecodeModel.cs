@@ -64,11 +64,20 @@ namespace Mmogick
 			return created;
 		}
 
-		public static MapDecode generate(string json, Transform grid, int gameId)
+		/// <summary>
+		/// Разбор скачанной карты (terrain.json). Отдельно от сборки на сцене: разметка карты нужна и без
+		/// неё — обзорная карта мира берёт переходы у карт, которых сейчас в сцене нет вовсе.
+		/// </summary>
+		public static Map parse(string json)
 		{
 			// Канон сервера: sandbox-скаляры приходят всегда, включая null (null ≡ отсутствие ≡ дефолт).
 			// Ignore не даёт Newtonsoft писать null в не-nullable поля — null оставляет дефолт поля.
-			Map map = JsonConvert.DeserializeObject<Map>(json, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+			return JsonConvert.DeserializeObject<Map>(json, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+		}
+
+		public static MapDecode generate(string json, Transform grid, int gameId)
+		{
+			Map map = parse(json);
 
 			// grid.localPosition здесь НЕ трогаем: MapController.SortMap выставляет его сразу после generate
 			// (позиция карты в открытом мире + TILE_OFFSET). Прежняя установка -0.5 тут была мёртвой (затиралась).
@@ -114,6 +123,10 @@ namespace Mmogick
 			string spawnLayerName = null;
 			if (map.property != null && map.property.TryGetValue("spawn", out LayerProperty spawnProp))
 				spawnLayerName = spawnProp.value;
+
+			// Имя слоя, который слоем-землёй ФАКТИЧЕСКИ стал: названный картой слой у неё может и не найтись,
+			// и тогда индекс подставляется запасной. Наружу (MapDecode.spawn) уходит только найденное.
+			string spawnLayerFound = null;
 
 			int sort = 0;
 
@@ -203,6 +216,20 @@ namespace Mmogick
 				{
 					Debug.Log(layer.name + "- слой Земля (spawn)");
 					map.spawn_sort = sort;
+					spawnLayerFound = layer.name;
+
+					// Слой-земля делит порядок отрисовки с существами (spawn_sort уходит им в SortingGroup,
+					// см. MapController.SortMap), а внутри одного порядка их разводит ось прозрачной
+					// сортировки камеры: она вычитает глубину из высоты, и кто по этой мере дальше, тот
+					// позади. Точка сортировки тайла — низ его картинки, то есть НИЖНИЙ край клетки, и там
+					// же стоит сущность этой клетки: та привязана ногами (см. MapController.TILE_OFFSET).
+					// Ничья — порядок неопределён, и объект слоя-земли накрывал стоящего в его клетке
+					// целиком. Уводим слой по глубине на ПОЛКЛЕТКИ: его точка сортировки уезжает в
+					// СЕРЕДИНУ клетки, туда же встаёт граница «перед/за» — в нижней половине клетки
+					// существо перед объектом, в верхней уже за ним.
+					// Двигаем сторону КАРТЫ: глубина сущности занята игровым уровнем, приходящим с сервера
+					// (EntityModel.SetData), сдвиг существ сломал бы уровни.
+					newLayer.transform.localPosition = new Vector3(0f, 0f, -tilemap.cellSize.y * 0.5f);
 				}
 
 				if (map.spawn_sort == null)
@@ -242,6 +269,7 @@ namespace Mmogick
 
 			MapDecode decoded = new MapDecode(map);
 			decoded.colliders = colliders;   // per-map коллайдеры (не общий статик — см. MapDecode.colliders)
+			decoded.spawn = spawnLayerFound; // имя слоя-земли; пусто — индекс подставлен запасной (см. MapDecode.spawn)
 			return decoded;
 		}
 
@@ -488,14 +516,16 @@ namespace Mmogick
 		/// Рисует контур одного объекта-разметки линиями (LineRenderer) в системе координат grid'а — той же,
 		/// что тайлы и DebugGrid (grid уже сдвинут на TILE_OFFSET в MapController.SortMap, объект — его потомок).
 		///
-		/// Координаты объекта приходят в ПИКСЕЛЯХ в серверной convention (anchor = top-left, y+ вверх, y вниз
-		/// отрицателен). Перевод в клетки — деление на размер клетки; якорь (x/tw, y/th) совпадает с SetTile
-		/// тайл-объектов, прямоугольник растёт от якоря вверх-вправо (+width/+height), как pivot(0,0)-спрайт
-		/// тайла заполняет клетку. Формы: polygon/ellipse/rect — замкнутый контур, polyline — незамкнутый.
+		/// Координаты объекта приходят в ПИКСЕЛЯХ в серверной convention: якорь — ЛЕВЫЙ ВЕРХНИЙ угол,
+		/// ось Y смотрит вверх, ряды идут от якоря ВНИЗ. Площадь в клетках считает <see cref="WarpMarker.Area"/> —
+		/// один счёт на весь клиент, иначе контур показывал бы не то место, где горит метка перехода и где
+		/// сервер держит преграду. Формы: polygon/ellipse/rect — замкнутый контур, polyline — незамкнутый.
 		/// Точки polygon/polyline — относительно якоря объекта.
 		/// </summary>
 		private static void DrawDebugObject(Transform parent, Transform labelParent, Font font, LayerObject obj, int tw, int th, Material mat, int sortingOrder)
 		{
+			Rect area = WarpMarker.Area(obj, tw, th);
+
 			float ox = obj.x / tw;
 			float oy = obj.y / th;
 
@@ -515,25 +545,21 @@ namespace Mmogick
 			}
 			else if (obj.ellipse)
 			{
-				float rx = obj.width / tw / 2f;
-				float ry = obj.height / th / 2f;
-				float cx = ox + rx;
-				float cy = oy + ry;
+				float rx = area.width / 2f;
+				float ry = area.height / 2f;
 				const int seg = 24;
 				for (int i = 0; i < seg; i++)
 				{
 					float a = (float)i / seg * Mathf.PI * 2f;
-					pts.Add(new Vector3(cx + Mathf.Cos(a) * rx, cy + Mathf.Sin(a) * ry, 0));
+					pts.Add(new Vector3(area.center.x + Mathf.Cos(a) * rx, area.center.y + Mathf.Sin(a) * ry, 0));
 				}
 			}
 			else
 			{
-				float w = obj.width / tw;
-				float h = obj.height / th;
-				pts.Add(new Vector3(ox, oy, 0));
-				pts.Add(new Vector3(ox + w, oy, 0));
-				pts.Add(new Vector3(ox + w, oy + h, 0));
-				pts.Add(new Vector3(ox, oy + h, 0));
+				pts.Add(new Vector3(area.xMin, area.yMin, 0));
+				pts.Add(new Vector3(area.xMax, area.yMin, 0));
+				pts.Add(new Vector3(area.xMax, area.yMax, 0));
+				pts.Add(new Vector3(area.xMin, area.yMax, 0));
 			}
 
 			GameObject go = new GameObject(string.IsNullOrEmpty(obj.name) ? "object" : obj.name);
@@ -568,9 +594,10 @@ namespace Mmogick
 				RectTransform rt = lbl.rectTransform;
 				rt.sizeDelta = new Vector2(200f, 40f);
 				rt.localScale = Vector3.one * 0.03f;
-				// Верх контура: у прямоугольника oy+h, у прочих форм — сам якорь (pts уже подняты геометрией).
-				float topY = (obj.polygon == null && obj.polyline == null && !obj.ellipse) ? oy + obj.height / th : oy;
-				rt.localPosition = new Vector3(ox, topY + 0.15f, 0f);
+				// Верх контура: у прямоугольника и эллипса — верх площади, у polygon/polyline сам якорь
+				// (их точки подняты собственной геометрией).
+				float topY = (obj.polygon == null && obj.polyline == null) ? area.yMax : oy;
+				rt.localPosition = new Vector3(area.xMin, topY + 0.15f, 0f);
 			}
 		}
 

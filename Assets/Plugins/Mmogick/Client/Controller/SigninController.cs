@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using UnityEngine.Networking;
@@ -246,6 +246,18 @@ namespace Mmogick
 				ConnectController.step = data.step;
 				ConnectController.position_precision = data.position_precision;
 				ConnectController.server_fps = data.fps;
+
+				// Геометрия упора в преграду: ею клиент повторяет серверный расчёт шага и отличает глухой упор
+				// от места, где серверу ещё есть куда шагнуть. По контракту оба поля приходят всегда и строго
+				// больше нуля (см. SigninRecive) — иначе клиент считал бы шаг по чужой геометрии молча.
+				if (data.creep_depth <= 0)
+					throw new System.Exception("Сервер не отдал поле 'creep_depth' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
+
+				if (data.corner_offset <= 0)
+					throw new System.Exception("Сервер не отдал поле 'corner_offset' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
+
+				ConnectController.creep_depth = data.creep_depth;
+				ConnectController.corner_offset = data.corner_offset;
 
 				// До Connect: карта приходит следом, и её разбор уже должен знать, что помечать свечением.
 				ConnectController.warp_class = data.warp;

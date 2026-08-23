@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -8,6 +9,8 @@ namespace Mmogick
 	/// <summary>
 	/// Держит полупрозрачное «окно» вокруг сущностей в тех слоях карты, которые их перекрывают
 	/// (кроны деревьев, крыши): зашедший под них игрок, моб или лежащий предмет не теряется из вида.
+	/// Метки переходов (WarpMarker) окно получают наравне с сущностями: метка лежит на земле, и дверной
+	/// проём под аркой перекрывает её так же, как крона перекрывает игрока.
 	///
 	/// Слой перекрывает сущность ⟺ его порядок отрисовки больше порядка сущности
 	/// (spawn_sort + серверный sort, см. UpdateController). Порог берётся у КАЖДОЙ сущности из её
@@ -43,13 +46,32 @@ namespace Mmogick
 		private static Material _material;
 		private static bool _materialMissing;
 
+		/// <summary>
+		/// Ширина мягкого края окна в клетках — берётся у материала, а не задаётся здесь вторым числом:
+		/// шейдер растушёвывает край ВНУТРЬ радиуса, и радиус окна метки считается с этим запасом.
+		/// </summary>
+		private static float _softness;
+
 		private static readonly Vector4[] _centers = new Vector4[MaxCenters];
 		private static readonly List<Vector4> _found = new List<Vector4>();
+		private static readonly List<Vector4> _foundWarps = new List<Vector4>();
+
+		/// <summary>Точка, от которой меряется удаление при отсечении лишних окон (центр кадра).</summary>
+		private static Vector2 _sortCenter;
+
+		/// <summary>
+		/// Готовый компаратор — статикой, а не лямбдой по месту: сортировка идёт в кадре, а замыкание
+		/// над центром кадра давало бы мусор каждый кадр (см. «Замер производительности клиента»).
+		/// </summary>
+		private static readonly Comparison<Vector4> ByDistanceToCenter = (a, b) =>
+			new Vector2(a.x - _sortCenter.x, a.y - _sortCenter.y).sqrMagnitude
+				.CompareTo(new Vector2(b.x - _sortCenter.x, b.y - _sortCenter.y).sqrMagnitude);
 
 		private static readonly int CentersId    = Shader.PropertyToID("_XrayCenters");
 		private static readonly int CountId      = Shader.PropertyToID("_XrayCount");
 		private static readonly int LayerOrderId = Shader.PropertyToID("_LayerOrder");
 		private static readonly int ColorId      = Shader.PropertyToID("_Color");
+		private static readonly int SoftnessId   = Shader.PropertyToID("_XraySoftness");
 
 		private Transform _world;
 		private Camera _cam;
@@ -117,13 +139,16 @@ namespace Mmogick
 				Debug.LogError("TilemapXray: не найден Resources/" + MaterialResource + ".mat (шейдер Mmogick/TilemapXray) — "
 					+ "сущности под кронами и крышами останутся невидимыми");
 			}
+			else
+				_softness = _material.GetFloat(SoftnessId);
 
 			return _material;
 		}
 
 		/// <summary>
-		/// Собирает центры окон по видимым сущностям и отдаёт их шейдеру. LateUpdate — после того как
-		/// сущности и камера доехали в свои позиции этого кадра, иначе окно отстаёт от тела на кадр.
+		/// Собирает центры окон по видимым сущностям и меткам переходов и отдаёт их шейдеру. LateUpdate —
+		/// после того как сущности и камера доехали в свои позиции этого кадра, иначе окно отстаёт от тела
+		/// на кадр.
 		/// </summary>
 		private void LateUpdate()
 		{
@@ -136,6 +161,7 @@ namespace Mmogick
 				return;
 
 			_found.Clear();
+			_foundWarps.Clear();
 
 			foreach (Transform map in _world)
 			{
@@ -150,33 +176,84 @@ namespace Mmogick
 						continue;
 
 					Vector3 position = child.position;
-					Vector3 viewport = _cam.WorldToViewportPoint(position);
-					if (viewport.z < 0
-						|| viewport.x < -ViewMargin || viewport.x > 1 + ViewMargin
-						|| viewport.y < -ViewMargin || viewport.y > 1 + ViewMargin)
+					if (!IsOnScreen(position))
 						continue;
 
 					_found.Add(new Vector4(position.x, position.y + CenterOffsetY, group.sortingOrder, Radius));
 				}
 			}
 
-			// Окон больше лимита — оставляем ближние к центру экрана: свой игрок там всегда (камера
-			// следует за ним), а дальние сущности теряются на краю кадра и без окна.
-			if (_found.Count > MaxCenters)
+			// Метки переходов лежат в самой карте, а не в World, поэтому идут отдельным проходом — тем же,
+			// каким их обходит радар (MinimapController.DrawWarps). Компонент живёт на контейнере карт,
+			// значит transform и есть контейнер.
+			foreach (Transform map in transform)
 			{
-				Vector3 center = _cam.transform.position;
-				_found.Sort((a, b) =>
-					new Vector2(a.x - center.x, a.y - center.y).sqrMagnitude
-						.CompareTo(new Vector2(b.x - center.x, b.y - center.y).sqrMagnitude));
+				Transform warps = map.Find(WarpMarker.LAYER);
+				if (warps == null)
+					continue;   // игра переходами по разметке не пользуется либо карта ещё строится
+
+				foreach (Transform warp in warps)
+				{
+					SpriteRenderer marker = warp.GetComponent<SpriteRenderer>();
+					if (marker == null || !warp.gameObject.activeInHierarchy)
+						continue;
+
+					Bounds area = marker.bounds;
+					if (!IsOnScreen(area.center))
+						continue;
+
+					// Переход — площадь на полу, а не силуэт на ногах: центр берём у самой площади, радиус —
+					// по описанной вокруг неё окружности, чтобы окно накрыло метку целиком и на широком
+					// проходе. Плюс растушёвка: её шейдер съедает внутрь радиуса.
+					_foundWarps.Add(new Vector4(area.center.x, area.center.y, marker.sortingOrder,
+						area.extents.magnitude + _softness));
+				}
 			}
 
-			int count = Mathf.Min(_found.Count, MaxCenters);
-			for (int i = 0; i < MaxCenters; i++)
-				_centers[i] = i < count ? _found[i] : Vector4.zero;
+			_sortCenter = _cam.transform.position;
+
+			// Слоты сущностям достаются первыми: под крышей теряется управляемое тело, а метка перехода —
+			// неподвижная подсказка на полу, её потеря стоит дешевле. Метки добирают остаток.
+			int count = Fill(_found, 0);
+			count = Fill(_foundWarps, count);
+
+			for (int i = count; i < MaxCenters; i++)
+				_centers[i] = Vector4.zero;
 
 			// Массив шлём целиком всегда: длину глобального массива Unity фиксирует по первому вызову.
 			Shader.SetGlobalVectorArray(CentersId, _centers);
 			Shader.SetGlobalInt(CountId, count);
+		}
+
+		/// <summary>
+		/// Переносит найденные окна в массив шейдера начиная с позиции from и возвращает новую границу
+		/// заполненного. Свободных слотов меньше найденного — оставляем ближние к центру кадра: свой игрок
+		/// там всегда (камера следует за ним), а дальнее теряется на краю кадра и без окна.
+		/// </summary>
+		private static int Fill(List<Vector4> found, int from)
+		{
+			int free = MaxCenters - from;
+			if (free <= 0)
+				return from;   // слотов не осталось — сортировать отсекаемое незачем
+
+			if (found.Count > free)
+				found.Sort(ByDistanceToCenter);
+
+			int take = Mathf.Min(found.Count, free);
+			for (int i = 0; i < take; i++)
+				_centers[from + i] = found[i];
+
+			return from + take;
+		}
+
+		/// <summary>Видна ли точка в кадре с запасом ViewMargin: окно вне видимости слота не занимает.</summary>
+		private bool IsOnScreen(Vector3 position)
+		{
+			Vector3 viewport = _cam.WorldToViewportPoint(position);
+
+			return viewport.z >= 0
+				&& viewport.x >= -ViewMargin && viewport.x <= 1 + ViewMargin
+				&& viewport.y >= -ViewMargin && viewport.y <= 1 + ViewMargin;
 		}
 	}
 }

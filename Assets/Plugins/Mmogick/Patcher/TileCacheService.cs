@@ -42,7 +42,10 @@ namespace Mmogick
 		// пере-скачивается она лишь при заходе игрока на неё, а читают кеш и те, кто карту сейчас не грузит.
 		// v2: TileObjectGroup.class и TileObject.visible — до них разбор меты падал, кеш затирался пустым.
 		// v3: Map.world — по нему из кеша отбираются карты текущего мира.
-		private const int CACHE_SCHEMA_VERSION = 3;
+		// v4: CachedMap.hasOpenworldPosition — новое bool-поле; у записей, лежавших в sync.json ДО этой
+		// версии, его нет в JSON вовсе, и десериализатор молча кладёт туда false (C#-дефолт bool) —
+		// ранее закешированные карты ОТКРЫТОГО мира читались бы как интерьеры и выпадали из мозаики.
+		private const int CACHE_SCHEMA_VERSION = 4;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, TilesetMeta> _tilesets;
@@ -59,8 +62,13 @@ namespace Mmogick
 			public int world;
 			public string name;
 
-			// Левый-верхний угол карты в тайлах открытого мира. Запись заводится только для РАЗМЕЩЁННЫХ карт:
-			// интерьеры и подземелья в раскладке не стоят, на обзорной карте им места нет.
+			// true — карта стоит в раскладке открытого мира, x/y её место там. false — интерьер/подземелье
+			// без раскладки: x=0, y=0 условны (соседей по определению нет), запись существует лишь чтобы
+			// миникарта и обзорная карта могли показать карту, пока игрок в НЕЙ (см. фильтр у потребителей
+			// в MinimapController.UpdateMinimapMaps / WorldMapController.BuildWorldMap) — несколько таких
+			// карт делят один world (банк, кузница, тюрьма одного города), и без фильтра по mapId==player.map
+			// их x=0,y=0 накладывались бы друг на друга либо подменяли друг друга по порядку обхода Dictionary.
+			public bool hasOpenworldPosition;
 			public int x;
 			public int y;
 			public int width;
@@ -491,9 +499,10 @@ namespace Mmogick
 			callback(json, null);
 		}
 
-		// Запоминает шапку карты (мир, имя, место в открытом мире) в манифесте — см. CachedMap.
-		// Карта без координат открытого мира (интерьер, подземелье) записи не получает: на обзорной карте
-		// её не разместить, а прежняя запись такой карты снимается — карту могли снять с раскладки.
+		// Запоминает шапку карты (мир, имя, место в открытом мире) в манифесте — см. CachedMap. Карта без
+		// координат открытого мира (интерьер, подземелье) тоже получает запись, но с hasOpenworldPosition
+		// = false: миникарта и обзорная карта мира обязаны показать саму эту комнату, пока игрок в ней, а
+		// не оставаться пустыми — но не мозаику из всех интерьеров того же world, что игрок посещал раньше.
 		private static void RememberMap(int gameId, int mapId, string json)
 		{
 			Map map = JsonConvert.DeserializeObject<Map>(json, new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
@@ -501,17 +510,15 @@ namespace Mmogick
 			if (map == null)
 				throw new InvalidOperationException("TileCache: карта " + mapId + " не разобрана");
 
-			if (map.openworldX.HasValue && map.openworldY.HasValue)
-				_manifest.maps[mapId] = new CachedMap {
-					world  = map.world,
-					name   = map.name,
-					x      = map.openworldX.Value,
-					y      = map.openworldY.Value,
-					width  = map.width,
-					height = map.height,
-				};
-			else
-				_manifest.maps.Remove(mapId);
+			_manifest.maps[mapId] = new CachedMap {
+				world  = map.world,
+				name   = map.name,
+				hasOpenworldPosition = map.openworldX.HasValue && map.openworldY.HasValue,
+				x      = map.openworldX ?? 0,
+				y      = map.openworldY ?? 0,
+				width  = map.width,
+				height = map.height,
+			};
 
 			SaveManifest(gameId);
 		}

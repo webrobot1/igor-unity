@@ -18,10 +18,19 @@ namespace Mmogick
 	public static class WorldMapRenderer
 	{
 		/// <summary>
-		/// Пикселей на клетку карты в миниатюре. Обзорная карта показывает мир целиком, отдельные тайлы на
-		/// ней не читаются — детальность тут лишняя, а вес картинки растёт квадратом.
+		/// Нижняя граница детальности — пикселей на клетку карты. Карта открытого мира в сотни клеток
+		/// упирается в неё: мир там виден целиком, отдельные тайлы на картинке не читаются, а вес растёт
+		/// квадратом стороны.
 		/// </summary>
-		private const int PIXELS_PER_TILE = 8;
+		private const int PIXELS_PER_TILE_MIN = 8;
+
+		/// <summary>
+		/// Потолок стороны картинки в пикселях. Мелкая карта (комната, интерьер) занимает в окне обзорной
+		/// карты почти всё место, и на увеличении её картинка растягивается в разы — детальность ей нужна
+		/// выше, чем открытому миру. Верхний предел держит вес: на увеличении окна картинки не
+		/// пересчитываются, растягивается уже нарисованное, и запаса в стороне картинки хватает.
+		/// </summary>
+		private const int IMAGE_MAX_SIDE = 1024;
 
 		/// <summary>
 		/// Версия отрисовки. Входит в отпечаток кешированной картинки (TileCacheService), потому смена правил
@@ -29,8 +38,9 @@ namespace Mmogick
 		/// картинку не отличить — она осталась бы на диске навсегда.
 		/// v2: анимированные тайлы (вода) рисуются первым кадром — до этого проваливались пустотой.
 		/// v3: кадр учитывает tileAnchor — прежде картинка уезжала на пол-клетки и по краю оставалась пустая полоса.
+		/// v4: детальность считается от размера карты — прежде она была у всех карт одна (8 пикселей на клетку).
 		/// </summary>
-		public const int RENDER_VERSION = 3;
+		public const int RENDER_VERSION = 4;
 
 		/// <summary>
 		/// Куда уносится временная карта на время съёмки: место заведомо вне игрового мира, чтобы её не
@@ -59,8 +69,17 @@ namespace Mmogick
 			{
 				MapDecode decoded = MapDecodeModel.generate(json, stage.transform, gameId);
 
-				int width = decoded.width * PIXELS_PER_TILE;
-				int height = decoded.height * PIXELS_PER_TILE;
+				// Детальность — от размера самой карты: столько пикселей на клетку, чтобы большая сторона
+				// картинки дошла до потолка. Выше нативной клетки не поднимаемся — в тайле больше точек
+				// нет, и лишнее было бы растяжением того же изображения, только тяжёлым.
+				int pixelsPerTile = Mathf.Clamp(
+					IMAGE_MAX_SIDE / Mathf.Max(decoded.width, decoded.height),
+					PIXELS_PER_TILE_MIN,
+					decoded.tilewidth
+				);
+
+				int width = decoded.width * pixelsPerTile;
+				int height = decoded.height * pixelsPerTile;
 
 				texture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
 

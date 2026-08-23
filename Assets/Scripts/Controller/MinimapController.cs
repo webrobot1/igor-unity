@@ -1,5 +1,6 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -79,6 +80,29 @@ namespace Mmogick
         /// <summary>Сторона текстуры метки игрока — общей у радара и обзорной карты.</summary>
         private const int MARKER_TEXTURE_SIZE = 32;
 
+        /// <summary>
+        /// Размер точки-метки в КЛЕТКАХ карты — единственное число, задающее величину точек на ОБОИХ
+        /// показах: у радара и у обзорной карты мира. Каждый показ переводит клетки в свои пиксели своим
+        /// масштабом (радар — пикселями панели на клетку охвата камеры, обзорная — масштабом вписывания
+        /// раскладки в окно), потому в пикселях его задать нельзя: пиксель у показов разный, клетка общая.
+        /// Точка от этого перестаёт быть постоянной в пикселях экрана и следует за масштабом фона — она
+        /// отмечает место на карте, а не наклеена поверх неё.
+        ///
+        /// Значение выведено из прежнего размера метки радара: точка держалась в сцене размером 10.4
+        /// пикселя панели, а при фактическом охвате радара на клетку приходится 5.88 пикселя панели —
+        /// частное этих двух чисел и стоит здесь, отчего вид радара и остался прежним. Охват задают
+        /// <see cref="minimapZoomFactor"/> и обзор камеры, а обзор камеры считается из присланного
+        /// сервером радиуса жизни игрока и соотношения сторон экрана (см. CameraController).
+        /// </summary>
+        protected const float MARKER_TILES = 1.768f;
+
+        /// <summary>
+        /// Во сколько раз своя точка крупнее чужой — тоже общее обоим показам: своё место игрок должен
+        /// находить сразу. Отношение, а не второй размер: иначе величина точек подбиралась бы двумя
+        /// числами и разница между своей меткой и чужими уезжала бы от каждой правки.
+        /// </summary>
+        protected const float PLAYER_MARKER_SCALE = 1.5f;
+
         /// <summary>Пул точек сущностей (переиспользуем, не пересоздаём каждый кадр — паттерн боевого текста/слотов).</summary>
         private readonly List<GameObject> _markerPool = new List<GameObject>();
 
@@ -141,11 +165,9 @@ namespace Mmogick
                 return;
             }
 
-            // Метка игрока — та же, что на обзорной карте (жёлтая точка в тёмной кайме): белая точка на
-            // пёстром фоне терялась, а искать себя игрок должен взглядом, не приглядываясь. Один вид метки
-            // на оба показа — и узнаётся сразу, и правится в одном месте.
-            playerMarker.sprite = BuildPlayerMarkerSprite();
-            playerMarker.color = Color.white;   // цвет несёт спрайт
+            // Разобранные цвета меток — снимок справочника компонентов и каталога префабов той игры, в
+            // которую вошли: со сменой игры значения другие, а статика вход переживает.
+            _markerColors.Clear();
 
             base.Awake();
         }
@@ -168,8 +190,14 @@ namespace Mmogick
             // камера), чтобы фон радара совпадал с большим видом.
             Vector3 playerPos = player.transform.position;
 
-            UpdateMinimapMaps(playerPos);
-            UpdateMarkers(playerPos);
+            // Шапка текущей карты — общий вход обоих рисующих методов (фон и точки): берём ОДИН раз на
+            // кадр, а не по разу в каждом — второй проход по тому же словарю карт был бы параллельным
+            // обходом тех же данных ради того же вопроса (интерьер это или мозаика открытого мира).
+            Dictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
+            maps.TryGetValue(player.map, out TileCacheService.CachedMap current);
+
+            UpdateMinimapMaps(playerPos, maps, current);
+            UpdateMarkers(playerPos, current);
         }
 
         /// <summary>
@@ -193,21 +221,12 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Метка игрока: светлая точка в тёмной кайме. Цвет тела — тёплый жёлтый, такого на картах
-        /// почти нет. Ею же помечен игрок на обзорной карте мира — метка одна на оба показа.
-        /// </summary>
-        protected static Sprite BuildPlayerMarkerSprite()
-        {
-            return MarkerSprite(new Color(1f, 0.92f, 0.30f));
-        }
-
-        /// <summary>
         /// Точка метки заданного цвета: светлое тело в тёмной кайме. Кайма и есть суть — одноцветная
         /// точка сливается то с песком, то с водой, то с крышами, а обведённая читается на любом фоне,
         /// потому обведены ВСЕ точки радара, не только своя. Рисуется кодом, отдельного ассета не просит;
         /// цветов у радара считанные единицы, потому нарисованное держим готовым.
         /// </summary>
-        private static Sprite MarkerSprite(Color body)
+        protected static Sprite MarkerSprite(Color body)
         {
             // Живость проверяем обязательно: словарь статический и переживает остановку игры, а сами
             // картинки рисуются в рантайме и уничтожаются вместе с ней — иначе следующий запуск берёт
@@ -262,15 +281,25 @@ namespace Mmogick
         /// Карта, картинки которой ещё нет, рисуется по одной за раз в фоне: рисование стоит сборки целой
         /// карты, и пачкой оно подвесило бы игру. До готовности место карты остаётся пустым.
         /// </summary>
-        private void UpdateMinimapMaps(Vector3 playerPos)
+        private void UpdateMinimapMaps(Vector3 playerPos, Dictionary<int, TileCacheService.CachedMap> maps, TileCacheService.CachedMap current)
         {
-            Dictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
-
-            // Карта игрока не размещена в открытом мире (интерьер, подземелье) — раскладки нет, фон пустой.
-            if (!maps.TryGetValue(player.map, out TileCacheService.CachedMap current))
+            // Шапка текущей карты ещё не легла в кеш (RememberMap пишет её по завершении скачивания JSON
+            // карты) — до этого момента фон пустой.
+            if (current == null)
             {
                 foreach (KeyValuePair<int, RectTransform> shown in _minimapTiles)
                     shown.Value.gameObject.SetActive(false);
+                return;
+            }
+
+            // Интерьер без раскладки открытого мира — единственная карта на радаре (см. фильтр в основном
+            // цикле ниже): масштаб камеры/radius ей не подходит — у неё нет соседей и нет смысла держать
+            // масштаб «как в открытом мире», она сама себе весь видимый сейчас мир и вправе вписаться в
+            // панель целиком, а не занимать мелкий кусок в углу.
+            if (!current.hasOpenworldPosition)
+            {
+                ReleaseStaleMinimapTiles(maps, player.map);
+                DrawSoleMinimapTile();
                 return;
             }
 
@@ -283,13 +312,25 @@ namespace Mmogick
             float radius = mainCamera.orthographicSize * minimapZoomFactor;
             float pixelsPerTile = halfPx / radius;
 
-            // Где игрок во всём мире: место его карты плюс он внутри неё (внутри карты ось Y вверх,
-            // а раскладка мира считает вниз — отсюда знак).
-            float playerWorldX = current.x + playerPos.x;
-            float playerWorldY = current.y - playerPos.y;
+            // Где игрок во всём мире: место его карты в раскладке плюс его клетка внутри неё. Раскладка
+            // считает клетки картинок карт (ось Y вниз), потому позиция сцены переводится в тот же счёт
+            // (MapImageCell) — иначе фон уезжает от точки игрока на пол-клетки влево и вверх.
+            Vector2 inMap = MapImageCell(playerPos);
+            float playerWorldX = current.x + inMap.x;
+            float playerWorldY = current.y + inMap.y;
 
             foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in maps)
             {
+                // Интерьер того же world, но не карта игрока сейчас, — в мозаике не участвует: несколько
+                // интерьеров делят один world (CachedMap.hasOpenworldPosition), их x=0,y=0 условны и без
+                // этого фильтра наложились бы друг на друга либо подменяли бы друг друга на радаре.
+                if (!pair.Value.hasOpenworldPosition && pair.Key != player.map)
+                {
+                    if (_minimapTiles.TryGetValue(pair.Key, out RectTransform stale) && stale.gameObject.activeSelf)
+                        stale.gameObject.SetActive(false);
+                    continue;
+                }
+
                 RectTransform tile = EnsureMinimapTile(pair.Key);
                 if (tile == null)
                     continue;
@@ -321,9 +362,82 @@ namespace Mmogick
             }
 
             // Карты, ушедшие из набора (игрок сменил мир), с панели убираем.
+            ReleaseStaleMinimapTiles(maps, -1);
+        }
+
+        /// <summary>
+        /// Снимает с панели картинки карт, которым на ней больше не место: при <paramref name="soleMapId"/>
+        /// от нуля и выше остаётся только эта карта (радар интерьера показывает одну комнату), иначе — все
+        /// карты набора <paramref name="maps"/> (ушедшие из него остались в прежнем мире).
+        ///
+        /// Именно снимает, а не гасит: нарисованную картинку (Texture2D, Sprite) сборщик мусора не трогает,
+        /// её снимает только Destroy, а весит она тем больше, чем мельче карта — детальность считается от
+        /// размера карты (<see cref="WorldMapRenderer"/>), и у комнаты картинка выходит в мегабайты. Десяток
+        /// обойдённых комнат держал бы эти мегабайты до конца игры. Вернувшаяся карта создаётся заново из
+        /// PNG в кеше на диске — тем же путём, что и в первый раз (<see cref="EnsureMinimapTile"/>).
+        /// </summary>
+        private void ReleaseStaleMinimapTiles(Dictionary<int, TileCacheService.CachedMap> maps, int soleMapId)
+        {
+            // Список нужен только на смену набора: словарь правится по его итогам, а во время обхода его
+            // трогать нельзя. В обычном кадре снимать нечего, и он не создаётся вовсе.
+            List<int> stale = null;
+
             foreach (KeyValuePair<int, RectTransform> shown in _minimapTiles)
-                if (!maps.ContainsKey(shown.Key) && shown.Value.gameObject.activeSelf)
-                    shown.Value.gameObject.SetActive(false);
+            {
+                bool keep = soleMapId >= 0 ? shown.Key == soleMapId : maps.ContainsKey(shown.Key);
+
+                if (!keep)
+                    (stale ??= new List<int>()).Add(shown.Key);
+            }
+
+            if (stale == null)
+                return;
+
+            foreach (int mapId in stale)
+            {
+                RectTransform tile = _minimapTiles[mapId];
+                _minimapTiles.Remove(mapId);
+
+                if (tile == null)
+                    continue;
+
+                Image image = tile.GetComponent<Image>();
+                if (image != null && image.sprite != null)
+                {
+                    Destroy(image.sprite.texture);
+                    Destroy(image.sprite);
+                }
+
+                Destroy(tile.gameObject);
+            }
+        }
+
+        /// <summary>
+        /// Рисует единственный тайл радара (интерьер без раскладки открытого мира), растягивая картинку
+        /// комнаты на ВСЮ панель — по требованию: маленькая комната заполняет зону видимости радара целиком,
+        /// пропорции НЕ сохраняются (contain здесь не нужен, искажение допустимо и ожидаемо). Позиция и
+        /// размер — фиксированные константы панели, от позиции игрока не зависят: этот тайл не участвует
+        /// в общей per-frame формуле открытого мира (ранний return в UpdateMinimapMaps не даёт основному
+        /// циклу его коснуться) — иначе он либо не двигался бы синхронно с формулой, либо съезжал бы и
+        /// вылезал за рамку панели при ходьбе. Прочие тайлы, оставшиеся от прежнего состояния (мозаика
+        /// открытого мира либо другая посещённая комната), к этому моменту уже сняты
+        /// (<see cref="ReleaseStaleMinimapTiles"/>) — на радаре интерьера им не место.
+        /// </summary>
+        private void DrawSoleMinimapTile()
+        {
+            RectTransform tile = EnsureMinimapTile(player.map);
+            if (tile == null)
+                return;
+
+            if (!tile.gameObject.activeSelf)
+                tile.gameObject.SetActive(true);
+
+            // Pivot тайла — (0,1), левый верхний угол (общий с тайлами открытого мира, см. EnsureMinimapTile):
+            // чтобы растянутая на весь markerArea картинка легла по его центру, якорную точку смещаем в
+            // левый верхний угол области (половина размера влево и вверх от центра).
+            Vector2 size = markerArea.rect.size;
+            tile.sizeDelta = size;
+            tile.anchoredPosition = new Vector2(-size.x / 2f, size.y / 2f);
         }
 
         /// <summary>
@@ -382,27 +496,80 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Перерисовывает точки: игрок — в центре, остальные сущности мира — по разнице мировых позиций.
+        /// Перерисовывает точки. Способ считать позицию зависит от того, что сейчас несёт фон радара
+        /// (<see cref="UpdateMinimapMaps"/>):
+        /// — мозаика открытого мира панорамируется вокруг игрока → игрок неподвижен в центре панели,
+        ///   все прочие точки — по разнице их мировой позиции и позиции игрока;
+        /// — одиночный интерьер (<see cref="DrawSoleMinimapTile"/>) закреплён и растянут на всю панель →
+        ///   наоборот, ПОЛОЖЕНИЕ игрока внутри комнаты решает, куда лечь его точке (в центре панели он
+        ///   только тогда, когда физически стоит в центре комнаты), а точки прочих сущностей кладутся по
+        ///   их СОБСТВЕННЫМ координатам той же трансформацией — неподвижно относительно фона, когда идёт
+        ///   сам игрок. Общая часть обеих веток вынесена в <paramref name="mapper"/> (мировая позиция →
+        ///   пиксель панели относительно её центра) — циклы по сущностям и переходам не дублируются.
         /// </summary>
-        private void UpdateMarkers(Vector3 playerPos)
+        private void UpdateMarkers(Vector3 playerPos, TileCacheService.CachedMap current)
         {
-            // Пиксель markerArea на мировой юнит: полу-сторона квадратной области соответствует охвату
-            // радара в юнитах (тайл = юнит).
-            float halfPx = markerArea.rect.height * 0.5f;
-            if (halfPx <= 0f)
+            Vector2 panelSize = markerArea.rect.size;
+            if (panelSize.x <= 0f || panelSize.y <= 0f)
                 return;   // layout ещё не посчитан (первый кадр) — пропускаем, отрисуем в следующем
-            // Охват берём от АКТУАЛЬНОГО размера основной камеры (он меняется в рантайме) — тем же
-            // выражением, что и фон карт, иначе точки разъедутся с картинкой.
-            float pixelsPerUnit = halfPx / (mainCamera.orthographicSize * minimapZoomFactor);
 
-            // Игрок всегда в центре.
+            System.Func<Vector3, Vector2> mapper;
+            float? cullRadius;
+            float markerSize;
+
+            if (current != null && !current.hasOpenworldPosition)
+            {
+                // Интерьер: фон закреплён и растянут по обеим осям независимо (аспект комнаты не совпадает
+                // с аспектом панели) — потому коэффициенты X/Y считаются РАЗДЕЛЬНО, тем же преобразованием,
+                // что и картинка комнаты в DrawSoleMinimapTile (клетка карты → доля ширины/высоты → пиксель
+                // от левого верхнего угла панели, минус её половина — перевод в систему координат маркеров,
+                // где ноль есть центр markerArea). Клетку берём переводом MapImageCell: картинка считает
+                // клетки от своего угла, сцена — от середины клетки и от ног сущности. Радиуса отсечения
+                // нет: комната видна целиком, культить по кругу открытого мира здесь нечего.
+                mapper = worldPos =>
+                {
+                    Vector2 cell = MapImageCell(worldPos);
+
+                    return new Vector2(
+                        -panelSize.x / 2f + cell.x / current.width  * panelSize.x,
+                         panelSize.y / 2f - cell.y / current.height * panelSize.y
+                    );
+                };
+                cullRadius = null;
+
+                // Точка круглая, а панель интерьера растянута по осям РАЗДЕЛЬНО — размер выводим от одного
+                // коэффициента, и взят коэффициент ВЫСОТЫ (пикселей панели на клетку комнаты по вертикали):
+                // тем же измерением панели меряет себя ветка открытого мира ниже (halfPx — половина высоты),
+                // потому точка не меняет величины при переходе из комнаты в открытый мир.
+                markerSize = MARKER_TILES * panelSize.y / current.height;
+            }
+            else
+            {
+                // Открытый мир: фон панорамируется вокруг игрока — тем же выражением, что и в
+                // UpdateMinimapMaps, иначе точки разъедутся с картинкой. Игрок неподвижен в центре, точки
+                // вне круга охвата радара гасятся. Считается РАЗНОСТЬ позиций сцены, потому перевод в
+                // клетки картинки (MapImageCell) здесь не нужен: он сдвигает обе точки одинаково и в
+                // разности пропадает — с картинкой их совмещает сдвиг самого фона в UpdateMinimapMaps.
+                float halfPx = panelSize.y * 0.5f;
+                float pixelsPerUnit = halfPx / (mainCamera.orthographicSize * minimapZoomFactor);
+                mapper = worldPos => new Vector2(worldPos.x - playerPos.x, worldPos.y - playerPos.y) * pixelsPerUnit;
+                cullRadius = halfPx;
+                markerSize = MARKER_TILES * pixelsPerUnit;
+            }
+
             if (!playerMarker.gameObject.activeSelf)
                 playerMarker.gameObject.SetActive(true);
-            playerMarker.rectTransform.anchoredPosition = Vector2.zero;
+            ApplyPlayerMarker(playerMarker, player.prefab);
+            playerMarker.rectTransform.anchoredPosition = mapper(playerPos);
+            // Размер меток радара считается здесь каждый кадр, а не берётся из сцены: охват камеры
+            // меняется в рантайме, и пиксель панели на клетку вместе с ним.
+            float ownSize = markerSize * PLAYER_MARKER_SCALE;
+            playerMarker.rectTransform.sizeDelta = new Vector2(ownSize, ownSize);
 
             // Переходы — первыми: точки берутся из пула по порядку, и ранние ложатся в иерархии ниже.
             // Существо, стоящее на переходе, должно быть видно поверх него, а не наоборот.
-            int used = DrawWarps(playerPos, pixelsPerUnit, halfPx, 0);
+            int used = DrawWarps(mapper, cullRadius, markerSize, 0);
+            used = DrawGates(mapper, cullRadius, markerSize, used);
 
             foreach (Transform mapZone in worldObject.transform)
             {
@@ -412,18 +579,20 @@ namespace Mmogick
                     if (model == null)
                         continue;
                     if (model == player)
-                        continue;                               // игрок — отдельная центральная точка
+                        continue;                               // игрок — отдельная точка, посчитана выше
                     if (model.action == ACTION_REMOVE)
                         continue;                               // удаляемых с карты не рисуем
 
-                    Vector3 delta = entityTransform.position - playerPos;
-                    Vector2 markerPos = new Vector2(delta.x, delta.y) * pixelsPerUnit;
+                    Color? color = MarkerColor(model.prefab);
+                    if (color == null)
+                        continue;   // цвета метки у вида нет — контент игры его на картах не показывает
 
-                    // Вне круга радара — за границей видимой области — не показываем.
-                    if (markerPos.magnitude > halfPx)
-                        continue;
+                    Vector2 markerPos = mapper(entityTransform.position);
 
-                    PlaceMarker(GetPooledMarker(used++), markerPos, MarkerColor(model.type));
+                    if (cullRadius.HasValue && markerPos.magnitude > cullRadius.Value)
+                        continue;   // вне круга радара — за границей видимой области
+
+                    PlaceMarker(GetPooledMarker(used++), markerPos, MarkerSprite(color.Value), markerSize);
                 }
             }
 
@@ -438,9 +607,11 @@ namespace Mmogick
         /// карты (<see cref="WarpMarker"/>), потому точки берутся из уже построенного слоя меток: свечение
         /// на земле и точка на радаре зажигаются от одного источника, второго разбора разметки радар не
         /// заводит. Обходятся все карты в сцене — соседние тоже видны на радаре, а переход у их края
-        /// игроку нужен ровно затем, чтобы дойти до него.
+        /// игроку нужен ровно затем, чтобы дойти до него. Перевод мировой позиции в пиксель панели —
+        /// забота <paramref name="mapper"/> (см. <see cref="UpdateMarkers"/>): режим (интерьер/открытый
+        /// мир) сюда не просачивается, отсечение по кругу — только когда <paramref name="cullRadius"/> задан.
         /// </summary>
-        private int DrawWarps(Vector3 playerPos, float pixelsPerUnit, float halfPx, int used)
+        private int DrawWarps(System.Func<Vector3, Vector2> mapper, float? cullRadius, float markerSize, int used)
         {
             foreach (Transform grid in mapObject.transform)
             {
@@ -450,13 +621,15 @@ namespace Mmogick
 
                 foreach (Transform warp in warps)
                 {
-                    Vector3 delta = warp.position - playerPos;
-                    Vector2 markerPos = new Vector2(delta.x, delta.y) * pixelsPerUnit;
+                    // Место перехода берём у самой метки (WarpMarker.scene), а не её позицию: метка
+                    // накрывает квадрат клетки нарисованного полотна, а точки панели считаются в
+                    // координатах сцены — тех же, в которых сюда приходят игрок и сущности.
+                    Vector2 markerPos = mapper(warp.GetComponent<WarpMarker>().scene);
 
-                    if (markerPos.magnitude > halfPx)
+                    if (cullRadius.HasValue && markerPos.magnitude > cullRadius.Value)
                         continue;   // за границей видимой области радара
 
-                    PlaceMarker(GetPooledMarker(used++), markerPos, WARP_COLOR);
+                    PlaceMarker(GetPooledMarker(used++), markerPos, MarkerSprite(WARP_COLOR), markerSize);
                 }
             }
 
@@ -464,16 +637,44 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Ставит точку на место и красит её. Цвет несёт нарисованная метка, а не оттенок картинки:
-        /// кайма у всех точек одна и та же тёмная, красится только тело — иначе обводка красилась бы
-        /// вместе с ним и пропадала.
+        /// Метки проходов в недоступные соседние карты (<see cref="MapController.getGates"/>): крест на
+        /// каждом свободном участке общей границы — ровно там, где игрок упрётся в невидимую стену, пробуя
+        /// перейти. Считает их сам MapController: разметка карт и доступность соседей — его данные, а не
+        /// показа. Перевод в пиксель панели — общий <paramref name="mapper"/> (см. <see cref="UpdateMarkers"/>).
+        ///
+        /// Метка на проход одна, в его середине (<see cref="MapController.Gate.center"/>): на радаре карта
+        /// сжата в панель, и поклеточные метки слились бы в неразличимую полосу. По всей ширине прохода
+        /// метки стоят там, где места хватает, — на самой земле (<see cref="GateController"/>).
         /// </summary>
-        private static void PlaceMarker(GameObject marker, Vector2 position, Color body)
+        private int DrawGates(System.Func<Vector3, Vector2> mapper, float? cullRadius, float markerSize, int used)
         {
-            marker.GetComponent<RectTransform>().anchoredPosition = position;
+            foreach (Gate gate in getGates())
+            {
+                Vector2 markerPos = mapper(gate.center);
+
+                if (cullRadius.HasValue && markerPos.magnitude > cullRadius.Value)
+                    continue;   // за границей видимой области радара
+
+                PlaceMarker(GetPooledMarker(used++), markerPos, UnavailableSprite(), markerSize);
+            }
+
+            return used;
+        }
+
+        /// <summary>
+        /// Ставит метку на место. Вид её несёт сам рисунок, а не оттенок картинки: кайма у всех меток одна
+        /// и та же тёмная, у точки красится только тело — иначе обводка красилась бы вместе с ним и пропадала.
+        /// Размер приходит вычисленным (<see cref="MARKER_TILES"/> в пикселях панели), а не берётся из
+        /// префаба точки: он зависит от охвата камеры и меняется в рантайме вместе с ним.
+        /// </summary>
+        private static void PlaceMarker(GameObject marker, Vector2 position, Sprite sprite, float size)
+        {
+            RectTransform rect = marker.GetComponent<RectTransform>();
+            rect.anchoredPosition = position;
+            rect.sizeDelta = new Vector2(size, size);
 
             Image image = marker.GetComponent<Image>();
-            image.sprite = MarkerSprite(body);
+            image.sprite = sprite;
             image.color = Color.white;
         }
 
@@ -500,21 +701,136 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Цвет точки перехода. Взят зелёный: остальные заняты существами, а на радаре игрок различает
-        /// точки только цветом — формы у них одинаковые.
+        /// Цвет точки перехода. Переход — не сущность, а разметка карты: своего значения в контенте у него
+        /// нет, и цвет задаёт клиент — это единственная метка карт, оттенок которой клиент назначает сам.
+        /// Взят белый: точки различаются только цветом (формы у них одинаковые), а цвета сущностей задаёт
+        /// контент игры, и любой цветной оттенок он вправе занять под свой вид — белый же оставлен разметке.
         /// </summary>
-        private static readonly Color WARP_COLOR = new Color(0.35f, 0.95f, 0.45f);
+        protected static readonly Color WARP_COLOR = Color.white;
 
-        /// <summary>Цвет точки по типу сущности (kind с сервера).</summary>
-        private static Color MarkerColor(string type)
+        /// <summary>Компонент, несущий цвет метки сущности на картах клиента.</summary>
+        private const string COMPONENT_MAP_COLOR = "map_color";
+
+        /// <summary>
+        /// Разобранный цвет метки по prefab'у сущности: разбор строки и жалоба на негодное значение идут
+        /// по разу на prefab, а не на каждую точку каждого кадра. Сбрасывается при входе в игру (Awake).
+        /// Пустое значение — у этого prefab'а метки нет вовсе (см. <see cref="MarkerColor"/>).
+        /// </summary>
+        private static readonly Dictionary<string, Color?> _markerColors = new Dictionary<string, Color?>();
+
+        /// <summary>
+        /// Цвет метки сущности: значение компонента цвета, разрешённое обычной цепочкой «заданное prefab'у →
+        /// умолчание компонента» (<see cref="AnimationCacheService.GetComponentValue"/>).
+        /// Оно же решает, показана ли сущность на картах ВООБЩЕ: есть значение — метка есть, нет значения —
+        /// метки нет. Отбор целиком лежит в контенте игры, потому вида сущности этот код не спрашивает
+        /// вовсе: у другой игры виды свои, а правка отбора либо цвета не должна стоить пересборки клиента.
+        /// Пусто — значения нет (компонент виду не положен) либо оно записано не как #RRGGBB.
+        /// </summary>
+        protected static Color? MarkerColor(string prefab)
         {
-            switch (type)
+            string key = prefab ?? string.Empty;
+
+            if (_markerColors.TryGetValue(key, out Color? known))
+                return known;
+
+            Color? color = null;
+            string hex = AnimationCacheService.GetComponentValue(prefab, COMPONENT_MAP_COLOR, null)?.Value<string>();
+
+            if (!string.IsNullOrEmpty(hex))
             {
-                case "enemy":  return new Color(0.90f, 0.20f, 0.20f);   // красный — враги
-                case "player": return new Color(0.30f, 0.70f, 1.00f);   // голубой — другие игроки
-                case "animal": return new Color(0.95f, 0.85f, 0.30f);   // жёлтый — животные
-                default:       return new Color(0.75f, 0.75f, 0.75f);   // серый — объекты и прочее
+                if (ColorUtility.TryParseHtmlString(hex, out Color parsed))
+                    color = parsed;
+                else
+                    Debug.LogError("Карты: цвет метки «" + hex + "» у prefab'а " + prefab + " записан не как #RRGGBB");
             }
+
+            _markerColors[key] = color;
+            return color;
+        }
+
+        /// <summary>
+        /// Метка своего игрока — общая обоим показам, радару и обзорной карте: рисунок берётся по цвету
+        /// его prefab'а из контента игры (<see cref="MarkerColor"/>), тем же порядком, что и у прочих
+        /// сущностей. От остальных меток своя отличается только размером — общим множителем
+        /// <see cref="PLAYER_MARKER_SCALE"/> поверх <see cref="MARKER_TILES"/>, который каждый показ
+        /// переводит в свои пиксели.
+        /// Правило показа тоже общее: цвета у вида нет — контент игры его на картах не показывает, и своя
+        /// метка гаснет наравне с чужими.
+        /// </summary>
+        protected static void ApplyPlayerMarker(Image marker, string prefab)
+        {
+            Color? color = MarkerColor(prefab);
+
+            if (color == null)
+            {
+                marker.gameObject.SetActive(false);
+                return;
+            }
+
+            marker.sprite = MarkerSprite(color.Value);
+            marker.color = Color.white;   // цвет несёт спрайт
+        }
+
+        /// <summary>Сторона текстуры креста. Крест — метка размером с точку, мелких деталей в нём нет.</summary>
+        private const int UNAVAILABLE_TEXTURE_SIZE = 64;
+
+        /// <summary>Нарисованный крест — общий на все карты обоих показов.</summary>
+        private static Sprite _unavailableSprite;
+
+        /// <summary>
+        /// Метка прохода в недоступную локацию: красный крест в тёмной кайме. Кайма — та же, что у точек, и
+        /// по той же причине: карты пёстрые, одноцветная линия на них теряется. Формой крест отличается от
+        /// круглых точек — на карте метки различают только по виду. Рисуется кодом, ассета не просит.
+        /// </summary>
+        protected static Sprite UnavailableSprite()
+        {
+            // Живость проверяем обязательно: статика переживает остановку игры, а сама картинка рисуется в
+            // рантайме и уничтожается вместе с ней (тот же случай, что у точек в MarkerSprite).
+            if (_unavailableSprite != null)
+                return _unavailableSprite;
+
+            Texture2D texture = new Texture2D(UNAVAILABLE_TEXTURE_SIZE, UNAVAILABLE_TEXTURE_SIZE, TextureFormat.RGBA32, false);
+            texture.wrapMode = TextureWrapMode.Clamp;
+
+            Color body = new Color(0.90f, 0.15f, 0.15f);
+            Color border = new Color(0.05f, 0.05f, 0.08f);
+
+            // Полутолщина полосы и каймы — в долях стороны: метка мелкая (с точку сущности), и в пикселях
+            // толщина зависит от того, какого размера её рисуют на панели.
+            const float half = 0.10f;
+            const float edge = 0.17f;
+
+            for (int y = 0; y < UNAVAILABLE_TEXTURE_SIZE; y++)
+            {
+                for (int x = 0; x < UNAVAILABLE_TEXTURE_SIZE; x++)
+                {
+                    float u = x / (float)(UNAVAILABLE_TEXTURE_SIZE - 1);
+                    float v = y / (float)(UNAVAILABLE_TEXTURE_SIZE - 1);
+
+                    // Расстояние до каждой из двух диагоналей квадрата (делитель — длина нормали).
+                    float distance = Mathf.Min(Mathf.Abs(u - v), Mathf.Abs(u + v - 1f)) / Mathf.Sqrt(2f);
+
+                    Color color;
+                    if (distance <= half)
+                        color = body;
+                    else if (distance <= edge)
+                        color = border;
+                    else
+                        color = new Color(0f, 0f, 0f, 0f);
+
+                    // Край каймы сглаживаем по последней доле, иначе у мелкой метки он выходит ступенчатым
+                    // (та же причина, что у края точки в MarkerSprite).
+                    if (distance > edge - 0.02f && distance <= edge)
+                        color.a = Mathf.Clamp01((edge - distance) / 0.02f);
+
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply();
+
+            _unavailableSprite = Sprite.Create(texture, new Rect(0, 0, UNAVAILABLE_TEXTURE_SIZE, UNAVAILABLE_TEXTURE_SIZE), new Vector2(0.5f, 0.5f));
+            return _unavailableSprite;
         }
     }
 }

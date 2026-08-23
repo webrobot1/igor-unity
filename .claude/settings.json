@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Grep(*)",
+      "Read(*)",
+      "Glob(*)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Lenovo\\AppData\\Local\\Temp"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__ai-game-developer__editor-application-set-state",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-guard.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "php-lsp@claude-plugins-official": true,
+    "csharp-lsp@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true
+  },
+  "effort": "max"
+}

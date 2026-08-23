@@ -8,6 +8,14 @@
         "org.nuget",
         "extensions.unity"
       ]
+    },
+    {
+      "name": "package.openupm.com",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.ivanmurzak",
+        "extensions.unity"
+      ]
     }
   ],
   "dependencies": {
@@ -66,6 +74,6 @@
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
     "com.unity.modules.xr": "1.0.0",
-    "com.ivanmurzak.unity.mcp.cinemachine": "1.0.14"
+    "com.ivanmurzak.unity.mcp.cinemachine": "1.0.17"
   }
 }

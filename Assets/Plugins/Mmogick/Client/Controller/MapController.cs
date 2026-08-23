@@ -1,4 +1,4 @@
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -45,6 +45,39 @@ namespace Mmogick
 		/// </summary>
 		private static readonly Vector2 TILE_OFFSET = new Vector2(-1f, -0.5f);
 
+		/// <summary>
+		/// Где лежит НАРИСОВАННОЕ полотно тайлов относительно ЛОГИЧЕСКИХ границ карты, которыми оперируют
+		/// данные сервера и позиции сущностей: логическая карта занимает [0 .. width] по X и [1-height .. 1]
+		/// по Y, а полотно на экране — [-0.5 .. width-0.5] по X и те же [1-height .. 1] по Y. Разница — это
+		/// значение.
+		/// По вертикали её нет: клетка занимает [y .. y+1], и сущность привязана ногами к её НИЖНЕМУ краю
+		/// (см. <see cref="TILE_OFFSET"/>) — низ нижней клетки и верх верхней и есть логические границы.
+		/// По горизонтали сущность стоит в СЕРЕДИНЕ своей клетки, а полотно нарезано по краям клеток —
+		/// оттого полклетки.
+		/// Нужна тому, кто считает границы по данным карты, а отвечает за увиденное игроком: границами
+		/// обзора камеры карта упирается в край НАРИСОВАННОГО и центрируется по его середине.
+		/// </summary>
+		public static readonly Vector2 GRID_DRAW_OFFSET = new Vector2(-0.5f, 0f);
+
+		/// <summary>
+		/// Точка СЦЕНЫ (координаты сущностей внутри карты) в клетках НАРИСОВАННОЙ картинки карты — той, что
+		/// показывают радар и обзорная карта (<see cref="WorldMapRenderer"/>). Ось X вправо, ось Y ВНИЗ,
+		/// начало — левый верхний угол картинки.
+		///
+		/// Картинка нарезана по границам клеток: её левый край — левый край крайней клетки, верхний — верхний
+		/// край верхнего ряда. Сцена же считает иначе: по горизонтали позиция сущности лежит в СЕРЕДИНЕ её
+		/// клетки, по вертикали — у НИЖНЕГО края (сущность привязана ногами, см. <see cref="TILE_OFFSET"/>).
+		/// Оттого перевод и есть пол-клетки по обеим осям: метка встаёт в середину той клетки, в которой
+		/// сущность стоит, а не в её угол. Без него метка уезжает от картинки влево и вверх.
+		///
+		/// Тем же счётом карты разложены в открытом мире (клетки, ось Y вниз), потому к результату прямо
+		/// прибавляется место карты в раскладке.
+		/// </summary>
+		public static Vector2 MapImageCell(Vector2 scenePoint)
+		{
+			return new Vector2(scenePoint.x + 0.5f, 0.5f - scenePoint.y);
+		}
+
 		protected override void Awake()
 		{
 			base.Awake();
@@ -74,7 +107,8 @@ namespace Mmogick
 			// определяем здесь что бы сбросить статичные свойства если мы перезаходили в игру
 			// сбрасываем тк при разработке некие опции у нас стоят что не очищают при отладке эти данные https://youtu.be/sRx14YMbLuw
 			_sides.Clear();
-			_maps.Clear();	
+			_maps.Clear();
+			_gates = null;
 		}
 
 		/// <summary>
@@ -151,6 +185,8 @@ namespace Mmogick
 				}
 
 				MapController._sides = recive.sides;
+				// Доступность соседей пришла новая — проходы в недоступные карты считать заново (getGates).
+				_gates = null;
 				SortMap();
 
 				// загрузим отвутвующую графику центральной и смежных карт 
@@ -186,6 +222,10 @@ namespace Mmogick
 
 										_maps.Add(side.Key, MapDecodeModel.generate(patcher.result, grid, GAME_ID));
 
+										// Пришла разметка ещё одной карты — с ней меняется и то, что клиент
+										// знает о преградах на границах (getGates).
+										_gates = null;
+
 										// Слои, способные перекрыть сущность (выше слоя-земли), переводим на
 										// xray-материал — окно прозрачности вокруг сущностей под кронами и крышами.
 										TilemapXray.RegisterMap(grid, _maps[side.Key].spawn_sort);
@@ -206,10 +246,12 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Непроходима ли клетка cell на карте mapId. Коллайдеры берутся ПЕР-КАРТА
-		/// (getMaps()[mapId].colliders) — единый источник клиентских проверок проходимости: guard игрока
-		/// (CursorController) и экстраполяция сущностей (ObjectModel). Карта не загружена/выгружена
-		/// (нет в _maps) → false (проходимо): легитимное состояние асинхронной загрузки, сервер отобьёт.
+		/// Известна ли клиенту преграда в клетке cell на карте mapId. Коллайдеры берутся ПЕР-КАРТА
+		/// (getMaps()[mapId].colliders) — единый источник клиентских проверок проходимости: отсев заведомо
+		/// холостых команд движения (CursorController) и экстраполяция сущностей (ObjectModel). Карта не
+		/// загружена/выгружена (нет в _maps) → false: клетку не знаем, сервер отобьёт сам. Ответ false значит
+		/// «преграды не знаю», а не «проходимо» — непроходимой сервер считает и клетку без тайла в слоях, и
+		/// клетку недоступной соседней карты, а их клиент отсюда не различает.
 		/// НЕ общий статик — он в открытом мире хранил бы коллайдеры случайного соседнего сегмента.
 		/// </summary>
 		public static bool IsColliderCell(int mapId, Vector2Int cell)
@@ -225,6 +267,161 @@ namespace Mmogick
 		public static Dictionary<int, MapSide> getSides()
         {
 			return _sides;
+		}
+
+		/// <summary>
+		/// Проход в НЕДОСТУПНУЮ соседнюю карту: сплошной участок общей границы, не занятый преградой ни с
+		/// одной стороны. from/to — середины КРАЙНИХ клеток участка, в координатах сцены (та же система, что
+		/// у сущностей — клетка есть целая точка); участок шириной в клетку даёт from == to.
+		///
+		/// map — карта ДОСТУПНОЙ стороны, которой участок границы принадлежит: ею метка на земле находит своё
+		/// место в иерархии сцены и порядок отрисовки — слой-земля у каждой карты свой.
+		/// </summary>
+		public struct Gate
+		{
+			public int map;
+			public Vector2 from;
+			public Vector2 to;
+
+			/// <summary>Середина прохода — место ОДНОЙ метки там, где участок целиком не показать (карты клиента).</summary>
+			public Vector2 center => (from + to) * 0.5f;
+		}
+
+		/// <summary>
+		/// Проходы в НЕДОСТУПНЫЕ соседние карты — участками общей границы (<see cref="Gate"/>).
+		///
+		/// Ровно в этих местах игрок упирается в невидимую стену: недоступную карту сервер не запускает, а её
+		/// клетки считает непроходимыми — переход не состоится, хотя ни стены, ни иного признака на земле нет
+		/// (<see cref="MapSide.ready"/>). Оттого их и помечают карты клиента. Тем же они говорят, ГДЕ вообще
+		/// проходы к соседу: занятые преградой участки границы никуда не ведут и в любом случае непроходимы.
+		///
+		/// Считается по ВСЕМ парам сторон, а не только по карте игрока: недоступный сосед граничит и с другой
+		/// выложенной картой, и там та же стена. Разметка соседа неизвестна (карта не загружена) — считаем по
+		/// своей стороне: <see cref="IsColliderCell"/> о незагруженной карте отвечает «преграды не знаю».
+		/// </summary>
+		public static List<Gate> getGates()
+		{
+			// Пересчитываем не каждый кадр, а по смене входов: стороны приходят пакетом сервера, разметка —
+			// с загрузкой карты, обе точки сбрасывают кеш. Тем же самым сменившийся ЭКЗЕМПЛЯР списка говорит
+			// показам, что выложенные метки устарели, — сравнивать их состав не требуется.
+			return _gates ??= BuildGates();
+		}
+
+		/// <summary>Готовые проходы (см. <see cref="getGates"/>); null — входы сменились, считать заново.</summary>
+		private static List<Gate> _gates;
+
+		private static List<Gate> BuildGates()
+		{
+			List<Gate> gates = new List<Gate>();
+
+			foreach (KeyValuePair<int, MapSide> closed in _sides)
+			{
+				if (closed.Value.ready)
+					continue;
+
+				foreach (KeyValuePair<int, MapSide> open in _sides)
+					if (open.Key != closed.Key)
+						AddGates(gates, open.Key, open.Value, closed.Key, closed.Value);
+			}
+
+			return gates;
+		}
+
+		/// <summary>
+		/// Проходы на общей границе карты open и недоступной карты closed. Карты не примыкают — границы нет,
+		/// добавлять нечего.
+		///
+		/// Стороны примыкают тайл в тайл, потому граница задаётся одной линией и парами соседних клеток на
+		/// ней. Линия лежит МЕЖДУ рядами клеток, то есть на полуцелой координате: клетка есть целая точка
+		/// (см. <see cref="IsColliderCell"/>), и метка встаёт ровно на стык, а не в клетку одной из карт.
+		/// </summary>
+		private static void AddGates(List<Gate> gates, int openId, MapSide open, int closedId, MapSide closed)
+		{
+			int ox = Mathf.RoundToInt(open.x),   oy = Mathf.RoundToInt(open.y);
+			int ow = Mathf.RoundToInt(open.width), oh = Mathf.RoundToInt(open.height);
+			int cx = Mathf.RoundToInt(closed.x),   cy = Mathf.RoundToInt(closed.y);
+			int cw = Mathf.RoundToInt(closed.width), ch = Mathf.RoundToInt(closed.height);
+
+			// Ось Y раскладки смотрит ВВЕРХ (см. MapSide), а ряды карты идут от её верхнего края вниз: карта
+			// с верхом oy занимает ряды oy .. oy-oh+1.
+			bool horizontal;   // граница горизонтальная — сосед снизу либо сверху
+			float line;        // координата линии границы поперёк неё
+			int openEdge;      // ряд (столбец) своей карты у границы, в её локальных координатах
+			int closedEdge;    // то же у недоступной карты
+
+			if (cy == oy - oh)          // сосед снизу
+			{
+				horizontal = true;  line = oy - oh + 0.5f;  openEdge = -(oh - 1);  closedEdge = 0;
+			}
+			else if (oy == cy - ch)     // сосед сверху
+			{
+				horizontal = true;  line = oy + 0.5f;       openEdge = 0;          closedEdge = -(ch - 1);
+			}
+			else if (cx == ox + ow)     // сосед справа
+			{
+				horizontal = false; line = ox + ow - 0.5f;  openEdge = ow - 1;     closedEdge = 0;
+			}
+			else if (ox == cx + cw)     // сосед слева
+			{
+				horizontal = false; line = ox - 0.5f;       openEdge = 0;          closedEdge = cw - 1;
+			}
+			else
+				return;
+
+			// Общая часть границы: у соседа своя длина и своё смещение, границей делится только пересечение.
+			// Вдоль горизонтальной границы идём вправо, вдоль вертикальной — вниз (ряды убывают).
+			int step = horizontal ? 1 : -1;
+			int from = horizontal ? Mathf.Max(ox, cx) : Mathf.Min(oy, cy);
+			int to   = horizontal
+				? Mathf.Min(ox + ow, cx + cw) - 1
+				: Mathf.Max(oy - oh, cy - ch) + 1;
+
+			// Карты сошлись по одной оси, но по другой не перекрылись — касание углом: общей границы нет,
+			// перейти там негде.
+			int length = (horizontal ? to - from : from - to) + 1;
+			if (length <= 0)
+				return;
+
+			// Проход — сплошной участок свободных клеток. Отдаём его целиком, от края до края: игрок упирается
+			// в стену в ЛЮБОМ его месте, и метка на земле стоит по всей ширине; показу, которому места хватает
+			// лишь на одну точку, участок отдаёт свою середину сам (Gate.center).
+			int start = 0;
+			bool inside = false;
+
+			for (int i = 0; i < length; i++)
+			{
+				int at = from + i * step;
+
+				Vector2Int openCell   = horizontal ? new Vector2Int(at - ox, openEdge)   : new Vector2Int(openEdge, at - oy);
+				Vector2Int closedCell = horizontal ? new Vector2Int(at - cx, closedEdge) : new Vector2Int(closedEdge, at - cy);
+
+				bool free = !IsColliderCell(openId, openCell) && !IsColliderCell(closedId, closedCell);
+
+				if (free && !inside)
+				{
+					start = at;
+					inside = true;
+				}
+				else if (!free && inside)
+				{
+					gates.Add(GateAt(openId, horizontal, line, start, at - step));
+					inside = false;
+				}
+			}
+
+			if (inside)
+				gates.Add(GateAt(openId, horizontal, line, start, to));
+		}
+
+		/// <summary>Проход от клетки from до клетки to (включительно) на линии границы line.</summary>
+		private static Gate GateAt(int openId, bool horizontal, float line, int from, int to)
+		{
+			return new Gate
+			{
+				map  = openId,
+				from = horizontal ? new Vector2(from, line) : new Vector2(line, from),
+				to   = horizontal ? new Vector2(to, line)   : new Vector2(line, to)
+			};
 		}
 		
 		private void SortMap()

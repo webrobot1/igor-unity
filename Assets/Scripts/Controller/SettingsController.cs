@@ -231,6 +231,9 @@ namespace Mmogick
                     if (settings.ContainsKey("fps"))
                         Application.targetFrameRate = int.Parse(settings["fps"]);
 
+                    // Джойстик скрыт с запуска (CursorController.Awake) — тот же случай, что у галочки
+                    // «Тестовый режим» ниже: пришедшее значение решает, а не пришедшее у НЕ объявленной
+                    // игрой настройки оставляет блок скрытым, тогда как просто не менявшееся — как было.
                     if (settings.ContainsKey("joystick"))
                         joystick.gameObject.SetActive(int.Parse(settings["joystick"]) > 0);
 
