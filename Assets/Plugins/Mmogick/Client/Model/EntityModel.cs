@@ -1,4 +1,4 @@
-using SpriterDotNetUnity;
+﻿using Spine.Unity;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -112,12 +112,12 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Placeholder-спрайт kind-only сущности (нет ни image, ни SCML — рисуется "unknow" с Resources-префаба).
+		/// Placeholder-спрайт kind-only сущности (нет ни image, ни скелета — рисуется "unknow" с Resources-префаба).
 		/// Запоминается в UpdateController.ApplyVisualPrefab. Нужен чтобы ВЕРНУТЬ его на корневой SpriteRenderer
 		/// после терминального Universal-эффекта: dead/remove.anim перезаписывают SR.m_Sprite (PPtrCurve,
 		/// writeDefaults=false) и сами назад не откатывают — без восстановления сущность, ожившая после dead,
 		/// навсегда застревала бы на dead-кадре. Восстановление выполняет PlayAction (см. Universal-ветку).
-		/// null для image/Spriter-сущностей (у них свой визуал, восстанавливать нечего).
+		/// null для сущностей с картинкой и со скелетом (у них свой визуал, восстанавливать нечего).
 		/// </summary>
 		private Sprite _fallbackSprite;
 
@@ -139,7 +139,7 @@ namespace Mmogick
 		public bool pendingAppearFlash;
 
 		/// <summary>
-		/// LifeBar скрыт на время асинхронной сборки Spriter-визуала (UpdateController.ApplyVisualPrefab
+		/// LifeBar скрыт на время асинхронной сборки скелета (UpdateController.ApplyVisualPrefab
 		/// прячет его вместе с placeholder-спрайтом, чтобы полоска не висела в воздухе без тела).
 		/// Возврат — в <see cref="OnVisualReady"/> либо в error-ветке загрузки самим ApplyVisualPrefab.
 		/// </summary>
@@ -147,8 +147,8 @@ namespace Mmogick
 		public bool lifeBarHiddenForBuild;
 
 		/// <summary>
-		/// Точка «визуал сущности готов и показан»: конец подгонки SpriterPostImportAdjuster у
-		/// animation-prefab'ов, синхронное применение у image/kind-only (UpdateController.ApplyVisualPrefab).
+		/// Точка «визуал сущности готов и показан»: конец сборки скелета у animation-prefab'ов,
+		/// синхронное применение у image/kind-only (UpdateController.ApplyVisualPrefab).
 		/// Возвращает спрятанный на время сборки LifeBar и играет отложенный эффект появления.
 		/// Повторные вызовы (смена prefab на лету) безопасны: оба флага одноразовые.
 		/// </summary>
@@ -171,8 +171,8 @@ namespace Mmogick
 		/// <summary>
 		/// Эффект появления существа: ОТДЕЛЬНЫЙ дочерний объект с Universal Animator'ом, играющий Puff
 		/// (кадры и state'ы remove) поверх уже показанного тела. Именно отдельный объект: Universal-ветка
-		/// PlayAction на самой сущности глушит SpriteRenderer'ы тела Spriter'а — для появления тело должно
-		/// оставаться видимым. Позиция/масштаб — системы корня сущности, как у remove-Puff на корневом SR.
+		/// PlayAction на самой сущности прячет тело — для появления оно должно оставаться видимым.
+		/// Позиция/масштаб — системы корня сущности, как у remove-Puff на корневом SR.
 		/// Уничтожается сам по концу анимации (AppearFlashEffect).
 		/// </summary>
 		private void SpawnAppearFlash()
@@ -184,8 +184,7 @@ namespace Mmogick
 			fx.transform.SetParent(transform, false);
 
 			var sr = fx.AddComponent<SpriteRenderer>();
-			// Поверх всех SpriteRenderer'ов тела внутри SortingGroup сущности (Spriter раздаёт детям 0..N;
-			// та же «поверх всего» конвенция, что WeaponMount.FallbackOrder).
+			// Поверх всего, что нарисовано на сущности внутри её SortingGroup.
 			sr.sortingOrder = 1000;
 
 			var anim = fx.AddComponent<Animator>();
@@ -199,7 +198,7 @@ namespace Mmogick
 		private Vector3 _forward = Vector3.zero;
 
 		/// <summary>
-		/// Нарисованный угол текущего Spriter-клипа (0=вправо, 90=вверх) — ключ angle-карты
+		/// Нарисованный угол текущего клипа тела (0=вправо, 90=вверх) — ключ angle-карты
 		/// actions (из /prefabs entry), под которым клип отрезолвлен в GetClipName. null — клип без направления
 		/// или резолв не удался (fallback на имя action). Зеркало (flipX) сюда НЕ входит — оно живёт
 		/// в localScale корня, потребитель читает его из lossyScale. Нужен WeaponMount для выбора
@@ -314,9 +313,8 @@ namespace Mmogick
 				}
                 else
                 {
-					// Берём аниматор именно этой сущности, а не первый найденный в сцене
-					SpriterDotNetBehaviour animator = GetComponent<SpriterDotNetBehaviour>();
-					if (animator != null && animator.Animator != null)
+					// Спрашиваем тело именно этой сущности, а не первое найденное в сцене
+					if (HasBody)
 					{
 						string prefabName = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
 						float fwdX = recive.forwardX ?? Forward.x;
@@ -325,24 +323,29 @@ namespace Mmogick
 							prefabName, recive.action, fwdX, fwdY);
 						if (clipName == null) { clipName = recive.action; flipX = false; }
 
-						// Action не имеет клипа в SCML (ACTION_LOAD, не настроенный action и т.п.) —
-						// fallback на idle_action, иначе SpriterDotNet оставит первую анимацию SCML
-						// (которая может быть какой угодно — у player'а это Attack).
-						if (!animator.Animator.HasAnimation(clipName))
+						// Действие, которым клип выбран: повтор берётся у НЕГО, и при подмене клипа ниже
+						// подменяется вместе с клипом — у idle свой повтор, к пришедшему action отношения
+						// не имеющий.
+						string clipAction = recive.action;
+
+						// У action нет своего клипа (ACTION_LOAD, не настроенный action и т.п.) — fallback на
+						// idle_action, иначе тело осталось бы на первом клипе набора (у player'а это Attack).
+						if (!BodyHasClip(clipName))
 						{
 							var (idleClip, idleFlip, idleAngle) = AnimationCacheService.GetClipName(
 								prefabName, ConnectController.idle_action, fwdX, fwdY);
-							if (idleClip != null && animator.Animator.HasAnimation(idleClip))
+							if (BodyHasClip(idleClip))
 							{
 								clipName = idleClip;
 								flipX = idleFlip;
 								clipAngle = idleAngle;
+								clipAction = ConnectController.idle_action;
 							}
 						}
 
-						// Ракурс тела — только если клип реально есть в SCML (иначе играет прежний клип,
+						// Ракурс тела — только если клип у тела реально есть (иначе играет прежний клип,
 						// и прежний DisplayAngle остаётся верным).
-						if (animator.Animator.HasAnimation(clipName))
+						if (BodyHasClip(clipName))
 							DisplayAngle = clipAngle;
 
 						if (type != "object")
@@ -353,15 +356,14 @@ namespace Mmogick
 						}
 
 						bool changed = action != recive.action;
-						bool nonLoop = animator.Animator.CurrentAnimation != null && !animator.Animator.CurrentAnimation.Looping;
-						bool animationDiverged = animator.Animator.CurrentAnimation == null
-							|| animator.Animator.CurrentAnimation.Name != clipName;
+						bool nonLoop = BodyClip != null && !BodyClipLoops;
+						bool animationDiverged = BodyClip != clipName;
 						if (changed || nonLoop || animationDiverged)
 						{
-							if (animator.Animator.HasAnimation(clipName))
-								animator.Animator.Play(clipName);
+							if (BodyHasClip(clipName))
+								BodyPlay(clipName);
 							else
-								LogWarning("Анимация: clip '" + clipName + "' (action '" + recive.action + "') не найден в SCML");
+								LogWarning("Анимация: клипа '" + clipName + "' (action '" + recive.action + "') у тела нет");
 						}
 					}
 					action = recive.action;
@@ -376,8 +378,7 @@ namespace Mmogick
 				{
 					Forward = vector;
 					_forward = vector;
-					SpriterDotNetBehaviour anim = GetComponent<SpriterDotNetBehaviour>();
-						
+
 				// Forward сменился без смены action — ре-резолв направленного clip.
 					// На первом спавн-пакете this.prefab ещё НЕ присвоен (присваивается ниже из recive.prefab),
 					// а recive.prefab уже есть — берём его приоритетно (как в action-блоке выше). Иначе и
@@ -385,9 +386,9 @@ namespace Mmogick
 					// forward один раз при спавне, _forward сразу записывается, а поворот по пустому prefab
 					// пропускается → последующие пакеты с тем же forward ветку не триггерят → снаряд не крутится.
 					string pn = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
-					if (anim?.Animator != null && !string.IsNullOrEmpty(pn))
+					if (HasBody && !string.IsNullOrEmpty(pn))
 					{	
-						if (anim && action != null && recive.action == null)
+						if (action != null && recive.action == null)
 						{
 							var (newClip, newFlip, newAngle) = AnimationCacheService.GetClipName(
 								pn, action, Forward.x, Forward.y);
@@ -396,30 +397,31 @@ namespace Mmogick
 								Vector3 s = transform.localScale;
 								transform.localScale = new Vector3(
 									newFlip ? -Mathf.Abs(s.x) : Mathf.Abs(s.x), s.y, s.z);
-								if (anim.Animator.HasAnimation(newClip))
-									DisplayAngle = newAngle;
-								if (anim.Animator.CurrentAnimation == null || anim.Animator.CurrentAnimation.Name != newClip)
+								if (BodyHasClip(newClip))
 								{
-									if (anim.Animator.HasAnimation(newClip))
-										anim.Animator.Play(newClip);
+									DisplayAngle = newAngle;
+									if (BodyClip != newClip)
+										BodyPlay(newClip);
 								}
 							}
 						}
 					}
-					// Поворот transform применяем только сущностям без Spriter и без legacy blend-tree Animator'а.
+					// Поворот transform применяем только сущностям без собранного тела и без legacy blend-tree
+					// Animator'а.
 					// У player/enemy/animal направление передаётся сменой clip + flip по X (Spriter), либо
 					// SetFloat("x"/"y") в blend-tree (исторический legacy-механизм, сам blend-tree контроллер
 					// удалён) — им крутить transform нельзя.
 					// Universal.controller (overlay для remove-эффектов) не имеет параметров x/y — для image-
 					// projectile'ов с ним крутить ВСЁ ЕЩЁ можно.
-					// Критерий «нельзя крутить»: есть Spriter, или есть Animator с параметрами x/y.
+					// Критерий «нельзя крутить»: есть тело с направленными клипами, либо есть Animator
+					// с параметрами x/y.
 					// Конвенция: канонический спрайт нарисован под PrefabEntry.angle (обычно вправо, 0).
 					// Atan2(y,x) — угол от оси X+; вычитаем опорный angle, чтобы спрайт любого ракурса
 					// смотрел остриём по курсу. Server default forward=(0,-1) → спрайт смотрит вниз.
 					// Gate: rotationMode == Free (админка → GameImage.rotationMode, бывший rotatable=true).
 					// Без него все статичные image-prefab'ы (apple, sword) крутились бы вслед за forward,
 					// что выглядит неестественно — крутятся только явно отмеченные (фаерболы, стрелы).
-					else if (GetComponent<SpriterDotNetBehaviour>() == null
+					else if (!HasBody
 						&& AnimationCacheService.GetPrefabRotationMode(pn) == AnimationCacheService.RotationMode.Free)
 					{
 						// «Можно крутить» = нет legacy Animator с blend-tree параметрами x/y.
@@ -689,28 +691,148 @@ namespace Mmogick
 		/// </summary>
 		protected virtual void OnAnimatorAttached(Animator anim) { }
 
+		#region Тело сущности
+
+		// Всё, что нужно механике сущности от её тела — есть ли клип, какой играет, повторяется ли он,
+		// запустить другой, показать или спрятать, — собрано тут: вызывающие спрашивают тело, не зная,
+		// чем оно собрано.
+
+		/// <summary>Скелет Spine сущности; null — тело не собрано (картинка, заглушка либо ещё качается).</summary>
+		private SkeletonAnimation Skeleton => GetComponentInChildren<SkeletonAnimation>();
+
+		/// <summary>Собрано ли тело, которым управляют клипами.</summary>
+		public bool HasBody => Skeleton != null;
+
+		/// <summary>Есть ли у тела такой клип.</summary>
+		public bool BodyHasClip(string clip)
+		{
+			if (string.IsNullOrEmpty(clip)) return false;
+
+			var skeleton = Skeleton;
+			if (skeleton == null) return false;
+
+			var data = skeleton.SkeletonDataAsset != null ? skeleton.SkeletonDataAsset.GetSkeletonData(false) : null;
+			return data != null && data.FindAnimation(clip) != null;
+		}
+
+		/// <summary>Имя играющего клипа; null — тело ничего не играет.</summary>
+		public string BodyClip
+		{
+			get
+			{
+				var track = BodyTrack;
+				return track != null && track.Animation != null ? track.Animation.Name : null;
+			}
+		}
+
+		/// <summary>Повторяется ли играющий клип. Клипа нет — считаем неповторяемым: доиграл и стоит.</summary>
+		public bool BodyClipLoops
+		{
+			get
+			{
+				var track = BodyTrack;
+				return track != null && track.Loop;
+			}
+		}
+
 		/// <summary>
-		/// Универсальное проигрывание action-анимации: сначала пробует Spriter (SCML с сервера), если
-		/// для текущего prefab+action нет SCML-клипа — fallback на Universal Animator (одиночный слой
-		/// remove + параметры direction:Int и trigger:remove/&lt;action&gt;).
+		/// Длительность играющего клипа в секундах; 0 — тело ничего не играет. Ждать конца анимации по ней
+		/// и приходится: у разового клипа (гибель, удаление с карты) сам конец наступает молча.
+		/// </summary>
+		public float BodyClipLength
+		{
+			get
+			{
+				var track = BodyTrack;
+				return track != null && track.Animation != null ? track.Animation.Duration : 0f;
+			}
+		}
+
+		/// <summary>Дорожка клипа скелета — та единственная, которой телом и управляют.</summary>
+		private Spine.TrackEntry BodyTrack
+		{
+			get
+			{
+				var skeleton = Skeleton;
+				return skeleton != null && skeleton.AnimationState != null
+					? skeleton.AnimationState.GetTrack(0)
+					: null;
+			}
+		}
+
+		/// <summary>
+		/// Показывать ли тело. Прячут его на время терминального эффекта поверх сущности (силуэт гибели,
+		/// облачко удаления): эффект рисуется на КОРНЕВОМ рендерере, а тело перекрывало бы его. Сам скелет
+		/// при этом остаётся живым — выключен только его рисователь, и клип продолжает идти.
+		/// </summary>
+		private void SetBodyVisible(bool visible)
+		{
+			var skeleton = Skeleton;
+			if (skeleton == null) return;
+
+			var renderer = skeleton.GetComponent<Renderer>();
+			if (renderer != null) renderer.enabled = visible;
+		}
+
+		/// <summary>
+		/// Прозрачность всего, что нарисовано на сущности. Картинка и надетые предметы рисуются спрайтами —
+		/// прозрачность у них в цвете каждого рендерера; скелет Spine рисуется мешем, и её несёт сам скелет,
+		/// у которого своего спрайта нет вовсе.
 		///
-		/// Возвращает true если анимация запущена (Spriter или Universal); false если ни там, ни там
+		/// Состав рендереров не запоминается: тело пересобирается в любой момент (смена облика, надетый
+		/// предмет), и снятый однажды список назавтра красил бы не то.
+		/// </summary>
+		public void SetBodyAlpha(float alpha)
+		{
+			foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true))
+			{
+				var color = sr.color;
+				sr.color = new Color(color.r, color.g, color.b, alpha);
+			}
+
+			var skeleton = Skeleton;
+			if (skeleton != null && skeleton.Skeleton != null)
+			{
+				var tint = skeleton.Skeleton.GetColor();
+				skeleton.Skeleton.SetColor(tint.r, tint.g, tint.b, alpha);
+			}
+		}
+
+		/// <summary>
+		/// Запустить клип. Повтор задаёт запускающий: у формата Spine это свойство не клипа, а решения —
+		/// перечень однократных клипов приходит в пакете скелета (<see cref="SpineCacheService.Loops"/>).
+		/// </summary>
+		public void BodyPlay(string clip)
+		{
+			var skeleton = Skeleton;
+			if (skeleton == null) return;
+
+			skeleton.AnimationState.SetAnimation(0, clip, SpineCacheService.Loops(skeleton.SkeletonDataAsset, clip));
+		}
+
+		#endregion
+
+		/// <summary>
+		/// Универсальное проигрывание action-анимации: сначала пробует клип тела сущности (скелета с
+		/// сервера), если для текущего prefab+action своего клипа нет — fallback на Universal
+		/// Animator (одиночный слой remove + параметры direction:Int и trigger:remove/&lt;action&gt;).
+		///
+		/// Возвращает true если анимация запущена (телом или Universal); false если ни там, ни там
 		/// нет данных под этот action (вызывающая сторона должна выполнить действие без эффекта).
 		/// </summary>
 		public bool PlayAction(string actionName)
 		{
-			// 1) Spriter — приоритет
-			var spriter = GetComponent<SpriterDotNetBehaviour>();
-			if (spriter != null && spriter.Animator != null && !string.IsNullOrEmpty(prefab))
+			// 1) собственный клип тела — приоритет
+			if (HasBody && !string.IsNullOrEmpty(prefab))
 			{
 				var (clip, _, clipAngle) = AnimationCacheService.GetClipName(
 					prefab, actionName, Forward.x, Forward.y);
-				if (!string.IsNullOrEmpty(clip) && spriter.Animator.HasAnimation(clip))
+				if (BodyHasClip(clip))
 				{
-					// Spriter снова владеет визуалом — снять терминальный Universal-оверлей (dead-силуэт),
-					// если он был активен: вернуть тело Spriter'а, погасить силуэт корневого SR.
-					RestoreSpriterFromTerminalOverlay(spriter);
-					spriter.Animator.Play(clip);
+					// Тело снова владеет визуалом — снять терминальный Universal-оверлей (dead-силуэт),
+					// если он был активен: вернуть тело, погасить силуэт корневого SR.
+					RestoreBodyFromTerminalOverlay();
+					BodyPlay(clip);
 					DisplayAngle = clipAngle;
 					return true;
 				}
@@ -727,13 +849,13 @@ namespace Mmogick
 					if (p.type == AnimatorControllerParameterType.Trigger && p.name == actionName) { hasTrigger = true; break; }
 				if (!hasTrigger)
 				{
-					// Под этот action нет ни Spriter-клипа, ни Universal-триггера — «обычное» состояние
+					// Под этот action нет ни клипа тела, ни Universal-триггера — «обычное» состояние
 					// (walk/idle/resurrect). Если ранее проиграл терминальный Universal-эффект (dead-силуэт)
 					// и перезаписал корневой SR — восстанавливаем нормальный визуал:
 					//  - kind-only (есть _fallbackSprite): возвращаем placeholder на корневой SR;
-					//  - Spriter (тело в детях): гасим силуэт корневого SR и включаем тело Spriter'а обратно.
-					// Без этого ожившая после dead сущность застревает на dead-кадре (у Spriter-сущности
-					// GetClipName направленных клипов часто NULL → сюда же попадают её walk/idle/resurrect).
+					//  - скелет (тело в детях): гасим силуэт корневого SR и показываем тело обратно.
+					// Без этого ожившая после dead сущность застревает на dead-кадре (направленных клипов
+					// у GetClipName часто NULL → сюда же попадают её walk/idle/resurrect).
 					if (_fallbackSprite != null)
 					{
 						var sr0 = GetComponent<SpriteRenderer>();
@@ -744,9 +866,9 @@ namespace Mmogick
 							sr0.enabled = true;
 						}
 					}
-					else if (spriter != null)
+					else
 					{
-						RestoreSpriterFromTerminalOverlay(spriter);
+						RestoreBodyFromTerminalOverlay();
 					}
 					return false;
 				}
@@ -755,17 +877,13 @@ namespace Mmogick
 				// и item-объекты рендерятся пустыми. Включаем здесь, перед SetTrigger.
 				if (!unityAnim.enabled) unityAnim.enabled = true;
 
-				// Universal.anim бьёт PPtrCurve по m_Sprite корневого SpriteRenderer — после Spriter-init
-				// корневой SR выключен (см. NewSpriterRuntimeImporter). Включаем на время эффекта.
-				// Spriter-children (если есть) глушим — иначе Puff-кадры перекрываются телом Spriter.
-				// На детях Spriter'а живут SpriteRenderer'ы body-parts — выключаем их, корневой SR
-				// пропускаем (там Universal рисует Puff). SpriterDotNetBehaviour не трогаем — без
-				// активных дочерних SR его scheduling кадров не отрендерится.
+				// Universal.anim бьёт PPtrCurve по m_Sprite корневого SpriteRenderer — у сущности со скелетом
+				// корневой SR выключен (UpdateController.ApplyVisualPrefab). Включаем на время эффекта, а тело
+				// прячем — иначе Puff-кадры перекрываются им. Сам скелет живой: выключен только его
+				// рисователь, клип продолжает идти.
 				var sr = GetComponent<SpriteRenderer>();
 				if (sr != null) sr.enabled = true;
-				if (spriter != null)
-					foreach (var r in spriter.GetComponentsInChildren<SpriteRenderer>(includeInactive: false))
-						if (r.gameObject != spriter.gameObject) r.enabled = false;
+				SetBodyVisible(false);
 
 				unityAnim.SetInteger("direction", ForwardToDirection());
 				unityAnim.ResetTrigger(actionName);
@@ -777,28 +895,30 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Возврат Spriter-визуала после терминального Universal-оверлея (dead-силуэт / remove-Puff).
-		/// Оверлей (Universal-ветка PlayAction) зажигает корневой SR (силуэт) и ГАСИТ SpriteRenderer'ы
-		/// тела Spriter'а. SpriterDotNet сам их НЕ включает обратно — он управляет GameObject.SetActive,
-		/// а НЕ SpriteRenderer.enabled (см. UnityAnimator.ApplySpriteTransform) — поэтому оживший после
-		/// dead Spriter застревает на dead-кадре (корневой SR держит силуэт при writeDefaults=false),
-		/// даже когда его walk/idle-клип уже играется на выключенных детях. Зовём, когда Spriter снова
-		/// получает управление (не-эффектный action). no-op, если оверлея нет: у Spriter-сущности
-		/// корневой SR штатно выключен (CreateSpriter), включён — значит его зажёг терминальный оверлей.
+		/// Возврат визуала тела после терминального Universal-оверлея (dead-силуэт / remove-Puff).
+		/// Оверлей (Universal-ветка PlayAction) зажигает корневой SR (силуэт) и ПРЯЧЕТ тело; сам оверлей
+		/// назад его не возвращает — оживший после dead застревал бы на dead-кадре (корневой SR держит
+		/// силуэт при writeDefaults=false), даже когда его walk/idle-клип уже играется на скрытом теле.
+		/// Зовём, когда тело снова получает управление (не-эффектный action). no-op, если оверлея нет:
+		/// у сущности со скелетом корневой SR штатно выключен, включён — значит его зажёг оверлей.
 		/// </summary>
-		private void RestoreSpriterFromTerminalOverlay(SpriterDotNetBehaviour spriter)
+		private void RestoreBodyFromTerminalOverlay()
 		{
+			// Тела нет — корневой SR рисует сам визуал сущности (картинку предмета, заглушку вида), и гасить
+			// его нельзя: это не силуэт оверлея.
+			if (!HasBody) return;
+
 			var sr = GetComponent<SpriteRenderer>();
 			if (sr == null || !sr.enabled) return;   // оверлея нет — восстанавливать нечего
 
-			sr.enabled = false;   // погасить силуэт корневого SR (Spriter рисует детьми)
-			foreach (var r in spriter.GetComponentsInChildren<SpriteRenderer>(true))
-				if (r.gameObject != spriter.gameObject) r.enabled = true;   // вернуть тело Spriter'а
+			sr.enabled = false;   // погасить силуэт корневого SR (тело рисует дочерний скелет)
+			SetBodyVisible(true);
 		}
 
 		/// <summary>
-		/// Суммарные world-границы ВИДИМЫХ спрайтов сущности (Spriter даёт много child-SpriteRenderer;
-		/// image / fallback / Universal-силуэт — один корневой). Выключенные/пустые рендереры не учитываем.
+		/// Суммарные world-границы ВИДИМОГО тела сущности (image / fallback / Universal-силуэт — один
+		/// корневой рендерер; скелет Spine рисует мешем; надетые предметы — свои). Выключенные
+		/// рендереры и спрайты без картинки не учитываем.
 		/// Единый источник «тела» сущности для клиентских гейтов, чтобы они совпадали: кольцо-подсветка
 		/// трупа (CursorController) и подгонка его кликабельного коллайдера (ObjectModel) берут ОДНИ И ТЕ ЖЕ
 		/// границы — область клика по трупу совпадает с кольцом.
@@ -807,12 +927,14 @@ namespace Mmogick
 		{
 			bounds = new Bounds();
 			bool has = false;
-			var srs = GetComponentsInChildren<SpriteRenderer>();
-			for (int i = 0; i < srs.Length; i++)
+			var renderers = GetComponentsInChildren<Renderer>();
+			for (int i = 0; i < renderers.Length; i++)
 			{
-				if (!srs[i].enabled || srs[i].sprite == null) continue;
-				if (!has) { bounds = srs[i].bounds; has = true; }
-				else bounds.Encapsulate(srs[i].bounds);
+				if (!renderers[i].enabled) continue;
+				// Пустой спрайт рисует ничто, а границы у рендерера всё равно есть — такой в тело не идёт.
+				if (renderers[i] is SpriteRenderer sprite && sprite.sprite == null) continue;
+				if (!has) { bounds = renderers[i].bounds; has = true; }
+				else bounds.Encapsulate(renderers[i].bounds);
 			}
 			return has;
 		}

@@ -148,10 +148,14 @@ namespace Mmogick
 		/// до готовности рендереры выключены: корневой гасит UpdateController.ApplyVisualPrefab, тело Spriter'а
 		/// создаётся выключенным и включается концом подгонки. Пока не показано, карта стоит без персонажа —
 		/// для игрока это та же пустая картинка, ради которой панель и заведена.
+		///
+		/// Спрашиваем рендерер ЛЮБОГО вида: тело рисуют разные — картинка и дерево Spriter'а спрайтами,
+		/// скелет Spine мешем. Полоска здоровья и имя живут на холсте интерфейса и рендерером сцены не
+		/// являются — за тело их тут не примешь.
 		/// </summary>
 		private static bool IsVisible(EntityModel entity)
 		{
-			foreach (var renderer in entity.GetComponentsInChildren<SpriteRenderer>())
+			foreach (var renderer in entity.GetComponentsInChildren<Renderer>())
 				if (renderer.enabled)
 					return true;
 
@@ -257,6 +261,49 @@ namespace Mmogick
 		public static bool IsColliderCell(int mapId, Vector2Int cell)
 		{
 			return _maps.TryGetValue(mapId, out MapDecode m) && m.colliders != null && m.colliders.Contains(cell);
+		}
+
+		/// <summary>
+		/// Известно ли клиенту, что в клетке пройти НЕЛЬЗЯ. Ответ true значит «преграду знаю»: клетку накрывает
+		/// преграда, в ней нет тайла (чернота за краем рисунка карты), она лежит на НЕДОСТУПНОЙ соседней карте
+		/// (<see cref="MapSide.ready"/>) либо не попадает ни в одну известную карту вовсе — все четыре случая
+		/// сервер держит непроходимыми. Разметки карты у клиента ещё нет → false: клетку не знаем, сервер
+		/// отобьёт сам — то же правило, что у <see cref="IsColliderCell"/>, ошибаться допустимо лишь в сторону
+		/// лишней отправки.
+		///
+		/// Клетка приходит в координатах СЦЕНЫ (там же стоят сущности), а преграды и тайлы карта держит в своих:
+		/// перевод — вычитание смещения её стороны, как в <see cref="AddGates"/>.
+		/// </summary>
+		public static bool IsKnownImpassableCell(Vector2Int cell)
+		{
+			foreach (KeyValuePair<int, MapSide> side in _sides)
+			{
+				int sx = Mathf.RoundToInt(side.Value.x), sy = Mathf.RoundToInt(side.Value.y);
+				int w  = Mathf.RoundToInt(side.Value.width), h = Mathf.RoundToInt(side.Value.height);
+
+				// Ось Y раскладки смотрит ВВЕРХ, а ряды карты идут от её верхнего края вниз: карта с верхом sy
+				// занимает ряды sy .. sy-h+1 (см. AddGates).
+				if (cell.x < sx || cell.x >= sx + w || cell.y > sy || cell.y <= sy - h)
+					continue;
+
+				// Недоступную карту сервер не запускает, а её клетки считает непроходимыми целиком — ровно там
+				// игрок и упирается в невидимую стену (см. getGates).
+				if (!side.Value.ready)
+					return true;
+
+				if (!_maps.TryGetValue(side.Key, out MapDecode decoded))
+					return false;
+
+				Vector2Int local = new Vector2Int(cell.x - sx, cell.y - sy);
+
+				if (decoded.colliders != null && decoded.colliders.Contains(local))
+					return true;
+
+				return decoded.tiles != null && !decoded.tiles.Contains(local);
+			}
+
+			// Клетка не попала ни в одну известную карту: за пределами своей карты и её соседей мира нет.
+			return true;
 		}
 
 		public static Dictionary<int, MapDecode> getMaps()

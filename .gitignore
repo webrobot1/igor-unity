@@ -72,8 +72,12 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 *.log
-# .claude: под контролем версий рукописное — hooks и settings.json.
+# .claude: под контролем версий hooks, settings.json и ведомые копии сводов правил
+# (.claude/skills/{core,code,csharp,browser,orchestration}/SKILL.md) — их перезаписывает хук серверного
+# репозитория, и без них сторона без сервера правил не получает вовсе.
 # Ниже перечислены авто-генерённые Unity-плагином доки тулов: перегенерятся, ручная правка затрётся.
+# Перечень поимённый и пополняется при обновлении плагина: .claude/skills целиком НЕ отсекать — вместе
+# с доками уйдут копии сводов, и канал доставки правил обнулится молча.
 .claude/scheduled_tasks.lock
 .claude/skills/assets-copy/SKILL.md
 .claude/skills/assets-create-folder/SKILL.md
@@ -92,20 +96,6 @@ crashlytics-build.properties
 .claude/skills/assets-refresh/SKILL.md
 .claude/skills/assets-shader-get-data/SKILL.md
 .claude/skills/assets-shader-list-all/SKILL.md
-.claude/skills/cinemachine-add-extension/SKILL.md
-.claude/skills/cinemachine-brain-ensure/SKILL.md
-.claude/skills/cinemachine-camera-create/SKILL.md
-.claude/skills/cinemachine-camera-get/SKILL.md
-.claude/skills/cinemachine-camera-list/SKILL.md
-.claude/skills/cinemachine-get/SKILL.md
-.claude/skills/cinemachine-modify/SKILL.md
-.claude/skills/cinemachine-set-aim/SKILL.md
-.claude/skills/cinemachine-set-body/SKILL.md
-.claude/skills/cinemachine-set-default-blend/SKILL.md
-.claude/skills/cinemachine-set-lens/SKILL.md
-.claude/skills/cinemachine-set-noise/SKILL.md
-.claude/skills/cinemachine-set-priority/SKILL.md
-.claude/skills/cinemachine-set-targets/SKILL.md
 .claude/skills/console-clear-logs/SKILL.md
 .claude/skills/console-get-logs/SKILL.md
 .claude/skills/editor-application-get-state/SKILL.md

@@ -15,9 +15,9 @@ namespace Mmogick
 		public string ip;
 
 		/// <summary>
-		/// Группа команды подбора и её действие — имена серверные.
+		/// Действие команды подбора — имя серверное. Группу той же команды держит структура её отправки
+		/// (<see cref="PickupResponse.GROUP"/>): группа одна и та же, куда бы команда ни шла.
 		/// </summary>
-		private const string PickupGroup = "item/pickup";
 		private const string PickupAction = "index";
 
 		/// <summary>
@@ -47,7 +47,7 @@ namespace Mmogick
 		/// </summary>
 		private void RememberPickup()
 		{
-			Event pickup = TryGetEvent(PickupGroup);
+			Event pickup = TryGetEvent(PickupResponse.GROUP);
 
 			if (pickup == null || pickup.action != PickupAction || pickup.data == null)
 				return;
@@ -88,39 +88,27 @@ namespace Mmogick
 			RememberPickup();
 		}
 
-		// Применяет альфу ко ВСЕМ SpriteRenderer'ам под сущностью (включая Spriter-детей).
-		// Кеш в Awake недопустим: wrap/Spriter могут пересоздать структуру в любой момент.
-		private void SetSpritesAlpha(float alpha)
-		{
-			foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true))
-			{
-				var c = sr.color;
-				sr.color = new Color(c.r, c.g, c.b, alpha);
-			}
-		}
-
 		// Был ли в прошлом кадре «призрачный» режим — для однократного возврата непрозрачности на выходе.
 		private bool _ghost;
 
 		// «Призрачный» режим: hp=0 и action != dead (труп лежит при action=dead с полной альфой,
 		// а двигается призраком — полупрозрачно). Условие пересчитывается каждый кадр в LateUpdate,
 		// поэтому переключения action ↔ dead/walk/idle подхватываются автоматически без отдельных
-		// триггеров от SetData. SpriterDotNet.UnityAnimator каждый кадр в ApplySpriteTransform
-		// перезаписывает SpriteRenderer.color по info.Alpha из SCML — поэтому однократный SetAlpha
-		// затирается на следующем Update. LateUpdate идёт после всех Update в кадре и держит alpha.
+		// триггеров от SetData. LateUpdate идёт после всех Update в кадре: тело пересобирает свою позу
+		// в Update, и однократно выставленная прозрачность затиралась бы ею на том же кадре.
 		// Живёт в PlayerModel (а не в EnemyModel): призраком-в-движении становится только игрок
 		// (corpse-run при hp=0); enemy/animal просто умирают. Поля hp/action унаследованы.
 		void LateUpdate()
 		{
 			bool ghost = hp == 0 && action != "dead";
 			if (ghost)
-				SetSpritesAlpha(0.5f);
+				SetBodyAlpha(0.5f);
 			// При выходе из призрака (воскрешение / переход в action=dead) явно возвращаем непрозрачность.
-			// Полагаться на то, что Spriter сам перезапишет color обратно в 1, нельзя: fallback root-SR,
-			// не-Spriter сущности и скрытые в текущем кадре body-parts Spriter не трогает — без этого
+			// Полагаться на то, что тело само перезапишет прозрачность обратно в 1, нельзя: fallback root-SR,
+			// неанимированные сущности и скрытые в текущем кадре части тела оно не трогает — без этого
 			// возврата они застревают на alpha=0.5 (игрок «остаётся прозрачным» после получения HP).
 			else if (_ghost)
-				SetSpritesAlpha(1f);
+				SetBodyAlpha(1f);
 			_ghost = ghost;
 		}
 	}

@@ -1,0 +1,22 @@
+{
+    "name": "Mmogick.VideoRig",
+    "rootNamespace": "Mmogick.VideoRig",
+    "references": [
+        "Mmogick.Client",
+        "Mmogick.Game",
+        "Mmogick.VideoRig.Runtime",
+        "Unity.Recorder",
+        "Unity.Recorder.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -15,13 +15,14 @@ namespace Mmogick
 	// Content-addressable кеш анимаций игры. Endpoint'ы:
 	//   GET /animation/patch/{gameId}/{token}/prefabs?since=  — дельта prefab'ов: {items: slug→entry, all: [slug], version}
 	//   GET /animation/patch/{gameId}/{token}/animations     — полный список animation_id → updated_timestamp
-	//   GET /animation/patch/{gameId}/{token}/animations/{id} — SCML XML (клиент качает только если updated отличается)
-	//   GET /animation/patch/{gameId}/{token}/images          — ZIP (sha256.ext + _files.json) (If-Modified-Since)
+	//   GET /animation/patch/{gameId}/{token}/images          — ZIP картинок (sha256.ext) (If-Modified-Since)
+	//
+	// Сам скелет анимации качает и собирает SpineCacheService своим каналом; отсюда он получает перечень
+	// версий (свежесть пакета — та же отметка, что у списка /animations) и общий каталог кеша.
 	//
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/animations/
-	//   images/{sha256}.{ext}         — распакованные из ZIP /images
-	//   structures/{animationId}.xml  — кеш SCML XML
-	//   files.json                    — animationId → idx → sha256.ext (берётся из _files.json в ZIP)
+	//   images/{sha256}.{ext}                — распакованные из ZIP /images
+	//   structures/{animationId}.spine.json  — кеш пакета скелета (пишет SpineCacheService)
 	//   library.json                  — prefab.slug → PrefabEntry (дельта-мёрж по ?since, removal по списку all)
 	//   sync.json                     — manifest (archive_last_modified, animation_versions: {id: ts})
 	//
@@ -35,7 +36,8 @@ namespace Mmogick
 
 		private const string MANIFEST_FILE        = "sync.json";
 		private const string LIBRARY_FILE         = "library.json";
-		private const string FILES_FILE           = "files.json";
+		// Перечень файлов дерева Spriter, который сервер по-прежнему кладёт в архив картинок. Картинкой не
+		// является и клиенту не нужен — пропускаем при распаковке, чтобы не осел в кеше картинок.
 		private const string ARCHIVE_FILES_ENTRY  = "_files.json";
 		private const string IMAGES_DIR           = "images";
 		private const string STRUCT_DIR           = "structures";
@@ -50,12 +52,13 @@ namespace Mmogick
 		// v4: добавлено component_value (эффективные значения публичных компонентов вида).
 		// v5: component убран (имена = ключи component_value), component_value несёт ВСЕ компоненты вида.
 		// v6: значение компонента event у заклинания — строка (имя группы команды) вместо словаря.
-		private const int CACHE_SCHEMA_VERSION = 6;
+		// v7: у привязки действия появилось looping (повтор клипа задаёт действие игры, не документ SCML).
+		// v8: тело собирается скелетом Spine — кешем анимации стал его пакет вместо дерева SCML.
+		private const int CACHE_SCHEMA_VERSION = 8;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
 
-		private static Dictionary<int, Dictionary<int, string>> _files;              // animationId → idx → sha256.ext
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
 		/// <summary>
@@ -64,8 +67,8 @@ namespace Mmogick
 		/// пикселей НАД центром, и по одной высоте rect'а положение края не восстановить.
 		/// Берётся из <see cref="Sprite.vertices"/> — при Tight-меше Unity туда кладёт вершины полигона вокруг
 		/// непрозрачных пикселей. <see cref="Sprite.bounds"/> не подходит: он считает всю sprite.rect целиком,
-		/// и PNG с прозрачными полями искажают измерения SpriterPostImportAdjuster / fallback-normalize.
-		/// Требует Tight-меша — у Spriter-спрайтов это задаётся в <see cref="Sprite.Create"/> ниже,
+		/// и PNG с прозрачными полями искажают замеры, которыми нормируют размер (тело сущности, надетый
+		/// предмет). Требует Tight-меша — у спрайтов этого кеша он задаётся в <see cref="Sprite.Create"/> ниже,
 		/// у ассетов Unity — через TextureImporter.spriteMeshType=Tight (см. README / raw .meta files).
 		/// </summary>
 		public static bool TryGetTightRect(Sprite s, out Rect rect)
@@ -174,6 +177,11 @@ namespace Mmogick
 			public string clip;
 			public int? angle;   // null = клип без направления (прежний ключ "" словарной формы)
 
+			// Повторяется ли клип этого действия. Клиент его не читает: повтор клипа скелета приходит
+			// перечнем однократных клипов в самом пакете скелета (SpineCacheService.Loops). Объявлено
+			// обязательно — разбор строгий (BaseController), и неизвестное поле роняет манифест целиком.
+			public bool? looping;
+
 			// Серверный номер записи привязки. Клиенту не нужен, но объявлен обязательно: разбор
 			// строгий (BaseController), и неизвестное поле роняет манифест целиком — а с ним вход в игру.
 			public int id;
@@ -185,10 +193,10 @@ namespace Mmogick
 			public int animation;
 
 			/// <summary>
-			/// Name нужной SpriterEntity внутри анимации: одна анимация несёт НЕСКОЛЬКО entity (вариации листа
-			/// перекраской — разные prefab на разные entity одной анимации). Приходит в /prefabs
-			/// (PatchController::prefabs). Клиент выбирает по нему SpriterEntity из SCML (NewSpriterRuntimeImporter).
-			/// Null/пусто — одно-entity SCML: берётся первая (совместимость со старыми анимациями).
+			/// Имя нужного варианта скелета внутри анимации: одна анимация несёт НЕСКОЛЬКО вариантов (вариации
+			/// листа перекраской — разные prefab на разные варианты одной анимации). Приходит в /prefabs
+			/// (PatchController::prefabs). По нему вариант и выбирается в пакете скелета (SpineCacheService).
+			/// Null/пусто — варианта не назвали: скелет собрать нечем.
 			/// </summary>
 			public string entity;
 
@@ -202,16 +210,16 @@ namespace Mmogick
 			public List<ActionBinding> actions;
 
 			/// <summary>
-			/// Высота «тела» персонажа в scml-единицах (per-prefab константа, приходит с /prefabs
+			/// Высота «тела» персонажа в единицах скелета (per-prefab константа, приходит с /prefabs
 			/// вместе с animation, задаётся в админке при конфигурации prefab'а).
-			/// Клиент нормализует Spriter-сущность так, чтобы size * final_scale = 1 клетка.
-			/// Если null (поле не задано на сервере) — fallback на автозамер bounds за N кадров.
+			/// Клиент нормализует тело так, чтобы size * final_scale = 1 клетка (SpineVisualBuilder.Fit).
+			/// Если null (поле не задано на сервере) — fallback на замер габаритов самого скелета.
 			/// </summary>
 			public float? size;
 			public bool h_mirror;
 
 			/// <summary>
-			/// SHA256 изображения для статичных image-prefab'ов (без анимации). Null/пусто — у prefab'а есть SCML-анимация.
+			/// SHA256 изображения для статичных image-prefab'ов (без анимации). Null/пусто — у prefab'а есть скелет.
 			/// Полное имя файла в clientArchive = sha256 + "." + extension.
 			/// </summary>
 			public string sha256;
@@ -238,8 +246,8 @@ namespace Mmogick
 
 			/// <summary>
 			/// Slug вида сущности (kind), к которому относится этот prefab. Выводится на сервере из самого
-			/// prefab'а (slug→kind однозначен) и приходит в каждом entry /prefabs (и для Spriter-, и для
-			/// image-формата). Клиент использует его как имя Resources-префаба (Prefabs/{kind}), потому что
+			/// prefab'а (slug→kind однозначен) и приходит в каждом entry /prefabs (и для скелетных, и для
+			/// картиночных prefab'ов). Клиент использует его как имя Resources-префаба (Prefabs/{kind}), потому что
 			/// в пакетах сущностей kind больше не шлётся.
 			/// </summary>
 			public string kind;
@@ -305,19 +313,19 @@ namespace Mmogick
 
 			public bool IsImage => !string.IsNullOrEmpty(sha256);
 
-			/// <summary>Полное имя файла спрайта (sha256.extension) или null если у prefab'а SCML-анимация.</summary>
+			/// <summary>Полное имя файла спрайта (sha256.extension) или null если у prefab'а скелет.</summary>
 			[Newtonsoft.Json.JsonIgnore]
 			public string ImageFile => IsImage ? sha256 + "." + extension : null;
 		}
 
-		// Возвращает per-prefab "size" (max scml-размер body) из library, если задан, иначе null.
-		// Используется SpriterPostImportAdjuster для точной нормализации размера без замера bounds.
+		// Возвращает per-prefab "size" (высота тела в единицах скелета) из library, если задан, иначе null.
+		// Используется сборкой визуала для точной нормализации размера без замера габаритов.
 		// Контракт: вызывать ТОЛЬКО после того как SyncAll отработал (что гарантировано
 		// SigninController.LoadMain — он awaitит SyncAll до ConnectController.Connect, поэтому
 		// любой WS-спавн приходит уже с загруженным _library). Вызов до SyncAll — это баг вызывающей стороны,
 		// поэтому бросаем exception вместо тихого null: null-возврат от «prefab без size» и null от «library
-		// не загружена» — разные вещи, и глотать второе опасно (SpriterPostImportAdjuster уйдёт в fallback
-		// median-sampling, замаскировав проблему timing'а).
+		// не загружена» — разные вещи, и глотать второе опасно (сборка визуала уйдёт в замер габаритов,
+		// замаскировав проблему timing'а).
 		public static float? GetPrefabSize(string prefab)
 		{
 			if (_library == null)
@@ -325,9 +333,18 @@ namespace Mmogick
 			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
 		}
 
-		// Name нужной SpriterEntity из /prefabs-привязки: несколько entity в одной анимации (вариации листа
-		// перекраской) → клиент выбирает entity по имени. Контракт по _library как у GetPrefabSize.
-		// Null/пусто — одно-entity SCML (NewSpriterRuntimeImporter берёт первую, совместимость).
+		// Анимация, чей скелет носит prefab. 0 — скелета у него нет вовсе (набор картинок либо только вид):
+		// легитимное отсутствие, потому не исключение. Контракт по _library как у GetPrefabSize.
+		public static int GetPrefabAnimation(string prefab)
+		{
+			if (_library == null)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabAnimation вызван до SyncAll (_library == null). prefab=" + prefab);
+			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.animation : 0;
+		}
+
+		// Имя нужного варианта скелета из /prefabs-привязки: несколько вариантов в одной анимации (вариации
+		// листа перекраской) → клиент выбирает вариант по имени. Контракт по _library как у GetPrefabSize.
+		// Null/пусто — варианта не назвали: скелет собрать нечем (SpineCacheService.GetSkeleton).
 		public static string GetPrefabEntity(string prefab)
 		{
 			if (_library == null)
@@ -338,7 +355,7 @@ namespace Mmogick
 		// Режим достройки направлений картинки (RotationMode.*). Контракт по _library тот же что у
 		// GetPrefabSize — вызывать только после SyncAll, иначе exception (вызов с _library==null — баг:
 		// ре-резолв forward до загрузки библиотеки; тихий default замаскировал бы timing-баг).
-		// Default MirrorX — для «prefab не в библиотеке / поле не пришло» (Spriter-prefab'ы, player/enemy).
+		// Default MirrorX — для «prefab не в библиотеке / поле не пришло» (скелетные prefab'ы, player/enemy).
 		// Free используется в EntityModel при ре-резолве forward статичных image-prefab'ов (бывш. rotatable).
 		public static string GetPrefabRotationMode(string prefab)
 		{
@@ -362,7 +379,7 @@ namespace Mmogick
 
 		// Варианты картинки prefab'а по направлениям — для экипировки (WeaponMount подменяет спрайт по
 		// forward носителя). Для image-prefab'а всегда ≥1 элемента: при пустом images[] синтезируется
-		// один вариант из плоских полей канона. Null — prefab не image (SCML) или не в библиотеке.
+		// один вариант из плоских полей канона. Null — prefab не image (скелет) или не в библиотеке.
 		// Контракт по _library как у GetPrefabRotationMode.
 		public static System.Collections.Generic.List<ImageVariant> GetPrefabImageVariants(string prefab)
 		{
@@ -568,53 +585,6 @@ namespace Mmogick
 			return result;
 		}
 
-		[Serializable]
-		private class StructureResponse
-		{
-			public string data;  // base64(gzip(xml))
-
-			// Anchor-карта slot-slug-ов экипировки на каждом скелете этой Animation:
-			//   entity_name → slot_slug → {индекс → {object, slot, offsetX, offsetY, angle, scale, z}}
-			// где object — точка в SCML куда крепить, остальные поля — позиционирование относительно неё.
-			// Один slug несёт НЕСКОЛЬКО якорей (per-direction: своя кость на ракурс); сервер отдаёт список
-			// как объект {"0":…,"1":…} (JSON_FORCE_OBJECT) — активный якорь выбирается по кадру (WeaponMount).
-			// Per-AnimationEntity (один и тот же slug, напр. hand_r, на разных скелетах сидит в разных object-координатах).
-			// Кеш-инвалидация на сервере: AnimationEntityObjectSlot бампает Animation.updated
-			// через #[ORM\HasLifecycleCallbacks]::bumpAnimationUpdated → /animations listing показывает свежий updated.
-			// Применение: prefab.equipable_slot (из /prefabs) ∩ object_slot носителя → anchor для рендера экипированного prefab.
-			public System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>> object_slot;
-
-			// Версия анимации в том же виде, в каком её отдаёт перечень /animations. Кладётся в кеш и при
-			// следующем входе сверяется с перечнем: совпало — структура берётся с диска, нет — качается заново.
-			public long updated;
-		}
-
-		[Serializable]
-		public class ObjectSlotEntry
-		{
-			[Newtonsoft.Json.JsonProperty("object")]
-			public AnchorObject anchor;  // {name, type, ...} — рантайм ищет Spriter-PointTransform по anchor.name
-			public string slot;
-			public float offsetX;
-			public float offsetY;
-			public float? angle;   // null = «как загружено»: предмет не доворачивается к кости (мировой upright)
-			public float scale;
-			// 0-based draw-rank кожи кости-якоря в порядке отрисовки скелета (порядок objectRef SCML).
-			// Overlay кладётся на sortingOrder = base скелета + z и приподнимается над кожей микро-Z
-			// (WeaponMount.ZLift). null (сервер не прислал ключ — у кости нет своей/дочерней кожи) —
-			// fallback «поверх всего» (WeaponMount.FallbackOrder).
-			public int? z;
-		}
-
-		// Якорь слота = AnimationEntityObject (сериализуется его jsonSerialize: name/type/w/h/frame).
-		// Нужны только name (ключ поиска точки в рантайме) и type (point — единственный с трансформом).
-		[Serializable]
-		public class AnchorObject
-		{
-			public string name;
-			public string type;  // bone|sprite|box|point
-		}
-
 		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx)
 		// при неуспешном HTTP-запросе. Fallback — код+generic error от UnityWebRequest.
 		private static string ExtractError(UnityWebRequest req)
@@ -649,13 +619,14 @@ namespace Mmogick
 
 		private static string ImagesPath(int gameId)          => Path.Combine(AnimationsPath(gameId), IMAGES_DIR);
 		private static string StructPath(int gameId)          => Path.Combine(AnimationsPath(gameId), STRUCT_DIR);
-		// Sidecar к {animationId}.xml: object_slot из /animations/{id} (per-AnimationEntity anchor-карта).
-		// Лежит в той же папке STRUCT_DIR — инвалидируется ResetCache (Directory.Delete) и удаляется
-		// синхронно с .xml при serverVersions delta (см. SyncAll).
-		private static string SlotsFile(int gameId, int animationId) => Path.Combine(StructPath(gameId), animationId + ".slots.json");
+
+		// Те же каталоги кешу скелетов Spine: картинки у него общие с этим кешем (страницы атласа — это они
+		// же), а пакет скелета лежит в каталоге структур своей анимации. Своих каталогов он не заводит —
+		// иначе сброс кеша анимаций оставлял бы их сиротами.
+		public static string ImagesDirPath(int gameId)        => ImagesPath(gameId);
+		public static string StructuresPath(int gameId)       => StructPath(gameId);
 		private static string ManifestPath(int gameId)        => Path.Combine(AnimationsPath(gameId), MANIFEST_FILE);
 		private static string LibraryPath(int gameId)         => Path.Combine(AnimationsPath(gameId), LIBRARY_FILE);
-		private static string FilesPath(int gameId)           => Path.Combine(AnimationsPath(gameId), FILES_FILE);
 
 		// Загружает manifest + library + files с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
@@ -680,6 +651,10 @@ namespace Mmogick
 				{
 					_manifest.cache_schema_version = CACHE_SCHEMA_VERSION;
 					_manifest.prefab_version = 0;
+					// Отметки версий анимаций сбрасываем вместе с каталогом: они говорят, ЧТО лежит в кеше
+					// анимации, а смена формата этого кеша делает лежащее негодным — без сброса отметка
+					// считала бы годным файл прежней формы.
+					_manifest.animation_versions.Clear();
 					SaveManifest(gameId);
 				}
 			}
@@ -692,16 +667,6 @@ namespace Mmogick
 					// Старый формат (string→int) не парсится на новый — catch, начнём с пустого; SyncLibrary всё равно перезальёт целиком.
 					try { _library = JsonConvert.DeserializeObject<Dictionary<string, PrefabEntry>>(File.ReadAllText(lp)) ?? new Dictionary<string, PrefabEntry>(); }
 					catch { _library = new Dictionary<string, PrefabEntry>(); }
-				}
-			}
-			if (_files == null)
-			{
-				string fp = FilesPath(gameId);
-				_files = new Dictionary<int, Dictionary<int, string>>();
-				if (File.Exists(fp))
-				{
-					try { _files = JsonConvert.DeserializeObject<Dictionary<int, Dictionary<int, string>>>(File.ReadAllText(fp)) ?? new Dictionary<int, Dictionary<int, string>>(); }
-					catch { _files = new Dictionary<int, Dictionary<int, string>>(); }
 				}
 			}
 			if (!Directory.Exists(ImagesPath(gameId))) Directory.CreateDirectory(ImagesPath(gameId));
@@ -724,14 +689,6 @@ namespace Mmogick
 			#endif
 		}
 
-		private static void SaveFiles(int gameId)
-		{
-			File.WriteAllText(FilesPath(gameId), JsonConvert.SerializeObject(_files));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-		}
-
 		// Полный сброс локального кеша анимаций игры: manifest, library, structures/, images/.
 		// Вызывается при обнаружении рассинхронизации (например, сервер отвечает 404 на animation_id из library).
 		// После сброса следующий SyncAll пересобирает всё с нуля.
@@ -743,15 +700,15 @@ namespace Mmogick
 			// сессии (повторный логин после Error) упадёт на этом guard'е.
 			_manifest = null;
 			_library = null;
-			_files = null;
 			_spriteCache.Clear();
+			// Каталог структур сносится ниже целиком — разобранное из него в памяти пережило бы снос и
+			// осталось бы отвечать по снятым файлам (память живёт до остановки игры, не до сброса кеша).
+			SpineCacheService.Reset();
 
-			string root = AnimationsPath(gameId);
 			try
 			{
 				if (File.Exists(ManifestPath(gameId)))       File.Delete(ManifestPath(gameId));
 				if (File.Exists(LibraryPath(gameId)))        File.Delete(LibraryPath(gameId));
-				if (File.Exists(FilesPath(gameId)))          File.Delete(FilesPath(gameId));
 				if (Directory.Exists(StructPath(gameId))) Directory.Delete(StructPath(gameId), true);
 				if (Directory.Exists(ImagesPath(gameId))) Directory.Delete(ImagesPath(gameId), true);
 			}
@@ -764,7 +721,7 @@ namespace Mmogick
 			#endif
 		}
 
-		// Полная синхронизация перед входом в игру: архив картинок + library + delta анимаций + предзагрузка структур. Вызывать ДО Connect.
+		// Полная синхронизация перед входом в игру: архив картинок + library + версии анимаций + предзагрузка скелетов. Вызывать ДО Connect.
 		// Привязки action→clip приходят per-prefab в /prefabs (PrefabEntry.actions списком), качаются здесь через SyncLibrary.
 		// onProgress — доля пройденных шагов (0..1) для полосы загрузки. Доля ВНУТРИ шага здесь не считается:
 		// шагов четыре, и полоса движется их сменой; долю принятых байт отдаёт кеш тайлов, качающий один
@@ -776,15 +733,16 @@ namespace Mmogick
 			onProgress?.Invoke(0.25f);
 			yield return SyncLibrary(host, gameId, token, onError);
 			onProgress?.Invoke(0.5f);
-			var delta = new HashSet<int>();
-			yield return SyncAnimations(host, gameId, token, delta, onError);
+			var versions = new Dictionary<int, long>();
+			yield return SyncAnimations(host, gameId, token, versions, onError);
 			onProgress?.Invoke(0.75f);
-			yield return PreFetchStructures(host, gameId, token, delta, onError);
+			yield return PreFetchSkeletons(host, gameId, token, versions, onError);
 			onProgress?.Invoke(1f);
 		}
 
-		// Полный список animation_id → updated. Сравниваем с локальным, определяем delta, удаляем лишние.
-		private static IEnumerator SyncAnimations(string host, int gameId, string token, HashSet<int> delta, Action<string> onError)
+		// Полный список animation_id → updated: кладём его вызывающему (по нему предзагрузка решает, что
+		// перекачать) и снимаем кеш анимаций, которых на сервере больше нет.
+		private static IEnumerator SyncAnimations(string host, int gameId, string token, Dictionary<int, long> versions, Action<string> onError)
 		{
 			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/animations";
 			Debug.Log("Запрашиваю список анимаций " + url);
@@ -809,10 +767,7 @@ namespace Mmogick
 			if (serverVersions == null) serverVersions = new Dictionary<int, long>();
 
 			foreach (var kv in serverVersions)
-			{
-				if (!_manifest.animation_versions.TryGetValue(kv.Key, out long localTs) || localTs != kv.Value)
-					delta.Add(kv.Key);
-			}
+				versions[kv.Key] = kv.Value;
 
 			// Удалить локальные анимации которых больше нет на сервере
 			var toRemove = new List<int>();
@@ -822,39 +777,40 @@ namespace Mmogick
 			foreach (var id in toRemove)
 			{
 				_manifest.animation_versions.Remove(id);
-				string structFile = Path.Combine(StructPath(gameId), id + ".xml");
-				if (File.Exists(structFile)) File.Delete(structFile);
-				string slotsFile = SlotsFile(gameId, id);
-				if (File.Exists(slotsFile)) File.Delete(slotsFile);
+				SpineCacheService.Drop(gameId, id);
 			}
 
-			Debug.Log("AnimationCache: delta " + delta.Count + " анимаций, удалено " + toRemove.Count);
+			Debug.Log("AnimationCache: анимаций у сервера " + versions.Count + ", удалено " + toRemove.Count);
 			SaveManifest(gameId);
 		}
 
-		// Предзагрузка SCML-структур: качаем если в delta (updated отличается) или нет локального файла.
-		private static IEnumerator PreFetchStructures(string host, int gameId, string token, HashSet<int> delta, Action<string> onError)
+		// Предзагрузка скелетов: к спавну существа пакет его анимации обязан лежать на диске, иначе десяток
+		// существ одного вида заведёт десяток запросов за одним файлом. Версия пакета сверяется с серверной:
+		// разошлась — прежний снимается и качается заново. Отметку ставим ПОСЛЕ удачной закачки — сорвалась,
+		// и файла на диске нет: следующий заход попробует снова.
+		private static IEnumerator PreFetchSkeletons(string host, int gameId, string token, Dictionary<int, long> versions, Action<string> onError)
 		{
 			var seen = new HashSet<int>();
 			foreach (var kv in _library)
 			{
 				int animationId = kv.Value.animation;
-				// animation == 0 → нет SCML-структуры (image-prefab или kind-only prefab): предзагружать нечего.
+				// animation == 0 → скелета нет вовсе (image-prefab или kind-only prefab): качать нечего.
 				if (animationId == 0) continue;
 				if (!seen.Add(animationId)) continue;
-				string structFile = Path.Combine(StructPath(gameId), animationId + ".xml");
-				bool inDelta = delta.Contains(animationId);
-				if (!inDelta && File.Exists(structFile)) continue;
-				if (inDelta && File.Exists(structFile)) File.Delete(structFile);
-				if (inDelta)
+
+				versions.TryGetValue(animationId, out long remote);
+				if (!_manifest.animation_versions.TryGetValue(animationId, out long local) || local != remote)
+					SpineCacheService.Drop(gameId, animationId);
+
+				string failure = null;
+				yield return SpineCacheService.Ensure(host, gameId, animationId, token, error =>
 				{
-					string slotsFile = SlotsFile(gameId, animationId);
-					if (File.Exists(slotsFile)) File.Delete(slotsFile);
-				}
-				yield return GetStructure(host, gameId, kv.Key, token, (xml, files, err) =>
-				{
-					if (err != null) onError?.Invoke(err);
+					failure = error;
+					onError?.Invoke(error);
 				});
+				if (failure != null) continue;
+
+				_manifest.animation_versions[animationId] = remote;
 			}
 			SaveManifest(gameId);
 		}
@@ -898,7 +854,6 @@ namespace Mmogick
 			if(req.downloadedBytes>0)
 			{
 				byte[] zipBytes = req.downloadHandler.data;
-				bool filesExtracted = false;
 				try
 				{
 					string imagesDir = ImagesPath(gameId);
@@ -908,19 +863,8 @@ namespace Mmogick
 						foreach (var entry in zip.Entries)
 						{
 							if (string.IsNullOrEmpty(entry.Name)) continue;
-							// _files.json — не картинка, а маппинг animationId → idx → sha256.ext. Кладём в память + на диск отдельно.
-							if (entry.Name == ARCHIVE_FILES_ENTRY)
-							{
-								using (var src = entry.Open())
-								using (var sr  = new StreamReader(src))
-								{
-									string json = sr.ReadToEnd();
-									_files = JsonConvert.DeserializeObject<Dictionary<int, Dictionary<int, string>>>(json)
-									         ?? new Dictionary<int, Dictionary<int, string>>();
-								}
-								filesExtracted = true;
-								continue;
-							}
+							// Единственная не-картинка в архиве (см. ARCHIVE_FILES_ENTRY) — в кеш картинок не идёт.
+							if (entry.Name == ARCHIVE_FILES_ENTRY) continue;
 							string dest = Path.Combine(imagesDir, entry.Name);
 							using (var src = entry.Open())
 							using (var dst = File.Create(dest))
@@ -936,7 +880,6 @@ namespace Mmogick
 					onError?.Invoke("AnimationCache archive unzip: " + ex.Message);
 					yield break;
 				}
-				if (filesExtracted) SaveFiles(gameId);
 			}
 			req.Dispose();
 			
@@ -1010,7 +953,7 @@ namespace Mmogick
 			SaveManifest(gameId);
 		}
 
-		// Резолв action → имя SCML-клипа для данного prefab с учётом направления (angle).
+		// Резолв action → имя клипа для данного prefab с учётом направления (angle).
 		// Возвращает (clipName, flipX, clipAngle). flipX=true если clip получен через h_mirror
 		// (горизонтальное зеркало). clipAngle — НАРИСОВАННЫЙ угол выбранного клипа (ActionBinding.angle,
 		// 0=вправо), null для клипа без направления (angle==null). Зеркало в угол НЕ входит — экранное
@@ -1056,7 +999,13 @@ namespace Mmogick
 				int clipAngle = b.angle.Value;
 
 				float dist = Mathf.Abs(Mathf.DeltaAngle(targetAngle, clipAngle));
-				if (dist < bestDist)
+				// При РАВНОЙ дистанции незеркальный кандидат побеждает уже выбранного зеркального: у клипа
+				// своей стороны свой набор кадров (руки разведены), а зеркало соседнего клипа несёт те же
+				// кости — предмет остался бы в той же руке и на той же стороне тела (WeaponMount ищет точку
+				// крепления по кости кадра, глубину — по z якоря). Собственный клип стороны — единственный
+				// способ развести руки, поэтому тай-брейк в его пользу. Порядком p.actions решать нельзя:
+				// его задаёт сервер (порядок создания привязок), контент-мейкеру он не виден.
+				if (dist < bestDist || (dist == bestDist && bestFlip))
 				{
 					bestDist = dist;
 					bestClip = b.clip;
@@ -1069,10 +1018,13 @@ namespace Mmogick
 					// h_mirror = горизонтальное зеркало (flipX, лево↔право). Клип, снятый под facing-углом
 					// clipAngle, после flipX смотрит под (180 - clipAngle): право(0)↔лево(180), а верх(90)/низ(270)
 					// остаются на месте. НЕЛЬЗЯ (360-clipAngle) — это вертикальное зеркало, оно меняет верх↔низ:
-					// тогда «Front - Walking» (270) ложно подходил бы под взгляд вверх (90) и побеждал реальный
-					// «Back - Walking» (90) при равной дистанции 0 → существо шло вверх лицом к камере.
+					// тогда «Front - Walking» (270) ложно считался бы подходящим под взгляд вверх (90), хотя
+					// flipX кадр по вертикали не переворачивает → существо шло бы вверх лицом к камере.
 					int mirrorAngle = (180 - clipAngle + 360) % 360;
 					float mirrorDist = Mathf.Abs(Mathf.DeltaAngle(targetAngle, mirrorAngle));
+					// Строго ближе: при равной дистанции зеркало уступает уже выбранному незеркальному
+					// кандидату (тай-брейк выше). Зеркало берётся, только когда своего клипа нет вовсе
+					// либо он дальше по углу.
 					if (mirrorDist < bestDist)
 					{
 						bestDist = mirrorDist;
@@ -1116,150 +1068,6 @@ namespace Mmogick
 			return firstClip;
 		}
 
-		// SCML XML анимации. Ключ кеша/URL — Animation.id (шерится между Prefab-ами).
-		// Если локальный кеш есть — читаем с диска (свежесть проверяется через /animations до вызова).
-		// Иначе — GET /animations/{id} → распаковываем base64+gzip, сохраняем, возвращаем.
-		// Маппинг SCML-file-idx → sha256.ext подтягивается из _files (прилетает в /images как _files.json).
-		public static IEnumerator GetStructure(string host, int gameId, string prefab, string token,
-			Action<string, Dictionary<int, string>, string> callback)
-		{
-			if (!_library.TryGetValue(prefab, out PrefabEntry entry))
-			{
-				callback(null, null, "AnimationCache structure: Prefab '" + prefab + "' отсутствует в library");
-				yield break;
-			}
-			if (entry.IsImage)
-			{
-				callback(null, null, null);
-				yield break;
-			}
-			// animation == 0 → у prefab'а нет привязанной SCML-анимации (и он не image): такой entry
-			// существует только чтобы донести kind (см. PrefabEntry / серверный PatchController).
-			// SCML-структуры для него нет — это легитимное отсутствие, а НЕ «архив устарел». Возвращаем
-			// no-op как у image-ветки; клиент остаётся на fallback-визуале Resources-префаба (kind).
-			if (entry.animation == 0)
-			{
-				callback(null, null, null);
-				yield break;
-			}
-			int animationId = entry.animation;
-			string structFile = Path.Combine(StructPath(gameId), animationId + ".xml");
-
-			if (!_files.TryGetValue(animationId, out var filesForAnim))
-			{
-				// Должен прийти из /images вместе с архивом. Если нет — сигналим ошибку, вызывающий сделает ResetCache.
-				callback(null, null, "AnimationCache structure: отсутствует files для animation " + animationId + " (архив устарел?)");
-				yield break;
-			}
-
-			if (File.Exists(structFile))
-			{
-				Debug.Log("AnimationCache: структура " + animationId + " из кеша");
-				try
-				{
-					string cachedXml = File.ReadAllText(structFile);
-					callback(cachedXml, filesForAnim, null);
-				}
-				catch (Exception ex) { callback(null, null, "AnimationCache cache read: " + ex.Message); }
-				yield break;
-			}
-
-			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/animations/" + animationId;
-			Debug.Log("Запрашиваю анимацию " + animationId + " (prefab " + prefab + ") " + url);
-
-			UnityWebRequest req = UnityWebRequest.Get(url);
-			yield return req.SendWebRequest();
-
-			if (req.result != UnityWebRequest.Result.Success)
-			{
-				callback(null, null, "AnimationCache structure " + animationId + ": " + ExtractError(req));
-				req.Dispose();
-				yield break;
-			}
-
-			string body = req.downloadHandler.text;
-			req.Dispose();
-
-			StructureResponse wrapper;
-			try { wrapper = JsonConvert.DeserializeObject<StructureResponse>(body); }
-			catch (Exception ex) { callback(null, null, "AnimationCache structure wrapper: " + ex.Message); yield break; }
-
-			string xml;
-			try
-			{
-				byte[] gzipped = Convert.FromBase64String(wrapper.data);
-				using (var src = new MemoryStream(gzipped))
-				using (var gz  = new GZipStream(src, CompressionMode.Decompress))
-				using (var dst = new MemoryStream())
-				{
-					gz.CopyTo(dst);
-					xml = Encoding.UTF8.GetString(dst.ToArray());
-				}
-			}
-			catch (Exception ex) { callback(null, null, "AnimationCache structure decode: " + ex.Message); yield break; }
-
-			File.WriteAllText(structFile, xml);
-			// Sidecar для object_slot — обновляется/удаляется синхронно со structFile (см. SyncAll/SlotsFile).
-			// Пишем всегда, даже если object_slot пустой/null, чтобы кеш-хит был детерминирован:
-			// «.xml есть → .slots.json тоже должен быть на диске».
-			File.WriteAllText(SlotsFile(gameId, animationId), JsonConvert.SerializeObject(wrapper.object_slot ?? new System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>()));
-			// Версия берётся у СЕРВЕРА, не собственное время скачивания: сверка при следующем входе идёт с
-			// перечнем /animations, где стоит серверная версия, и своё время с ней не совпало бы никогда —
-			// все структуры считались бы устаревшими и качались заново на каждый вход в игру.
-			_manifest.animation_versions[animationId] = wrapper.updated;
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-
-			Debug.Log("AnimationCache: структура " + animationId + " скачана с сервера");
-			callback(xml, filesForAnim, null);
-		}
-
-		/// <summary>
-		/// Anchor-карта slot-slug-ов на скелете указанной Animation: entity_name → slot_slug → {индекс → entry}
-		/// (per-direction список якорей slug'а, см. StructureResponse.object_slot).
-		/// Лежит в кеше sidecar-файлом рядом с {animationId}.xml. Возвращает null если кеша нет (анимация ещё не загружена
-		/// через GetStructure — клиент должен сначала закачать структуру). Пустой Dictionary = у скелета нет AEOS-привязок.
-		/// Применение: для экипировки prefab.equipable_slot ∩ object_slot носителя → anchor для рендера.
-		/// </summary>
-		public static System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>> GetObjectSlots(int gameId, int animationId)
-		{
-			string path = SlotsFile(gameId, animationId);
-			if (!File.Exists(path)) return null;
-			try { return JsonConvert.DeserializeObject<System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, ObjectSlotEntry>>>>(File.ReadAllText(path)); }
-			catch (Exception ex)
-			{
-				// Sidecar дозамены формата (одно-якорный slot→entry) или битый: парсинг в актуальный тип падает.
-				// Сносим вместе с {animationId}.xml — следующий GetStructure перекачает структуру с сервера
-				// и перепишет sidecar; без удаления .xml кеш-хит вечно оставлял бы экипировку без якорей.
-				Debug.LogError("AnimationCache: " + path + " устаревшего формата/битый (" + ex.Message + ") — кеш структуры " + animationId + " сброшен");
-				try { File.Delete(path); } catch { /* нет прав / уже удалён */ }
-				try { File.Delete(Path.Combine(StructPath(gameId), animationId + ".xml")); } catch { /* нет прав / уже удалён */ }
-				return null;
-			}
-		}
-
-		// Якоря слота (prefab, slotSlug) в порядке сервера — у slug'а их НЕСКОЛЬКО (per-direction:
-		// своя кость на ракурс), активный по кадру выбирает WeaponMount. Резолвит animationId prefab'а
-		// из library, читает object_slot-кеш и ищет слот по всем entity скелета (у одновидовых — одна).
-		// Контракт по _library тот же что у GetPrefabSize/GetEquipableSlots — вызывать только после
-		// SyncAll, иначе exception (тихий null замаскировал бы гонку загрузки как «нет якоря →
-		// оружие не надевается», см. EquipmentController.SyncWeapon).
-		// null — только для «prefab не в library / нет кеша / слота нет».
-		public static System.Collections.Generic.List<ObjectSlotEntry> GetSlotEntries(int gameId, string prefab, string slotSlug)
-		{
-			if (_library == null)
-				throw new InvalidOperationException("AnimationCacheService.GetSlotEntries вызван до SyncAll (_library == null). prefab=" + prefab);
-			if (string.IsNullOrEmpty(prefab) || !_library.TryGetValue(prefab, out PrefabEntry e))
-				return null;
-			var slots = GetObjectSlots(gameId, e.animation);
-			if (slots == null) return null;
-			foreach (var entityMap in slots.Values)
-				if (entityMap != null && entityMap.TryGetValue(slotSlug, out var anchors) && anchors != null && anchors.Count > 0)
-					return new System.Collections.Generic.List<ObjectSlotEntry>(anchors.Values);
-			return null;
-		}
-
 		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш
 		// (удаляет PNG и сбрасывает archive_last_modified — иначе следующий sync получит 304 и файл
 		// не перекачается) и бросает Exception с контекстом. Вызыватель оборачивает в try/catch и
@@ -1285,9 +1093,8 @@ namespace Mmogick
 		}
 
 		// Sprite по имени файла ("sha256.ext"): грузится из локального кеша, кешируется в памяти.
-		// pivot=(0.5, 0.5) — центр. Image-only items так центруются на клетке entity, а Spriter-части
-		// корректны: UnityAnimator.ApplySpriteTransform компенсирует sprite.pivot формулой
-		// (spritePivotX - info.PivotX) * size — то есть работает с любым pivot спрайта.
+		// pivot=(0.5, 0.5) — центр: так картинка центруется на клетке сущности. Надетый предмет свой pivot
+		// (хват) задаёт сам, пересоздавая спрайт из этой же текстуры (WeaponMount.Apply).
 		public static Sprite GetSprite(int gameId, string fileName)
 		{
 			if (string.IsNullOrEmpty(fileName)) return null;
@@ -1310,11 +1117,11 @@ namespace Mmogick
 				throw new Exception("AnimationCache: Unity.Texture2D.LoadImage не справился с " + fileName + " (" + bytes.Length + " байт)");
 			tex.filterMode = FilterMode.Point;
 			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
-			// PixelsPerUnit должен совпадать с SpriterDotNetBehaviour.Ppu (=100), иначе UnityAnimator.ApplySpriteTransform
-			// считает info.X/info.Y в разных масштабах для разных спрайтов — и части персонажа разлетаются.
+			// PixelsPerUnit должен совпадать с тем, в котором считает размер надетого предмета WeaponMount.Ppu
+			// (=100): предмет пересоздаёт спрайт из этой же текстуры, и разный масштаб дал бы разный размер.
 			// SpriteMeshType.Tight — чтобы Sprite.bounds (и SpriteRenderer.bounds) отсекали прозрачные поля PNG.
-			// Критично для SpriterPostImportAdjuster: без этого персонажи с «воздухом» вокруг контента в своих
-			// PNG-ах измерялись бы завышенными bounds и нормализовались бы в клетке мельче остальных.
+			// Критично для нормализации размера: без этого предмет с «воздухом» вокруг контента в своём
+			// PNG-е измерялся бы завышенными bounds и выходил бы мельче остальных.
 			// Рендеринг FullRect vs Tight отличается только числом треугольников меша — визуально идентично.
 			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.Tight);
 			s.hideFlags = HideFlags.DontUnloadUnusedAsset;
@@ -1348,7 +1155,7 @@ namespace Mmogick
 		// Контракт по _library тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception.
 		// Зовётся из ApplyVisualPrefab (путь применения world-визуала, строго после SyncAll); тихий null
 		// замаскировал бы timing-баг как «сущность без визуала» (соседняя ветка HasPrefab тоже вернула бы false).
-		// null для prefab'а с SCML-анимацией (не image) — легитимный ответ, вызывающий идёт в ветку HasPrefab.
+		// null для prefab'а со скелетом (не image) — легитимный ответ, вызывающий идёт в ветку HasPrefab.
 		public static string GetPrefabImage(string name)
 		{
 			if (_library == null)
@@ -1356,9 +1163,9 @@ namespace Mmogick
 			return _library.TryGetValue(name, out PrefabEntry e) ? e.ImageFile : null;
 		}
 
-		// true если у prefab'а есть привязанная SCML-анимация (не image и animation != 0).
+		// true если у prefab'а есть привязанная скелетная анимация (не image и animation != 0).
 		// false и для image-prefab'а, и для kind-only prefab'а (без графики, существует только чтобы
-		// донести kind): у обоих нет SCML-структуры — клиент не строит Spriter-оверлей, остаётся
+		// донести kind): у обоих скелета нет — клиент его не собирает, сущность остаётся
 		// на fallback-визуале Resources-префаба (Prefabs/{kind}).
 		// Контракт по _library тот же что у GetPrefabSize — вызывать только после SyncAll, иначе exception.
 		public static bool HasAnimation(string prefab)

@@ -40,6 +40,14 @@ namespace Mmogick
 		/// </summary>
 		public HashSet<Vector2Int> colliders;
 
+		/// <summary>
+		/// Клетки этой карты, где лежит хоть один тайл. Клетка без тайла — та самая чернота за краем
+		/// рисунка карты: сервер её в матрицу проходимости не берёт вовсе и шага туда не делает, потому
+		/// клиентская проверка холостых команд движения спрашивает и её, не только преграды.
+		/// Z-уровни схлопнуты, как и у <see cref="colliders"/>: клиентская проверка плоская.
+		/// </summary>
+		public HashSet<Vector2Int> tiles;
+
 		public MapDecode(Map map)
 		{
 			this.spawn_sort = (int)map.spawn_sort;

@@ -85,6 +85,11 @@ namespace Mmogick
 			// Преграды приходят прямоугольниками (см. Map.colliders) — разворачиваем в клетки: проверка шага
 			// спрашивает конкретную клетку, а z-уровни схлопнуты (клиентская проверка плоская).
 			HashSet<Vector2Int> colliders = new HashSet<Vector2Int>();
+
+			// Клетки, где лежит хоть один тайл (см. MapDecode.tiles): их сервер и берёт в матрицу проходимости,
+			// а клетку без тайла держит непроходимой наравне с преградой. Собираем попутно с раскладкой слоёв —
+			// отдельного прохода по карте это не стоит.
+			HashSet<Vector2Int> tileCells = new HashSet<Vector2Int>();
 			if (map.colliders != null)
 			{
 				foreach (var zLevel in map.colliders.Values)
@@ -163,6 +168,8 @@ namespace Mmogick
 
 						positions[i] = new Vector3Int(tile.x, tile.y, 0);
 						assets[i] = getTileAsset(gameId, tile);
+
+						tileCells.Add(new Vector2Int(tile.x, tile.y));
 					}
 
 					tilemap.SetTiles(positions, assets);
@@ -269,6 +276,7 @@ namespace Mmogick
 
 			MapDecode decoded = new MapDecode(map);
 			decoded.colliders = colliders;   // per-map коллайдеры (не общий статик — см. MapDecode.colliders)
+			decoded.tiles = tileCells;       // клетки с тайлами: клетка без тайла для сервера непроходима
 			decoded.spawn = spawnLayerFound; // имя слоя-земли; пусто — индекс подставлен запасной (см. MapDecode.spawn)
 			return decoded;
 		}

@@ -42,6 +42,24 @@ namespace Mmogick
         /// </summary>
         private static Shape current = Shape.Default;
 
+#if UNITY_EDITOR
+        /// <summary>
+        /// Картинка раскрытой ладони и её точка попадания — ими оснастка съёмки роликов рисует указатель
+        /// прямо в кадре: системный курсор рисует система поверх картинки окна, и в запись он не попадает.
+        /// Берётся отсюда, а не своей копией у оснастки: указатель на снятом ролике обязан выглядеть ровно
+        /// тем же, что видит игрок.
+        /// </summary>
+        public static Texture2D OpenTexture
+        {
+            get { return Load(ref open, "Cursors/hand"); }
+        }
+
+        public static Vector2 OpenHotspot
+        {
+            get { return HOTSPOT_OPEN; }
+        }
+#endif
+
         public static void Set(Shape shape)
         {
             if (shape == current)

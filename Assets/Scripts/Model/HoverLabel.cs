@@ -104,7 +104,7 @@ namespace Mmogick
 			if (_cam == null) _cam = Camera.main;
 			if (_cam == null) return false;
 
-			Vector3 world = _cam.ScreenToWorldPoint(Input.mousePosition);
+			Vector3 world = _cam.ScreenToWorldPoint(InputSource.MousePosition);
 			Vector2 point = new Vector2(world.x, world.y);
 
 			if (_ownerCollider == null) _ownerCollider = GetComponent<Collider2D>();

@@ -1,0 +1,38 @@
+{
+  "name": "probe",
+  "width": 1920,
+  "height": 1080,
+  "fps": 30,
+  "scenes": [
+    {
+      "id": "01-walk",
+      "actions": [
+        { "do": "wait", "seconds": 1 },
+        { "do": "click", "screen": [1250, 700], "seconds": 0.8 },
+        { "do": "wait", "seconds": 2.5 },
+        { "do": "walk_dir", "x": 0, "y": 1, "seconds": 2 },
+        { "do": "wait", "seconds": 1 }
+      ]
+    },
+    {
+      "id": "02-window",
+      "actions": [
+        { "do": "wait", "seconds": 0.5 },
+        { "do": "click", "ui": "OpenInventory", "seconds": 1 },
+        { "do": "wait", "seconds": 2 },
+        { "do": "click", "ui": "OpenInventory", "seconds": 0.6 },
+        { "do": "wait", "seconds": 1 }
+      ]
+    },
+    {
+      "id": "03-attack",
+      "actions": [
+        { "do": "wait", "seconds": 0.5 },
+        { "do": "click", "entity": "nearest_enemy", "seconds": 0.8 },
+        { "do": "wait", "seconds": 1 },
+        { "do": "click", "bar": 2, "seconds": 0.8 },
+        { "do": "wait", "seconds": 2 }
+      ]
+    }
+  ]
+}

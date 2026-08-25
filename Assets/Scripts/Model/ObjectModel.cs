@@ -110,22 +110,20 @@ namespace Mmogick
 			if (action == "dead" || action == ConnectController.ACTION_REMOVE) return;
 			if (DateTime.Compare(activeLast.AddMilliseconds(300), DateTime.Now) >= 1) return;
 
-			// Spriter (SCML): таймаут с последнего action-пакета от сервера — переключаем на idle.
-			// Проверку cur.Looping/Progress намеренно не делаем: SCML-контент часто помечает action'ы
-			// (Attack, Hurt) как Looping=true, и они зацикливаются вечно. Триггер для возврата в idle
-			// — только activeLast timeout.
+			// Таймаут с последнего action-пакета от сервера — переключаем тело на idle. Повтор играющего
+			// клипа намеренно не спрашиваем: контент часто помечает action'ы (Attack, Hurt) повторяемыми,
+			// и они зацикливаются вечно. Триггер для возврата в idle — только activeLast timeout.
 			// Резолв клипа для сравнения — направленный (GetClipName по Forward), строго ТОТ ЖЕ, что
 			// внутри PlayAction: ненаправленный резолв здесь даёт другой угловой вариант клипа, сравнение
 			// с текущим вечно «не совпадает», и Play рестартует анимацию каждый кадр — idle замирает
 			// на первом кадре.
-			var spriter = GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
-			var cur = spriter?.Animator?.CurrentAnimation;
-			if (cur != null && !string.IsNullOrEmpty(prefab))
+			string cur = BodyClip;
+			if (!string.IsNullOrEmpty(cur) && !string.IsNullOrEmpty(prefab))
 			{
 				var (idleClip, _, _) = AnimationCacheService.GetClipName(prefab, idleAction, Forward.x, Forward.y);
-				if (!string.IsNullOrEmpty(idleClip) && spriter.Animator.HasAnimation(idleClip) && cur.Name != idleClip)
+				if (BodyHasClip(idleClip) && cur != idleClip)
 				{
-					Log("Spriter: " + key + " с " + cur.Name + " на " + idleClip + " (таймаут)");
+					Log("Тело: " + key + " с " + cur + " на " + idleClip + " (таймаут)");
 					PlayAction(idleAction);
 				}
 			}
@@ -384,8 +382,10 @@ namespace Mmogick
 		/// Кому сервер поручил взять ЭТУ вещь. Поручение приходит командой подбора игрока и живёт у него
 		/// (<see cref="PlayerModel.ClaimedPickup"/>): к моменту, когда вещь снимают с карты, сама команда
 		/// уже завершена, и спрашивать её в этот миг поздно.
-		/// Поручение уходит КАЖДОМУ игроку на клетке вещи, а возьмёт её один — кто именно, сервер не сообщает;
-		/// из заявивших берём ближайшего.
+		/// Заявивших бывает и несколько: вещь, подбирающаяся сама (монеты), ставит поручение КАЖДОМУ игроку
+		/// в своём радиусе, а возьмёт её один — кто именно, сервер не сообщает. Клик по вещи адресует
+		/// поручение одному кликнувшему, но отличить один случай от другого по самому поручению нечем,
+		/// поэтому из заявивших всегда берём ближайшего: у единственного заявившего выбор тривиален.
 		/// </summary>
 		private Transform FindTaker()
 		{
@@ -448,8 +448,8 @@ namespace Mmogick
 			{
 				Log("Удаление - Запуск анимации удаления с карты");
 
-				// Ждём один кадр чтобы Animator/Spriter переключились на нужный state,
-				// затем берём длину текущего state'а.
+				// Ждём один кадр чтобы Animator либо тело переключились на нужный клип,
+				// затем берём его длину.
 				yield return null;
 
 				var anim = GetComponent<Animator>();
@@ -461,9 +461,9 @@ namespace Mmogick
 				}
 				else
 				{
-					var spriter = GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
-					if (spriter?.Animator?.CurrentAnimation != null)
-						yield return new WaitForSeconds(spriter.Animator.CurrentAnimation.Length / 1000f - 0.01f);
+					float length = BodyClipLength;
+					if (length > 0.01f)
+						yield return new WaitForSeconds(length - 0.01f);
 				}
 			}
 

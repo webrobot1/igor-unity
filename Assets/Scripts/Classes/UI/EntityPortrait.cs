@@ -1,21 +1,27 @@
+using System.Collections.Generic;
+using Spine.Unity;
 using UnityEngine;
 
 namespace Mmogick
 {
 	/// <summary>
 	/// Живой портрет сущности в интерфейсе: показывает выбранную сущность отдельной камерой, зеркаля её
-	/// Spriter-анимацию (у неанимированных — спрайт). Носителей два и они видны одновременно — рамка цели
+	/// анимацию (у неанимированных — спрайт). Носителей два и они видны одновременно — рамка цели
 	/// и окно информации, — поэтому портрет заведён отдельным классом, а не остался частью рамки.
 	///
 	/// Ожидаемая раскладка объектов: камера — РОДИТЕЛЬ этого объекта, сам объект несёт SpriteRenderer
 	/// (кадр неанимированных) и Animator. Наследник решает, ЧТО показывать (кого выбрали) и по какому
 	/// правилу играть анимацию зеркала (<see cref="SyncMirror"/>).
+	///
+	/// Вид зеркала знают только его сборка (<see cref="ApplyVisual"/>), снятие, замер кадра и повтор
+	/// источника; наследнику тело видно четырьмя вопросами — собрано ли (<see cref="MirrorReady"/>),
+	/// есть ли клип, какие клипы есть и сыграть.
 	/// </summary>
 	public abstract class EntityPortrait : MonoBehaviour
 	{
 		/// <summary>
 		/// Пропорция отдаления камеры для НЕанимированных целей: множитель мирового размера спрайта.
-		/// У Spriter-целей отдаление считается по фактическим границам зеркала (см. CameraUpdate).
+		/// У анимированных целей отдаление считается по фактическим границам зеркала (см. CameraUpdate).
 		/// </summary>
 		[SerializeField]
 		protected float aspect = 30;
@@ -62,10 +68,11 @@ namespace Mmogick
 		protected SpriteRenderer spriteRender;
 		protected Camera face_camera;
 
-		// Spriter-behaviour'ы исходный (на сущности) и зеркало (на этом UI-GO). Источник нужен, чтобы
-		// зеркало не жило своей жизнью: без синхронизации оно вечно играет первую анимацию SCML.
-		protected SpriterDotNetUnity.SpriterDotNetBehaviour _sourceSpriter;
-		protected SpriterDotNetUnity.SpriterDotNetBehaviour _mirrorSpriter;
+		// Скелеты Spine исходный (на сущности) и зеркало (дочерним объектом этого UI-GO). Источник нужен не
+		// только за именем клипа: у скелета повтор задаёт запускающий, и зеркало держат в ногу с телом ещё
+		// и по времени дорожки — иначе одинаковый клип шёл бы у портрета своим ходом.
+		private SkeletonAnimation _sourceSkeleton;
+		private SkeletonAnimation _mirrorSkeleton;
 
 		protected ObjectModel _target = null;
 
@@ -91,8 +98,9 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Показать сущность: собрать зеркало её Spriter-анимации либо (у неанимированных) скопировать спрайт.
-		/// Прежнее зеркало снимается здесь же — метод зовут и при смене цели, и при позднем появлении Spriter.
+		/// Показать сущность: собрать зеркало её тела — скелета Spine, — а у неанимированных скопировать
+		/// спрайт. Прежнее зеркало снимается здесь же — метод зовут и при смене цели, и при позднем
+		/// появлении тела (оно собирается асинхронно, к моменту выбора его может ещё не быть).
 		/// </summary>
 		protected void ApplyVisual(ObjectModel value)
 		{
@@ -102,40 +110,40 @@ namespace Mmogick
 				return;
 
 			var localSr = spriteRender;
-			var srcSpriter = value.GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
+			var srcSkeleton = SourceSkeleton(value);
 
-			// Spriter имеет приоритет над Animator: у Spriter-сущностей параллельно живёт Universal Animator
-			// (overlay-эффекты remove/dead) и его animator.enabled==true. Правило «Spriter ⇒ animator выключен»
-			// неверно — по нему портрет уходил в Animator-ветку с пустой Idle-state и оставался чёрным.
-			if (srcSpriter != null && srcSpriter.SpriterData != null)
+			if (srcSkeleton != null)
 			{
 				animator.runtimeAnimatorController = null;
 
-				// Зеркалим Spriter-анимацию, чтобы камера снимала её вживую. SpriteRenderer оставляем с
-				// корневым fallback-спрайтом (его границы нужны CameraUpdate), но рендер выключаем —
-				// показывают Spriter-дети.
-				SpriteRenderer srcFallbackSr = value.GetComponentInChildren<SpriteRenderer>(true);
+				// Скелет рисуется мешем, и корневой спрайт портрета показывать нечему: границы кадра даёт
+				// сам скелет.
 				if (localSr != null)
-				{
-					if (srcFallbackSr != null && srcFallbackSr.sprite != null)
-						localSr.sprite = srcFallbackSr.sprite;
 					localSr.enabled = false;
-				}
 
-				_mirrorSpriter = NewSpriterRuntimeImporter.MirrorFromSource(srcSpriter, gameObject);
-				_sourceSpriter = srcSpriter;
+				// Скелет зеркала собирается ТЕМ ЖЕ путём, что тело на карте: второй экземпляр из тех же
+				// данных. Размер и посадку кадра он получает оттуда же — у портрета нет ни коллайдера, ни
+				// полоски здоровья, и подгонка сводится к приведению фигуры к клетке и к центру объекта,
+				// а дальше кадром распоряжается камера (см. CameraUpdate).
+				_mirrorSkeleton = SpineVisualBuilder.Create(
+					gameObject, srcSkeleton.SkeletonDataAsset, null, ClipOf(srcSkeleton));
+				if (_mirrorSkeleton != null)
+					// Камера портрета снимает по слою: на общем слое сцены скелет зеркала не попал бы в кадр
+					// вовсе, зато встал бы посреди карты.
+					_mirrorSkeleton.gameObject.layer = gameObject.layer;
+
+				_sourceSkeleton = srcSkeleton;
+				return;
 			}
-			else
-			{
-				// Статичный фолбэк для не-анимированных целей.
-				animator.runtimeAnimatorController = null;
-				if (localSr != null) localSr.enabled = true;
-				SpriteRenderer srcSr = value.GetComponentInChildren<SpriteRenderer>(true);
-				if (srcSr == null)
-					PlayerController.Error("На выбранном объекте налюдения присутвует колайдер но отсутвует Animator и SpriteRenderer");
-				if (localSr != null)
-					localSr.sprite = srcSr != null ? srcSr.sprite : null;
-			}
+
+			// Статичный фолбэк для не-анимированных целей.
+			animator.runtimeAnimatorController = null;
+			if (localSr != null) localSr.enabled = true;
+			SpriteRenderer srcSr = value.GetComponentInChildren<SpriteRenderer>(true);
+			if (srcSr == null)
+				PlayerController.Error("На выбранном объекте налюдения присутвует колайдер но отсутвует Animator и SpriteRenderer");
+			if (localSr != null)
+				localSr.sprite = srcSr != null ? srcSr.sprite : null;
 		}
 
 		/// <summary>
@@ -143,16 +151,91 @@ namespace Mmogick
 		/// </summary>
 		protected void ClearVisual()
 		{
-			NewSpriterRuntimeImporter.ClearMirror(gameObject);
-			_sourceSpriter = null;
-			_mirrorSpriter = null;
+			SpineVisualBuilder.Clear(gameObject);
+			_sourceSkeleton = null;
+			_mirrorSkeleton = null;
 			_frameLocked = false;
 			_measured = 0;
 			_measuredHeight = 0;
 		}
 
+		#region Зеркало: вопросы наследника
+
+		/// <summary>Собрано ли зеркало тела. Нет — показан кадр неанимированной цели либо пусто.</summary>
+		protected bool MirrorReady => _mirrorSkeleton != null;
+
 		/// <summary>
-		/// Пер-кадровая работа портрета: поздняя привязка Spriter, обновление кадра статичной цели,
+		/// Само зеркало. Наследнику оно нужно лишь приметой: пересобралось — то, что он снял с прежнего
+		/// (перечень клипов, место в переборе), к новому не относится.
+		/// </summary>
+		protected SkeletonAnimation Mirror => _mirrorSkeleton;
+
+		/// <summary>Есть ли у зеркала такой клип.</summary>
+		protected bool MirrorHasClip(string clip)
+		{
+			if (string.IsNullOrEmpty(clip))
+				return false;
+
+			var data = _mirrorSkeleton != null && _mirrorSkeleton.SkeletonDataAsset != null
+				? _mirrorSkeleton.SkeletonDataAsset.GetSkeletonData(false)
+				: null;
+			return data != null && data.FindAnimation(clip) != null;
+		}
+
+		/// <summary>Все клипы зеркала — на случай, когда перебирать нечего по библиотеке действий.</summary>
+		protected IEnumerable<string> MirrorClips()
+		{
+			var data = _mirrorSkeleton != null && _mirrorSkeleton.SkeletonDataAsset != null
+				? _mirrorSkeleton.SkeletonDataAsset.GetSkeletonData(false)
+				: null;
+			if (data == null)
+				yield break;
+
+			foreach (var animation in data.Animations)
+				yield return animation.Name;
+		}
+
+		/// <summary>
+		/// Запустить клип на зеркале ПО КРУГУ: пока показывается действие, клип идёт снова и снова —
+		/// удар, боль и падение видны несколько раз. Повтор тут задаёт показ, а не игра: однократность
+		/// действия принадлежит бою на карте, а витрине действий показывать нечего, если клип длиной в
+		/// треть секунды один раз мелькнёт и три секунды пролежит стоп-кадром.
+		/// </summary>
+		protected void MirrorPlay(string clip)
+		{
+			if (_mirrorSkeleton != null)
+				_mirrorSkeleton.AnimationState.SetAnimation(0, clip, true);
+		}
+
+		/// <summary>Имя клипа, играющего на зеркале; null — зеркала нет либо оно ничего не играет.</summary>
+		protected string MirrorClip => ClipOf(_mirrorSkeleton);
+
+		#endregion
+
+		/// <summary>Скелет тела сущности; null — тело собрано иначе либо ещё не собрано.</summary>
+		private static SkeletonAnimation SourceSkeleton(ObjectModel value)
+		{
+			var skeleton = value.GetComponentInChildren<SkeletonAnimation>();
+			return skeleton != null && skeleton.SkeletonDataAsset != null ? skeleton : null;
+		}
+
+		/// <summary>Имя клипа, играющего на скелете; null — не играет ничего.</summary>
+		private static string ClipOf(SkeletonAnimation skeleton)
+		{
+			var track = TrackOf(skeleton);
+			return track != null && track.Animation != null ? track.Animation.Name : null;
+		}
+
+		/// <summary>Дорожка клипа скелета — та единственная, которой тело и управляют.</summary>
+		private static Spine.TrackEntry TrackOf(SkeletonAnimation skeleton)
+		{
+			return skeleton != null && skeleton.AnimationState != null
+				? skeleton.AnimationState.GetTrack(0)
+				: null;
+		}
+
+		/// <summary>
+		/// Пер-кадровая работа портрета: поздняя сборка зеркала, обновление кадра статичной цели,
 		/// правило анимации зеркала и наводка камеры. Наследник зовёт это, пока цель показана.
 		/// </summary>
 		protected void PortraitUpdate()
@@ -160,10 +243,9 @@ namespace Mmogick
 			if (_target == null)
 				return;
 
-			// Spriter мог привязаться к цели уже ПОСЛЕ выбора (SCML грузится асинхронно): при выборе его
-			// не было, ушли в ветку статичного кадра. Ловим появление и пересобираем зеркало.
-			var srcSpriter = _target.GetComponent<SpriterDotNetUnity.SpriterDotNetBehaviour>();
-			if (srcSpriter != null && srcSpriter.SpriterData != null && transform.Find("Sprites") == null)
+			// Тело могло собраться уже ПОСЛЕ выбора (анимация грузится асинхронно): при выборе его не было,
+			// ушли в ветку статичного кадра. Ловим появление и пересобираем зеркало.
+			if (SourceSkeleton(_target) != null && !MirrorReady)
 			{
 				ApplyVisual(_target);
 				return;
@@ -173,8 +255,7 @@ namespace Mmogick
 			// меняется в рантайме — Universal dead/remove перезаписывает его (placeholder → dead-кадр), а
 			// restore возвращает обратно. Без пер-кадровой синхронизации портрет показывает устаревший
 			// снимок (unknow при лежащем dead-черепе).
-			if (animator.runtimeAnimatorController == null && transform.Find("Sprites") == null
-				&& spriteRender != null)
+			if (animator.runtimeAnimatorController == null && !MirrorReady && spriteRender != null)
 			{
 				var srcSr = _target.GetComponentInChildren<SpriteRenderer>(true);
 				if (srcSr != null && srcSr.sprite != null && spriteRender.sprite != srcSr.sprite)
@@ -192,24 +273,47 @@ namespace Mmogick
 		/// </summary>
 		protected virtual void SyncMirror()
 		{
-			if (_sourceSpriter == null || _sourceSpriter.Animator == null
-				|| _mirrorSpriter == null || _mirrorSpriter.Animator == null
-				|| _sourceSpriter.Animator.CurrentAnimation == null)
+			if (_mirrorSkeleton == null)
 				return;
 
-			string srcName = _sourceSpriter.Animator.CurrentAnimation.Name;
-			if (_mirrorSpriter.Animator.CurrentAnimation == null
-				|| _mirrorSpriter.Animator.CurrentAnimation.Name != srcName)
+			var source = TrackOf(_sourceSkeleton);
+			if (source == null || source.Animation == null)
+				return;
+
+			var mirror = TrackOf(_mirrorSkeleton);
+			if (mirror == null || mirror.Animation == null || mirror.Animation.Name != source.Animation.Name)
 			{
-				if (_mirrorSpriter.Animator.HasAnimation(srcName))
-					_mirrorSpriter.Animator.Play(srcName);
+				if (!MirrorHasClip(source.Animation.Name))
+					return;
+
+				mirror = _mirrorSkeleton.AnimationState.SetAnimation(
+					0, source.Animation.Name, source.Loop);
 			}
+
+			// Держим и ВРЕМЯ: у скелета клип идёт своим ходом от запуска, и одинаковое имя ещё не значит
+			// одинаковой позы — портрет отставал бы от тела на карте тем сильнее, чем дольше показан.
+			mirror.TrackTime = source.TrackTime;
+		}
+
+		/// <summary>
+		/// Мировые границы фигуры зеркала в её текущей позе — по ним и наводится кадр. Меряет их сам скелет
+		/// по своим кускам: спрайтов у него нет вовсе, и общий замер по спрайтам дал бы пустоту.
+		/// Включённость частей не спрашиваем: клип на отдельных кадрах гасит часть деталей, и кадр
+		/// портрета от этого прыгал бы.
+		/// </summary>
+		private bool TryGetMirrorBounds(out Bounds bounds)
+		{
+			if (_mirrorSkeleton != null)
+				return SpineVisualBuilder.TryGetWorldBounds(_mirrorSkeleton, out bounds);
+
+			bounds = new Bounds();
+			return false;
 		}
 
 		// если изображения анимации с сильно отличабщимеся pivot to возможно надо будет каждый FixedUpdate делать этот метод для пересчета положения камеры и объекта что бы он не выходил за рамки
 		protected void CameraUpdate()
 		{
-			// Spriter-цель: есть child "Sprites" с N body-part'ами mirror-анимации.
+			// Анимированная цель: показана зеркалом её тела.
 			// Центрируем портрет по world-AABB mirror-спрайтов (иначе pivot fallback-спрайта смещает
 			// камеру и видны только ноги) и ставим fov по честной перспективной формуле, учитывающей
 			// фактическое расстояние от камеры до контента: fov_v = 2*atan(H / (2*D)) в градусах,
@@ -225,61 +329,52 @@ namespace Mmogick
 				return;
 			}
 
-			var spriterSprites = transform.Find("Sprites");
-			if (spriterSprites != null)
+			if (TryGetMirrorBounds(out Bounds agg))
 			{
-				// Границы фигуры по непрозрачным пикселям — общий замер, тот же, которым подгонщик Spriter
-				// нормализует сущность на карте. Включённость частей не спрашиваем: аниматор на отдельных
-				// кадрах гасит часть деталей, и кадр портрета от этого прыгал бы.
-				Bounds agg;
-				bool any = AnimationCacheService.TryGetVisibleBounds(spriterSprites, out agg);
-				if (any)
+				// Смещаем объект портрета так, чтобы центр mirror-AABB стал в точке камеры (parent.position).
+				Vector3 localCenter = transform.parent.InverseTransformPoint(agg.center);
+				Vector3 lp = transform.localPosition;
+				transform.localPosition = new Vector3(lp.x - localCenter.x, lp.y - localCenter.y, 1);
+
+				// Расстояние камера→контент в WORLD-юнитах (проекция camToContent на cam.forward).
+				// InverseTransformPoint не подходит: у face-камеры lossyScale ~(0.24, 0.25, 0.46) из-за UI canvas,
+				// local-z не равен world-z. Unity-проекция использует world-distance.
+				Vector3 camToContent = agg.center - face_camera.transform.position;
+				float worldDistance = Mathf.Abs(Vector3.Dot(camToContent, face_camera.transform.forward));
+				if (worldDistance < 0.01f) worldDistance = 0.01f;
+				// Margin применяем к целевому видимому размеру (линейно), а не к углу (tan нелинейный).
+				// Нужный вертикальный fov: fov = 2 * atan(H_margin / (2 * D)).
+				float targetH = agg.size.y * frameMargin;
+				float targetW = agg.size.x * frameMargin;
+				float needV = 2f * Mathf.Atan(targetH / (2f * worldDistance)) * Mathf.Rad2Deg;
+				// Для ширины: tan(fovH/2) = cam.aspect * tan(fovV/2) →  fovV_fromW = 2*atan( (W/aspect) / (2D) ).
+				float camAspect = face_camera.aspect > 0.01f ? face_camera.aspect : 1f;
+				float needVFromW = 2f * Mathf.Atan(targetW / (camAspect * 2f * worldDistance)) * Mathf.Rad2Deg;
+				face_camera.fieldOfView = Mathf.Clamp(Mathf.Max(needV, needVFromW), 1f, 179f);
+
+				if (lockFrame)
 				{
-					// Смещаем объект портрета так, чтобы центр mirror-AABB стал в точке камеры (parent.position).
-					Vector3 localCenter = transform.parent.InverseTransformPoint(agg.center);
-					Vector3 lp = transform.localPosition;
-					transform.localPosition = new Vector3(lp.x - localCenter.x, lp.y - localCenter.y, 1);
+					// Габариты те же, что кадром раньше — фигура собралась; поехали — счёт заново.
+					if (_measuredHeight > 0
+						&& Mathf.Abs(agg.size.y - _measuredHeight) <= _measuredHeight * MEASURE_TOLERANCE)
+						_measured++;
+					else
+						_measured = 0;
 
-					// Расстояние камера→контент в WORLD-юнитах (проекция camToContent на cam.forward).
-					// InverseTransformPoint не подходит: у face-камеры lossyScale ~(0.24, 0.25, 0.46) из-за UI canvas,
-					// local-z не равен world-z. Unity-проекция использует world-distance.
-					Vector3 camToContent = agg.center - face_camera.transform.position;
-					float worldDistance = Mathf.Abs(Vector3.Dot(camToContent, face_camera.transform.forward));
-					if (worldDistance < 0.01f) worldDistance = 0.01f;
-					// Margin применяем к целевому видимому размеру (линейно), а не к углу (tan нелинейный).
-					// Нужный вертикальный fov: fov = 2 * atan(H_margin / (2 * D)).
-					float targetH = agg.size.y * frameMargin;
-					float targetW = agg.size.x * frameMargin;
-					float needV = 2f * Mathf.Atan(targetH / (2f * worldDistance)) * Mathf.Rad2Deg;
-					// Для ширины: tan(fovH/2) = cam.aspect * tan(fovV/2) →  fovV_fromW = 2*atan( (W/aspect) / (2D) ).
-					float camAspect = face_camera.aspect > 0.01f ? face_camera.aspect : 1f;
-					float needVFromW = 2f * Mathf.Atan(targetW / (camAspect * 2f * worldDistance)) * Mathf.Rad2Deg;
-					face_camera.fieldOfView = Mathf.Clamp(Mathf.Max(needV, needVFromW), 1f, 179f);
+					_measuredHeight = agg.size.y;
 
-					if (lockFrame)
+					if (_measured >= MEASURE_FRAMES)
 					{
-						// Габариты те же, что кадром раньше — фигура собралась; поехали — счёт заново.
-						if (_measuredHeight > 0
-							&& Mathf.Abs(agg.size.y - _measuredHeight) <= _measuredHeight * MEASURE_TOLERANCE)
-							_measured++;
-						else
-							_measured = 0;
-
-						_measuredHeight = agg.size.y;
-
-						if (_measured >= MEASURE_FRAMES)
-						{
-							_lockedPosition = transform.localPosition;
-							_lockedFov = face_camera.fieldOfView;
-							_frameLocked = true;
-						}
+						_lockedPosition = transform.localPosition;
+						_lockedFov = face_camera.fieldOfView;
+						_frameLocked = true;
 					}
-
-					return;
 				}
+
+				return;
 			}
 
-			// Non-Spriter (статичный fallback-спрайт, warrior для player, unknow для объектов без scml):
+			// Зеркала нет (статичный fallback-спрайт, warrior для player, unknow для объектов без анимации):
 			// формула ниже сместит изображение выделелнного предмета так что бы оно оставалось в центре (смещаться будет если pivot отличается от (0.5, 0.5) )
 			// Guard: у цели может вообще не быть SpriteRenderer (например когда server-side prefab не
 			// определён в library — visual не создан). NRE каждый кадр блокирует остальную работу портрета

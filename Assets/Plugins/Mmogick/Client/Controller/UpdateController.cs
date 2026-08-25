@@ -1,5 +1,4 @@
 using Newtonsoft.Json;
-using SpriterDotNetUnity;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,8 +34,8 @@ namespace Mmogick
 		/// Целевой размер визуала-ЗАГЛУШКИ (спрайт "unknow" на корневом SR Resources-префаба) по длинной стороне,
 		/// в клетках карты — отдельно для существа и для предмета на земле (у самой заглушки длинная сторона —
 		/// высота). Заглушка — единственное, что видно у prefab'а без
-		/// картинки и без SCML, поэтому её размер обязан отвечать РОДУ сущности: существо занимает клетку
-		/// (та же цель, что у нормализации настоящих тел — NewSpriterRuntimeImporter), предмет — заметно меньше,
+		/// картинки и без скелета, поэтому её размер обязан отвечать РОДУ сущности: существо занимает клетку
+		/// (та же цель, что у нормализации настоящих тел — SpineVisualBuilder), предмет — заметно меньше,
 		/// иначе он выходит крупнее любого предмета с картинкой и спорит с фигурой персонажа.
 		/// Своей высоты у такого предмета нет вовсе: серверный size приезжает только вместе с картинкой либо
 		/// анимацией — здесь стоит типовая высота предмета этой игры (столько же сервер подставляет дефолтом
@@ -227,7 +226,7 @@ namespace Mmogick
 				string kind = AnimationCacheService.GetPrefabKind(recive.prefab);
 
 				// Единый префаб на kind: Assets/Resources/Prefabs/{kind}.prefab.
-				// Визуал (Spriter scml) подтягивается с сервера по recive.prefab, если анимация есть в кеше.
+				// Визуал (скелет Spine) подтягивается с сервера по recive.prefab, если анимация есть в кеше.
 				// Если нет — остаётся корневой fallback-SpriteRenderer с "unknow" спрайтом.
 				UnityEngine.Object ob = Resources.Load("Prefabs/" + kind, typeof(GameObject));
 
@@ -244,8 +243,8 @@ namespace Mmogick
 				entityObjects[key] = prefab;
 
 				// Non-uniform scale root-префаба в связке с rotated children даёт skew (Unity doc для Transform:
-				// «child rotated relative to a non-uniformly scaled parent might appear skewed»). Spriter создаёт
-				// ротированные body-parts, у них визуал поплывёт на поворотах. Мы принудительно выставляем uniform
+				// «child rotated relative to a non-uniformly scaled parent might appear skewed»). Скелет живёт
+				// ротированным дочерним объектом, и визуал поплывёт на поворотах. Мы принудительно выставляем uniform
 				// scale (|x|=y), сохраняя знак X (mirror-flip). Если разработчик умышленно задал non-uniform —
 				// пишем warning, чтобы это было видно и исправлено в префабе, а не маскировалось визуалом.
 				Vector3 initScale = prefab.transform.localScale;
@@ -253,12 +252,11 @@ namespace Mmogick
 				{
 					float signX = initScale.x < 0 ? -1f : 1f;
 					prefab.transform.localScale = new Vector3(signX * initScale.y, initScale.y, initScale.z);
-					Debug.LogWarning("UpdateController: префаб '" + kind + "' имеет non-uniform scale (" + initScale.x + ", " + initScale.y + ") — сброшен до uniform (" + (signX * initScale.y) + ", " + initScale.y + "). Задавайте uniform scale в префабе, иначе Spriter-дети поворотами дают skew (Transform doc).");
+					Debug.LogWarning("UpdateController: префаб '" + kind + "' имеет non-uniform scale (" + initScale.x + ", " + initScale.y + ") — сброшен до uniform (" + (signX * initScale.y) + ", " + initScale.y + "). Задавайте uniform scale в префабе, иначе дочерний скелет поворотами даёт skew (Transform doc).");
 				}
 
-				// SortingGroup на корне сразу: сортируем все спрайты сущности как единое целое относительно
-				// других сущностей (иначе Custom Axis Z-sort перемешивает body-parts одной сущности с частями другой).
-				// Spriter при загрузке переиспользует этот же SortingGroup.
+				// SortingGroup на корне сразу: сортируем всё нарисованное на сущности как единое целое относительно
+				// других сущностей (иначе Custom Axis Z-sort перемешивает её части с частями другой).
 				if (prefab.GetComponent<UnityEngine.Rendering.SortingGroup>() == null)
 					prefab.AddComponent<UnityEngine.Rendering.SortingGroup>();
 
@@ -276,7 +274,7 @@ namespace Mmogick
 				{
 					// Нормализуем по max(width, height) — иначе вытянутые горизонтально спрайты
 					// (молния 3:1) после нормализации по Y становятся 3 клетки в ширину.
-					// Симметрично SpriterPostImportAdjuster.cs (sampledWorldMax = Max(x, y)).
+					// Симметрично нормализации настоящего тела (SpineVisualBuilder.Fit — по большей стороне).
 					float native = AnimationCacheService.TryGetTightRect(fallbackSr.sprite, out Rect tight)
 						? Mathf.Max(tight.width, tight.height)
 						: Mathf.Max(fallbackSr.sprite.bounds.size.x, fallbackSr.sprite.bounds.size.y);
@@ -340,7 +338,7 @@ namespace Mmogick
 						Error("Запись о карте "+ map_id + " игрока не пришла вместе с доступными сторонами");
 
 					#if UNITY_WEBGL && !UNITY_EDITOR
-						WebGLSupport.WebGLDebug.DebugCheck(map_id);
+						WebGLSupport.WebGLDebug.DebugCheck(map_id, Put2Send);
 					#endif
 				}
 			}
@@ -398,16 +396,16 @@ namespace Mmogick
 				// Компоненты берутся из кеша модели: их поиск обходит объект (а поиск Canvas — ещё и всех
 				// потомков), и это на каждую сущность каждого пакета. Состав компонентов сущности после
 				// сборки визуала не меняется, потому ссылки достаточно найти однажды.
-				// SortingGroup гарантированно добавлен выше — все child-SpriteRenderer'ы (fallback или Spriter)
-				// сортируются как единое целое относительно других сущностей.
+				// SortingGroup гарантированно добавлен выше — всё нарисованное на сущности (заглушка, картинка,
+				// скелет) сортируется как единое целое относительно других сущностей.
 				model.EnsureRenderRefs();
 
 				if (model.sortingGroup != null)
 					model.sortingGroup.sortingOrder = spawn_sort + model.sort;
 
 				if (model.barCanvas != null)
-					// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации
-					// (Spriter создаёт N child-sprite'ов с собственным sortingOrder 0..N-1 из UnityAnimator).
+					// +100 (а не +1) чтобы Canvas LifeBar лежал над всем, что рисует сама сущность (скелет и
+					// надетые предметы держат свой порядок внутри группы).
 					model.barCanvas.sortingOrder = spawn_sort + 100 + model.sort;
 			}
 
@@ -417,10 +415,10 @@ namespace Mmogick
 		/// <summary>
 		/// Применяет к существующему GameObject визуал из серверной library:
 		///   - image-prefab → ставит sprite в корневой SpriteRenderer + нормализует scale по серверному size;
-		///   - animation-prefab → асинхронно (AnimationPatcher) собирает Spriter-сущность через
-		///     NewSpriterRuntimeImporter.CreateSpriter (он сам чистит предыдущий Spriter).
-		/// Для image-варианта явно сносит fallback-Animator (легаси из Unity-префаба) и Spriter-компоненты
-		/// (на случай перехода animation→image), включает корневой SR и компенсирует мировой размер
+		///   - animation-prefab → асинхронно (SpineCacheService) собирает скелет через
+		///     SpineVisualBuilder.Create (он сам сносит предыдущий скелет).
+		/// Для image-варианта явно сносит скелет (на случай перехода animation→image),
+		/// включает корневой SR и компенсирует мировой размер
 		/// LifeBar/CapsuleCollider2D под применённый scale.
 		/// </summary>
 		private void ApplyVisualPrefab(GameObject go, EntityModel model, string newPrefab, string key)
@@ -428,9 +426,8 @@ namespace Mmogick
 			string imageFile = AnimationCacheService.GetPrefabImage(newPrefab);
 			if (imageFile != null)
 			{
-				// переход animation→image: сносим Spriter-компоненты (включая child Sprites/Metadata).
-				// Для первого спавна работает как no-op (компонентов ещё нет).
-				ClearSpriterVisualComponents(go);
+				// переход animation→image: сносим скелет. Для первого спавна работает как no-op (его ещё нет).
+				SpineVisualBuilder.Clear(go);
 
 				// Image-prefab статичен (только один спрайт через TryGetSprite ниже), но мы оставляем
 				// Universal Animator для эффекта remove (Puff при попадании firebolt'а или выбрасывании
@@ -496,16 +493,16 @@ namespace Mmogick
 				}
 				model.Log("image-sprite " + newPrefab + " применён");
 				// Image-визуал применяется синхронно — точка «визуал готов» сразу здесь
-				// (у animation-пути её проходит SpriterPostImportAdjuster по концу подгонки).
+				// (у animation-пути её проходит сборка скелета по концу подгонки).
 				model.OnVisualReady();
 			}
 			else if (AnimationCacheService.HasAnimation(newPrefab))
 			{
-				// Пока Spriter асинхронно собирается, сущность не показываем вовсе: placeholder "unknow"
+				// Пока скелет асинхронно качается и собирается, сущность не показываем вовсе: placeholder "unknow"
 				// (при первом спавне) или устаревший визуал мелькали бы до готового тела. Прячем корневой SR
-				// (запомнив состояние — при смене prefab он уже выключен прошлым CreateSpriter) и LifeBar
+				// (запомнив состояние — при смене prefab он уже выключен прошлой сборкой) и LifeBar
 				// первого спавна (model.prefab ещё пуст — SetData присвоит его после). Показ по готовности —
-				// SpriterPostImportAdjuster (тело) и EntityModel.OnVisualReady (LifeBar); при ошибке загрузки
+				// сама сборка скелета (тело) и EntityModel.OnVisualReady (LifeBar); при ошибке загрузки
 				// возвращаем как было, иначе сущность осталась бы невидимкой.
 				var hideSr = go.GetComponent<SpriteRenderer>();
 				bool srWasEnabled = hideSr != null && hideSr.enabled;
@@ -526,39 +523,28 @@ namespace Mmogick
 					}
 				};
 
-				StartCoroutine(AnimationPatcher.Get(SERVER, GAME_ID, player_token, newPrefab, (AnimationPatcher patcher) =>
+				StartCoroutine(SpineCacheService.GetSkeleton(SERVER, GAME_ID, newPrefab, player_token, (asset, error) =>
 				{
-					// Анимация грузится асинхронно, и за это время сервер мог убрать сущность со сцены
-					// (тело по истечении срока лежания, снаряд после попадания). Это ОЖИДАЕМАЯ гонка, а не
-					// сбой: рисовать уже нечего, и поднимать её ошибкой нельзя — Error рвёт игроку вход.
+					// Скелет качается асинхронно, и за это время сервер мог убрать сущность со сцены (тело по
+					// истечении срока лежания, снаряд после попадания). Это ОЖИДАЕМАЯ гонка, а не сбой:
+					// рисовать уже нечего, и поднимать её ошибкой нельзя — Error рвёт игроку вход.
 					if (go == null)
 					{
 						Debug.Log("Анимации: " + key + " ушёл со сцены, пока грузилась анимация — рисовать нечего");
 						return;
 					}
+					if (error != null || asset == null)
+					{
+						restoreVisual();
+						Error("Анимации: " + (error ?? "скелет не собрался для " + key));
+						return;
+					}
 
-					if (patcher.error != null)
-					{
-						restoreVisual();
-						Error("Анимации: ошибка " + patcher.error);
-						return;
-					}
-					if (patcher.spriterPacket == null)
-					{
-						restoreVisual();
-						Error("Анимации: пустой ответ от патчера для " + key);
-						return;
-					}
-					try
-					{
-						Debug.Log("Анимации: создаём " + newPrefab + " для " + key);
-						NewSpriterRuntimeImporter.CreateSpriter(patcher.spriterPacket, key, GAME_ID, newPrefab, AnimationCacheService.GetPrefabSize(newPrefab));
-					}
-					catch (Exception ex)
-					{
-						restoreVisual();
-						Error("Анимации: ошибка " + ex);
-					}
+					var (clipName, flipX, clipAngle) = AnimationCacheService.GetClipName(
+						newPrefab, model.action, model.Forward.x, model.Forward.y);
+					SpineVisualBuilder.Create(go, asset, AnimationCacheService.GetPrefabSize(newPrefab), clipName);
+					model.DisplayAngle = clipAngle;
+					model.OnVisualReady();
 				}));
 			}
 			else if (AnimationCacheService.HasPrefab(newPrefab))
@@ -587,21 +573,5 @@ namespace Mmogick
 				model.LogError("префаб '" + newPrefab + "' не определён в library (нет ни image-привязки, ни animation-привязки на сервере)");
 		}
 
-		/// <summary>
-		/// Сносит все компоненты, которые ставит NewSpriterRuntimeImporter.CreateSpriter:
-		/// SpriterDotNetBehaviour, SpriterPostImportAdjuster и child-объекты "Sprites"/"Metadata".
-		/// Для первого спавна и для перехода image→image — no-op.
-		/// </summary>
-		private static void ClearSpriterVisualComponents(GameObject go)
-		{
-			var sb = go.GetComponent<SpriterDotNetBehaviour>();
-			if (sb != null) GameObject.DestroyImmediate(sb);
-			var adj = go.GetComponent<SpriterPostImportAdjuster>();
-			if (adj != null) GameObject.DestroyImmediate(adj);
-			var sprites = go.transform.Find("Sprites");
-			if (sprites != null) GameObject.DestroyImmediate(sprites.gameObject);
-			var metadata = go.transform.Find("Metadata");
-			if (metadata != null) GameObject.DestroyImmediate(metadata.gameObject);
-		}
 	}
 }

@@ -202,14 +202,14 @@ namespace SpriterDotNetUnity
     }
 #endif
 
-    internal static class SpriterImporterUtil
+    public static class SpriterImporterUtil
     {
         public static void SetParent(this GameObject child, GameObject parent)
         {
             child.transform.SetParent(parent.transform, false);
         }
 
-        internal static void CreateSprites(SpriterEntity entity, ChildData cd, GameObject parent)
+        public static void CreateSprites(SpriterEntity entity, ChildData cd, GameObject parent)
         {
             int maxObjects = GetDrawablesCount(entity);
 
@@ -237,7 +237,7 @@ namespace SpriterDotNetUnity
             }
         }
 
-        internal static void CreateCollisionRectangles(SpriterEntity entity, ChildData cd, GameObject parent)
+        public static void CreateCollisionRectangles(SpriterEntity entity, ChildData cd, GameObject parent)
         {
             if (entity.ObjectInfos == null) return;
             var boxes = entity.ObjectInfos.Where(o => o.ObjectType == SpriterObjectType.Box).ToList();
@@ -268,7 +268,7 @@ namespace SpriterDotNetUnity
             }
         }
 
-        internal static void CreatePoints(SpriterEntity entity, ChildData cd, GameObject parent)
+        public static void CreatePoints(SpriterEntity entity, ChildData cd, GameObject parent)
         {
             GameObject pointRoot = new GameObject("Points");
             pointRoot.SetParent(parent);
@@ -287,7 +287,7 @@ namespace SpriterDotNetUnity
             }
         }
 
-        internal static bool HasSound(SpriterEntity entity, HashSet<int> processedIds = null)
+        public static bool HasSound(SpriterEntity entity, HashSet<int> processedIds = null)
         {
             if (processedIds == null) processedIds = new HashSet<int>();
             if (processedIds.Contains(entity.Id)) return false;

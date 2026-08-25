@@ -108,9 +108,16 @@ namespace Mmogick
             HandleMovementInput();
 
             //Makes sure that the icon follows the hand
-            cursor.transform.position = Input.mousePosition + cursor_offset;
+            cursor.transform.position = InputSource.MousePosition + cursor_offset;
 
-            UpdateHoverHighlight(Input.mousePosition);
+#if UNITY_EDITOR
+            // Съёмка ролика ведёт указатель сценарием, и рисовать его в кадре приходится этой же рукой:
+            // системный курсор рисует система поверх картинки окна, в запись он не попадает. Сценарий не
+            // идёт — вызов не делает ничего.
+            InputSource.DrawPointer(cursor);
+#endif
+
+            UpdateHoverHighlight(InputSource.MousePosition);
             UpdateCursorShape();
 
             // Удерживаемый предмет мог быть уничтожен, пока висел на курсоре: пересборка слотов окна
@@ -128,22 +135,22 @@ namespace Mmogick
                 cursor.raycastTarget = false;
 
             // по клику мыши отправим серверу начать расчет пути к точки и двигаться к ней
-            if (Input.GetMouseButtonDown(0))
+            if (InputSource.MouseDown)
             {
                 cursor.raycastTarget = false;
                 GameObject gameObject = null;
 
                 // RaycastAll, а не одиночный Raycast: когда игрок СТОИТ на подбираемом предмете, его
                 // собственный коллайдер (тело отрисовано поверх) перекрывает предмет, и одиночный raycast
-                // вернул бы самого игрока — клик «по себе» не доходил до предмета, move_to/walk/to не
-                // отправлялись, и серверный подбор (walk/to → item/pickup при совпадении тайла) не запускался.
+                // вернул бы самого игрока — клик «по себе» не доходил до предмета, и команда подбора
+                // (item/pickup) не отправлялась вовсе: вещь под ногами поднять было нечем.
                 // Перебираем все попадания в порядке возрастания дистанции и берём первую сущность, КРОМЕ
                 // своего игрока: предмет под ногами оказывается следующим хитом и становится целью клика.
                 // Для врагов/NPC порядок тот же, что давал одиночный raycast (ближайший хит) — поведение
                 // по ним не меняется. GetComponentInParent (а не GetComponent) — чтобы клик по дочернему
                 // коллайдеру сущности (например по кликабельной надписи EquipableGroundMarker над предметом
                 // на земле) считался кликом по самой сущности-корню. Корневой collider тела находит себя же.
-                RaycastHit2D[] hits = Physics2D.RaycastAll(Camera.main.ScreenToWorldPoint(Input.mousePosition), Vector2.zero, Mathf.Infinity);
+                RaycastHit2D[] hits = Physics2D.RaycastAll(Camera.main.ScreenToWorldPoint(InputSource.MousePosition), Vector2.zero, Mathf.Infinity);
                 EntityModel hitEntity = null;
                 foreach (RaycastHit2D h in hits)
                 {
@@ -166,7 +173,7 @@ namespace Mmogick
                 )
                 {
                     PointerEventData pointerData = new PointerEventData(EventSystem.current);
-                    pointerData.position = Input.mousePosition;
+                    pointerData.position = InputSource.MousePosition;
 
                     List<RaycastResult> results = new List<RaycastResult>();
                     EventSystem.current.RaycastAll(pointerData, results);
@@ -184,7 +191,7 @@ namespace Mmogick
 
                     if (player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.Player.hp > 0)
                     {
-                        held.Use((Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerController.Player.transform.position).normalized, gameObject);
+                        held.Use((Camera.main.ScreenToWorldPoint(InputSource.MousePosition) - PlayerController.Player.transform.position).normalized, gameObject);
                     }
 
                     // если Use() установил новый moveable (chain-swap) — не сбрасывать
@@ -204,7 +211,7 @@ namespace Mmogick
                         Target = null;
                         persist_target = false;
                         LootWindowController.CancelPending();   // пошли в другое место — отложенное открытие добычи снимается
-                        Debug.Log("Кликнули на " + Camera.main.ScreenToWorldPoint(Input.mousePosition));
+                        Debug.Log("Кликнули на " + Camera.main.ScreenToWorldPoint(InputSource.MousePosition));
 
                         // движение к указанной клетке
                         WalkToCursor();
@@ -219,7 +226,7 @@ namespace Mmogick
                             // сервер, движение клиентом не дублируем. Кликнутый контейнер выбираем тем же
                             // правилом, что hover-кольцо (ContainerAtScreen) — куда подсветили, туда и
                             // кликнули; кучей лежат только тела, у одиночного сундука выбор тривиален.
-                            ObjectModel container = ContainerAtScreen(Input.mousePosition);
+                            ObjectModel container = ContainerAtScreen(InputSource.MousePosition);
                             if (container == null && LootWindowController.IsContainer(new_target))
                                 container = new_target;
 
@@ -242,23 +249,30 @@ namespace Mmogick
                             }
 
                             // КАК ПОДБИРАЮТСЯ ПРЕДМЕТЫ (kind=item / экипируемые):
-                            // Отдельной клиентской команды "подобрать" НЕТ. Подбор серверный — сервер кладёт
-                            // предмет в инвентарь, когда игрок касается клетки предмета (item/pickup на стороне
-                            // сервера). Задача клиента — лишь ДОВЕСТИ игрока до предмета. Поэтому клик по
-                            // предмету (или по его кликабельной надписи EquipableGroundMarker, чей collider
-                            // через GetComponentInParent резолвится в этот же ObjectModel) трактуем как
-                            // "идти к нему": ставим move_to в позицию предмета — дальше FixedUpdate шлёт
-                            // WalkResponse "to", игрок подходит, сервер подбирает. Целью предмет при этом
-                            // выбираем: по выбранному открывается окно сведений, и о лежащей вещи там есть
-                            // что рассказать — что это, чего стоит.
+                            // Клик по вещи (или по её кликабельной надписи EquipableGroundMarker, чей collider
+                            // через GetComponentInParent резолвится в этот же ObjectModel) шлёт серверу команду
+                            // подбора с ключом вещи. Персонажа к ней клиент НЕ ведёт: вещь дальше дальности —
+                            // сервер сам подводит к ней и повторяет подбор до прибытия, а своя команда движения
+                            // игрока этот подход отменяет, так что движение, поставленное тем же кликом, сняло бы
+                            // подбор, который сам же и заказало. Тем же каналом и по той же причине уходит
+                            // открытие контейнера (ветка выше). Целью вещь при этом выбираем: по выбранному
+                            // открывается окно сведений, и о лежащей вещи там есть что рассказать — что это,
+                            // чего стоит.
+                            // Мёртвым не шлём вовсе: подбор сервер исполняет только живому (тот же гейт, что у
+                            // применения предмета из курсора выше).
                             if (!string.IsNullOrEmpty(new_target.prefab)
                                 && AnimationCacheService.IsGroundItem(new_target.prefab))
                             {
                                 Target = new_target;
                                 persist_target = false;
                                 LootWindowController.CancelPending();
-                                if (player != null)
-                                    move_to = gameObject.transform.position;
+
+                                if (PlayerController.Player != null && PlayerController.Player.hp > 0)
+                                {
+                                    PickupResponse response = new PickupResponse();
+                                    response.target = new_target.key;
+                                    response.Send();
+                                }
                             }
                             // Живой враг/NPC: выбираем как цель (UI-рамка + цель для заклинаний/атак по Target).
                             else if (new_target is EnemyModel && new_target.action != "dead")
@@ -316,7 +330,7 @@ namespace Mmogick
             if (hoverPointer == null)
                 hoverPointer = new PointerEventData(EventSystem.current);
 
-            hoverPointer.position = Input.mousePosition;
+            hoverPointer.position = InputSource.MousePosition;
 
             hoverHits.Clear();
             EventSystem.current.RaycastAll(hoverPointer, hoverHits);
@@ -341,16 +355,62 @@ namespace Mmogick
         }
 
         /// <summary>
+        /// Радиус (в клетках), в котором сервер ищет проходимую клетку, когда цель клика непроходима.
+        /// Держать НЕ МЕНЬШЕ серверного: меньший отбросит клик, который сервер бы обработал, и шаг пропадёт —
+        /// ошибаться тут допустимо лишь в сторону лишней отправки (см. CanServerWalkTo).
+        /// </summary>
+        private const int WALK_TO_RADIUS = 2;
+
+        /// <summary>
         /// Отправить персонажа в точку под курсором. Клик в упор (ближе шага) движения не даёт — иначе
-        /// сервер получал бы команду на клетку, где игрок уже стоит.
+        /// сервер получал бы команду на клетку, где игрок уже стоит. Заведомо холостой клик не шлётся вовсе
+        /// (см. <see cref="CanServerWalkTo"/>).
         /// </summary>
         private void WalkToCursor()
         {
             if (player == null) return;
 
-            move_to = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            if (Vector3.Distance(player.position, move_to) < 1.15f)
+            move_to = Camera.main.ScreenToWorldPoint(InputSource.MousePosition);
+            if (Vector3.Distance(player.position, move_to) < 1.15f || !CanServerWalkTo(move_to))
                 move_to = Vector3.zero;
+        }
+
+        /// <summary>
+        /// Найдёт ли сервер по этому клику хоть какую-то клетку, куда вести. Зеркало серверной ветки движения
+        /// к точке: цель непроходима — сервер берёт проходимую клетку из радиуса <see cref="WALK_TO_RADIUS"/>
+        /// вокруг точки клика, а не найдя ни одной, не делает ничего. Потому клик В СТЕНУ и не отбрасывается:
+        /// сервер подводит персонажа к ней вплотную, и это ожидаемый игроком исход. Отсекается только клик
+        /// вглубь сплошной непроходимой области — за край мира, внутрь скалы, в недоступную соседнюю карту.
+        ///
+        /// Незнание читается как «пройти можно» (MapController.IsKnownImpassableCell): ошибаться допустимо лишь
+        /// в сторону лишней отправки, никогда — в сторону пропущенного клика. Критерий парный серверному:
+        /// меняется одна сторона — правится вторая.
+        /// </summary>
+        private bool CanServerWalkTo(Vector3 point)
+        {
+            Vector2Int cell = Cell(point);
+
+            if (!IsKnownImpassableCell(cell))
+                return true;
+
+            Vector2Int me = Cell(player.position);
+
+            for (int dx = -WALK_TO_RADIUS; dx <= WALK_TO_RADIUS; dx++)
+                for (int dy = -WALK_TO_RADIUS; dy <= WALK_TO_RADIUS; dy++)
+                {
+                    // Саму клетку клика уже проверили выше, а ту, где игрок стоит, целью не берёт и сервер.
+                    if (dx == 0 && dy == 0)
+                        continue;
+
+                    Vector2Int candidate = new Vector2Int(cell.x + dx, cell.y + dy);
+                    if (candidate == me)
+                        continue;
+
+                    if (!IsKnownImpassableCell(candidate))
+                        return true;
+                }
+
+            return false;
         }
 
         /// <summary>
@@ -364,8 +424,8 @@ namespace Mmogick
             {
                 try
                 {
-                    vertical = Input.GetAxis("Vertical") != 0 ? Input.GetAxis("Vertical") : joystick.Vertical;
-                    horizontal = Input.GetAxis("Horizontal") != 0 ? Input.GetAxis("Horizontal") : joystick.Horizontal;
+                    vertical = InputSource.GetAxis("Vertical") != 0 ? InputSource.GetAxis("Vertical") : joystick.Vertical;
+                    horizontal = InputSource.GetAxis("Horizontal") != 0 ? InputSource.GetAxis("Horizontal") : joystick.Horizontal;
 
                     // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
                     // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)

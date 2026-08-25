@@ -1,5 +1,12 @@
 ﻿<Solution>
-  <Project Path="Assembly-CSharp.csproj" />
-  <Project Path="Assembly-CSharp-firstpass.csproj" />
-  <Project Path="Assembly-CSharp-Editor-firstpass.csproj" />
+  <Project Path="Mmogick.Game.csproj" />
+  <Project Path="WebGLSupport.csproj" />
+  <Project Path="JoystickPack.Editor.csproj" />
+  <Project Path="Mmogick.Client.csproj" />
+  <Project Path="SpriterDotNet.csproj" />
+  <Project Path="JoystickPack.csproj" />
+  <Project Path="Mmogick.VideoRig.csproj" />
+  <Project Path="GitIntegration.Editor.csproj" />
+  <Project Path="Mmogick.VideoRig.Runtime.csproj" />
+  <Project Path="Startup.Editor.csproj" />
 </Solution>
