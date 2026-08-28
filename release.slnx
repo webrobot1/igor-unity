@@ -3,7 +3,6 @@
   <Project Path="WebGLSupport.csproj" />
   <Project Path="JoystickPack.Editor.csproj" />
   <Project Path="Mmogick.Client.csproj" />
-  <Project Path="SpriterDotNet.csproj" />
   <Project Path="JoystickPack.csproj" />
   <Project Path="Mmogick.VideoRig.csproj" />
   <Project Path="GitIntegration.Editor.csproj" />

@@ -3,7 +3,6 @@
     "rootNamespace": "Mmogick",
     "references": [
         "Mmogick.Client",
-        "SpriterDotNet",
         "WebGLSupport",
         "JoystickPack",
         "spine-csharp",

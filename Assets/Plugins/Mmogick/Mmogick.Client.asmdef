@@ -2,7 +2,6 @@
     "name": "Mmogick.Client",
     "rootNamespace": "Mmogick",
     "references": [
-        "SpriterDotNet",
         "WebGLSupport",
         "spine-csharp",
         "spine-unity"

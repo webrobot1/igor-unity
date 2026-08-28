@@ -47,14 +47,13 @@ namespace Mmogick
 		// Бампится и на смену ФОРМЫ значения компонента внутри component_value: состав entry при этом прежний,
 		// а разбор идёт по форме — на лежалой записи он падает, и дельта по дате её не подменит (сервер шлёт
 		// только записи, изменившиеся с прошлой синхронизации, а у давно не правленного prefab'а дата прежняя).
-		// v2: actions сменил форму словарь(action→angle→clip) → плоский список ActionBinding[].
-		// v3: добавлено component (имена компонентов prefab'а).
-		// v4: добавлено component_value (эффективные значения публичных компонентов вида).
-		// v5: component убран (имена = ключи component_value), component_value несёт ВСЕ компоненты вида.
-		// v6: значение компонента event у заклинания — строка (имя группы команды) вместо словаря.
-		// v7: у привязки действия появилось looping (повтор клипа задаёт действие игры, не документ SCML).
-		// v8: тело собирается скелетом Spine — кешем анимации стал его пакет вместо дерева SCML.
 		private const int CACHE_SCHEMA_VERSION = 8;
+
+		// Разбор серверного payload: сервер шлёт скаляры всегда, включая null (null ≡ дефолт поля), а без
+		// Ignore Newtonsoft пишет null в не-nullable поле (version, animation, angle, pivotX/Y, id) и роняет
+		// разбор целиком. Одна настройка на оба ответа кеша — /animations и /prefabs.
+		private static readonly JsonSerializerSettings SERVER_JSON =
+			new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
@@ -86,47 +85,6 @@ namespace Mmogick
 			}
 			rect = new Rect(minX, minY, maxX - minX, maxY - minY);
 			return true;
-		}
-
-		/// <summary>
-		/// Мировые границы фигуры под <paramref name="root"/> по НЕПРОЗРАЧНЫМ пикселям её частей: у каждой
-		/// берётся плотная рамка (<see cref="TryGetTightRect"/>) и переводится в мир своим трансформом.
-		/// Прямоугольник спрайта тут не годится — части скелета нарисованы с большим запасом пустого поля,
-		/// по нему фигура выходит заметно крупнее и смещённой (поля у частей несимметричны).
-		/// Плотной рамки у части нет (не Tight-меш) — идёт её обычный bounds, иначе часть выпала бы из замера.
-		/// <paramref name="onlyEnabled"/>: считать лишь включённые части. Нужно замеру НА ХОДУ сборки
-		/// (выключенные там ещё не готовы); показу собранной фигуры наоборот вредно — аниматор на отдельных
-		/// кадрах гасит часть деталей, и замер по включённым дал бы прыгающий результат.
-		/// false — ничего не намерено (пустой корень либо нулевая высота у всех частей).
-		/// </summary>
-		public static bool TryGetVisibleBounds(Transform root, out Bounds bounds, bool onlyEnabled = false)
-		{
-			bounds = default;
-			if (root == null) return false;
-
-			bool any = false;
-			foreach (var sr in root.GetComponentsInChildren<SpriteRenderer>(true))
-			{
-				if (sr == null || sr.sprite == null) continue;
-				if (onlyEnabled && !sr.enabled) continue;
-
-				Bounds part;
-				if (TryGetTightRect(sr.sprite, out Rect tight) && tight.width > 0 && tight.height > 0)
-				{
-					part = new Bounds(sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMin, 0)), Vector3.zero);
-					part.Encapsulate(sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMin, 0)));
-					part.Encapsulate(sr.transform.TransformPoint(new Vector3(tight.xMin, tight.yMax, 0)));
-					part.Encapsulate(sr.transform.TransformPoint(new Vector3(tight.xMax, tight.yMax, 0)));
-				}
-				else
-					part = sr.bounds;
-
-				if (part.size.sqrMagnitude < 0.0001f) continue;
-				if (!any) { bounds = part; any = true; }
-				else bounds.Encapsulate(part);
-			}
-
-			return any && bounds.size.y > 0.0001f;
 		}
 
 		[Serializable]
@@ -210,10 +168,11 @@ namespace Mmogick
 			public List<ActionBinding> actions;
 
 			/// <summary>
-			/// Высота «тела» персонажа в единицах скелета (per-prefab константа, приходит с /prefabs
-			/// вместе с animation, задаётся в админке при конфигурации prefab'а).
-			/// Клиент нормализует тело так, чтобы size * final_scale = 1 клетка (SpineVisualBuilder.Fit).
-			/// Если null (поле не задано на сервере) — fallback на замер габаритов самого скелета.
+			/// ДЕЛИТЕЛЬ целевой высоты тела (per-prefab константа, приходит с /prefabs, задаётся в админке при
+			/// конфигурации prefab'а): высота тела в клетках объявлена на сервере, на клиент уходит обратная
+			/// ей величина. Клиент приводит тело к высоте 1/size клеток — SpineVisualBuilder.Fit у скелета,
+			/// UpdateController.ApplyVisualPrefab у картинки. Габариты самой фигуры замеряются у неё всегда.
+			/// Если null (поле не задано на сервере) — тело приводится к одной клетке.
 			/// </summary>
 			public float? size;
 			public bool h_mirror;
@@ -289,7 +248,7 @@ namespace Mmogick
 			///   список (в т.ч. пустой [])  — kind экипируемый; пустой [] = «слоты ещё не заданы», но предмет
 			///                                экипируемый. Т.е. экипируемость = (equipable_slot != null), НЕ (Count > 0):
 			///                                null и пустой список — РАЗНЫЕ вещи, не путать (в C# различимы).
-			/// Применение: при экипировке клиент пересекает этот список с object_slot носителя (из /animations/{id})
+			/// Применение: при экипировке клиент пересекает этот список с object_slot носителя (из пакета скелета)
 			/// → находит anchor для отрисовки. Item всегда с какой-то графикой (анимация или статичная картинка) —
 			/// prefab без графики экипируемым быть не должен (иначе клиент рисует unknown-спрайт).
 			/// </summary>
@@ -392,20 +351,6 @@ namespace Mmogick
 			return new System.Collections.Generic.List<ImageVariant> {
 				new ImageVariant { angle = e.angle, sha256 = e.sha256, extension = e.extension, pivotX = e.pivotX, pivotY = e.pivotY },
 			};
-		}
-
-		// Pivot хвата картинки prefab'а (0..1). Для надетого оружия — точка крепления к якорю
-		// и центр вращения. Контракт по _library тот же что у GetPrefabSize/GetEquipableSlots —
-		// вызывать только после SyncAll, иначе exception (тихий дефолт замаскировал бы timing-баг:
-		// оружие прикрепилось бы с неверным центром вращения вместо громкого падения).
-		// Default (0.5, 0.5) — центр — только для «prefab не в library / pivot не задан».
-		public static UnityEngine.Vector2 GetPrefabPivot(string prefab)
-		{
-			if (_library == null)
-				throw new InvalidOperationException("AnimationCacheService.GetPrefabPivot вызван до SyncAll (_library == null). prefab=" + prefab);
-			if (!string.IsNullOrEmpty(prefab) && _library.TryGetValue(prefab, out PrefabEntry e))
-				return new UnityEngine.Vector2(e.pivotX, e.pivotY);
-			return new UnityEngine.Vector2(0.5f, 0.5f);
 		}
 
 		// Список slot-slug-ов в которые prefab может быть экипирован (item-prefab → [hand_r, hand_l] и т.п.).
@@ -761,7 +706,7 @@ namespace Mmogick
 			req.Dispose();
 
 			Dictionary<int, long> serverVersions;
-			try { serverVersions = JsonConvert.DeserializeObject<Dictionary<int, long>>(text); }
+			try { serverVersions = JsonConvert.DeserializeObject<Dictionary<int, long>>(text, SERVER_JSON); }
 			catch (Exception ex) { onError?.Invoke("AnimationCache animations parse: " + ex.Message); yield break; }
 
 			if (serverVersions == null) serverVersions = new Dictionary<int, long>();
@@ -925,7 +870,7 @@ namespace Mmogick
 			req.Dispose();
 
 			PrefabSyncResponse parsed;
-			try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text); }
+			try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text, SERVER_JSON); }
 			catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
 
 			if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
@@ -1049,25 +994,6 @@ namespace Mmogick
 			return (bestClip, bestFlip, bestAngle);
 		}
 
-		// Простой резолв без направления (backward compat для вызовов где forward неважен, например idle в importer)
-		public static string GetClipNameSimple(
-			string prefab, string action)
-		{
-			if (_library == null || string.IsNullOrEmpty(prefab)) return null;
-			if (!_library.TryGetValue(prefab, out PrefabEntry p)) return null;
-			if (p.IsImage) return null;
-			if (p.actions == null) return null;
-			// Первый клип этого action, предпочитая без-направления (angle==null); иначе первый направленный.
-			string firstClip = null;
-			foreach (var b in p.actions)
-			{
-				if (b == null || b.action != action) continue;
-				if (b.angle == null) return b.clip;    // клип без направления предпочтителен
-				if (firstClip == null) firstClip = b.clip;
-			}
-			return firstClip;
-		}
-
 		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш
 		// (удаляет PNG и сбрасывает archive_last_modified — иначе следующий sync получит 304 и файл
 		// не перекачается) и бросает Exception с контекстом. Вызыватель оборачивает в try/catch и
@@ -1080,7 +1006,10 @@ namespace Mmogick
 				if (!string.IsNullOrEmpty(fileName))
 				{
 					string path = Path.Combine(ImagesPath(gameId), fileName);
-					try { if (File.Exists(path)) File.Delete(path); } catch { /* нет прав / уже удалён */ }
+					// Причину неудачного сноса называем вслух: без неё следующий заход находит тот же битый
+					// файл, снова падает на нём и снова молча не может его снять.
+					try { if (File.Exists(path)) File.Delete(path); }
+					catch (Exception drop) { Debug.LogWarning("AnimationCache: битую картинку " + fileName + " не снять: " + drop.Message); }
 					_spriteCache.Remove(fileName);
 					if (_manifest != null)
 					{

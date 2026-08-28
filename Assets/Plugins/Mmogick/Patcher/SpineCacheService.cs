@@ -84,14 +84,20 @@ namespace Mmogick
 			/// <summary>Имя кости скелета, на которой висит предмет.</summary>
 			public string bone;
 
+			/// <summary>
+			/// Слот скелета, которым якорь задан: он несёт и кость, и место в порядке отрисовки — держатель
+			/// сервер ставит сразу за ним. Клиенту нужен составом пакета: разбор строгий.
+			/// </summary>
+			public string anchor;
+
 			/// <summary>Слот экипировки, которому якорь принадлежит; у ключа набора он же.</summary>
 			public string slot;
 
 			public float offsetX;
 			public float offsetY;
 
-			/// <summary>Угол доворота предмета за костью; пусто — предмет держится «как загружено».</summary>
-			public float? angle;
+			/// <summary>Угол доворота предмета за костью, в градусах; поворота нет — 0.</summary>
+			public float angle;
 
 			/// <summary>
 			/// Слот скелета, в который ставится кусок надетого предмета. Держатели стоят в скелете пустыми,
@@ -140,7 +146,7 @@ namespace Mmogick
 			if (failure != null)
 			{
 				// Кеш мог протухнуть (картинки архива сменились) — сносим, следующий заход перекачает.
-				try { File.Delete(packageFile); } catch { /* уже снят либо нет прав */ }
+				DeletePackage(packageFile);
 				callback(null, failure);
 				yield break;
 			}
@@ -229,7 +235,17 @@ namespace Mmogick
 			var stale = new List<string>();
 			foreach (var pair in _skeletons)
 				if (pair.Key.StartsWith(prefix, StringComparison.Ordinal)) stale.Add(pair.Key);
-			foreach (var key in stale) _skeletons.Remove(key);
+			foreach (var key in stale)
+			{
+				// Перечень однократных клипов ключуется САМИМ скелетом: снятый из выдачи адресовать больше
+				// нечем, и без этой строки словарь держал бы забытый скелет до конца сеанса (память переживает
+				// остановку игры). Ключ снимаем по ссылке, без Unity-проверки на живость: уничтоженный объект
+				// она отсекает, а запись словаря он при этом держит.
+				if (_skeletons.TryGetValue(key, out var asset) && !ReferenceEquals(asset, null))
+					_once.Remove(asset);
+
+				_skeletons.Remove(key);
+			}
 
 			stale.Clear();
 			foreach (var pair in _slots)
@@ -254,9 +270,19 @@ namespace Mmogick
 		{
 			string packageFile = PackageFile(gameId, animationId);
 			if (File.Exists(packageFile))
-				try { File.Delete(packageFile); } catch { /* уже снят либо нет прав */ }
+				DeletePackage(packageFile);
 
 			Forget(animationId);
+		}
+
+		/// <summary>
+		/// Снять файл пакета. Причину неудачи называем вслух: снаружи видно лишь «пакет не разбирается», а
+		/// следующий заход упрётся в тот же файл и повторит тот же отказ — и так каждый вход.
+		/// </summary>
+		private static void DeletePackage(string packageFile)
+		{
+			try { File.Delete(packageFile); }
+			catch (Exception ex) { Debug.LogWarning("SpineCache: пакет " + packageFile + " не снят: " + ex.Message); }
 		}
 
 		private static string PackageFile(int gameId, int animationId)

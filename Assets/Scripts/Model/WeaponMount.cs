@@ -13,22 +13,19 @@ namespace Mmogick
     // Отдельного объекта у предмета нет вовсе — кусок предмета (RegionAttachment) ставится в пустой
     // слот-держатель скелета, привязанный сервером к кости якоря (имя держателя приходит в самом якоре).
     // Тем самым предмет живёт внутри меша тела: следует за костью, зеркалится и сортируется вместе с ним.
+    // Место держателя в порядке отрисовки задаёт сам скелет: сервер ставит держатель сразу за слотом-якорем,
+    // который выбрал человек.
     // Активен тот якорь, чья кость несёт ПОКАЗАННУЮ в этом кадре кожу — прямой аналог правила дерева
     // («точка присутствует в кадре»): ракурс скелет переключает тем, что кожа одного ракурса надета в свои
     // слоты, а прочие пусты. Кость якоря своих слотов не несёт — она РОДИТЕЛЬ костей, на которых висит кожа
-    // ракурса, потому и якорь, и соседи по глубине ищутся по её ПОДДЕРЕВУ. Глубина — место держателя в
-    // порядке отрисовки: сервер ставит держатели В КОНЕЦ перечня слотов (в середину нельзя, смещения порядка
-    // в клипах адресуют слот его местом), а рисоваться предмет должен поверх кожи СВОЕЙ руки и под тем, что
-    // нарисовано дальше, — потому держатель переставляется за последний слот своего поддерева КАЖДЫЙ кадр,
-    // после того как клип разложил свой порядок отрисовки (хук UpdateComplete).
+    // ракурса, потому якорь ищется по её ПОДДЕРЕВУ.
     public class WeaponMount : MonoBehaviour
     {
         private const float Ppu = 100f;          // как в AnimationCacheService.GetSprite
 
         // Доля роста НОСИТЕЛЯ, которую занимает надетый предмет по своей длинной стороне при scale слота = 1.
-        // Тело любой сущности нормируется в одну клетку карты (SpineVisualBuilder.TARGET_HEIGHT;
-        // клетка Grid = 1 мировой юнит), поэтому «доля клетки» и «доля
-        // роста носителя» — одно число. Размер надетого предмета — величина, задаваемая ЗДЕСЬ, а не разрешением
+        // Доля берётся от РОСТА носителя, а не от клетки: тело нормируется к высоте, которую объявил
+        // сервер (SpineVisualBuilder.Fit), и у сущности со своим размером она клетке не равна. Размер надетого предмета — величина, задаваемая ЗДЕСЬ, а не разрешением
         // исходника: без нормализации предмет получал бы размер своего PNG в масштабе скелета (400px-меч ≈ рост
         // персонажа, 574px-посох — полтора роста). Тонкая подгонка под конкретный слот/скелет — множитель scale
         // слота (сервер).
@@ -82,6 +79,11 @@ namespace Mmogick
 
         private readonly Dictionary<string, Mounted> _slots = new Dictionary<string, Mounted>();
         private SkeletonAnimation _skel;
+
+        // Держатели ВСЕХ слотов экипировки скелета — по ним поиск активного якоря отличает их от кожи
+        // ракурса. Набор общий на носителя (слоты экипировки резолвятся по одному пакету), потому лежит
+        // у компонента, а не у надетого предмета.
+        private HashSet<Slot> _holderSlots;
         private EntityModel _em;   // DisplayAngle (ракурс играющего клипа) + Forward (fallback) — выбор варианта картинки
 
         // Надеть/снять предмет в слоте экипировки ЛЮБОЙ сущности: wearer — носитель, itemPrefab — prefab
@@ -265,8 +267,8 @@ namespace Mmogick
         }
 
         // Подписка на хук скелета — единственное, что делается покадрово отсюда: сама посадка предмета идёт
-        // в хуке (OnSkeletonUpdate), потому что порядок LateUpdate между компонентами не определён, а
-        // переставлять держателя в порядке отрисовки надо ПОСЛЕ того, как клип разложил свой, и ДО сборки меша.
+        // в хуке (OnSkeletonUpdate), потому что порядок LateUpdate между компонентами не определён, а посадка
+        // считается по мировым трансформам костей — их скелет раскладывает у себя, и готовы они только к хуку.
         private void LateUpdate()
         {
             if (_slots.Count == 0) return;
@@ -286,13 +288,13 @@ namespace Mmogick
             if (found == null) return;
 
             _skel = found;
+            _holderSlots = null;   // держатели принадлежали прежнему скелету
             _skel.UpdateComplete += OnSkeletonUpdate;
         }
 
-        // Хук самого скелета: клип уже разложен (в том числе его порядок отрисовки), мировые трансформы
-        // костей посчитаны, меш ещё не собран — единственный момент кадра, где посадку предмета видно
-        // рендеру целиком. UpdateComplete против UpdateWorld: второй заставил бы решать мировые трансформы
-        // ЛИШНИЙ раз на каждой сущности с экипировкой.
+        // Хук самого скелета: клип уже разложен, мировые трансформы костей посчитаны, меш ещё не собран —
+        // единственный момент кадра, где посадку предмета видно рендеру целиком. UpdateComplete против
+        // UpdateWorld: второй заставил бы решать мировые трансформы ЛИШНИЙ раз на каждой сущности с экипировкой.
         private void OnSkeletonUpdate(ISkeletonRenderer renderer)
         {
             Skeleton skeleton = renderer != null ? renderer.Skeleton : null;
@@ -305,6 +307,8 @@ namespace Mmogick
             float unit = t != null ? Mathf.Abs(t.lossyScale.y) : 1f;
             if (unit < 0.0001f) unit = 1f;
             bool mirrored = t != null && t.lossyScale.x < 0f;
+
+            _holderSlots ??= HolderSlots(skeleton);
 
             foreach (Mounted m in _slots.Values)
                 MountPiece(m, skeleton, unit, mirrored);
@@ -333,9 +337,11 @@ namespace Mmogick
             if (!m.tried)
             {
                 m.tried = true;
-                m.anchors = SlotAnchors(m.slot);
-                if (m.anchors != null)
+                Dictionary<string, List<SpineCacheService.SlotAnchor>> slots = SkeletonSlots();
+                if (slots != null && slots.TryGetValue(m.slot, out List<SpineCacheService.SlotAnchor> anchors)
+                    && anchors != null && anchors.Count > 0)
                 {
+                    m.anchors = anchors.ToArray();
                     m.holders = new Slot[m.anchors.Length];
                     for (int i = 0; i < m.anchors.Length; i++)
                     {
@@ -351,11 +357,14 @@ namespace Mmogick
             // Активный якорь — тот, в чьём ПОДДЕРЕВЕ костей висит надетая в этом кадре кожа: так скелет и
             // показывает ракурс — кожа одного ракурса надета, слоты прочих пусты. Поддерево, а не сама
             // кость: кость якоря своих слотов не несёт, она родитель костей, на которых кожа висит.
+            // Держатели экипировки перебор пропускает: они не кожа, а место куска надетого предмета, и
+            // сидят на кости СВОЕГО якоря — занятый держатель опознавался бы кожей своего же ракурса, и
+            // предмет навсегда оставался бы на якоре, выбранном в первом кадре.
             // Ни одной такой — запасной якорь: у скелета без ракурсов выбирать не из чего.
             int idx = -1;
             foreach (Slot dressed in skeleton.Slots)
             {
-                if (dressed.AppliedPose.Attachment == null) continue;
+                if (dressed.AppliedPose.Attachment == null || _holderSlots.Contains(dressed)) continue;
                 idx = AnchorOf(m.holders, dressed.Bone);
                 if (idx >= 0) break;
             }
@@ -381,14 +390,9 @@ namespace Mmogick
                 : pick.scale;
             float sx = flip ? -s : s;   // зеркало вокруг pivot'а (хвата) — рукоять остаётся на кости
 
-            // angle задан — предмет следует за костью: нарисованное направление варианта нормализуется к
-            // канону (вправо), затем доворачивается на angle относительно кости. angle == null — «как
-            // загружено»: снимаем поворот кости, поза предмета = его рисунок (копьё, нарисованное
-            // вертикально, остаётся вертикальным). Зеркало тела живёт в масштабе объекта скелета и upright
-            // не ломает.
-            float rot = pick.angle.HasValue
-                ? pick.angle.Value - DrawnAngle(variant, flip)
-                : -bone.WorldRotationX;
+            // Предмет следует за костью: нарисованное направление варианта нормализуется к канону
+            // (вправо), затем доворачивается на angle относительно кости.
+            float rot = pick.angle - DrawnAngle(variant, flip);
 
             if (!variant.applied
                 || Mathf.Abs(sx - variant.appliedScale) > Mathf.Abs(sx) * PieceScaleEpsilon
@@ -412,8 +416,6 @@ namespace Mmogick
             if (!ReferenceEquals(m.holder, holder)) ClearHolder(m);
             m.holder = holder;
             if (holder.Pose.Attachment != variant.piece) holder.Pose.Attachment = variant.piece;
-
-            PlaceHolder(skeleton, holder);
         }
 
         // Индекс якоря, в поддереве кости которого лежит названная кость. Идём от кости ВВЕРХ: держателей
@@ -435,37 +437,9 @@ namespace Mmogick
             m.holder = null;
         }
 
-        // Держатель — сразу ЗА последним слотом СВОЕГО поддерева костей: предмет поверх кожи своей руки и
-        // под тем, что нарисовано дальше (голова над нагрудником). Сервер ставит держатели в КОНЕЦ перечня
-        // слотов — оттуда предмет рисовался бы поверх всего. Порядок правим в том списке, который читает
-        // сборка меша: при отсутствии ограничителей порядка он и есть общий, а при их наличии —
-        // пересобирается из общего каждый кадр, и правка общего пропала бы. Кожи в поддереве нет
-        // (last < 0) — держатель остаётся на месте, поверх всего.
-        private static void PlaceHolder(Skeleton skeleton, Slot holder)
-        {
-            ExposedList<Slot> order = skeleton.DrawOrder.AppliedPose;
-            Slot[] items = order.Items;
-            Bone bone = holder.Bone;
-            int at = -1, last = -1;
-            for (int i = 0, n = order.Count; i < n; i++)
-            {
-                if (ReferenceEquals(items[i], holder)) { at = i; continue; }
-                for (Bone b = items[i].Bone; b != null; b = b.Parent)
-                    if (ReferenceEquals(b, bone)) { last = i; break; }
-            }
-            if (at < 0 || last < 0) return;
-
-            // Снятие держателя сдвигает на единицу всё, что стояло за ним.
-            int target = last < at ? last + 1 : last;
-            if (target == at) return;
-
-            order.RemoveAt(at);
-            order.Insert(target, holder);
-        }
-
-        // Якоря слота на скелете носителя: сдвиг, доворот, множитель размера и имя слота-держателя.
-        // Лежат в пакете скелета — читаются, когда скелет уже собран.
-        private SpineCacheService.SlotAnchor[] SlotAnchors(string slot)
+        // Якоря экипировки скелета носителя: слот экипировки → его якоря (сдвиг, доворот, множитель
+        // размера, имя слота-держателя). Лежат в пакете скелета — читаются, когда скелет уже собран.
+        private Dictionary<string, List<SpineCacheService.SlotAnchor>> SkeletonSlots()
         {
             string wearerPrefab = _em != null ? _em.prefab : null;
             if (string.IsNullOrEmpty(wearerPrefab))
@@ -476,13 +450,31 @@ namespace Mmogick
             if (animationId == 0 || string.IsNullOrEmpty(entity))
                 return null;
 
-            Dictionary<string, List<SpineCacheService.SlotAnchor>> slots =
-                SpineCacheService.GetSlots(BaseController.GAME_ID, animationId, entity);
-            if (slots == null || !slots.TryGetValue(slot, out List<SpineCacheService.SlotAnchor> anchors)
-                || anchors == null || anchors.Count == 0)
-                return null;   // у скелета нет якорей этого слота
+            return SpineCacheService.GetSlots(BaseController.GAME_ID, animationId, entity);
+        }
 
-            return anchors.ToArray();
+        // Слоты-держатели скелета — по именам из якорей ВСЕХ слотов экипировки, не только надетого сейчас:
+        // занят держатель любого слота, а от кожи ракурса поиск активного якоря обязан отличать их все.
+        // Держателя нет в скелете — якорь пропускаем: ставить кусок туда всё равно некуда.
+        private HashSet<Slot> HolderSlots(Skeleton skeleton)
+        {
+            var holders = new HashSet<Slot>();
+            Dictionary<string, List<SpineCacheService.SlotAnchor>> slots = SkeletonSlots();
+            if (slots == null)
+                return holders;
+
+            foreach (List<SpineCacheService.SlotAnchor> anchors in slots.Values)
+            {
+                if (anchors == null) continue;
+                foreach (SpineCacheService.SlotAnchor anchor in anchors)
+                {
+                    if (string.IsNullOrEmpty(anchor.holder)) continue;
+                    Slot holder = skeleton.FindSlot(anchor.holder);
+                    if (holder != null) holders.Add(holder);
+                }
+            }
+
+            return holders;
         }
     }
 }

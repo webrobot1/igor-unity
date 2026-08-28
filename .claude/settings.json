@@ -24,7 +24,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /var/www/html/game/.claude/hooks/unity-playmode-stop-reminder.sh"
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-stop-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/orchestration-reminder.sh"
           }
         ]
       }

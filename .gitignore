@@ -174,3 +174,6 @@ Assets/Plugins/*
 !Assets/Plugins/GitIntegration.meta
 !Assets/Plugins/Startup/
 !Assets/Plugins/Startup.meta
+
+# Байткод-кеш модулей, зеркалируемых сюда из серверного репозитория: пишется при каждом запуске копии хука.
+__pycache__/

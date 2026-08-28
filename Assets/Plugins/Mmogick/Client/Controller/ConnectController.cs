@@ -75,9 +75,8 @@ namespace Mmogick
 
 		/// <summary>
 		/// Имя server-action, обозначающее «idle»-поза (тело в покое). Приходит в /auth.
-		/// Используется везде, где клиент ищет idle:
-		///   — SpriterPostImportAdjuster: форсит idle-клип во время Phase 1 sampling'а (стабильная поза);
-		///   — ObjectModel.Update: переводит legacy Animator на idle-layer по таймауту неактивности.
+		/// Используется везде, где клиент ищет idle: ObjectModel.Update переводит им тело в покой по
+		/// таймауту неактивности.
 		/// Инициализируется в SigninController.LoadMain до ConnectController.Connect — т.е. до первого спавна.
 		/// Default'а нет: обращение до /auth = нарушение контракта → null → сломается при первом использовании.
 		/// Не хардкодить буквально "idle" в коде — использовать ЭТУ переменную, чтобы можно было
@@ -121,6 +120,14 @@ namespace Mmogick
 		/// </summary>
 		public static float creep_depth;
 		public static float corner_offset;
+
+		/// <summary>
+		/// Радиус в клетках, в котором сервер ищет проходимую клетку вокруг непроходимой цели движения
+		/// (приходит в /auth, задаётся игрой). Им клиент отличает клик, на который серверу есть чем ответить,
+		/// от клика вглубь сплошной преграды (CursorController). Контракт: строго больше нуля.
+		/// Установка — в SigninController.LoadMain.
+		/// </summary>
+		public static int passable_search_radius;
 
 		// Класс объектов карты, означающий переход на другую карту (приходит при входе). Читает разбор
 		// карты — по нему он рисует метку перехода. Живёт здесь, потому что разбор карты собирается раньше
@@ -227,8 +234,8 @@ namespace Mmogick
 		protected override void Awake()
 		{
 			// Приходящие данные, движение существ и управление игроком идут по кадрам ОТРИСОВКИ (Update), потому
-			// шаг расчёта физики оставляем стандартным: удваивать частоту физики ради плавности больше не нужно —
-			// плавность теперь задаёт частота экрана, а на слабых устройствах лишние расчёты физики дорого стоят.
+			// шаг расчёта физики держим стандартным: плавность задаёт частота экрана, а на слабых устройствах
+			// лишние расчёты физики дорого стоят.
 			Time.fixedDeltaTime = 0.02f;
 			Application.targetFrameRate = 60;
 			QualitySettings.vSyncCount = 0;
@@ -405,7 +412,7 @@ namespace Mmogick
 
 						// так в C# можно
 						ws.SetCredentials(ConnectController.player_key, ConnectController.player_token, true);
-						ws.OnOpen += (object sender, System.EventArgs e) =>
+						ws.OnOpen += (object sender, EventArgs e) =>
 						{
 
 							#if !UNITY_WEBGL || UNITY_EDITOR
@@ -458,7 +465,7 @@ namespace Mmogick
 								{
 									int delay = _latencyRandom.Next(SIMULATE_LATENCY_MIN, SIMULATE_LATENCY_MAX + 1);
 									byte[] copy = new byte[ev.RawData.Length];
-									System.Buffer.BlockCopy(ev.RawData, 0, copy, 0, ev.RawData.Length);
+									Buffer.BlockCopy(ev.RawData, 0, copy, 0, ev.RawData.Length);
 									lock (_delayedPackets)
 										_delayedPackets.Enqueue(new KeyValuePair<DateTime, byte[]>(DateTime.Now.AddMilliseconds(delay), copy));
 									return;
@@ -532,8 +539,15 @@ namespace Mmogick
 					// Конверт читает пакет НЕ ЦЕЛИКОМ (см. его докблок), потому строгая проверка неизвестных полей
 					// (BaseController.InitJsonSettings) к нему неприменима: поля мира ему и не полагается знать.
 					// Гасится точечно здесь, а не отменой проверки — на своих типах она нужна.
+					// NullValueHandling.Ignore обязателен любому серверному payload: сервер шлёт скаляры всегда,
+					// включая null (null ≡ дефолт поля), а без Ignore Newtonsoft пишет null в не-nullable поле
+					// (здесь — unixtime и reloading) и роняет разбор конверта, то есть КАЖДЫЙ пакет.
 					ReciveEnvelope recive = JsonConvert.DeserializeObject<ReciveEnvelope>(text,
-						new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Ignore });
+						new JsonSerializerSettings
+						{
+							MissingMemberHandling = MissingMemberHandling.Ignore,
+							NullValueHandling = NullValueHandling.Ignore
+						});
 
 					if (recive.error != null)
 					{
@@ -584,8 +598,8 @@ namespace Mmogick
 							if (pings.Count > MAX_PING_HISTORY)
 								pings.RemoveRange(0, pings.Count - MAX_PING_HISTORY);
 
-							// Пересчёт на КАЖДОМ замере: прежде оценка обновлялась только на переполнении окна и
-							// на новом максимуме — однажды снятое большое значение вниз уже не шло.
+							// Пересчёт на КАЖДОМ замере: оценка обязана идти и ВНИЗ. Обновление лишь на переполнении
+							// окна либо на новом максимуме удерживало бы однажды снятое большое значение навсегда.
 							ping = Median(pings);
 							max_ping = Math.Round(pings.Max(), 3);
 						}
@@ -665,7 +679,7 @@ namespace Mmogick
 						string json = JsonConvert.SerializeObject(
 							data
 							,
-							Newtonsoft.Json.Formatting.None
+							Formatting.None
 							,
 							new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }
 						);

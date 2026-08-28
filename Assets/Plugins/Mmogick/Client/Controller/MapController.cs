@@ -41,7 +41,8 @@ namespace Mmogick
 		/// совмещение. X=-1: центр спрайта тайла совпадает с центром сущности. Y=-0.5: сущность привязана
 		/// НОГАМИ (feet), а не центром, поэтому по вертикали пол-клетки, а не целая.
 		/// Применяется ТОЛЬКО к grid (тайлам), НЕ к zone (сущностям) — иначе сдвинулись бы вместе и совмещение
-		/// не изменилось бы. Раньше держался вручную позицией mapObject в сцене (хрупко) — перенесён в код.
+		/// не изменилось бы. Держит сдвиг код, а не позиция mapObject в сцене: ручной сдвиг контейнера
+		/// задвоился бы с этой компенсацией.
 		/// </summary>
 		private static readonly Vector2 TILE_OFFSET = new Vector2(-1f, -0.5f);
 
@@ -83,22 +84,23 @@ namespace Mmogick
 			base.Awake();
 
 			if (mapObject == null)
+			{
 				Error("Карты: не присвоен GameObject для карт");
+				return;
+			}
 
 			if (worldObject == null)
+			{
 				Error("Карты: не присвоен GameObject для игровых обектов");
-
+				return;
+			}
 
 			// на случай если мы как разработчик какие то тестовые данные оставили
-			foreach (Transform transform in mapObject.transform)
-			{
-				DestroyImmediate(transform.gameObject);
-			}
+			foreach (Transform child in Children(mapObject.transform))
+				DestroyImmediate(child.gameObject);
 
-			foreach (Transform transform in worldObject.transform)
-			{
-				DestroyImmediate(transform.gameObject);
-			}
+			foreach (Transform child in Children(worldObject.transform))
+				DestroyImmediate(child.gameObject);
 
 			// Окно прозрачности в перекрывающих слоях карты: живёт на контейнере карт, центры окон берёт
 			// по сущностям контейнера World. Ставится кодом — отдельного объекта в сцене не требует.
@@ -109,6 +111,20 @@ namespace Mmogick
 			_sides.Clear();
 			_maps.Clear();
 			_gates = null;
+		}
+
+		/// <summary>
+		/// Снимок дочерних объектов контейнера — для обхода, по ходу которого дети сносятся: перечислитель
+		/// Transform идёт по ИНДЕКСУ, а DestroyImmediate снимает объект немедленно, и оставшиеся сдвигаются
+		/// на позицию влево — без снимка обход проскакивает следующего за каждым снятым.
+		/// </summary>
+		private static List<Transform> Children(Transform parent)
+		{
+			List<Transform> children = new List<Transform>(parent.childCount);
+			foreach (Transform child in parent)
+				children.Add(child);
+
+			return children;
 		}
 
 		/// <summary>
@@ -145,13 +161,12 @@ namespace Mmogick
 
 		/// <summary>
 		/// Показано ли тело сущности. Оно собирается асинхронно (скачивание анимации, подгонка размеров), и
-		/// до готовности рендереры выключены: корневой гасит UpdateController.ApplyVisualPrefab, тело Spriter'а
-		/// создаётся выключенным и включается концом подгонки. Пока не показано, карта стоит без персонажа —
-		/// для игрока это та же пустая картинка, ради которой панель и заведена.
+		/// до готовности корневой рендерер гасит UpdateController.ApplyVisualPrefab. Пока тело не показано,
+		/// карта стоит без персонажа — для игрока это та же пустая картинка, ради которой панель и заведена.
 		///
-		/// Спрашиваем рендерер ЛЮБОГО вида: тело рисуют разные — картинка и дерево Spriter'а спрайтами,
-		/// скелет Spine мешем. Полоска здоровья и имя живут на холсте интерфейса и рендерером сцены не
-		/// являются — за тело их тут не примешь.
+		/// Спрашиваем рендерер ЛЮБОГО вида: тело рисуют разные — картинка спрайтом, скелет Spine мешем.
+		/// Полоска здоровья и имя живут на холсте интерфейса и рендерером сцены не являются — за тело их
+		/// тут не примешь.
 		/// </summary>
 		private static bool IsVisible(EntityModel entity)
 		{
@@ -174,7 +189,7 @@ namespace Mmogick
 				// если уже есть загруженные карты (возможно мы перешли на другую локацию бесшовного мира) попробуем переиспользовать их (скорее всего мы перешли на другую карту где схожие смежные карты могут быть)
 				if (_maps.Count > 0)
 				{
-					foreach (Transform grid in mapObject.transform)
+					foreach (Transform grid in Children(mapObject.transform))
 					{
 						int map_id = Int32.Parse(grid.name);
 						if (!recive.sides.ContainsKey(map_id))
@@ -202,7 +217,11 @@ namespace Mmogick
 						StartCoroutine(MapPatcher.Get(SERVER, GAME_ID, player_token, side.Key, (MapPatcher patcher) =>
 						{
 							if (patcher.error != null)
+							{
 								Error("Карты: ошибка " + patcher.error);
+								return;
+							}
+
 							if (patcher.result == null || patcher.result.Length == 0)
 								Error("Карты: пришел пустой ответ от патчера");
 							else
@@ -287,8 +306,10 @@ namespace Mmogick
 					continue;
 
 				// Недоступную карту сервер не запускает, а её клетки считает непроходимыми целиком — ровно там
-				// игрок и упирается в невидимую стену (см. getGates).
-				if (!side.Value.ready)
+				// игрок и упирается в невидимую стену (см. getGates). Пока доступность НЕИЗВЕСТНА (соседей
+				// ещё не опрашивали, см. MapSide.ready), считаем так же: сервер в это же время держит их
+				// непроходимыми, и команда движения туда всё равно холостая.
+				if (side.Value.ready != true)
 					return true;
 
 				if (!_maps.TryGetValue(side.Key, out MapDecode decoded))
@@ -363,7 +384,9 @@ namespace Mmogick
 
 			foreach (KeyValuePair<int, MapSide> closed in _sides)
 			{
-				if (closed.Value.ready)
+				// Метку ставит только ЯВНАЯ недоступность: при неизвестной (соседей ещё не опрашивали)
+				// кресты вспыхивали бы на каждом старте карты и гасли через мгновение.
+				if (closed.Value.ready != false)
 					continue;
 
 				foreach (KeyValuePair<int, MapSide> open in _sides)
@@ -500,8 +523,8 @@ namespace Mmogick
 									group.sortingOrder = order;
 
 								if (child.gameObject.GetComponentInChildren<Canvas>())
-									// +100 (а не +1) чтобы Canvas LifeBar лежал над всеми детскими SpriteRenderer'ами анимации
-									// (Spriter создаёт N child-sprite'ов с собственным sortingOrder 0..N-1 из UnityAnimator).
+									// +100 (а не +1) — запас на дочерние рендереры визуала: они ведут свой порядок
+									// внутри сущности, и холст LifeBar обязан лежать выше любого из них.
 									child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = _maps[map_id].spawn_sort + 100 + model.sort;
 							}
 						}

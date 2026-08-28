@@ -38,14 +38,25 @@ namespace Mmogick
 
         protected virtual void Start()
         {
-           if (loginField == null)
-               Error("Не привязан loginField для ввода логина");
+            // Error() не бросает — без return метод доводил бы настройку формы на состоянии, которое сам
+            // признал нарушенным (тот же порядок, что в CursorController.Awake).
+            if (loginField == null)
+            {
+                Error("Не привязан loginField для ввода логина");
+                return;
+            }
 
             if (passwordField == null)
+            {
                 Error("Не привязан passwordField поле ввода пароля");
+                return;
+            }
 
             if (GAME_ID == 0)
+            {
                 Error("Не заполнен gameIdField для идентификации в одной из игр сервиса http://mmogick.ru/ и зарегистрируйте новую запись");
+                return;
+            }
 
             if (serverField != null && SERVER.Length > 0)
                 serverField.text = SERVER;
@@ -121,6 +132,9 @@ namespace Mmogick
 				}
 				catch (Exception ex)
 				{
+					// Игроку уходит только текст сообщения, а перехваченное исключение мимо автоматического
+					// журнала рантайма не идёт — стек пишем здесь, иначе причина видна лишь по тексту.
+					Debug.LogException(ex);
 					failure = "Ошибка разбора авторизации: (" + text + ") " + ex.Message;
 				}
 			}
@@ -235,12 +249,12 @@ namespace Mmogick
 					}
 					SceneManager.UnloadScene("RegisterScene");
 				}
-				// idle_action задаём ДО Connect, чтобы первый же спавн (SpriterPostImportAdjuster Phase 1)
-				// мог сразу резолвить idle-клип через ConnectController.idle_action. По контракту сервер
-				// ВСЕГДА шлёт непустое поле "idle" в /auth response — пустота = нарушение контракта,
-				// падаем громко (CLAUDE.md «не заплатывать»), чтобы баг серверной конфигурации не маскировался.
+				// idle_action задаём ДО Connect, чтобы первый же спавн мог сразу резолвить idle-клип через
+				// ConnectController.idle_action. По контракту сервер ВСЕГДА шлёт непустое поле "idle" в
+				// /auth response — пустота = нарушение контракта, падаем громко, чтобы баг серверной
+				// конфигурации не маскировался.
 				if (string.IsNullOrEmpty(data.idle_action))
-					throw new System.Exception("Сервер не отдал поле 'idle' в /auth response. По контракту оно обязательно.");
+					throw new Exception("Сервер не отдал поле 'idle' в /auth response. По контракту оно обязательно.");
 
 				ConnectController.idle_action = data.idle_action;
 				ConnectController.step = data.step;
@@ -251,20 +265,24 @@ namespace Mmogick
 				// от места, где серверу ещё есть куда шагнуть. По контракту оба поля приходят всегда и строго
 				// больше нуля (см. SigninRecive) — иначе клиент считал бы шаг по чужой геометрии молча.
 				if (data.creep_depth <= 0)
-					throw new System.Exception("Сервер не отдал поле 'creep_depth' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
+					throw new Exception("Сервер не отдал поле 'creep_depth' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
 
 				if (data.corner_offset <= 0)
-					throw new System.Exception("Сервер не отдал поле 'corner_offset' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
+					throw new Exception("Сервер не отдал поле 'corner_offset' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
+
+				if (data.passable_search_radius <= 0)
+					throw new Exception("Сервер не отдал поле 'passable_search_radius' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
 
 				ConnectController.creep_depth = data.creep_depth;
 				ConnectController.corner_offset = data.corner_offset;
+				ConnectController.passable_search_radius = data.passable_search_radius;
 
 				// До Connect: карта приходит следом, и её разбор уже должен знать, что помечать свечением.
 				ConnectController.warp_class = data.warp;
 
 				// Мир текущей карты — им обзорная карта отбирает свои карты из общего кеша (см. поля).
 				if (data.world == 0)
-					throw new System.Exception("Сервер не отдал поле 'world' в /auth response. По контракту оно обязательно.");
+					throw new Exception("Сервер не отдал поле 'world' в /auth response. По контракту оно обязательно.");
 
 				ConnectController.world = data.world;
 				ConnectController.world_name = data.world_name;
@@ -272,7 +290,7 @@ namespace Mmogick
 				// equipment_slot — справочник slug-ов слотов экипировки игры. По контракту приходит непустой
 				// (см. SigninRecive.equipment_slot). UI рисует ровно эти ячейки.
 				if (data.equipment_slot == null || data.equipment_slot.Count == 0)
-					throw new System.Exception("Сервер не отдал поле 'equipment_slot' в /auth response (или оно пусто). По контракту обязательно.");
+					throw new Exception("Сервер не отдал поле 'equipment_slot' в /auth response (или оно пусто). По контракту обязательно.");
 				ConnectController.equipment_slot = data.equipment_slot;
 
 				ConnectController.Connect(data.host, data.token, data.key);
