@@ -27,6 +27,9 @@ import json
 import os
 import re
 
+from chain_parser import command_index, name as cmd_name, split_parts, tokens
+from write_targets import heredoc_bodies, strip_heredocs
+
 BROWSER = "mcp__plugin_playwright_playwright__browser_"
 CLOSE = BROWSER + "close"
 
@@ -191,9 +194,49 @@ _BASH_TIMEOUT = 120000
 
 # Раннеры добирают частый случай, где длительность не объявляют; границей срабатывания перечень
 # не является — иначе напоминание приходило бы на каждую команду оболочки и стало бы фоновым шумом.
-_RUNNER = re.compile(r"phpunit|phpstan|psalm|rector|php-cs-fixer"
-                     r"|composer\s+(install|update|require)"
-                     r"|npm\s+(ci|install|run|test)")
+# Раннер своей командой: `bin/phpunit`, `vendor/bin/phpstan`.
+_RUNNERS = {"phpunit", "phpstan", "psalm", "rector", "php-cs-fixer"}
+# Раннер, опознаваемый ПОДКОМАНДОЙ: голое имя прогоном не является (`composer --version`).
+_RUNNER_SUBS = {"composer": ("install", "update", "require"),
+                "npm": ("ci", "install", "run", "test")}
+# Интерпретатор, за которым раннер стоит позиционным аргументом (`php bin/phpunit`); версия в
+# имени законна. Обёртку запуска команд проекта (`bin/run php …`) снимает chain_parser.
+_PHP = re.compile(r"^php[0-9.]*$")
+
+
+def _runs_runner(command):
+    """Команда ЗАПУСКАЕТ раннер: имя раннера стоит в позиции команды части цепочки либо
+    позиционным аргументом интерпретатора, а у раннера с подкомандами — и подкоманда своя.
+    Вхождение имени в текст запуском не является: тем же словом раннер ходит шаблоном поиска,
+    путём читаемого файла, строкой фикстуры — а ложное срабатывание уводит вызывающего закрывать
+    инструмент, от которого он не уходил.
+    У тела heredoc исход решает команда, которой оно подано: оболочка тело исполняет, чужая
+    команда принимает данными (skill `gate-mechanics`). Тело, поданное интерпретатору, цепочкой
+    команд не является — имя раннера стоит там внутри кода."""
+    texts = [strip_heredocs(command)]
+    texts.extend(body for kind, body in heredoc_bodies(command) if kind == "shell")
+
+    for text in texts:
+        for part in split_parts(text):
+            toks = tokens(part)
+            i = command_index(toks)
+            if i >= len(toks):
+                continue
+
+            head = cmd_name(toks[i])
+            args = [a for a in toks[i + 1:] if not a.startswith("-")]
+            if _PHP.match(head):
+                if any(cmd_name(a) in _RUNNERS for a in args):
+                    return True
+                continue
+
+            if head in _RUNNERS:
+                return True
+
+            if args and args[0] in _RUNNER_SUBS.get(head, ()):
+                return True
+
+    return False
 
 
 def leaving_step(event):
@@ -229,4 +272,4 @@ def leaving_step(event):
     if given.get("run_in_background") is True or timeout > _BASH_TIMEOUT:
         return "long"
 
-    return "long" if _RUNNER.search(given.get("command", "") or "") else ""
+    return "long" if _runs_runner(given.get("command", "") or "") else ""

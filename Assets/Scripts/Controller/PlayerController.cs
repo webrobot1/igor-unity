@@ -77,7 +77,7 @@ namespace Mmogick
         protected override void Handle(string json)
         {
             // NullValueHandling.Ignore обязателен: сервер шлёт null-скаляры (null ≡ дефолт поля),
-            // без Ignore Newtonsoft пишет null в не-nullable C#-поле и падает (канон CLAUDE.md).
+            // без Ignore Newtonsoft пишет null в не-nullable C#-поле и падает (skill csharp «Данные с сервера»).
             HandleData(JsonConvert.DeserializeObject<NewRecive<PlayerRecive, CreatureRecive>>(json,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
         }

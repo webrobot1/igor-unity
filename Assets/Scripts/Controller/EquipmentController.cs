@@ -99,8 +99,9 @@ namespace Mmogick
         }
 
         // Наложение надетых предметов на скелет носителя — своего игрока, чужого игрока, моба.
-        // Рисуется, если у скелета носителя есть Spriter-точка-якорь этого слота (object_slot, type=point);
-        // якоря резолвятся отложенно самим WeaponMount (структура носителя качается асинхронно).
+        // Рисуется, если в пакете скелета носителя есть якорь этого слота (object_slot) и слот-держатель
+        // якоря нашёлся в самом скелете; якоря резолвятся отложенно самим WeaponMount (пакет скелета
+        // качается асинхронно).
         private static void SyncEquipVisual(GameObject entity, Dictionary<string, EquipSlotRecive> equip)
         {
             EntityModel wearer = entity != null ? entity.GetComponent<EntityModel>() : null;

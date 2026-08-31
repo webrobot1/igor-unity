@@ -134,7 +134,6 @@ namespace Mmogick
 						map_zone.SetParent(worldObject.transform, false);
 
 						// zone (сущности) = чистая позиция карты (sides), БЕЗ TILE_OFFSET: сдвиг несут только тайлы (grid).
-						// Раньше копировалось из grid.localPosition — теперь там TILE_OFFSET, потому берём напрямую из sides.
 						if (getSides().ContainsKey(map.Key))
 							map_zone.localPosition = new Vector2(getSides()[map.Key].x, getSides()[map.Key].y);
 
@@ -161,7 +160,7 @@ namespace Mmogick
 					else
 					{
 						// kind игрока резолвится из recive.prefab так же, как у entity (манифест /prefabs
-						// содержит player → kind 'player' → Resources/Prefabs/player). Хардкод "player" больше не нужен.
+						// содержит player → kind 'player' → Resources/Prefabs/player).
 						if (map.Value.player != null)
 						{
 							foreach (var player in map.Value.player)
@@ -170,7 +169,7 @@ namespace Mmogick
 							}
 						}
 
-						// Унифицированная группа entity — kind больше не шлётся в пакете. Резолв kind из prefab'а
+						// Единая группа entity: вид (kind) в пакете не едет. Резолв kind из prefab'а
 						// (через library /prefabs) нужен ТОЛЬКО на спавне (Resources.Load в UpdateObject), а recive.prefab
 						// присутствует лишь в полном пакете спавна — на дельтах сущность уже на сцене и prefab==null
 						// (в спавн-ветку UpdateObject там не заходим, GameObject.Find нашёл бы сущность).
@@ -549,7 +548,7 @@ namespace Mmogick
 			}
 			else if (AnimationCacheService.HasPrefab(newPrefab))
 			{
-				// prefab есть в library, но без image и без SCML-анимации — он существует только чтобы
+				// prefab есть в library, но без картинки и без скелета — он существует только чтобы
 				// донести kind (GetPrefabKind → Resources/Prefabs/{kind}). Визуала-оверлея нет: остаёмся
 				// на fallback-SpriteRenderer Resources-префаба ("unknow"). Легитимно (см. PrefabEntry).
 				//

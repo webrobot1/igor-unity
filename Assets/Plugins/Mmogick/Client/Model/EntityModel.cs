@@ -382,7 +382,7 @@ namespace Mmogick
 				// Forward сменился без смены action — ре-резолв направленного clip.
 					// На первом спавн-пакете this.prefab ещё НЕ присвоен (присваивается ниже из recive.prefab),
 					// а recive.prefab уже есть — берём его приоритетно (как в action-блоке выше). Иначе и
-					// Spriter-re-resolve, и rotatable-gate на спавне работают по пустому prefab: снаряд получает
+					// ре-резолв клипа тела, и rotatable-gate на спавне работают по пустому prefab: снаряд получает
 					// forward один раз при спавне, _forward сразу записывается, а поворот по пустому prefab
 					// пропускается → последующие пакеты с тем же forward ветку не триггерят → снаряд не крутится.
 					string pn = !string.IsNullOrEmpty(recive.prefab) ? recive.prefab : this.prefab;
@@ -406,36 +406,19 @@ namespace Mmogick
 							}
 						}
 					}
-					// Поворот transform применяем только сущностям без собранного тела и без legacy blend-tree
-					// Animator'а.
-					// У player/enemy/animal направление передаётся сменой clip + flip по X (Spriter), либо
-					// SetFloat("x"/"y") в blend-tree (исторический legacy-механизм, сам blend-tree контроллер
-					// удалён) — им крутить transform нельзя.
-					// Universal.controller (overlay для remove-эффектов) не имеет параметров x/y — для image-
-					// projectile'ов с ним крутить ВСЁ ЕЩЁ можно.
-					// Критерий «нельзя крутить»: есть тело с направленными клипами, либо есть Animator
-					// с параметрами x/y.
+					// Поворот transform применяем только сущностям без собранного тела: у player/enemy/animal
+					// направление передаётся сменой клипа скелета плюс flip по X — им крутить transform нельзя.
 					// Конвенция: канонический спрайт нарисован под PrefabEntry.angle (обычно вправо, 0).
 					// Atan2(y,x) — угол от оси X+; вычитаем опорный angle, чтобы спрайт любого ракурса
 					// смотрел остриём по курсу. Server default forward=(0,-1) → спрайт смотрит вниз.
-					// Gate: rotationMode == Free (админка → GameImage.rotationMode, бывший rotatable=true).
+					// Gate: rotationMode == Free (админка → GameImage.rotationMode).
 					// Без него все статичные image-prefab'ы (apple, sword) крутились бы вслед за forward,
 					// что выглядит неестественно — крутятся только явно отмеченные (фаерболы, стрелы).
 					else if (!HasBody
 						&& AnimationCacheService.GetPrefabRotationMode(pn) == AnimationCacheService.RotationMode.Free)
 					{
-						// «Можно крутить» = нет legacy Animator с blend-tree параметрами x/y.
-						// Universal.controller имеет только direction/remove — projectile'и с ним крутить можно.
-						bool blendTree = false;
-						var rotAnim = GetComponent<Animator>();
-						if (rotAnim != null && rotAnim.runtimeAnimatorController != null)
-						{
-							foreach (var p in rotAnim.parameters)
-								if (p.name == "x" || p.name == "y") { blendTree = true; break; }
-						}
-						if (!blendTree)
-							transform.rotation = Quaternion.Euler(0, 0,
-								Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg - AnimationCacheService.GetPrefabAngle(pn));
+						transform.rotation = Quaternion.Euler(0, 0,
+							Mathf.Atan2(vector.y, vector.x) * Mathf.Rad2Deg - AnimationCacheService.GetPrefabAngle(pn));
 					}
 				}
 			}
@@ -630,7 +613,7 @@ namespace Mmogick
 		}
 
 		// Universal Animator с одиночным слоем remove (4 state по направлениям) — fallback-эффекты
-		// для action'ов, которых нет в SCML конкретного prefab'а. Lazy-load один раз, шарится между сущностями.
+		// для action'ов, которых нет у скелета конкретного prefab'а. Lazy-load один раз, шарится между сущностями.
 		// Подробнее — CLAUDE.md «Архитектура анимаций».
 		private static RuntimeAnimatorController _universalController;
 		private static bool _universalControllerMissing = false;
@@ -664,7 +647,7 @@ namespace Mmogick
 
 		/// <summary>
 		/// Навешивает на сущность Universal Animator (или меняет controller существующего на Universal).
-		/// Вызывается из Spriter-init и image-init.
+		/// Вызывается сборкой визуала — у картинки и у заглушки вида (UpdateController.ApplyVisualPrefab).
 		///
 		/// Параметр <paramref name="startDisabled"/>: если true — сразу выключает Animator (anim.enabled=false).
 		/// Это нужно для image-prefab'ов: у них SpriteRenderer.sprite присваивается через TryGetSprite после
@@ -687,7 +670,7 @@ namespace Mmogick
 
 		/// <summary>
 		/// Hook для подкласса — позволяет обновить локальные кеши (например, ObjectModel.animator) после
-		/// того как сторонний код (Spriter-init / image-init) навесил Animator на GO уже после Awake.
+		/// того как сборка визуала навесила Animator на GO уже после Awake.
 		/// </summary>
 		protected virtual void OnAnimatorAttached(Animator anim) { }
 

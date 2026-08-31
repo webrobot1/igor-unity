@@ -36,9 +36,6 @@ namespace Mmogick
 
 		private const string MANIFEST_FILE        = "sync.json";
 		private const string LIBRARY_FILE         = "library.json";
-		// Перечень файлов дерева Spriter, который сервер по-прежнему кладёт в архив картинок. Картинкой не
-		// является и клиенту не нужен — пропускаем при распаковке, чтобы не осел в кеше картинок.
-		private const string ARCHIVE_FILES_ENTRY  = "_files.json";
 		private const string IMAGES_DIR           = "images";
 		private const string STRUCT_DIR           = "structures";
 
@@ -206,8 +203,8 @@ namespace Mmogick
 			/// <summary>
 			/// Slug вида сущности (kind), к которому относится этот prefab. Выводится на сервере из самого
 			/// prefab'а (slug→kind однозначен) и приходит в каждом entry /prefabs (и для скелетных, и для
-			/// картиночных prefab'ов). Клиент использует его как имя Resources-префаба (Prefabs/{kind}), потому что
-			/// в пакетах сущностей kind больше не шлётся.
+			/// картиночных prefab'ов). Клиент использует его как имя Resources-префаба (Prefabs/{kind}):
+			/// в пакетах сущностей kind не едет.
 			/// </summary>
 			public string kind;
 
@@ -579,7 +576,7 @@ namespace Mmogick
 			string mp = ManifestPath(gameId);
 			// Рассинхрон disk↔RAM (sync.json удалён внешним кодом / ручной очисткой кэша, но _manifest
 			// в RAM держит timestamp прошлого архива) — нарушение контракта: AnimationCacheService —
-			// единственный владелец этих файлов. По CLAUDE.md политике падаем громко, чтобы виновный
+			// единственный владелец этих файлов. Падаем громко (skill code «Отказ и дефолт»), чтобы виновный
 			// код был починен у источника, а не маскировался силент-ресетом.
 			if (_manifest != null && !File.Exists(mp))
 				throw new InvalidOperationException("AnimationCache: sync.json отсутствует на диске, но _manifest загружен в RAM. Кто-то очистил кэш мимо ResetCache() — почините источник.");
@@ -808,8 +805,6 @@ namespace Mmogick
 						foreach (var entry in zip.Entries)
 						{
 							if (string.IsNullOrEmpty(entry.Name)) continue;
-							// Единственная не-картинка в архиве (см. ARCHIVE_FILES_ENTRY) — в кеш картинок не идёт.
-							if (entry.Name == ARCHIVE_FILES_ENTRY) continue;
 							string dest = Path.Combine(imagesDir, entry.Name);
 							using (var src = entry.Open())
 							using (var dst = File.Create(dest))
@@ -1105,7 +1100,7 @@ namespace Mmogick
 		}
 
 		// Slug вида (kind) для prefab'а из library. Сервер выводит kind из prefab'а и кладёт в каждый entry
-		// /prefabs (kind больше не шлётся в пакетах сущностей). Используется UpdateController как имя
+		// /prefabs (в пакетах сущностей kind не едет). Используется UpdateController как имя
 		// Resources-префаба (Prefabs/{kind}) при спавне сущности.
 		// Строгий контракт (как GetPrefabSize): kind резолвится только из реального prefab'а полного пакета,
 		// поэтому любое отсутствие — это баг, а не «значение не задано», и мы падаем громко:

@@ -139,7 +139,7 @@ namespace Mmogick
 			string mp = ManifestPath(gameId);
 			// Рассинхрон disk↔RAM (sync.json удалён внешним кодом / ручной очисткой кэша, но _manifest
 			// в RAM держит timestamp прошлого архива) — нарушение контракта: TileCacheService —
-			// единственный владелец этих файлов. По CLAUDE.md политике падаем громко, чтобы виновный
+			// единственный владелец этих файлов. Падаем громко (skill code «Отказ и дефолт»), чтобы виновный
 			// код был починен у источника, а не маскировался силент-ресетом.
 			if (_manifest != null && !File.Exists(mp))
 				throw new InvalidOperationException("TileCache: sync.json отсутствует на диске, но _manifest загружен в RAM. Кто-то очистил кэш мимо ResetCache() — почините источник.");

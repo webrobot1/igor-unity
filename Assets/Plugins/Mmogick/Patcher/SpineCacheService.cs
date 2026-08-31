@@ -377,7 +377,7 @@ namespace Mmogick
 			return texture;
 		}
 
-		/// <summary>Строка пакета: сжата и передана в base64 — тем же способом, что SCML.</summary>
+		/// <summary>Строка пакета: сжата gzip и передана в base64.</summary>
 		private static string Unpack(string packed)
 		{
 			if (string.IsNullOrEmpty(packed)) return null;

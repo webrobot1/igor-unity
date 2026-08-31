@@ -22,9 +22,10 @@ namespace Mmogick
 	///   рядом ставим как Kinematic (не Dynamic): его задача — просто подсказать Physics2D, что collider
 	///   двигается, чтобы движок не перестраивал spatial index статических collider'ов каждый кадр.
 	///
-	/// Размер/offset капсулы тюнится под визуал конкретной сущности; при рефакторинге не забыть,
-	/// что wrap-ом SpriteRenderer'а в child "Sprites" (UpdateController.UpdateObject) меняется только
-	/// визуальный scale, а Collider2D остаётся на корне со своими префабными размерами.
+	/// Размер/offset капсулы тюнится под визуал конкретной сущности; при рефакторинге не забыть, что
+	/// размер ТЕЛА задаётся мимо капсулы — у скелета масштабом его дочернего объекта
+	/// (SpineVisualBuilder.Fit), у картинки масштабом корня, — а мировой размер капсулы держится
+	/// префабным: масштаб корня ей компенсируют встречно (UpdateController.ApplyVisualPrefab).
 	/// </summary>
 	[RequireComponent(typeof(Collider2D))]
 	public class ObjectModel : EntityModel
@@ -78,8 +79,8 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Spriter-init / image-init навешивают Animator на GO после Awake — кеш этого момента ещё null.
-		/// Hook обновляет ObjectModel.animator под навешенный сторонним кодом Animator.
+		/// Universal Animator вешает сборка визуала (картинка либо заглушка вида) уже после Awake — кеш
+		/// этого момента ещё null. Hook обновляет ObjectModel.animator под навешенный Animator.
 		/// </summary>
 		protected override void OnAnimatorAttached(Animator anim)
 		{
@@ -93,7 +94,8 @@ namespace Mmogick
 			// чтобы клик открывал лут по всему телу (совпадая с кольцом-подсветкой CursorController), а не по
 			// узкому пересечению боевой капсулы с иначе расположенной/размерной позой трупа. Ожил/задвигался —
 			// возвращаем боевую капсулу. Здесь (Update), а не в LateUpdate: у PlayerModel свой LateUpdate,
-			// добавление второго в ObjectModel затенило бы его (потеря вклада — CLAUDE.md о base.*).
+			// добавление второго в ObjectModel затенило бы его (потеря вклада — skill code
+			// «Переопределение с вкладом родителя»).
 			if (action == "dead")
 			{
 				FitCorpseCollider();
@@ -234,7 +236,7 @@ namespace Mmogick
 			// todo некоторые анимации не нужно запускать если существо только добавлено (например смерти тк умерло оно может уже давно а карта только загрузилась)
 			if (recive.action != null && recive.action != ConnectController.ACTION_REMOVE)
 			{
-				// PlayAction сам выберет анимацию по имени action: Spriter-клип (SCML с сервера),
+				// PlayAction сам выберет анимацию по имени action: клип скелета (пакет Spine с сервера),
 				// иначе Universal-overlay trigger (dead/remove) — см. EntityModel.PlayAction.
 				PlayAction(recive.action);
 			}
@@ -411,8 +413,8 @@ namespace Mmogick
 
 		/// <summary>
 		/// анимированное удаление объекта с карты (когда снаряд попал в цель или игрок уходит с карты).
-		/// Пытается проиграть ACTION_REMOVE через PlayAction (Spriter→Universal Animator fallback).
-		/// Если ни в SCML, ни в Universal.controller нет данных — удаление мгновенное.
+		/// Пытается проиграть ACTION_REMOVE через PlayAction (клип скелета → Universal Animator fallback).
+		/// Если ни у скелета, ни в Universal.controller нет данных — удаление мгновенное.
 		/// </summary>
 		protected override IEnumerator Destroy()
 		{

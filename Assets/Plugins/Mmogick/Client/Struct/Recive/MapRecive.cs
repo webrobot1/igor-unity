@@ -4,8 +4,7 @@ namespace Mmogick
 {
     /// <summary>
     /// Структура получаемых данных мира определённой карты.
-    /// После унификации Enemy/Animal/Objects в единую Entity используются две группы:
-    /// player (игроки) и entity (все остальные). Вид конкретного entity (kind) больше не шлётся в пакете —
+    /// Групп две: player (игроки) и entity (все остальные). Вид конкретного entity (kind) в пакете не едет —
     /// клиент резолвит его из EntityRecive.prefab через AnimationCacheService.GetPrefabKind (справочник /prefabs).
     /// </summary>
     [System.Serializable]

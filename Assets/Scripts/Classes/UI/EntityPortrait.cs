@@ -251,7 +251,7 @@ namespace Mmogick
 				return;
 			}
 
-			// Статичная цель (kind-only/image, без зеркала и без legacy controller'а): спрайт источника
+			// Статичная цель (kind-only/image, без зеркала и без Animator-контроллера): спрайт источника
 			// меняется в рантайме — Universal dead/remove перезаписывает его (placeholder → dead-кадр), а
 			// restore возвращает обратно. Без пер-кадровой синхронизации портрет показывает устаревший
 			// снимок (unknow при лежащем dead-черепе).

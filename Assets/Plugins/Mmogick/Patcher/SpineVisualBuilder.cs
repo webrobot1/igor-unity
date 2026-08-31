@@ -18,7 +18,7 @@ namespace Mmogick
 	/// </summary>
 	public static class SpineVisualBuilder
 	{
-		/// <summary>Высота тела на сцене — одна клетка, как у прежней сборки.</summary>
+		/// <summary>Высота тела на сцене — одна клетка.</summary>
 		public const float TARGET_HEIGHT = 1.0f;
 
 		/// <summary>Имя дочернего объекта со скелетом: по нему же он и сносится при смене визуала.</summary>
@@ -91,7 +91,7 @@ namespace Mmogick
 			if (child != null) UnityEngine.Object.DestroyImmediate(child.gameObject);
 		}
 
-		/// <summary>Зазор от макушки до полоски здоровья в мировых единицах — как у сборки из дерева.</summary>
+		/// <summary>Зазор от макушки до полоски здоровья в мировых единицах.</summary>
 		private const float LIFE_BAR_MARGIN = 0.25f;
 
 		/// <summary>Сколько моментов клипа проходит замер: по ним берётся середина ряда.</summary>

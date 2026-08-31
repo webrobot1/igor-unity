@@ -172,8 +172,8 @@ namespace Mmogick
                     span = Mathf.Max(visible.x, visible.y),
                 };
                 // Кусок скелета берёт pivot спрайта своим началом координат (Sprite.ToAtlasRegion кладёт
-                // его в offsetX/offsetY региона): доворот и зеркало идут вокруг ХВАТА, как у прежнего
-                // SpriteRenderer, отдельной компенсации разницы «pivot ↔ центр куска» не нужно.
+                // его в offsetX/offsetY региона): доворот и зеркало идут вокруг ХВАТА, отдельной
+                // компенсации разницы «pivot ↔ центр куска» не нужно.
                 if (pieceShader != null)
                 {
                     v.grip.name = "WeaponMount_" + slot + "_" + v.angle;   // имя куска: пустое рантайм отвергает
