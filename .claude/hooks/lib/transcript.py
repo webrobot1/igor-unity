@@ -28,10 +28,16 @@ import os
 import re
 
 from chain_parser import command_index, name as cmd_name, split_parts, tokens
-from write_targets import heredoc_bodies, strip_heredocs
 
-BROWSER = "mcp__plugin_playwright_playwright__browser_"
-CLOSE = BROWSER + "close"
+# Имя браузерного тула задаёт КАНАЛ подключения его сервера: объявление сервера в `.mcp.json`
+# проекта даёт одно имя, тот же сервер плагином — другое. Живы обе формы разом: плагин остаётся
+# установленным и включается обратно. Оттого вызов опознаётся ПЕРЕЧНЕМ префиксов — литерал одной
+# формы снимает и напоминание, и уборку МОЛЧА: отказа не приходит никому, хук выглядит исправным.
+# Вторая сторона перечня — matcher регистрации браузерных хуков в `.claude/settings.json`: его
+# читает программа, из этого кода он не берётся; накрытие обеих форм там держит кейс набора
+# самопроверки playwright-hooks.test.sh.
+BROWSER_PREFIXES = ("mcp__playwright__browser_",
+                    "mcp__plugin_playwright_playwright__browser_")
 
 # Каталог артефактов браузера: имя знает домен, а не место вызова — хук строит по нему путь,
 # разбор транскрипта отделяет им адрес артефакта от прочего текста.
@@ -39,12 +45,23 @@ ARTIFACT_DIR = ".playwright-mcp"
 
 # Матчит только tool_use-блоки assistant-строк: в attachment/tool_result имя тула экранировано
 # и в таком сыром виде не встречается.
-_CALL = re.compile(r'"name":"(%s[a-z_]+)"' % BROWSER)
+_CALL = re.compile(r'"name":"((?:%s)[a-z_]+)"'
+                   % "|".join(re.escape(prefix) for prefix in BROWSER_PREFIXES))
 
 # Адрес внутри каталога артефактов в любой форме записи — относительной от корня проекта и
 # абсолютной. Хвост режется по разделителям текста и по `#`: ссылка на строку файла (`…log#L1`)
 # частью имени не является.
 _ARTIFACT = re.compile(r"[^\s\"'()\[\]]*%s/[^\s\"'()\[\]#|]+" % re.escape(ARTIFACT_DIR))
+
+
+def is_browser_call(name):
+    """Имя тула принадлежит браузерному серверу — в любой форме его подключения."""
+    return str(name or "").startswith(BROWSER_PREFIXES)
+
+
+def is_browser_close(name):
+    """Имя тула — закрытие браузера, в любой форме подключения его сервера."""
+    return any(name == prefix + "close" for prefix in BROWSER_PREFIXES)
 
 
 def caller_transcript(event):
@@ -107,7 +124,7 @@ def browser_artifacts(path):
         for line in fh:
             # Имя тула стоит только в строке самого вызова: в строке его вывода программа
             # оставляет один идентификатор, и по имени такая строка не находится.
-            if BROWSER not in line and ARTIFACT_DIR not in line:
+            if ARTIFACT_DIR not in line and not any(p in line for p in BROWSER_PREFIXES):
                 continue
 
             try:
@@ -125,7 +142,7 @@ def browser_artifacts(path):
                     continue
 
                 kind = block.get("type")
-                if kind == "tool_use" and str(block.get("name") or "").startswith(BROWSER):
+                if kind == "tool_use" and is_browser_call(block.get("name")):
                     if block.get("id"):
                         ids.add(block["id"])
 
@@ -149,7 +166,7 @@ def browser_artifacts(path):
 
 def browser_open(calls):
     """Браузер открыт: вызовы были, последний — не закрытие."""
-    return bool(calls) and calls[-1] != CLOSE
+    return bool(calls) and not is_browser_close(calls[-1])
 
 
 def episode_key(event):
@@ -212,29 +229,25 @@ def _runs_runner(command):
     инструмент, от которого он не уходил.
     У тела heredoc исход решает команда, которой оно подано: оболочка тело исполняет, чужая
     команда принимает данными (skill `gate-mechanics`). Тело, поданное интерпретатору, цепочкой
-    команд не является — имя раннера стоит там внутри кода."""
-    texts = [strip_heredocs(command)]
-    texts.extend(body for kind, body in heredoc_bodies(command) if kind == "shell")
+    команд не является — имя раннера стоит там внутри кода. Форму разбирает chain_parser."""
+    for part in split_parts(command):
+        toks = tokens(part)
+        i = command_index(toks)
+        if i >= len(toks):
+            continue
 
-    for text in texts:
-        for part in split_parts(text):
-            toks = tokens(part)
-            i = command_index(toks)
-            if i >= len(toks):
-                continue
-
-            head = cmd_name(toks[i])
-            args = [a for a in toks[i + 1:] if not a.startswith("-")]
-            if _PHP.match(head):
-                if any(cmd_name(a) in _RUNNERS for a in args):
-                    return True
-                continue
-
-            if head in _RUNNERS:
+        head = cmd_name(toks[i])
+        args = [a for a in toks[i + 1:] if not a.startswith("-")]
+        if _PHP.match(head):
+            if any(cmd_name(a) in _RUNNERS for a in args):
                 return True
+            continue
 
-            if args and args[0] in _RUNNER_SUBS.get(head, ()):
-                return True
+        if head in _RUNNERS:
+            return True
+
+        if args and args[0] in _RUNNER_SUBS.get(head, ()):
+            return True
 
     return False
 

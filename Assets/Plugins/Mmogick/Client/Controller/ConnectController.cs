@@ -410,10 +410,28 @@ namespace Mmogick
 						WebSocket ws = new WebSocket(address);
 						Debug.Log("WebSocket: новое соединение с сервером " + ws.Url);
 
+						// Провал на этапе установки библиотека проводит тем же обработчиком закрытия и тем же кодом,
+						// что и разрыв уже работающего соединения: OnOpen при нём не вызывается вовсе, а причину
+						// (отказ разрешения имени узла, отказ в соединении) знает только её внутренний логгер —
+						// в аргументы закрытия она не попадает.
+						bool established = false;
+						string failure = null;
+
+						#if !UNITY_WEBGL || UNITY_EDITOR
+							ws.Log.Output = (data, path) =>
+							{
+								if (data.Level == LogLevel.Fatal)
+									failure = data.Message.Split('\n')[0].Trim();
+
+								Debug.Log("WebSocket: " + ws.Url + " " + data.Level + ": " + data.Message);
+							};
+						#endif
+
 						// так в C# можно
 						ws.SetCredentials(ConnectController.player_key, ConnectController.player_token, true);
 						ws.OnOpen += (object sender, EventArgs e) =>
 						{
+							established = true;
 
 							#if !UNITY_WEBGL || UNITY_EDITOR
 								// обязательно отключим алгоритм Nagle который не отправляет маленькие пакеты.  в браузерных websocket он отключен
@@ -441,7 +459,12 @@ namespace Mmogick
 							if(connect != null) 
 							{ 
 								if (reload == ReloadStatus.None && connect == ws)
-									Error("WebSocket: текущее соединение " + connect.Url+ " закрыто сервером: " + ev.Code);
+								{
+									if (established)
+										Error("WebSocket: текущее соединение " + connect.Url + " закрыто сервером: " + ev.Code);
+									else
+										Error("WebSocket: соединение с сервером " + ws.Url + " не установлено (" + ev.Code + ")" + (failure != null ? ": " + failure : ""));
+								}
 								else
 									Debug.Log("WebSocket: закрылось старое соединение с сервером " + ws.Url);
 							}
@@ -449,7 +472,7 @@ namespace Mmogick
 						ws.OnError += (sender, ev) =>
 						{
 							if (reload == ReloadStatus.None && connect!=null && connect == ws)
-								Error("WebSocket: Ошибка соединения с сервером " + connect.Url + " " + ev.Message);
+								Error("WebSocket: " + (established ? "Ошибка соединения с сервером " : "Ошибка при установке соединения с сервером ") + connect.Url + " " + ev.Message);
 							else
 								// Идёт переход на другую карту либо соединение уже брошено: рвёт его сам сервер, а библиотека сообщает
 								// о разрыве ошибкой. Состояние штатное — в консоль идёт обычной записью, иначе каждый переход красит

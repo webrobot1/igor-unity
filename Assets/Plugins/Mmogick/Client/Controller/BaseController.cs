@@ -7,22 +7,28 @@ namespace Mmogick
 {
 	abstract public class BaseController : MonoBehaviour
 	{
-		// Пришедшее с сервера поле, которого нет в структуре клиента, роняет разбор пакета целиком — расхождение
-		// вскрывается сразу, а не молчаливой потерей данных. Гейт по типу сборки, а не по настройке игрока
-		// «Тестовый режим»: та приезжает отдельным пакетом уже ПОСЛЕ входа (см. Awake ниже) и первый — самый
-		// полный — пакет не покрыла бы, а падение разбора у играющего значит неработающий клиент, чинимый только
-		// правкой структур и пересборкой. Ставится до загрузки сцены: JsonConvert.DefaultSettings действует и там,
-		// где вызов передаёт свои JsonSerializerSettings (CreateDefault мержит их поверх умолчаний).
-		#if UNITY_EDITOR || DEVELOPMENT_BUILD
-			[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-			static void InitJsonSettings()
+		// Умолчания разбора и сериализации JSON. Ставятся до загрузки сцены: JsonConvert.DefaultSettings действует
+		// и там, где вызов передаёт свои JsonSerializerSettings (CreateDefault мержит их поверх умолчаний).
+		//
+		// NullValueHandling.Ignore нужен в сборке любого типа: сервер шлёт скаляры всегда, включая null (канон его
+		// сериализации: null ≡ дефолт поля), а без Ignore null пишется в не-nullable поле C# и роняет разбор.
+		//
+		// MissingMemberHandling.Error гейтится ТИПОМ СБОРКИ: пришедшее с сервера поле, которого нет в структуре
+		// клиента, роняет разбор пакета целиком — расхождение вскрывается сразу, а не молчаливой потерей данных;
+		// у играющего же падение разбора значит неработающий клиент, чинимый только правкой структур и пересборкой,
+		// потому в релизной сборке проверки нет. Настройка игрока «Тестовый режим» гейтом тут не годится: она
+		// приезжает отдельным пакетом уже ПОСЛЕ входа (см. Awake ниже) и первый — самый полный — пакет не покрыла бы.
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+		static void InitJsonSettings()
+		{
+			JsonConvert.DefaultSettings = () => new JsonSerializerSettings
 			{
-				JsonConvert.DefaultSettings = () => new JsonSerializerSettings
-				{
-					MissingMemberHandling = MissingMemberHandling.Error
-				};
-			}
-		#endif
+				NullValueHandling = NullValueHandling.Ignore,
+				#if UNITY_EDITOR || DEVELOPMENT_BUILD
+					MissingMemberHandling = MissingMemberHandling.Error,
+				#endif
+			};
+		}
 
 		// Настройки соединения с сервером
 		public static int GAME_ID = 1;                     // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://mmogick.ru  раздела Игры

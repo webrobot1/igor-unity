@@ -32,17 +32,14 @@ heredoc (`python3 - <<'PY'`) читаются одинаково; тело hered
 import os
 import re
 
-from chain_parser import SHELLS, command_index, split_parts, tokens, name
+from chain_parser import (INLINE_FLAGS, INTERPRETERS, REDIR_FULL, REDIR_HEAD, SHELLS,
+                          command_index, heredoc_bodies, name, redirect_free, split_heredocs,
+                          split_parts, strip_heredocs, strip_redirects, tokens)
 
-HEREDOC = re.compile(r'<<-?\s*(["\']?)([A-Za-z_][A-Za-z0-9_]*)\1')
-REDIR_FULL = re.compile(r'^(?:\d+|&)?(?:>>?|>\|)$')
-REDIR_HEAD = re.compile(r'^(?:\d+|&)?(?:>>?|>\|)(?=[^>|])')
 INPLACE = re.compile(r'^-[A-Za-z]*i')
 
 GIT_VALUE_OPTS = {'-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path',
                   '--config-env'}
-INTERPRETERS = {'python', 'python3', 'perl', 'php', 'node', 'ruby'}
-INLINE_FLAGS = {'-c', '-e', '-r', '--eval'}
 # Признаки ЗАПИСИ в коде интерпретатора: без них строка с путём — чтение, не цель. Каждая форма
 # стоит своей строкой: `.write_text(` подстрокой `.write(` не является, семейством они не берутся.
 WRITE_MARKS = ('.write(', '.write_text(', '.write_bytes(', 'file_put_contents', 'writeFile',
@@ -114,71 +111,6 @@ def normalize(target, cwd):
     return os.path.normpath(target)
 
 
-def _stdin_script(args):
-    """Тело heredoc идёт вызову ПРОГРАММОЙ: своего файла-скрипта и инлайн-кода у него нет, читать
-    он будет stdin. Иначе тело — ввод уже названной программы, то есть данные."""
-    for a in args:
-        if a in INLINE_FLAGS:
-            return False
-        if a == '-' or a.startswith('<<'):
-            continue
-        if not a.startswith('-'):
-            return False
-    return True
-
-
-def _heredoc_kind(header):
-    """Чем тело heredoc является по его заголовочной строке: `shell` — цепочкой команд
-    (`bash <<SH`), `code` — кодом интерпретатора (`python3 - <<PY`), None — данными
-    (`cat > файл <<EOF`, ввод чужой команды)."""
-    for part in split_parts(header):
-        if not HEREDOC.search(part):
-            continue
-        toks = strip_redirects(tokens(part))
-        i = command_index(toks)
-        if i >= len(toks):
-            continue
-        cmd = name(bare(toks[i]))
-        if not _stdin_script(toks[i + 1:]):
-            continue
-        if cmd in SHELLS:
-            return 'shell'
-        if cmd in INTERPRETERS:
-            return 'code'
-    return None
-
-
-def _split_heredocs(command):
-    """Команда без тел heredoc и сами тела, поданные на ИСПОЛНЕНИЕ: (текст, [(вид, тело)]).
-    Тело-данные — содержимое файла, не команда: строка `> цитата` в нём целью редиректа не
-    является, и в перечень тел оно не идёт. Заголовочная строка с самим редиректом остаётся."""
-    lines = command.split('\n')
-    kept, bodies, i = [], [], 0
-    while i < len(lines):
-        kept.append(lines[i])
-        m = HEREDOC.search(lines[i])
-        kind = _heredoc_kind(lines[i]) if m else None
-        i += 1
-        if not m:
-            continue
-        delim, body = m.group(2), []
-        while i < len(lines) and lines[i].strip() != delim:
-            body.append(lines[i])
-            i += 1
-        i += 1
-        if kind:
-            bodies.append((kind, '\n'.join(body)))
-    return '\n'.join(kept), bodies
-
-
-def strip_heredocs(command):
-    return _split_heredocs(command)[0]
-
-
-def heredoc_bodies(command):
-    return _split_heredocs(command)[1]
-
-
 def redirect_targets(toks):
     res, i = [], 0
     while i < len(toks):
@@ -193,27 +125,6 @@ def redirect_targets(toks):
             res.append(t[m.end():])
         i += 1
     return res
-
-
-def redirect_free(toks):
-    """Токены части без перенаправлений, каждый со СВОИМ индексом в исходном списке: запасной
-    проход адресует пропускаемое позицией и считает её по этому же списку."""
-    res, i = [], 0
-    while i < len(toks):
-        t = toks[i]
-        if REDIR_FULL.match(t):
-            i += 2
-            continue
-        if REDIR_HEAD.match(t):
-            i += 1
-            continue
-        res.append((i, t))
-        i += 1
-    return res
-
-
-def strip_redirects(toks):
-    return [t for _, t in redirect_free(toks)]
 
 
 def run_positions(toks):
@@ -447,7 +358,7 @@ def _run_bodies(bodies, cwd, found, unresolved, depth=1):
         if kind != 'shell':
             _code_targets(body, cwd, found, unresolved)
             continue
-        text, inner = _split_heredocs(body)
+        text, inner = split_heredocs(body)
         _scan(text, cwd, found, unresolved, depth)
         _interpreter_pass(text, cwd, found, unresolved)
         _run_bodies(inner, cwd, found, unresolved, depth + 1)
@@ -708,7 +619,7 @@ def literal_sweep(command, cwd, runnable=True):
 def scan_command(command, cwd):
     """Разбор команды: (цели записи, неразрешимые цели, каталог на конец цепочки, команда без тел
     heredoc). Цели — абсолютные пути с фрагментом команды, породившим каждую."""
-    stripped, bodies = _split_heredocs(command or "")
+    stripped, bodies = split_heredocs(command or "")
     found, unresolved = [], []
     eff_cwd = _scan(stripped, cwd, found, unresolved)
     # Каталог у кода ЭФФЕКТИВНЫЙ — тот же, что у запасного прохода: `cd` внутри цепочки сдвигает
