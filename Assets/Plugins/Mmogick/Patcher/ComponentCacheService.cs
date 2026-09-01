@@ -22,7 +22,9 @@ namespace Mmogick
 	//
 	// Кто чем пользуется: умолчание — последнее звено цепочки разрешения значения у префаба
 	// (AnimationCacheService.GetComponentValue), состав видов — источник компонентов, префабу не заданных,
-	// имя файла иконки адресует картинку в кеше графики (AnimationCacheService.GetComponentSprite).
+	// имя файла иконки адресует картинку в кеше графики (AnimationCacheService.GetComponentSprite), адрес
+	// существа анимации — скелет значка в кеше скелетов (SpineCacheService.GetCached); пакет этой анимации
+	// кладёт та же предзагрузка, что и скелеты тел (AnimationCacheService).
 	public static class ComponentCacheService
 	{
 		[DllImport("__Internal")]
@@ -34,7 +36,7 @@ namespace Mmogick
 		// Версия формата локального кеша (ComponentEntry/component.json). Бамп при смене состава записи либо
 		// ФОРМЫ значения внутри неё: дельта везёт только изменившееся, у давно не правленного компонента дата
 		// прежняя, и его лежалая запись осталась бы в старой форме — разбор упал бы на ней.
-		private const int CACHE_SCHEMA_VERSION = 1;
+		private const int CACHE_SCHEMA_VERSION = 2;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, ComponentEntry> _components;
@@ -78,9 +80,30 @@ namespace Mmogick
 			public string image;
 
 			/// <summary>
+			/// Значок компонента, заданный АНИМАЦИЕЙ: адрес существа внутри записи анимации. Сама анимация
+			/// едет своим каналом (кеш анимаций), тут только адрес. null — значок задан картинкой либо его
+			/// нет вовсе: формы взаимоисключающие, сервер шлёт ровно одну.
+			/// </summary>
+			public IconAnimation animation;
+
+			/// <summary>
 			/// Описание компонента, заданное у элемента игры. null — описание не задано.
 			/// </summary>
 			public string description;
+		}
+
+		/// <summary>
+		/// Адрес существа анимации: чем и адресуется скелет значка. Имена полей — как приходят с сервера;
+		/// разбор в редакторе строгий, и лишнее поле уронило бы весь справочник.
+		/// </summary>
+		[Serializable]
+		public class IconAnimation
+		{
+			/// <summary>Идентификатор записи анимации — им же адресован пакет скелета в кеше анимаций.</summary>
+			public int animation;
+
+			/// <summary>Имя существа внутри записи: вариантов скелета в одной записи бывает несколько.</summary>
+			public string entity;
 		}
 
 		// Корень кеша справочника для игры
@@ -278,6 +301,24 @@ namespace Mmogick
 
 			return _components.TryGetValue(component, out ComponentEntry entry) && entry != null && !string.IsNullOrEmpty(entry.image)
 				? entry.image : null;
+		}
+
+		// Значок компонента, заданный анимацией: адрес существа, чей скелет и рисуется вместо картинки.
+		// Формы значка взаимоисключающи — сервер шлёт либо имя файла картинки (GetImage), либо этот адрес.
+		// Сам скелет собирает SpineCacheService по тому же адресу, пакет анимации кладёт предзагрузка перед
+		// входом в игру (AnimationCacheService).
+		// Контракт по справочнику тот же, что у GetDefault. null — значок компонента задан картинкой либо
+		// его нет вовсе либо самого компонента в справочнике нет: показ рисует компонент как рисовал.
+		public static IconAnimation GetAnimation(string component)
+		{
+			EnsureSynced(component);
+			if (string.IsNullOrEmpty(component))
+				return null;
+
+			return _components.TryGetValue(component, out ComponentEntry entry) && entry != null
+				&& entry.animation != null && entry.animation.animation != 0
+				&& !string.IsNullOrEmpty(entry.animation.entity)
+				? entry.animation : null;
 		}
 
 		// Описание компонента, заданное у элемента игры. Им подсказка объясняет игроку, что значит

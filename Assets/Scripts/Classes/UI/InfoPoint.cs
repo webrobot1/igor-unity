@@ -1,3 +1,4 @@
+using Spine.Unity;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -52,9 +53,16 @@ namespace Mmogick
         private string _hint;
 
         /// <summary>
-        /// Наполнить пункт готовой строкой. Иконку кладём, только когда картинка нашлась: архив
-        /// картинок бывает устаревшим, и на битой строка обязана вернуться к тексту с подписью —
-        /// одно значение без неё не сказало бы, чего оно.
+        /// Компонент, чей скелет стоит в значке сейчас. null — значок стоит картинкой либо его нет вовсе.
+        /// Пункт наполняется заново на каждую смену значения строки (в бою — то и дело), а сборка скелета
+        /// — работа под смену компонента, не под неё.
+        /// </summary>
+        private string _skeleton;
+
+        /// <summary>
+        /// Наполнить пункт готовой строкой. Значок кладём, только когда он встал: архив картинок бывает
+        /// устаревшим, скелет — ещё не скачанным, и без значка строка обязана вернуться к тексту с
+        /// подписью — одно значение без неё не сказало бы, чего оно.
         /// </summary>
         public void SetRow(InfoRow row, Tooltip tooltip)
         {
@@ -66,34 +74,85 @@ namespace Mmogick
 
             _tooltip = tooltip;
 
-            Sprite sprite = icon != null && row.Icon != null
-                ? AnimationCacheService.GetComponentSprite(BaseController.GAME_ID, row.Icon)
-                : null;
+            bool shown = ApplyIcon(row.Icon);
 
-            if (icon != null)
-            {
-                icon.sprite = sprite;
-                icon.preserveAspect = true;
-                icon.gameObject.SetActive(sprite != null);
-            }
-
-            // Стрелка живёт вместе со значком: картинка не встала — строка вернулась к полной фразе, и
+            // Стрелка живёт вместе со значком: значок не встал — строка вернулась к полной фразе, и
             // помечать стрелкой стало нечего, о росте там сказано словами.
             if (gain != null)
-                gain.gameObject.SetActive(row.Gain && sprite != null);
+                gain.gameObject.SetActive(row.Gain && shown);
 
             if (text != null)
-                text.text = sprite != null ? row.Value : row.Text;
+                text.text = shown ? row.Value : row.Text;
 
             // Подсказка несёт ровно то, чего пункт не показал сам. Пункт из одного значка не показал
             // ничего — ему достаётся фраза целиком; пункт со значком и значением не показал подписи —
             // ему достаётся она. Под тем и другим идёт описание свойства, если оно есть.
-            // Картинка не встала (кеш картинок устарел): строка вернулась к полной фразе, и подсказке
-            // нечего добавить — кроме случая, когда текста у пункта нет вовсе.
-            string head = text == null ? row.Text : sprite != null ? row.Caption : null;
+            // Значок не встал (кеш устарел): строка вернулась к полной фразе, и подсказке нечего
+            // добавить — кроме случая, когда текста у пункта нет вовсе.
+            string head = text == null ? row.Text : shown ? row.Caption : null;
 
             _hint = string.IsNullOrEmpty(head) ? null
                 : string.IsNullOrEmpty(row.Description) ? head : head + "\n" + row.Description;
+        }
+
+        /// <summary>
+        /// Поставить значок компонента. Форм у него две, и компонент несёт ровно одну: картинку из архива
+        /// игры либо скелет анимации — тогда значок живой и клип идёт по кругу. Скелет рисуется дочерним
+        /// объектом самого значка, а картинка значка при этом пустеет: без неё поверх скелета лёг бы белый
+        /// прямоугольник. Гасим её прозрачностью, а не выключением: нажатия и наведение ловит она, и
+        /// выключенная не открыла бы подсказку — у пункта из одного значка это весь его рассказ.
+        ///
+        /// false — значка нет: у пункта его не бывает вовсе (маркер списка), у компонента он не задан,
+        /// картинка битая либо пакета скелета ещё нет в кеше. Качать пакет тут нечем — его кладёт
+        /// предзагрузка перед входом в игру.
+        /// </summary>
+        private bool ApplyIcon(string component)
+        {
+            if (icon == null)
+                return false;
+
+            Sprite sprite = component != null
+                ? AnimationCacheService.GetComponentSprite(BaseController.GAME_ID, component)
+                : null;
+
+            ComponentCacheService.IconAnimation animation = sprite == null && component != null
+                ? ComponentCacheService.GetAnimation(component)
+                : null;
+
+            if (animation == null)
+            {
+                if (_skeleton != null)
+                {
+                    SpineVisualBuilder.Clear(icon.gameObject);
+                    _skeleton = null;
+                }
+            }
+            else if (_skeleton != component)
+            {
+                SkeletonDataAsset asset = SpineCacheService.GetCached(
+                    BaseController.GAME_ID, animation.animation, animation.entity, out string failure);
+
+                if (failure != null)
+                    Debug.LogWarning("Значок компонента " + component + ": " + failure);
+
+                _skeleton = asset != null && SpineVisualBuilder.CreateGraphic(icon.gameObject, asset, null) != null
+                    ? component : null;
+
+                if (_skeleton == null)
+                    SpineVisualBuilder.Clear(icon.gameObject);
+            }
+
+            bool shown = sprite != null || _skeleton != null;
+
+            icon.sprite = sprite;
+            icon.preserveAspect = true;
+
+            Color color = icon.color;
+            color.a = sprite != null ? 1f : 0f;
+            icon.color = color;
+
+            icon.gameObject.SetActive(shown);
+            return shown;
         }
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)

@@ -124,35 +124,51 @@ namespace Mmogick
 				yield break;
 			}
 
-			string failure = null;
-			string key = animationId + "/" + entity;
-			if (_skeletons.TryGetValue(key, out var cached) && cached != null)
-			{
-				callback(cached, null);
-				yield break;
-			}
-
-			string packageFile = PackageFile(gameId, animationId);
-			if (!File.Exists(packageFile))
+			if (!File.Exists(PackageFile(gameId, animationId)))
 			{
 				// Обычно пакет уже лежит: его качает синхронизация перед входом. Сюда попадают лишь записи,
 				// появившиеся после неё.
-				yield return Fetch(host, gameId, animationId, token, error => failure = error);
-				if (failure != null) { callback(null, failure); yield break; }
+				string download = null;
+				yield return Fetch(host, gameId, animationId, token, error => download = error);
+				if (download != null) { callback(null, download); yield break; }
 			}
 
-			SkeletonDataAsset asset;
-			failure = Build(gameId, packageFile, entity, out asset);
+			var asset = GetCached(gameId, animationId, entity, out string failure);
+			callback(asset, asset != null ? null
+				: failure ?? "SpineCache: пакет анимации " + animationId + " не появился в кеше");
+		}
+
+		/// <summary>
+		/// Скелет варианта из УЖЕ лежащего пакета: из памяти, а нет — сборкой из файла кеша. Качать тут
+		/// нечего — пакеты кладёт предзагрузка перед входом в игру (<see cref="Ensure"/>), и вызывающий,
+		/// которому ждать нечем (показ значка в интерфейсе), обходится тем, что лежит.
+		/// null — пакета нет на диске (тогда помеха пуста: это ожидаемое «ещё не скачан») либо он не
+		/// разбирается (помеха названа, сам файл снят — следующий заход перекачает).
+		/// </summary>
+		public static SkeletonDataAsset GetCached(int gameId, int animationId, string entity, out string failure)
+		{
+			failure = null;
+			if (animationId == 0 || string.IsNullOrEmpty(entity))
+				return null;
+
+			string key = animationId + "/" + entity;
+			if (_skeletons.TryGetValue(key, out var cached) && cached != null)
+				return cached;
+
+			string packageFile = PackageFile(gameId, animationId);
+			if (!File.Exists(packageFile))
+				return null;
+
+			failure = Build(gameId, packageFile, entity, out SkeletonDataAsset asset);
 			if (failure != null)
 			{
 				// Кеш мог протухнуть (картинки архива сменились) — сносим, следующий заход перекачает.
 				DeletePackage(packageFile);
-				callback(null, failure);
-				yield break;
+				return null;
 			}
 
 			_skeletons[key] = asset;
-			callback(asset, null);
+			return asset;
 		}
 
 		/// <summary>

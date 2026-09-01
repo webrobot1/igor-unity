@@ -42,9 +42,7 @@ namespace Mmogick
 			var animation = SkeletonAnimation.AddToGameObject(child, asset).skeletonAnimation;
 			if (animation == null || animation.Skeleton == null) return null;
 
-			var data = asset.GetSkeletonData(false);
-			string first = data != null && data.Animations.Count > 0 ? data.Animations.Items[0].Name : null;
-			string wanted = !string.IsNullOrEmpty(clip) && data != null && data.FindAnimation(clip) != null ? clip : first;
+			string wanted = Clip(asset, clip);
 			// Повтор задаёт запускающий: у формата Spine его в скелете нет, перечень неповторяемых клипов
 			// (смерть, удар) приходит с пакетом скелета.
 			if (!string.IsNullOrEmpty(wanted))
@@ -52,6 +50,95 @@ namespace Mmogick
 
 			Fit(go, child.transform, animation, serverSize);
 			return animation;
+		}
+
+		/// <summary>
+		/// Тот же скелет, но в ИНТЕРФЕЙСЕ: значок компонента, заданный анимацией, рисуется прямо в холсте.
+		/// Своей камеры и отдельной картинки-снимка тут нет вовсе — холст рисует скелет тем же проходом,
+		/// что и надписи (живой портрет цели, напротив, снимает сущность отдельной камерой: там показана
+		/// сущность СЦЕНЫ, а тут своего тела у значка нет — только данные скелета).
+		///
+		/// Клип идёт ПО КРУГУ: значок показывает не событие боя, а сам предмет рассказа, и однократный
+		/// клип мелькнул бы раз и застыл. Клип выбирает вызывающий; не назван — первый клип скелета, других
+		/// сведений о том, чем значку быть, нет.
+		///
+		/// Фигура вписывается в прямоугольник значка средствами самого Spine (<c>FitInParent</c>): размер
+		/// прямоугольника значку задаёт проход раскладки холста — он идёт ПОЗЖЕ сборки, и посадка,
+		/// посчитанная тут разово, взяла бы размер из префаба, а не с экрана.
+		/// </summary>
+		public static SkeletonGraphic CreateGraphic(GameObject host, SkeletonDataAsset asset, string clip)
+		{
+			if (host == null || asset == null) return null;
+
+			Clear(host);
+
+			var child = new GameObject(CHILD, typeof(RectTransform));
+			var rect = (RectTransform)child.transform;
+			rect.SetParent(host.transform, false);
+			rect.anchorMin = Vector2.zero;
+			rect.anchorMax = Vector2.one;
+			rect.offsetMin = Vector2.zero;
+			rect.offsetMax = Vector2.zero;
+
+			var components = SkeletonGraphic.AddSkeletonGraphicAnimationComponents(child, asset, GraphicMaterial());
+			var graphic = components.skeletonRenderer;
+			var animation = components.skeletonAnimation;
+			if (graphic == null || animation == null || animation.Skeleton == null)
+			{
+				UnityEngine.Object.DestroyImmediate(child);
+				return null;
+			}
+
+			// Атлас скелета бывает МНОГОСТРАНИЧНЫМ: покадровая анимация приходит картинкой на кадр, и клип
+			// водит куски по разным страницам. Одним рисователем холст рисует ровно ОДНУ страницу — куски
+			// с соседних не появляются вовсе, а на их месте остаётся чужая страница, натянутая по их
+			// координатам: фигура застывает и обрастает обрывками. Мировой рендер этого не знает — там
+			// страницы идут своими подмешами. Флаг читается сборкой скелета, оттого её и повторяем.
+			graphic.allowMultipleCanvasRenderers = true;
+			animation.Initialize(true);
+
+			string wanted = Clip(asset, clip);
+			if (!string.IsNullOrEmpty(wanted))
+				animation.AnimationState.SetAnimation(0, wanted, true);
+
+			graphic.layoutScaleMode = SkeletonGraphic.LayoutMode.FitInParent;
+			// Габариты фигуры и её середина — отсюда: без них холст рисует скелет от его собственной точки
+			// отсчёта в единицах скелета, и в значок попадает случайный его кусок.
+			graphic.MatchReferenceRectWithBounds();
+			return graphic;
+		}
+
+		/// <summary>
+		/// Какой клип играть: названный вызывающим, а такого у скелета нет — первый его клип. Пусто — клипов
+		/// у скелета нет вовсе, и играть нечего.
+		/// </summary>
+		private static string Clip(SkeletonDataAsset asset, string clip)
+		{
+			var data = asset.GetSkeletonData(false);
+			if (data == null) return null;
+			if (!string.IsNullOrEmpty(clip) && data.FindAnimation(clip) != null) return clip;
+			return data.Animations.Count > 0 ? data.Animations.Items[0].Name : null;
+		}
+
+		/// <summary>Шейдер скелета в холсте — свой у Spine: мировым скелет в интерфейсе не рисуется.</summary>
+		private const string GRAPHIC_SHADER = "Spine/SkeletonGraphic";
+
+		// Материал холста, общий всем значкам: он создан кодом, а статика переживает остановку игры
+		// (перезагрузка домена выключена) — уничтоженный объект отсекаем Unity-оператором и делаем заново.
+		private static Material _graphicMaterial;
+
+		private static Material GraphicMaterial()
+		{
+			if (_graphicMaterial != null)
+				return _graphicMaterial;
+
+			var shader = Shader.Find(GRAPHIC_SHADER);
+			if (shader == null)
+				throw new InvalidOperationException("SpineVisualBuilder: шейдера «" + GRAPHIC_SHADER
+					+ "» нет в сборке — скелет в интерфейсе рисовать нечем");
+
+			_graphicMaterial = new Material(shader);
+			return _graphicMaterial;
 		}
 
 		/// <summary>

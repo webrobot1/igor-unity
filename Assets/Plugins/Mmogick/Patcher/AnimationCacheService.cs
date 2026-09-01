@@ -730,16 +730,29 @@ namespace Mmogick
 		// существ одного вида заведёт десяток запросов за одним файлом. Версия пакета сверяется с серверной:
 		// разошлась — прежний снимается и качается заново. Отметку ставим ПОСЛЕ удачной закачки — сорвалась,
 		// и файла на диске нет: следующий заход попробует снова.
+		//
+		// Анимацию называют ДВА источника, и перебираются оба: привязка префаба (тело сущности) и справочник
+		// компонентов (значок компонента, заданный анимацией). У значка префаба нет вовсе — по библиотеке он
+		// не находится, а показу качать нечем: значок рисуется тем, что уже лежит (SpineCacheService.GetCached).
 		private static IEnumerator PreFetchSkeletons(string host, int gameId, string token, Dictionary<int, long> versions, Action<string> onError)
 		{
 			var seen = new HashSet<int>();
-			foreach (var kv in _library)
-			{
-				int animationId = kv.Value.animation;
-				// animation == 0 → скелета нет вовсе (image-prefab или kind-only prefab): качать нечего.
-				if (animationId == 0) continue;
-				if (!seen.Add(animationId)) continue;
+			var wanted = new List<int>();
 
+			foreach (var kv in _library)
+				// animation == 0 → скелета нет вовсе (image-prefab или kind-only prefab): качать нечего.
+				if (kv.Value.animation != 0 && seen.Add(kv.Value.animation))
+					wanted.Add(kv.Value.animation);
+
+			foreach (string slug in ComponentCacheService.GetSlugs())
+			{
+				var icon = ComponentCacheService.GetAnimation(slug);
+				if (icon != null && seen.Add(icon.animation))
+					wanted.Add(icon.animation);
+			}
+
+			foreach (int animationId in wanted)
+			{
 				versions.TryGetValue(animationId, out long remote);
 				if (!_manifest.animation_versions.TryGetValue(animationId, out long local) || local != remote)
 					SpineCacheService.Drop(gameId, animationId);
