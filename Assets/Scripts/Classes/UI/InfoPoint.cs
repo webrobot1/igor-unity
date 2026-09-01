@@ -102,6 +102,9 @@ namespace Mmogick
         /// прямоугольник. Гасим её прозрачностью, а не выключением: нажатия и наведение ловит она, и
         /// выключенная не открыла бы подсказку — у пункта из одного значка это весь его рассказ.
         ///
+        /// Каким движением быть значку, решает игра: клип приходит вместе с адресом существа. Не пришёл —
+        /// отбирать было не из чего, и клип берёт сам сборщик скелета.
+        ///
         /// false — значка нет: у пункта его не бывает вовсе (маркер списка), у компонента он не задан,
         /// картинка битая либо пакета скелета ещё нет в кеше. Качать пакет тут нечем — его кладёт
         /// предзагрузка перед входом в игру.
@@ -123,7 +126,7 @@ namespace Mmogick
             {
                 if (_skeleton != null)
                 {
-                    SpineVisualBuilder.Clear(icon.gameObject);
+                    VisualBuilder.Clear(icon.gameObject);
                     _skeleton = null;
                 }
             }
@@ -135,11 +138,12 @@ namespace Mmogick
                 if (failure != null)
                     Debug.LogWarning("Значок компонента " + component + ": " + failure);
 
-                _skeleton = asset != null && SpineVisualBuilder.CreateGraphic(icon.gameObject, asset, null) != null
+                _skeleton = asset != null
+                    && VisualBuilder.CreateGraphic(icon.gameObject, asset, animation.clip) != null
                     ? component : null;
 
                 if (_skeleton == null)
-                    SpineVisualBuilder.Clear(icon.gameObject);
+                    VisualBuilder.Clear(icon.gameObject);
             }
 
             bool shown = sprite != null || _skeleton != null;

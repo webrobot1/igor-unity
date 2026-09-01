@@ -35,7 +35,7 @@ namespace Mmogick
 		/// в клетках карты — отдельно для существа и для предмета на земле (у самой заглушки длинная сторона —
 		/// высота). Заглушка — единственное, что видно у prefab'а без
 		/// картинки и без скелета, поэтому её размер обязан отвечать РОДУ сущности: существо занимает клетку
-		/// (та же цель, что у нормализации настоящих тел — SpineVisualBuilder), предмет — заметно меньше,
+		/// (та же цель, что у нормализации настоящих тел — VisualBuilder), предмет — заметно меньше,
 		/// иначе он выходит крупнее любого предмета с картинкой и спорит с фигурой персонажа.
 		/// Своей высоты у такого предмета нет вовсе: серверный size приезжает только вместе с картинкой либо
 		/// анимацией — здесь стоит типовая высота предмета этой игры (столько же сервер подставляет дефолтом
@@ -273,7 +273,7 @@ namespace Mmogick
 				{
 					// Нормализуем по max(width, height) — иначе вытянутые горизонтально спрайты
 					// (молния 3:1) после нормализации по Y становятся 3 клетки в ширину.
-					// Симметрично нормализации настоящего тела (SpineVisualBuilder.Fit — по большей стороне).
+					// Симметрично нормализации настоящего тела (VisualBuilder.Fit — по большей стороне).
 					float native = AnimationCacheService.TryGetTightRect(fallbackSr.sprite, out Rect tight)
 						? Mathf.Max(tight.width, tight.height)
 						: Mathf.Max(fallbackSr.sprite.bounds.size.x, fallbackSr.sprite.bounds.size.y);
@@ -412,23 +412,20 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Применяет к существующему GameObject визуал из серверной library:
-		///   - image-prefab → ставит sprite в корневой SpriteRenderer + нормализует scale по серверному size;
-		///   - animation-prefab → асинхронно (SpineCacheService) собирает скелет через
-		///     SpineVisualBuilder.Create (он сам сносит предыдущий скелет).
-		/// Для image-варианта явно сносит скелет (на случай перехода animation→image),
-		/// включает корневой SR и компенсирует мировой размер
-		/// LifeBar/CapsuleCollider2D под применённый scale.
+		/// Применяет к существующему GameObject визуал из серверной library. Собирает его не этот метод, а
+		/// общая точка сборки (VisualBuilder) — она же выбирает форму по источнику; здесь остаётся то, чего
+		/// сборка не знает: чем является prefab в library, откуда взять данные формы (картинка лежит в
+		/// локальном кеше, скелет качается асинхронно) и что делать с моделью по готовности визуала.
+		///   - image-prefab → кадр из кеша графики, дальше общая точка;
+		///   - animation-prefab → пакет скелета асинхронно (SpineCacheService), дальше общая точка;
+		///   - kind-only prefab → своего визуала нет вовсе, остаётся заглушка Resources-префаба.
 		/// </summary>
 		private void ApplyVisualPrefab(GameObject go, EntityModel model, string newPrefab, string key)
 		{
 			string imageFile = AnimationCacheService.GetPrefabImage(newPrefab);
 			if (imageFile != null)
 			{
-				// переход animation→image: сносим скелет. Для первого спавна работает как no-op (его ещё нет).
-				SpineVisualBuilder.Clear(go);
-
-				// Image-prefab статичен (только один спрайт через TryGetSprite ниже), но мы оставляем
+				// Image-prefab статичен (один кадр), но мы оставляем
 				// Universal Animator для эффекта remove (Puff при попадании firebolt'а или выбрасывании
 				// item'а). Параметр startDisabled=true критически важен: без него Animator перехватывает
 				// SR.sprite и item рендерится пустым (apple, firebolt без иконки). PlayAction включит
@@ -436,60 +433,16 @@ namespace Mmogick
 				var entityModel = go.GetComponent<Mmogick.EntityModel>();
 				if (entityModel != null) entityModel.EnsureUniversalAnimator(startDisabled: true);
 
-				var sr = go.GetComponent<SpriteRenderer>();
-				if (sr == null) sr = go.AddComponent<SpriteRenderer>();
-				// после перехода animation→image корневой SR был enabled=false — включаем обратно.
-				sr.enabled = true;
 				// TryGetSprite инвалидирует битый кеш и бросает exception — ловим, выходим
 				// (визуал отменяется, на следующем sync файл перекачается).
-				try { sr.sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); }
+				Sprite sprite;
+				try { sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); }
 				catch (Exception ex) { Error(ex.Message); return; }
 
 				// Размер целиком ведёт СЕРВЕР: wire несёт size всегда (свой дефолт null→1 подставляет он —
-				// сменится дефолт, клиент не правится). ?:1f ниже — не семантика, а гард записей
-				// ЛОКАЛЬНОГО кеша от прежних версий wire, где size бывал null.
-				float? size = AnimationCacheService.GetPrefabSize(newPrefab);
-				float effectiveSize = (size.HasValue && size.Value > 0.0001f) ? size.Value : 1f;
+				// сменится дефолт, клиент не правится). Нормализацию по нему держит общая точка сборки.
+				VisualBuilder.Create(go, VisualBuilder.Source.Image(sprite, AnimationCacheService.GetPrefabSize(newPrefab)));
 
-				// Собственная высота картинки в мировых единицах при scale=1 (спрайты кеша создаются
-				// с PixelsPerUnit=100, т.е. это пиксели/100). Берём tight — по непрозрачным пикселям PNG
-				// (Sprite.vertices при Tight-меше), как и fallback-нормализация в UpdateObject: sprite.bounds
-				// считает всю sprite.rect целиком, и предмет с прозрачными полями в PNG вышел бы мельче остальных.
-				// Нормализуем по ВЫСОТЕ, а не по max(width, height) как соседние нормализации: у них задача —
-				// уместить сущность в клетку по любой оси, здесь же серверное значение объявлено высотой
-				// предмета в клетках, а ширина следует пропорции картинки.
-				float nativeHeight = AnimationCacheService.TryGetTightRect(sr.sprite, out Rect tight) && tight.height > 0.0001f
-					? tight.height
-					: sr.sprite.bounds.size.y;
-
-				if (effectiveSize > 0.0001f && nativeHeight > 0.0001f)
-				{
-					// Серверное значение приезжает ДЕЛИТЕЛЕМ: высота предмета в клетках задаётся на сервере,
-					// на клиент уходит обратная ей величина. Отсюда целевая высота = 1/effectiveSize.
-					// scale.y * factor = 1/(effectiveSize * nativeHeight) → итоговая мировая высота image-sprite
-					// = nativeHeight * scale.y = 1/effectiveSize клеток при любом размере PNG.
-					// Формула идемпотентна: повторное применение на уже отнормализованном scale даёт ту же высоту.
-					float factor = 1f / (effectiveSize * nativeHeight * go.transform.localScale.y);
-					Vector3 s = go.transform.localScale;
-					go.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
-
-					// П2: компенсируем LifeBar/CapsuleCollider2D, чтобы их МИРОВОЙ размер не плыл при scale корня.
-					// Аналогично fallback-нормализации выше (LifeBar.localScale *= 1/factor + позиция, capsule.size/offset).
-					float inv = 1f / factor;
-					var lifeBar = go.transform.Find("LifeBar");
-					if (lifeBar != null)
-					{
-						lifeBar.localScale = new Vector3(lifeBar.localScale.x * inv, lifeBar.localScale.y * inv, lifeBar.localScale.z);
-						var p = lifeBar.localPosition;
-						lifeBar.localPosition = new Vector3(p.x * inv, p.y * inv, p.z);
-					}
-					var capsule = go.GetComponent<CapsuleCollider2D>();
-					if (capsule != null)
-					{
-						capsule.size *= inv;
-						capsule.offset *= inv;
-					}
-				}
 				model.Log("image-sprite " + newPrefab + " применён");
 				// Image-визуал применяется синхронно — точка «визуал готов» сразу здесь
 				// (у animation-пути её проходит сборка скелета по концу подгонки).
@@ -541,7 +494,8 @@ namespace Mmogick
 
 					var (clipName, flipX, clipAngle) = AnimationCacheService.GetClipName(
 						newPrefab, model.action, model.Forward.x, model.Forward.y);
-					SpineVisualBuilder.Create(go, asset, AnimationCacheService.GetPrefabSize(newPrefab), clipName);
+					VisualBuilder.Create(go, VisualBuilder.Source.Skeleton(
+						asset, AnimationCacheService.GetPrefabSize(newPrefab), clipName));
 					model.DisplayAngle = clipAngle;
 					model.OnVisualReady();
 				}));

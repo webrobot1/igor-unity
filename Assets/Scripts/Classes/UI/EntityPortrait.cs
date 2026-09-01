@@ -125,8 +125,8 @@ namespace Mmogick
 				// данных. Размер и посадку кадра он получает оттуда же — у портрета нет ни коллайдера, ни
 				// полоски здоровья, и подгонка сводится к приведению фигуры к клетке и к центру объекта,
 				// а дальше кадром распоряжается камера (см. CameraUpdate).
-				_mirrorSkeleton = SpineVisualBuilder.Create(
-					gameObject, srcSkeleton.SkeletonDataAsset, null, ClipOf(srcSkeleton));
+				_mirrorSkeleton = VisualBuilder.Create(gameObject, VisualBuilder.Source.Skeleton(
+					srcSkeleton.SkeletonDataAsset, null, ClipOf(srcSkeleton)));
 				if (_mirrorSkeleton != null)
 					// Камера портрета снимает по слою: на общем слое сцены скелет зеркала не попал бы в кадр
 					// вовсе, зато встал бы посреди карты.
@@ -151,7 +151,7 @@ namespace Mmogick
 		/// </summary>
 		protected void ClearVisual()
 		{
-			SpineVisualBuilder.Clear(gameObject);
+			VisualBuilder.Clear(gameObject);
 			_sourceSkeleton = null;
 			_mirrorSkeleton = null;
 			_frameLocked = false;
@@ -304,7 +304,7 @@ namespace Mmogick
 		private bool TryGetMirrorBounds(out Bounds bounds)
 		{
 			if (_mirrorSkeleton != null)
-				return SpineVisualBuilder.TryGetWorldBounds(_mirrorSkeleton, out bounds);
+				return VisualBuilder.TryGetWorldBounds(_mirrorSkeleton, out bounds);
 
 			bounds = new Bounds();
 			return false;

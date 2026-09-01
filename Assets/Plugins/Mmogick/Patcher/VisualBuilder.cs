@@ -7,17 +7,74 @@ using UnityEngine;
 namespace Mmogick
 {
 	/// <summary>
-	/// Сборка визуала сущности из скелета Spine: собирать почти нечего — рантайм сам строит скелет по
-	/// данным, нам остаётся размер и клип.
+	/// Единственная точка сборки визуала сущности. Форм у визуала две — скелет Spine и набор картинок, — и
+	/// какая из них перед нами, решает САМ источник (<see cref="Source"/>): места показа (мир, портрет,
+	/// значок в интерфейсе) зовут одну и ту же точку и о форме не спрашивают. Разведи их по местам показа —
+	/// одна и та же сущность собиралась бы в клиенте по-разному.
 	///
 	/// Скелет живёт ДОЧЕРНИМ объектом сущности: корневой трансформ ведёт сама сущность (зеркалит себя по X
 	/// при смене направления), и масштаб тела на нём задавать нельзя — он затёрся бы следующим поворотом.
+	/// Картинка, напротив, рисуется корневым рисователем самой сущности — свой объект ей не нужен.
 	///
-	/// Высота тела приводится к доле клетки, которую объявил сервер; сами габариты фигуры берутся замером
-	/// у скелета — в его собственных единицах они у каждого свои.
+	/// Высота тела приводится к доле клетки, которую объявил сервер. У скелета габариты фигуры берутся
+	/// замером — в его собственных единицах они у каждого свои; у картинки габарит даёт её непрозрачная
+	/// часть.
 	/// </summary>
-	public static class SpineVisualBuilder
+	public static class VisualBuilder
 	{
+		/// <summary>
+		/// Источник графики: ровно одна из двух форм. Скелет несёт данные скелета и клип, картинка — сам
+		/// спрайт; серверная доля клетки общая — ею меряется тело в обеих формах.
+		/// Поля источника заполняются вместе и порознь смысла не имеют, оттого и едут одним значением.
+		/// </summary>
+		public readonly struct Source
+		{
+			public readonly SkeletonDataAsset asset;
+			public readonly string clip;
+			public readonly Sprite sprite;
+			public readonly float? size;
+
+			private Source(SkeletonDataAsset asset, string clip, Sprite sprite, float? size)
+			{
+				this.asset = asset;
+				this.clip = clip;
+				this.sprite = sprite;
+				this.size = size;
+			}
+
+			/// <summary>Скелет: данные скелета, доля клетки от сервера и клип действия (пусто — первый клип).</summary>
+			public static Source Skeleton(SkeletonDataAsset asset, float? size, string clip)
+			{
+				return new Source(asset, clip, null, size);
+			}
+
+			/// <summary>Набор картинок: показанный кадр и доля клетки от сервера.</summary>
+			public static Source Image(Sprite sprite, float? size)
+			{
+				return new Source(null, null, sprite, size);
+			}
+
+			/// <summary>Какой формы источник. Пустой источник не является ни той, ни другой.</summary>
+			public bool IsSkeleton => asset != null;
+		}
+
+		/// <summary>
+		/// Собрать визуал сущности по её источнику: форму выбираем здесь, вызывающему её знать незачем.
+		/// Прежний визуал сносится — сущность меняет и скелет, и картинку на лету.
+		/// Возвращается собранный скелет (у картинки его нет — null): он нужен тому, кто зеркалит тело,
+		/// а мир результат не спрашивает.
+		/// </summary>
+		public static SkeletonAnimation Create(GameObject go, Source source)
+		{
+			if (go == null) return null;
+
+			if (source.IsSkeleton)
+				return CreateSkeleton(go, source.asset, source.size, source.clip);
+
+			CreateImage(go, source.sprite, source.size);
+			return null;
+		}
+
 		/// <summary>Высота тела на сцене — одна клетка.</summary>
 		public const float TARGET_HEIGHT = 1.0f;
 
@@ -25,12 +82,12 @@ namespace Mmogick
 		public const string CHILD = "Skeleton";
 
 		/// <summary>
-		/// Собрать скелет на сущности. Прежний визуал сносится: смена префаба меняет и скелет.
+		/// Скелет на сущности. Прежний визуал сносится: смена префаба меняет и скелет.
 		/// Клип задаётся вызывающим — он знает действие сущности; пусто — берётся первый клип скелета.
 		/// </summary>
-		public static SkeletonAnimation Create(GameObject go, SkeletonDataAsset asset, float? serverSize, string clip)
+		private static SkeletonAnimation CreateSkeleton(GameObject go, SkeletonDataAsset asset, float? serverSize, string clip)
 		{
-			if (go == null || asset == null) return null;
+			if (asset == null) return null;
 
 			Clear(go);
 
@@ -50,6 +107,67 @@ namespace Mmogick
 
 			Fit(go, child.transform, animation, serverSize);
 			return animation;
+		}
+
+		/// <summary>
+		/// Набор картинок на сущности: кадр ставится корневому рисователю самой сущности — своего объекта,
+		/// как у скелета, картинке не нужно.
+		///
+		/// Скелет сносится: сущность приходит сюда и со скелетом, сменённым на картинку. Рисователь
+		/// включается обратно — под скелетом он выключен, чтобы заглушка не просвечивала сквозь тело.
+		///
+		/// РАЗМЕР ведёт сервер: доля клетки приезжает ДЕЛИТЕЛЕМ (высота предмета в клетках задаётся на
+		/// сервере, на клиент уходит обратная ей величина), отсюда целевая высота = 1/доля. Дефолт своей
+		/// доли сервер подставляет сам — <c>?:1f</c> ниже не семантика, а гард записей ЛОКАЛЬНОГО кеша от
+		/// прежних версий обмена, где доля бывала пустой.
+		///
+		/// Собственная высота картинки берётся по НЕПРОЗРАЧНЫМ пикселям (Sprite.vertices при Tight-меше),
+		/// как и у заглушки: границы всего кадра считают прозрачные поля, и предмет с полями вышел бы
+		/// мельче остальных. Нормализуем по ВЫСОТЕ, не по большей стороне, как у скелета: там задача —
+		/// уместить фигуру в клетку по любой оси, здесь же серверное значение объявлено высотой предмета
+		/// в клетках, а ширина следует пропорции картинки.
+		///
+		/// Масштаб правится у КОРНЯ сущности, оттого полоска здоровья и капсула щелчка компенсируются:
+		/// их мировой размер задан префабом и от размера картинки зависеть не должен. Формула
+		/// идемпотентна — повторное применение на уже отнормализованном масштабе даёт ту же высоту.
+		/// </summary>
+		private static void CreateImage(GameObject go, Sprite sprite, float? serverSize)
+		{
+			Clear(go);
+
+			var sr = go.GetComponent<SpriteRenderer>();
+			if (sr == null) sr = go.AddComponent<SpriteRenderer>();
+			sr.enabled = true;
+			sr.sprite = sprite;
+
+			float effectiveSize = (serverSize.HasValue && serverSize.Value > 0.0001f) ? serverSize.Value : 1f;
+
+			float nativeHeight = AnimationCacheService.TryGetTightRect(sprite, out Rect tight) && tight.height > 0.0001f
+				? tight.height
+				: sprite.bounds.size.y;
+
+			if (effectiveSize <= 0.0001f || nativeHeight <= 0.0001f) return;
+
+			// scale.y * factor = 1/(доля * nativeHeight) → итоговая мировая высота кадра = 1/доля клеток
+			// при любом размере картинки.
+			float factor = 1f / (effectiveSize * nativeHeight * go.transform.localScale.y);
+			Vector3 s = go.transform.localScale;
+			go.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
+
+			float inv = 1f / factor;
+			var lifeBar = go.transform.Find("LifeBar");
+			if (lifeBar != null)
+			{
+				lifeBar.localScale = new Vector3(lifeBar.localScale.x * inv, lifeBar.localScale.y * inv, lifeBar.localScale.z);
+				var p = lifeBar.localPosition;
+				lifeBar.localPosition = new Vector3(p.x * inv, p.y * inv, p.z);
+			}
+			var capsule = go.GetComponent<CapsuleCollider2D>();
+			if (capsule != null)
+			{
+				capsule.size *= inv;
+				capsule.offset *= inv;
+			}
 		}
 
 		/// <summary>
@@ -75,8 +193,13 @@ namespace Mmogick
 			var child = new GameObject(CHILD, typeof(RectTransform));
 			var rect = (RectTransform)child.transform;
 			rect.SetParent(host.transform, false);
-			rect.anchorMin = Vector2.zero;
-			rect.anchorMax = Vector2.one;
+			// Фигуре отводится не весь значок, а доля с полем по краю: рядом в столбце стоят значки-картинки,
+			// и своё поле у них внутри самого рисунка — скелет же вписывается в рамку вплотную и рядом с ними
+			// выглядел бы крупнее. Поле кладём равным их: замер показанного дал картинке около трёх четвертей
+			// отведённого места против девяти десятых у скелета.
+			float margin = (1f - GRAPHIC_FILL) / 2f;
+			rect.anchorMin = new Vector2(margin, margin);
+			rect.anchorMax = new Vector2(1f - margin, 1f - margin);
 			rect.offsetMin = Vector2.zero;
 			rect.offsetMax = Vector2.zero;
 
@@ -109,16 +232,28 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Какой клип играть: названный вызывающим, а такого у скелета нет — первый его клип. Пусто — клипов
-		/// у скелета нет вовсе, и играть нечего.
+		/// Какой клип играть: названный вызывающим, а такого у скелета нет — первый ДВИЖУЩИЙСЯ. Клип бывает
+		/// пустым — нулевой длительности и без единой дорожки: у покадровой записи такой стоит первым, и
+		/// взятый по порядку он держит скелет в позе покоя намертво. Движущихся нет вовсе — остаётся первый
+		/// какой есть: показать всё равно нечего, а поза покоя лучше пустого места. Пусто — клипов у скелета
+		/// нет вовсе, и играть нечего.
 		/// </summary>
 		private static string Clip(SkeletonDataAsset asset, string clip)
 		{
 			var data = asset.GetSkeletonData(false);
 			if (data == null) return null;
 			if (!string.IsNullOrEmpty(clip) && data.FindAnimation(clip) != null) return clip;
-			return data.Animations.Count > 0 ? data.Animations.Items[0].Name : null;
+			if (data.Animations.Count == 0) return null;
+
+			foreach (var candidate in data.Animations)
+				if (candidate.Duration > 0.0001f && candidate.Timelines.Count > 0)
+					return candidate.Name;
+
+			return data.Animations.Items[0].Name;
 		}
+
+		/// <summary>Доля значка, отводимая фигуре скелета: остальное — поле по краю (см. CreateGraphic).</summary>
+		private const float GRAPHIC_FILL = 0.85f;
 
 		/// <summary>Шейдер скелета в холсте — свой у Spine: мировым скелет в интерфейсе не рисуется.</summary>
 		private const string GRAPHIC_SHADER = "Spine/SkeletonGraphic";
@@ -134,7 +269,7 @@ namespace Mmogick
 
 			var shader = Shader.Find(GRAPHIC_SHADER);
 			if (shader == null)
-				throw new InvalidOperationException("SpineVisualBuilder: шейдера «" + GRAPHIC_SHADER
+				throw new InvalidOperationException("VisualBuilder: шейдера «" + GRAPHIC_SHADER
 					+ "» нет в сборке — скелет в интерфейсе рисовать нечем");
 
 			_graphicMaterial = new Material(shader);
@@ -185,13 +320,13 @@ namespace Mmogick
 		private const int MEASURE_SAMPLES = 8;
 
 		/// <summary>
-		/// Тело в клетку и по месту. Правила те же, что у сборки из картинки (<see cref="UpdateController"/>),
+		/// Тело в клетку и по месту. Правила те же, что у сборки из картинки (<see cref="CreateImage"/>),
 		/// — иначе одна и та же сущность на двух путях выглядела бы разного размера и стояла бы по-разному:
 		///
 		/// РАЗМЕР — по БОЛЬШЕЙ стороне габаритов, не по высоте: вытянутый поперёк (краб, корабль) иначе вылез
 		/// бы за клетку шириной. Сами габариты замеряются у скелета всегда: серверное значение габаритом не
 		/// является — оно ДЕЛИТЕЛЬ целевой высоты (высота тела в клетках задаётся на сервере, на клиент уходит
-		/// обратная ей величина), тот же контракт у сборки из картинки — <see cref="UpdateController"/>.
+		/// обратная ей величина), тот же контракт у сборки из картинки — <see cref="CreateImage"/>.
 		/// Своего размера у сущности нет — цель остаётся в клетку.
 		///
 		/// МЕСТО — центр фигуры на центр коллайдера, которым по сущности и щёлкают: скелет рисуется от своей

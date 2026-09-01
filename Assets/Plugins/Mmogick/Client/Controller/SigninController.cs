@@ -115,67 +115,104 @@ namespace Mmogick
 
 			yield return request.SendWebRequest();
 
-			// проверка что данные в ответ
+			// Успех и отказ сервер разводит КОДОМ ответа, общих полей у их тел нет: пакет входа разбирается своей
+			// структурой, отказ — своей (SigninErrorRecive). Разбор строгий (умолчания в BaseController: пропуск
+			// null, отказ на неизвестном поле), и чужое тело в структуре входа роняет его целиком — тогда отказ по
+			// существу читался бы нечитаемым ответом, уходил в повторы, а игрок оставался перед экраном загрузки
+			// без ошибки и без конца.
+			long code = request.responseCode;
 			string text = request.downloadHandler != null ? request.downloadHandler.text : "";
-			string failure = null;
-			SigninRecive recive = null;
-
-			if (text.Length > 0)
-			{
-				try
-				{
-					Debug.Log("Ответ авторизации: " + text);
-					// NullValueHandling.Ignore обязателен для любого серверного payload: сервер шлёт скаляры всегда,
-					// включая null (null ≡ дефолт поля), а без Ignore Newtonsoft пишет null в не-nullable поле и падает.
-					recive = JsonConvert.DeserializeObject<SigninRecive>(text,
-						new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
-				}
-				catch (Exception ex)
-				{
-					// Игроку уходит только текст сообщения, а перехваченное исключение мимо автоматического
-					// журнала рантайма не идёт — стек пишем здесь, иначе причина видна лишь по тексту.
-					Debug.LogException(ex);
-					failure = "Ошибка разбора авторизации: (" + text + ") " + ex.Message;
-				}
-			}
-			else
-				failure = "Пустой ответ авторизации с сервера " + SERVER + " (код " + request.responseCode + "): " + request.error;
+			string transport = request.error;
 
 			request.Dispose();
 
-			if (recive == null)
+			// Ответа нет либо он не по контракту: моргнула сеть, узел ответил своей ошибкой, пока поднимал карту,
+			// вклинился прокси. Для игрока это тот же затянувшийся вход — ждём и пробуем снова.
+			string unreadable = null;
+			SigninRecive recive = null;
+			SigninErrorRecive refusal = null;
+
+			if (text.Length == 0)
+				unreadable = "Пустой ответ авторизации с сервера " + SERVER + " (код " + code + "): " + transport;
+
+			else if (code >= 200 && code < 300)
 			{
-				// Ответа нет либо он нечитаем: моргнула сеть, узел ответил своей ошибкой, пока поднимал карту, вклинился
-				// прокси. Для игрока это тот же затянувшийся вход, что и штатное «поднимается», и обрывать им уже
-				// идущее ожидание нельзя — ждём и пробуем снова, пока не вышел общий предел.
+				Debug.Log("Ответ авторизации: " + text);
+
+				try
+				{
+					recive = JsonConvert.DeserializeObject<SigninRecive>(text);
+				}
+				catch (Exception ex)
+				{
+					// Разбор УДАВШЕГОСЯ входа упал — структура клиента разошлась с сервером. Следующий ответ будет
+					// тем же, повторы этого не исправят: показываем ошибку и возвращаем игрока к форме входа.
+					Error("Ошибка разбора авторизации: (" + text + ") " + ex.Message, ex);
+					yield break;
+				}
+			}
+
+			else
+			{
+				Debug.Log("Отказ авторизации (код " + code + "): " + text);
+
+				try
+				{
+					refusal = JsonConvert.DeserializeObject<SigninErrorRecive>(text);
+				}
+				catch (Exception ex)
+				{
+					// Тело не по контракту отказа — отвечал не наш сервер (страница прокси, ошибка веб-сервера):
+					// разбирать нечего, случай тот же, что и нечитаемый ответ ниже.
+					Debug.LogException(ex);
+				}
+
+				if (refusal == null || refusal.error.Length == 0)
+					unreadable = "Нечитаемый отказ авторизации с сервера " + SERVER + " (код " + code + "): " + text;
+			}
+
+			if (unreadable != null)
+			{
 				if (DateTime.Now < retryDeadline)
 				{
-					Debug.LogWarning("Авторизация: " + failure + ", повтор через " + FALLBACK_RETRY_SEC + " сек.");
+					Debug.LogWarning("Авторизация: " + unreadable + ", повтор через " + FALLBACK_RETRY_SEC + " сек.");
 
 					yield return new WaitForSeconds(FALLBACK_RETRY_SEC);
 					yield return StartCoroutine(HttpRequest(action, true));
 					yield break;
 				}
 
-				Error(failure);
+				Error(unreadable);
 				yield break;
 			}
 
-			if (recive.error.Length > 0)
+			if (refusal != null)
 			{
 				// retry — повторимый отказ (сервер карты ещё поднимается): ждём названное сервером время и заходим
 				// снова. Для игрока это затянувшийся вход, а не ошибка, потому Error() тут не зовём — он увёл бы на
-				// экран входа с текстом.
-				if (recive.retry > 0 && DateTime.Now < retryDeadline)
+				// экран входа с текстом. Отказ по существу (не прошедший проверку ввод, неверный логин, слишком
+				// частые входы) сервер повторимым не метит: повтор его не изменит, а игрок ждал бы впустую до
+				// общего предела.
+				if (refusal.retry > 0 && DateTime.Now < retryDeadline)
 				{
-					Debug.Log("Авторизация: " + recive.error + ", повтор через " + recive.retry + " сек.");
+					Debug.Log("Авторизация: " + refusal.error + ", повтор через " + refusal.retry + " сек.");
 
-					yield return new WaitForSeconds(recive.retry);
+					yield return new WaitForSeconds(refusal.retry);
 					yield return StartCoroutine(HttpRequest(action, true));
 					yield break;
 				}
 
-				Error("Ошибка авторизации к серверу " + SERVER + ": " + recive.error);
+				// Разбор по полям приходит только у не прошедшего проверку ввода, и показываем игроку именно его:
+				// в error сервер кладёт лишь ПЕРВОЕ нарушение, а с ним игрок чинил бы форму по одному полю.
+				string message = refusal.error;
+				if (refusal.violations != null && refusal.violations.Count > 0)
+				{
+					message = "";
+					foreach (var violation in refusal.violations)
+						message += (message.Length > 0 ? "\n" : "") + violation.Key + ": " + violation.Value;
+				}
+
+				Error("Ошибка авторизации к серверу " + SERVER + ": " + message);
 				yield break;
 			}
 

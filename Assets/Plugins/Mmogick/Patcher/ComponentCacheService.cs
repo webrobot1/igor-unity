@@ -36,7 +36,7 @@ namespace Mmogick
 		// Версия формата локального кеша (ComponentEntry/component.json). Бамп при смене состава записи либо
 		// ФОРМЫ значения внутри неё: дельта везёт только изменившееся, у давно не правленного компонента дата
 		// прежняя, и его лежалая запись осталась бы в старой форме — разбор упал бы на ней.
-		private const int CACHE_SCHEMA_VERSION = 2;
+		private const int CACHE_SCHEMA_VERSION = 3;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, ComponentEntry> _components;
@@ -104,6 +104,12 @@ namespace Mmogick
 
 			/// <summary>Имя существа внутри записи: вариантов скелета в одной записи бывает несколько.</summary>
 			public string entity;
+
+			/// <summary>
+			/// Клип, которым значку и быть: движение существа, отобранное игрой. null — отобрать было не из
+			/// чего, и клип выбирает сам сборщик скелета.
+			/// </summary>
+			public string clip;
 		}
 
 		// Корень кеша справочника для игры

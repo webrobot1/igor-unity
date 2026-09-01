@@ -27,6 +27,15 @@
             "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-stop-reminder.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/skill-guard.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [

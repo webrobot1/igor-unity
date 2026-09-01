@@ -319,8 +319,7 @@ namespace Mmogick
         /// </summary>
         public void OpenCloseTargetInfo()
         {
-            _aboutSelf = false;
-            OpenClose(infoGroup);
+            Toggle(false);
         }
 
         /// <summary>
@@ -328,8 +327,32 @@ namespace Mmogick
         /// </summary>
         public void OpenCloseSelfInfo()
         {
-            _aboutSelf = true;
+            Toggle(true);
+        }
+
+        /// <summary>
+        /// Переключить окно и, если оно открылось, наполнить его ТЕМ ЖЕ кадром. Дальше окно ведёт
+        /// <see cref="Update"/>, но он у этого контроллера проходит раньше, чем кнопка отдаёт нажатие, —
+        /// открытое окно достояло бы до следующего кадра пустой плашкой.
+        ///
+        /// Наполнять нечем — рассказывать не о ком: окно закроет тот же <see cref="Update"/> ближайшим
+        /// кадром, отдельного пути на это тут не нужно.
+        ///
+        /// Имя своё, не перегрузка <c>OpenClose</c> цепочки: <see cref="CanvasGroup"/> приводится к
+        /// <c>bool</c> неявно (Unity-оператор существования объекта), и одноимённый метод забрал бы себе
+        /// вызов с группой — тот звал бы сам себя до переполнения стека.
+        /// </summary>
+        private void Toggle(bool aboutSelf)
+        {
+            _aboutSelf = aboutSelf;
             OpenClose(infoGroup);
+
+            if (infoGroup.alpha == 0)
+                return;
+
+            ObjectModel subject = _aboutSelf ? PlayerController.Player : Target;
+            if (subject != null)
+                Fill(subject);
         }
 
         protected override void Update()

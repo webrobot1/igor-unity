@@ -729,8 +729,16 @@ namespace Mmogick
 					Error("WebSocket: Ошибка отправки данных", ex);
 				}		
 			}
-			else
-				player.LogWarning("Загрузка мира, команда " + data.action +"/"+ data.group + " отклонена");
+			// отсутствие player — одна из причин попасть сюда (первое слагаемое условия выше),
+			// поэтому носителя для записи тут может не быть вовсе
+			else if (EntityModel.verbose)
+			{
+				string message = "Загрузка мира, команда " + data.action +"/"+ data.group + " отклонена";
+				if (player != null)
+					player.LogWarning(message);
+				else
+					Debug.LogWarning(message);
+			}
 		}
 
 		/// <summary>
