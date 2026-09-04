@@ -42,6 +42,17 @@
 # (значение его есть вывод git-команды — skill `fileagent`), потому владение по нему проверяет
 # ветка Bash. Маркер конвейера ведёт главная сессия: пустой agent_type тут ВЛАДЕЛЕЦ, а не
 # отсутствие проверки, и субагенту такой путь отбивается наравне с прочими.
+#
+# ПОСЛАБЛЕНИЕ главной сессии — точечная правка пути владельца, и только инструментом Edit:
+# `old_string` непуст, `new_string` не длиннее POINT_EDIT_LINES строк. Мерится текст ЗАМЕНЫ: у
+# вызова Edit он один ограничен по конструкции, а у команды оболочки (`sed -i` по всему файлу,
+# редирект) такой меры нет вовсе — ветка Bash главную сессию отбивает по-прежнему. Write и Edit с
+# пустым `old_string` — вставка нового файла либо раздела, не точечная правка. Вне послабления
+# маркер `.last` (владение своё, абзац выше) и ведомая копия (владельца нет — правка любого
+# размера теряется на сверке зеркала); реестр настроек главная сессия ведёт и без послабления.
+# Серию точечных правок закрывает проверяющий проход владельца; текст отказа воспроизводит
+# правило вместе с порогом — осознанный дубль: в момент отказа свод адресату не доезжает.
+# Правится парно с core «Правки конфигурации проекта».
 
 input=$(cat)
 
@@ -88,6 +99,10 @@ CONTOURS = tuple(r.rstrip("/") for r in (os.environ.get("CLIENT_ROOT") or "",
 # Псевдо-владелец ведомой копии: реального владельца у неё нет — правка теряется у КАЖДОГО
 # исполнителя, включая владельца сводов, и адресуется она не агенту, а серверному источнику.
 MIRROR = "\x00mirror"
+
+# Порог послабления главной сессии на точечную правку (шапка хука): число строк текста ЗАМЕНЫ.
+# Правится парно с core «Правки конфигурации проекта».
+POINT_EDIT_LINES = 10
 
 
 def out(payload):
@@ -226,6 +241,36 @@ def foreign(paths, agent):
     return res
 
 
+def relaxable(path, own):
+    """Путь под послаблением главной сессии на точечную правку: своды, документация, агенты, хуки,
+    конвейеры, канон контура — всё, что ведёт агент-владелец. Маркер `.last` (владение своё, по
+    имени носителя) и ведомая копия (владельца нет) — вне послабления; шапка хука."""
+    return own != [MIRROR] and not path.endswith('.last')
+
+
+def point_edit_miss(tool_name, tool_input):
+    """None — вызов есть точечная правка; иначе — чем он ею не является, словами для отказа.
+    Поле, которого у вызова нет, читается пустым: отказ, не пропуск."""
+    if tool_name != "Edit":
+        return tool_name
+    old, new = tool_input.get("old_string"), tool_input.get("new_string")
+    if not isinstance(old, str) or not old:
+        return "Edit с пустым old_string"
+    if not isinstance(new, str):
+        return "Edit без new_string"
+    n = len(new.splitlines())
+    if n > POINT_EDIT_LINES:
+        return "Edit, new_string %d строк" % n
+    return None
+
+
+def shell_hint(pairs, agent):
+    """Хвост о послаблении для главной сессии в ветке Bash: хотя бы один отбитый путь под ним."""
+    if agent or not any(relaxable(p, o) for p, o in pairs):
+        return None
+    return "команда оболочки"
+
+
 def addressee(own):
     """Владельцы пути словами. Главную сессию субагентом не адресуешь: agent_type у неё пуст,
     и `Agent(subagent_type=)` назвал бы отказу несуществующего исполнителя."""
@@ -233,7 +278,9 @@ def addressee(own):
                          for o in own)
 
 
-def refuse(pairs, agent, channel):
+def refuse(pairs, agent, channel, point=None):
+    """point — чем вызов главной сессии по пути под послаблением не является точечной правкой;
+    None — хвост о послаблении не печатается (субагент, путь вне послабления)."""
     seen, parts = [], []
     for path, own in pairs:
         if path in seen:
@@ -249,6 +296,10 @@ def refuse(pairs, agent, channel):
     who = "агент %s" % agent if agent else "главная сессия"
     tail = ("" if channel == "file" else
             " Команда оболочки владение путём не обходит: проверка та же, что у файлового тула.")
+    if point is not None:
+        tail += (" Исключение главной сессии — точечная правка инструментом Edit: old_string "
+                 "непустой, new_string до %d строк включительно; серию точечных правок закрывает "
+                 "проверяющий проход владельца. Этот вызов — %s." % (POINT_EDIT_LINES, point))
     deny("Отклонено правилом проекта (core «Правки конфигурации проекта»): "
          + ' | '.join(parts) + ". Текущий исполнитель — " + who + "." + tail)
 
@@ -270,18 +321,24 @@ if (data.get("tool_name") or "") == "Bash":
     found, unresolved, eff_cwd, command = scan_command(tool_input.get("command") or "", cwd)
     bad = foreign([p for p, _ in found], agent)
     if bad:
-        refuse(bad, agent, "bash")
+        refuse(bad, agent, "bash", shell_hint(bad, agent))
     if unresolved:
         bad = foreign(sweep(command, eff_cwd, unresolved), agent)
         if bad:
-            refuse(bad, agent, "bash")
+            refuse(bad, agent, "bash", shell_hint(bad, agent))
     sys.exit(0)
 
 file_path = tool_input.get("file_path") or ""
 if not file_path:
     sys.exit(0)                      # у части перехваченных тулов путь лежит в своём поле
-own = owners_of(normalize(file_path, cwd))
+path = normalize(file_path, cwd)
+own = owners_of(path)
 if own is None or agent in own:
     sys.exit(0)
-refuse([(normalize(file_path, cwd), own)], agent, "file")
+point = None
+if not agent and relaxable(path, own):
+    point = point_edit_miss(data.get("tool_name") or "", tool_input)
+    if point is None:
+        sys.exit(0)                  # точечная правка главной сессии — послабление (шапка хука)
+refuse([(path, own)], agent, "file", point)
 PY

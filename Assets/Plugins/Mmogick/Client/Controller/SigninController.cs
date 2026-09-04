@@ -5,6 +5,7 @@ using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using Newtonsoft.Json;
 using System;
+using System.Text.RegularExpressions;
 
 namespace Mmogick
 {
@@ -18,6 +19,19 @@ namespace Mmogick
 
         [SerializeField]
         protected InputField serverField;
+
+        // Действия публичного API входа: та же строка идёт в адрес запроса и различает ветки ниже.
+        private const string ACTION_AUTH = "auth";
+        private const string ACTION_REGISTER = "register";
+
+        // Правила логина — те же, что держит сервер, и отбиваются они здесь ради самого игрока: заведомо
+        // негодный ввод не стоит ему похода на сервер и ожидания ответа. Истина остаётся серверной, клиент
+        // её лишь зеркалит; место у правил одно на обе кнопки формы — обе идут в HttpRequest.
+        // Тексты дословно серверные: чинить ввод игрок будет по одной и той же формулировке, какая бы
+        // сторона его ни отбила.
+        private const int LOGIN_MIN_LENGTH = 3;
+        private static readonly Regex LOGIN_ALLOWED = new Regex(@"^[a-z0-9][a-z0-9_\-]*$");
+        private static readonly Regex LOGIN_NUMERIC = new Regex(@"^\d+(e\d+)?$");
 
         // Сколько всего ждём поднятия сервера карты, повторяя вход. Порог человеческий: дольше игрок читает
         // затянувшийся вход как зависание, и честнее показать ошибку, чем крутить попытки дальше.
@@ -68,7 +82,7 @@ namespace Mmogick
             login = this.loginField.text;
             password = this.passwordField.text;
 
-            StartCoroutine(HttpRequest("register"));
+            StartCoroutine(HttpRequest(ACTION_REGISTER));
         }
 
         public void Auth()
@@ -76,7 +90,7 @@ namespace Mmogick
             login = this.loginField.text;
             password = this.passwordField.text;
 
-            StartCoroutine(HttpRequest("auth"));
+            StartCoroutine(HttpRequest(ACTION_AUTH));
         }
 
 		private IEnumerator HttpRequest(string action, bool retrying = false)
@@ -84,6 +98,24 @@ namespace Mmogick
 			if (login.Length == 0 || password.Length == 0)
 			{
 				Error("Заполните логин или пароль");
+				yield break;
+			}
+
+			if (login.Length < LOGIN_MIN_LENGTH)
+			{
+				Error("Логин: не короче " + LOGIN_MIN_LENGTH + " символов");
+				yield break;
+			}
+
+			if (!LOGIN_ALLOWED.IsMatch(login))
+			{
+				Error("Логин: строчные латинские буквы, цифры, _ и -");
+				yield break;
+			}
+
+			if (LOGIN_NUMERIC.IsMatch(login))
+			{
+				Error("Логин не может быть числом");
 				yield break;
 			}
 
@@ -213,6 +245,15 @@ namespace Mmogick
 				}
 
 				Error("Ошибка авторизации к серверу " + SERVER + ": " + message);
+				yield break;
+			}
+
+			// Регистрация данных для входа не отдаёт — в её ответе только ключ игрока, а в мир сервер пускает
+			// отдельным входом. Игроку же регистрация обещает игру, потому входим тем же логином и паролем сами:
+			// без этого шага загрузка мира начиналась бы без адреса узла и токена.
+			if (action == ACTION_REGISTER)
+			{
+				yield return StartCoroutine(HttpRequest(ACTION_AUTH));
 				yield break;
 			}
 
