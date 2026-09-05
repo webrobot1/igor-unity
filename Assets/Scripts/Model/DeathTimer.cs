@@ -74,21 +74,20 @@ namespace Mmogick
 				return;
 			}
 
-			// Полная длина шкалы — длительность самого срока. Ещё не пришла (первый кадр после смерти) —
-			// считаем от текущего остатка, полоска стартует полной.
-			Event countdown = _model.TryGetEvent(group);
-			double? length = countdown != null ? countdown.timeout : null;
-			double full = length.HasValue && length.Value > 0 ? length.Value : remain;
-
 			if (_bar == null)
 				_bar = WorldBar.Create(transform, "DeathBar", Order);
 
 			if (_bar == null)
 				return;
 
+			// Полная длина шкалы — длительность самого срока, названная сервером рядом с остатком: потому
+			// подошедший позже видит ту же полоску, что и стоявший рядом с самого начала. Группа её не
+			// рассылает — длину ведёт сама полоска (WorldBar.Fraction).
+			Event countdown = _model.TryGetEvent(group);
+
 			_bar.Show(
 				WorldBar.PlaceUnder(_model, transform, 0f),
-				(float)(remain / full),
+				_bar.Fraction(remain, countdown != null ? countdown.timeout : null),
 				isPlayer ? ResurrectColor : DespawnColor,
 				null,
 				GameIcons.Skull

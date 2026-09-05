@@ -4,8 +4,9 @@
 # пользователю.
 
 """Цели ЗАПИСИ в команде оболочки — общий носитель хуков, которым нужно знать, какие файлы правит
-вызов: гейт владения путями (skill-guard.sh) и напоминание о своде домена (mcp-context-reminder.sh).
-Копия разбора у второго разошлась бы с первым молча — перехватываемые формы живут здесь.
+вызов: гейт владения путями (skill-guard.sh), гейт границы записи каталогами проекта
+(write-scope-guard.sh) и напоминание о своде домена (mcp-context-reminder.sh).
+Копия разбора у каждого следующего разошлась бы с первым молча — перехватываемые формы живут здесь.
 Владения, зон и политики отказа модуль не знает: он отдаёт абсолютные пути, решение принимает
 вызывающий.
 
@@ -13,6 +14,12 @@
 `perl -i`, `tee`, `cp`, `mv`, `install`, `rsync`, `ln`, `rm`, `touch`, `truncate`, `dd of=`,
 `mkdir`, `rmdir`, `chmod`, `chown`, `git mv`, `git rm`, те же вызовы под `sudo`/`env` и внутри
 `sh -c '…'`; цель, заданную подстановкой (`"$f"`), — запасным проходом по литералам.
+Вывод, заданный ПАРАМЕТРОМ либо ПОЗИЦИЕЙ у команды, чей вызов записью не выглядит: `curl -o`/`-O`,
+`wget` (файл `-O`, каталог `-P`, иначе текущий), последний позиционный у `ffmpeg`/`convert`/`magick`,
+`mktemp` (каталог временных файлов), `tar` (распаковка в `-C` либо текущий каталог, сборка в `-f`),
+`unzip -d`, `zip`, `git clone`, `git worktree add`. Каталог, куда команда кладёт файл с именем,
+известным лишь ей (`wget URL`, `unzip a.zip`, `git clone URL`), идёт целью САМ: границе и владению
+каталога хватает. Перечень открытый — форма вносится поимённо, у каждой команды свой синтаксис.
 Код на интерпретаторе разбирается независимо от ФОРМЫ подачи: инлайн-флаг (`-c`, `-e`) и тело
 heredoc (`python3 - <<'PY'`) читаются одинаково; тело heredoc, поданное оболочке (`bash <<'SH'`),
 разбирается цепочкой команд. Тело, поданное чужой команде (`cat > файл <<'EOF'`, ввод `sed`),
@@ -33,7 +40,7 @@ heredoc (`python3 - <<'PY'`) читаются одинаково; тело hered
 import os
 import re
 
-from chain_parser import (INLINE_FLAGS, INTERPRETERS, REDIR_FULL, REDIR_HEAD, SHELLS,
+from chain_parser import (ASSIGN, INLINE_FLAGS, INTERPRETERS, REDIR_FULL, REDIR_HEAD, SHELLS,
                           command_index, heredoc_bodies, name, redirect_free, split_heredocs,
                           split_parts, strip_heredocs, strip_redirects, tokens)
 
@@ -237,6 +244,294 @@ def perl_targets(args):
     return plain
 
 
+# Команды, чей ВЫХОД задаётся параметром либо позицией: ни редиректом, ни правкой по месту вызов
+# не выглядит, а файл создаёт. Перечень открытый — форма вносится поимённо: у каждой команды свой
+# синтаксис вывода, семейством они не берутся. Каталог, куда команда кладёт файл с именем, известным
+# лишь ей (`wget URL`, `unzip a.zip`, `git clone URL`), идёт целью САМ: `.` разрешается в текущий.
+INFO_FLAGS = {'-h', '--help', '-V', '--version', '-version', '-help'}
+CURL_OUT = {'-o', '--output'}
+CURL_REMOTE = {'-O', '--remote-name', '--remote-name-all'}
+WGET_OUT = {'-O', '--output-document'}
+WGET_LOG = {'-o', '--output-file', '-a', '--append-output'}
+WGET_DIR = {'-P', '--directory-prefix'}
+# Конвертеры медиа: выход — последний позиционный аргумент.
+LAST_OUTPUT = {'ffmpeg', 'convert', 'magick'}
+# Подкоманды ImageMagick, которые только читают.
+MAGICK_READERS = {'identify', 'display'}
+# Спецификатор формата ImageMagick (`png:-`, `info:`) — путь лишь когда за ним стоит каталог.
+SCHEME = re.compile(r'^[A-Za-z0-9]+:')
+MKTEMP_NOOP = {'-u', '--dry-run'} | INFO_FLAGS
+# Длинные опции tar со значением: их значение — не архив и не каталог.
+TAR_VALUE_OPTS = {'--files-from', '--exclude-from', '--exclude', '--transform', '--strip-components',
+                  '--listed-incremental', '--owner', '--group', '--mode', '--mtime',
+                  '--use-compress-program', '--blocking-factor', '--newer', '--after-date',
+                  '--to-command', '--format', '--starting-file', '--tape-length', '--label',
+                  '--suffix', '--backup', '--add-file'}
+ZIP_VALUE_OPTS = {'-b', '-t', '-tt', '-n', '-P', '-Z', '-O', '--output-file'}
+CLONE_VALUE_OPTS = {'-o', '--origin', '-b', '--branch', '-u', '--upload-pack', '--reference',
+                    '--reference-if-able', '--separate-git-dir', '--template', '-c', '--config',
+                    '--depth', '--shallow-since', '--shallow-exclude', '--filter', '-j', '--jobs',
+                    '--server-option', '--bundle-uri'}
+WORKTREE_VALUE_OPTS = {'-b', '-B', '--reason', '--orphan'}
+
+
+def leading_env(toks):
+    """Присваивания перед именем команды (`TMPDIR=/x mktemp`, `env TMPDIR=/x mktemp`) — окружение
+    самого вызова."""
+    env = {}
+    for t in toks:
+        if ASSIGN.match(t):
+            k, v = t.split('=', 1)
+            env[k] = bare(v)
+    return env
+
+
+def positionals(args, value_opts):
+    """Аргументы без опций; опция из value_opts забирает следующий токен значением."""
+    out, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a.startswith('-') and a != '-':
+            i += 2 if a in value_opts and i + 1 < len(args) else 1
+            continue
+        out.append(a)
+        i += 1
+    return out
+
+
+def curl_targets(args):
+    """`-o FILE` — файл; `-O` — файл с именем из адреса в текущем каталоге, целью идёт сам
+    каталог; `--output-dir DIR` — каталог обоих. Склеенные короткие опции читаются по последней
+    букве (`-sSLo FILE`) и по букве `O` внутри (`-sSO`)."""
+    files, to_dir, out_dir, i = [], False, None, 0
+    while i < len(args):
+        a = args[i]
+        if a in CURL_OUT and i + 1 < len(args):
+            files.append(args[i + 1])
+            i += 2
+            continue
+        if a == '--output-dir' and i + 1 < len(args):
+            out_dir = args[i + 1]
+            i += 2
+            continue
+        if a.startswith('--output-dir='):
+            out_dir = a.split('=', 1)[1]
+        elif a.startswith('--output='):
+            files.append(a.split('=', 1)[1])
+        elif a in CURL_REMOTE:
+            to_dir = True
+        elif a.startswith('-') and not a.startswith('--') and len(a) > 2:
+            if a.endswith('o') and i + 1 < len(args):
+                files.append(args[i + 1])
+                i += 2
+                continue
+            if 'O' in a[1:]:
+                to_dir = True
+        i += 1
+    if out_dir:
+        files = [f if f.startswith('/') else os.path.join(out_dir, f) for f in files]
+        if to_dir:
+            files.append(out_dir)
+    elif to_dir:
+        files.append('.')
+    return files
+
+
+def wget_targets(args):
+    """`-O FILE` — файл; `-P DIR` — каталог загрузки; без них файл ложится в текущий каталог, и
+    целью идёт он. Журнал `-o`/`-a` — тот же файл на диске. Без адреса, при `--spider` и справке
+    записи нет. Буква `O` внутри склейки (`-qO-`, `-qO FILE`) читается наравне с отдельной."""
+    files, prefix, doc, urls, i = [], None, False, 0, 0
+    while i < len(args):
+        a = args[i]
+        if a == '--spider' or a in INFO_FLAGS:
+            return []
+        if (a in WGET_OUT or a in WGET_LOG) and i + 1 < len(args):
+            files.append(args[i + 1])
+            doc = doc or a in WGET_OUT
+            i += 2
+            continue
+        if a in WGET_DIR and i + 1 < len(args):
+            prefix = args[i + 1]
+            i += 2
+            continue
+        if a.startswith('--output-document='):
+            files.append(a.split('=', 1)[1])
+            doc = True
+        elif a.startswith('--output-file=') or a.startswith('--append-output='):
+            files.append(a.split('=', 1)[1])
+        elif a.startswith('--directory-prefix='):
+            prefix = a.split('=', 1)[1]
+        elif a.startswith('-') and not a.startswith('--') and 'O' in a[1:]:
+            tail = a[a.index('O') + 1:]
+            doc = True
+            if tail:
+                files.append(tail)
+            elif i + 1 < len(args):
+                files.append(args[i + 1])
+                i += 2
+                continue
+        elif not a.startswith('-'):
+            urls += 1
+        i += 1
+    if urls and not doc:
+        files.append(prefix or '.')
+    return files
+
+
+def last_output_targets(cmd, args):
+    """Выход — ПОСЛЕДНИЙ позиционный аргумент: так устроены конвертеры медиа. Вызов без входа
+    (`ffmpeg -version`), подкоманда чтения (`magick identify`) и спецификатор без пути (`png:-`,
+    `info:`) выхода на диске не дают."""
+    if not args or args[-1].startswith('-'):
+        return []
+    if cmd in ('convert', 'magick') and args[0] in MAGICK_READERS:
+        return []
+    if cmd == 'ffmpeg' and '-i' not in args:
+        return []
+    last = args[-1]
+    if SCHEME.match(last):
+        if '/' not in last:
+            return []
+        last = last.split(':', 1)[1]
+    return [last]
+
+
+def mktemp_targets(args, tmpdir):
+    """Без шаблона либо с `-t`/`--tmpdir` — каталог временных файлов: `TMPDIR` из присваивания
+    перед вызовом, иначе `/tmp`; `-p DIR`/`--tmpdir=DIR` — тот каталог; шаблон с каталогом — его
+    каталог, голый шаблон — текущий. `-u` файла не создаёт."""
+    folder, use_tmp, tmpl, i = None, False, None, 0
+    while i < len(args):
+        a = args[i]
+        if a in MKTEMP_NOOP:
+            return []
+        if a == '-p' and i + 1 < len(args):
+            folder = args[i + 1]
+            i += 2
+            continue
+        if a == '--suffix' and i + 1 < len(args):
+            i += 2
+            continue
+        if a.startswith('--tmpdir='):
+            folder = a.split('=', 1)[1]
+        elif a in ('--tmpdir', '-t'):
+            use_tmp = True
+        elif not a.startswith('-'):
+            tmpl = a
+        i += 1
+    if folder:
+        return [os.path.join(folder, tmpl) if tmpl else folder]
+    if use_tmp or tmpl is None:
+        return [os.path.join(tmpdir or '/tmp', tmpl or '')]
+    return [tmpl]
+
+
+def tar_targets(args):
+    """Распаковка (`x`) пишет в `-C DIR`, иначе в текущий каталог; сборка (`c`, `r`, `u`, `A`) — в
+    архив `-f`. Режим и архив читаются из склейки букв — первого аргумента без дефиса (`xzf FILE`)
+    либо короткой опции (`-xzf FILE`): буква со значением стоит в склейке последней и забирает
+    следующий аргумент. Просмотр (`t`), сравнение (`d`) и справка записи не дают."""
+    mode, folder, archive, i = None, None, None, 0
+    while i < len(args):
+        a = args[i]
+        cluster = None
+        if i == 0 and a.isalpha():
+            cluster = a
+        elif a.startswith('-') and not a.startswith('--') and len(a) > 1:
+            cluster = a[1:]
+        if cluster is not None:
+            if 'x' in cluster:
+                mode = 'x'
+            elif mode is None and any(ch in cluster for ch in 'cruA'):
+                mode = 'c'
+            last = cluster[-1]
+            if last in 'fCTXgIbNHKLV' and i + 1 < len(args):
+                if last == 'f':
+                    archive = args[i + 1]
+                elif last == 'C':
+                    folder = args[i + 1]
+                i += 2
+                continue
+            i += 1
+            continue
+        if a in ('--extract', '--get'):
+            mode = 'x'
+        elif a in ('--create', '--append', '--update', '--catenate', '--concatenate'):
+            mode = mode or 'c'
+        elif a == '--directory' and i + 1 < len(args):
+            folder = args[i + 1]
+            i += 2
+            continue
+        elif a == '--file' and i + 1 < len(args):
+            archive = args[i + 1]
+            i += 2
+            continue
+        elif a.startswith('--directory='):
+            folder = a.split('=', 1)[1]
+        elif a.startswith('--file='):
+            archive = a.split('=', 1)[1]
+        elif a in TAR_VALUE_OPTS and i + 1 < len(args):
+            i += 2
+            continue
+        i += 1
+    if mode == 'x':
+        return [folder or '.']
+    if mode == 'c' and archive:
+        return [archive]
+    return []
+
+
+def unzip_targets(args):
+    """Распаковка в `-d DIR`, иначе в текущий каталог. Просмотр (`-l`, `-Z`, `-z`), проверка (`-t`)
+    и вывод в поток (`-p`, `-c`) записи не дают; без архива записи нет."""
+    folder, archives, i = None, 0, 0
+    while i < len(args):
+        a = args[i]
+        if a in INFO_FLAGS or a == '-hh':
+            return []
+        if a.startswith('-') and not a.startswith('--') and len(a) > 1:
+            body = a[1:]
+            if any(ch in body for ch in 'ltpcZz'):
+                return []
+            if body.endswith('d') and i + 1 < len(args):
+                folder = args[i + 1]
+                i += 2
+                continue
+        elif not a.startswith('-'):
+            archives += 1
+        i += 1
+    return [folder or '.'] if archives else []
+
+
+def zip_targets(args):
+    """Архив — первый позиционный аргумент; `-O FILE` — архив-результат. Справка и просмотр (`-sf`)
+    записи не дают."""
+    if not args or any(a in INFO_FLAGS or a in ('-L', '-sf', '--show-files') for a in args):
+        return []
+    out = [args[k + 1] for k, a in enumerate(args[:-1]) if a in ('-O', '--output-file')]
+    plain = positionals(args, ZIP_VALUE_OPTS)
+    if plain:
+        out.append(plain[0])
+    return out
+
+
+def clone_targets(rest):
+    """Каталог клона — второй позиционный за адресом; не назван — текущий каталог (имя каталога
+    знает только сама команда). Без адреса записи нет."""
+    plain = positionals(rest, CLONE_VALUE_OPTS)
+    if not plain:
+        return []
+    return [plain[1]] if len(plain) > 1 else ['.']
+
+
+def worktree_targets(rest):
+    """`git worktree add PATH` — каталог нового дерева; прочие подкоманды пишут внутри `.git`."""
+    if not rest or rest[0] != 'add':
+        return []
+    return positionals(rest[1:], WORKTREE_VALUE_OPTS)[:1]
+
+
 def not_a_target(t):
     """Токен целью не бывает: пустой, одиночный `-`, дескриптор, перенаправление, `/dev/*`."""
     return (not t or t == '-' or t.startswith('&') or t.startswith('/dev/')
@@ -413,7 +708,7 @@ def _scan(command, cwd, found, unresolved, depth=0):
                             or (nested == 'perl' and perl_inplace(nargs))):
                         unresolved.append((None, part))
             continue
-        tgts = []
+        tgts, base = [], cwd
         if cmd == 'sed':
             tgts = sed_targets(args)
         elif cmd == 'perl':
@@ -423,6 +718,11 @@ def _scan(command, cwd, found, unresolved, depth=0):
         elif cmd == 'git':
             k = 0
             while k < len(args) and args[k].startswith('-'):
+                if args[k] == '-C' and k + 1 < len(args):
+                    # Каталог работы задан самой командой: относительные цели git считает от него.
+                    t = bare(args[k + 1])
+                    if '$' not in t and '`' not in t and not t.startswith('~'):
+                        base = normalize(t, base)
                 k += 2 if args[k] in GIT_VALUE_OPTS else 1
             if k < len(args):
                 sub, rest = bare(args[k]), args[k + 1:]
@@ -430,6 +730,24 @@ def _scan(command, cwd, found, unresolved, depth=0):
                     tgts = args_targets(rest, set(), 'all')
                 elif sub == 'mv':
                     tgts = args_targets(rest, set(), 'last')
+                elif sub == 'clone':
+                    tgts = clone_targets(rest)
+                elif sub == 'worktree':
+                    tgts = worktree_targets(rest)
+        elif cmd == 'curl':
+            tgts = curl_targets(args)
+        elif cmd == 'wget':
+            tgts = wget_targets(args)
+        elif cmd in LAST_OUTPUT:
+            tgts = last_output_targets(cmd, args)
+        elif cmd == 'mktemp':
+            tgts = mktemp_targets(args, leading_env(toks[:i]).get('TMPDIR') or os.environ.get('TMPDIR'))
+        elif cmd == 'tar':
+            tgts = tar_targets(args)
+        elif cmd == 'unzip':
+            tgts = unzip_targets(args)
+        elif cmd == 'zip':
+            tgts = zip_targets(args)
         elif cmd in ALL_TARGETS:
             tgts = args_targets(args, VALUE_OPTS.get(cmd, set()), 'all')
         elif cmd in DEST_LAST:
@@ -443,7 +761,7 @@ def _scan(command, cwd, found, unresolved, depth=0):
             # переменной тоже нет — область запасного прохода не сужается.
             unresolved.append((None, part))
         for t in tgts:
-            _record(t, part, found, unresolved, cwd)
+            _record(t, part, found, unresolved, base)
 
     # Каталог на конец цепочки: `cd` внутри неё сдвигает его и для запасного прохода.
     return cwd

@@ -212,15 +212,7 @@ namespace Mmogick
 			}
 
 			double remain = _model.GetEventRemain(GROUP_LOOTFREE);
-
-			// Полная длина шкалы — длительность ступени: сервер шлёт её всем видящим сущность рядом с
-			// остатком. Ещё не пришла (первый кадр после закрепления) — считаем от текущего остатка,
-			// полоска стартует полной.
-			Event stage = _model.TryGetEvent(GROUP_LOOTFREE);
-			double? length = stage != null ? stage.timeout : null;
-			double step = length.HasValue && length.Value > 0 ? length.Value : remain;
-
-			if (remain <= 0 || step <= 0)
+			if (remain <= 0)
 			{
 				HideBar();
 				return;
@@ -232,9 +224,13 @@ namespace Mmogick
 			if (_bar == null)
 				return;
 
+			// Полная длина шкалы — длительность ступени, названная сервером рядом с остатком всем видящим
+			// сущность. Группа её не рассылает — длину ведёт сама полоска (WorldBar.Fraction).
+			Event stage = _model.TryGetEvent(GROUP_LOOTFREE);
+
 			_bar.Show(
 				WorldBar.PlaceUnder(_model, transform, WorldBar.StackStep),
-				(float)(remain / step),
+				_bar.Fraction(remain, stage != null ? stage.timeout : null),
 				WaitColor,
 				null,
 				GameIcons.LootLocked

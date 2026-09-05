@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,7 +14,7 @@ namespace Mmogick
     public class CameraController : MonoBehaviour
     {
         private Dictionary<int, MapSide> last_sides;
-        private int last_lifeRadius;
+        private float last_view;
 
         private float minX;
         private float minY;
@@ -36,14 +36,22 @@ namespace Mmogick
                 float targetRation = 1;
                 float height;
 
+                // Экран показывает ПОЛОВИНУ радиуса жизни, а не весь его: за радиусом жизни механики не
+                // идут, и мини-карта, построенная по нему (MinimapController), обязана быть заметно шире
+                // экрана — иначе она повторяет то, что и так видно. Прежде экран строился по всему радиусу,
+                // и при обычном соотношении сторон его ширина почти равнялась ему: мини-карта дублировала
+                // экран. Делится именно радиус жизни, а не своя настройка обзора: правило «мини-карта вдвое
+                // шире экрана» держится тогда при любом значении, которое игрок выставит.
+                float view = PlayerController.Player.lifeRadius / 2f;
+
                 if (Camera.main.aspect >= targetRation)
-                { 
-                    height = (PlayerController.Player.lifeRadius - 0.5f) / 2;
+                {
+                    height = (view - 0.5f) / 2;
                 }
                 else
                 {
                     float defferenceSize = targetRation / Camera.main.aspect;
-                    height = (PlayerController.Player.lifeRadius - 0.5f) / 2 * defferenceSize;
+                    height = (view - 0.5f) / 2 * defferenceSize;
                 }
 
                 if(Camera.main.orthographicSize != height)
@@ -60,10 +68,10 @@ namespace Mmogick
                 Dictionary<int, MapSide> sides = PlayerController.getSides();
                 if (PlayerController.Player.action != PlayerController.ACTION_REMOVE && PlayerController.getMaps().Count > 0 && sides.Count == PlayerController.getMaps().Count && sides.Keys.SequenceEqual(PlayerController.getMaps().Keys) && sides.TryGetValue(PlayerController.Player.map, out MapSide current) && current.x == 0 && current.y == 0)
                 {
-                    if (last_sides != sides || last_lifeRadius != PlayerController.Player.lifeRadius)
+                    if (last_sides != sides || last_view != view)
                     {
                         UpdateView();
-                        last_lifeRadius = PlayerController.Player.lifeRadius;
+                        last_view = view;
                     }
 
                     Camera.main.transform.position = new Vector3(Mathf.Clamp(PlayerController.Player.transform.position.x, minX, maxX), Mathf.Clamp(PlayerController.Player.transform.position.y, minY, maxY), Camera.main.transform.position.z);

@@ -69,8 +69,9 @@ namespace Mmogick
 
 		/// <summary>
 		/// Имя сущности для подписей интерфейса (надпись в мире, рамка цели, очередь на добычу).
-		/// У игрока это логин аккаунта: сервер кладёт его в <see cref="slug"/>. У прочих — имя prefab'а
-		/// из серверной library, заданное в админке; не задано — сам slug prefab'а, он тоже читаем.
+		/// У игрока это логин аккаунта, у массовки под кадр (вид bot) — код существа: сервер кладёт их в
+		/// <see cref="slug"/>. У прочих — имя prefab'а из серверной library, заданное в админке;
+		/// не задано — сам slug prefab'а, он тоже читаем.
 		/// Единая точка: имена сущностей у всех фронтов интерфейса должны совпадать.
 		/// </summary>
 		public string DisplayName
@@ -90,7 +91,8 @@ namespace Mmogick
 
 		private string BuildDisplayName()
 		{
-			if (type == "player")
+			// Массовка под кадр имитирует игрока и подписывается как он — своим slug, не именем общего prefab'а.
+			if (type == "player" || type == "bot")
 				return !string.IsNullOrEmpty(slug) ? slug : key;
 
 			if (string.IsNullOrEmpty(prefab))

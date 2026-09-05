@@ -1,14 +1,16 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace Mmogick.VideoRig
 {
     /// <summary>
-    /// Исполнитель сценария съёмки: ведёт указатель, нажимает, водит персонажа и режет запись по границам
-    /// сцен. Живёт только в редакторе и только пока идёт прогон.
+    /// Исполнитель сценария съёмки: ведёт указатель, нажимает, водит персонажа и режет запись по сценам —
+    /// границы фрагмента задаёт сама сцена (<see cref="ShootScene"/>). Живёт только в редакторе и только
+    /// пока идёт прогон.
     ///
     /// Шаги идут корутиной в такт кадрам игры — ввод игра читает раз в кадр, и нажатие короче кадра не
     /// увидел бы никто. Крутит корутину объект-носитель <see cref="ScenarioHost"/>: собственным
@@ -16,15 +18,21 @@ namespace Mmogick.VideoRig
     ///
     /// Ввод отдаётся сценарию целиком (<see cref="InputSource"/> плюс <see cref="ScenarioPointerInput"/>
     /// у EventSystem): движения руки человека в запись попадать не должны. Отказ на любом шаге —
-    /// немедленная остановка со снятым перехватом: снятое «наполовину» хуже неснятого, его легко принять
-    /// за годный фрагмент.
+    /// немедленная остановка со снятым перехватом, сносом уже снятых фрагментов и ошибкой игровым каналом
+    /// (<see cref="ConnectController.Error"/>): она уводит на экран входа и показывает там текст, как
+    /// показывает любую другую ошибку игры. Снятое «наполовину» хуже неснятого — его легко принять за
+    /// годный фрагмент, потому материал отказавшего прогона до сборщика ролика не доходит. Оборванный
+    /// прогон (игру остановили посреди съёмки) идёт тем же порядком — <see cref="Abort"/>.
     /// </summary>
     public sealed class ScenarioRunner
     {
         /// <summary>Сколько ведём указатель, когда сцена не сказала иначе.</summary>
         private const float POINTER_SECONDS = 0.5f;
 
-        /// <summary>Подвес до первого и после последнего действия сцены: фрагмент не начинается в движении.</summary>
+        /// <summary>
+        /// Подвес между началом записи и первым её действием — и между последним действием сцены и концом
+        /// записи: фрагмент не начинается и не кончается в движении.
+        /// </summary>
         private const float SCENE_PAD = 0.4f;
 
         /// <summary>Пауза после остановки записи — пакет дописывает файл.</summary>
@@ -33,14 +41,42 @@ namespace Mmogick.VideoRig
         /// <summary>Во сколько раз указатель в кадре крупнее системного: 32 пикселя на кадре 1080p мелки для ролика.</summary>
         private const float POINTER_SCALE = 1.5f;
 
+        /// <summary>
+        /// Сколько рука держится в кадре после действия, которым она пользовалась. На записи в 30 кадров/с
+        /// это около десятка кадров: зритель успевает увидеть руку на месте нажатия, а дальше кадр
+        /// остаётся чистым. Убранная в тот же кадр рука на записи читается сбоем, а не действием.
+        /// </summary>
+        private const float POINTER_HOLD = 0.35f;
+
         /// <summary>Сколько ждём мир после запуска: вход в игру сетевой, карта грузится не мгновенно.</summary>
         private const float WORLD_TIMEOUT = 90f;
+
+        /// <summary>
+        /// Сколько ждём готовности мира после перехода, когда шаг не сказал иначе. Меньше входного потолка:
+        /// карта у сервера к этому времени уже поднята, ждём лишь ответ на переход и графику вокруг игрока.
+        /// </summary>
+        private const float MAP_TIMEOUT = 30f;
+
+        /// <summary>
+        /// Окно, в которое шаг ожидания перехода ждёт САМОГО перехода — подъёма панели загрузки либо смены
+        /// карты под персонажем. Сервер отвечает на дверь не в тот же кадр, и без этого окна шаг прошёл бы
+        /// мгновенно по ещё готовому миру прежней карты, а панель поднялась бы уже на следующем шаге.
+        /// </summary>
+        private const float MAP_GRACE = 1.5f;
 
         /// <summary>Ход прогона — его опрашивает снаружи тот, кто прогон запустил.</summary>
         public static string Status { get; private set; } = "не запускался";
 
         /// <summary>Снятые фрагменты последнего прогона.</summary>
         public static List<string> Files { get; private set; } = new List<string>();
+
+        /// <summary>
+        /// Идущий прогон. Обрыв съёмки — остановка игры человеком, пересборка кода, закрытие редактора —
+        /// убивает корутину молча: до <see cref="Finish"/> прогон не доезжает, и снятое остаётся лежать у
+        /// сборщика ролика. Снимает его <see cref="Abort"/>, а дотянуться до прогона ему нечем, кроме
+        /// статики — зовёт его редакторный хук, о самом прогоне не знающий.
+        /// </summary>
+        private static ScenarioRunner current;
 
         private ShootScenario scenario;
 
@@ -54,6 +90,19 @@ namespace Mmogick.VideoRig
 
         private string failure;
 
+        /// <summary>
+        /// Шаг, исполняемый сейчас: им отказ называет своё место в сценарии наравне с ходом прогона
+        /// (<see cref="Status"/>). Ставится на каждом действии сцены и снимается на её начале — отказ до
+        /// первого действия принадлежит сцене, а не последнему шагу предыдущей.
+        /// </summary>
+        private ShootAction step;
+
+        /// <summary>
+        /// Фрагмент, который пишется прямо сейчас. В <see cref="Files"/> он попадает только по закрытию
+        /// сцены, а на диске лежит с начала записи — снос негодного материала берёт и его.
+        /// </summary>
+        private string fragment;
+
         private readonly GameObject host;
 
         internal ScenarioRunner(ShootScenario scenario, string outputDir, GameObject host)
@@ -65,6 +114,7 @@ namespace Mmogick.VideoRig
 
             Files = new List<string>();
             Status = "запущен";
+            current = this;
         }
 
         internal IEnumerator Play()
@@ -80,40 +130,83 @@ namespace Mmogick.VideoRig
                 ShootScene scene = scenario.scenes[i];
                 Status = "снимаю " + scene.id;
 
-                string file;
+                fragment = null;
+                step = null;
 
-                try
+                if (!scene.actions.Exists(mark => mark.@do == ShootAction.RECORD))
                 {
-                    file = recorder.Begin(scene.id);
-                }
-                catch (Exception ex)
-                {
-                    // Наружу уходит только текст, а разбираться придётся по месту отказа: без стека
-                    // причина видна лишь по сообщению.
-                    Debug.LogException(ex);
-                    Fail("сцена " + scene.id + ": " + ex.Message);
-                    break;
-                }
+                    if (!TryBegin(scene))
+                        break;
 
-                yield return new WaitForSeconds(SCENE_PAD);
+                    yield return new WaitForSeconds(SCENE_PAD);
+                }
 
                 foreach (ShootAction action in scene.actions)
                 {
+                    step = action;
+
+                    if (action.@do == ShootAction.RECORD)
+                    {
+                        if (!TryBegin(scene))
+                            break;
+
+                        yield return new WaitForSeconds(SCENE_PAD);
+                        continue;
+                    }
+
                     yield return Do(action);
+
+                    // Рука живёт ровно вокруг действия, которое ею пользуется: показывает её ведение
+                    // указателя, а снимается она здесь — подержавшись POINTER_HOLD, чтобы нажатие
+                    // прочиталось на записи. Пауза идёт только там, где рука была показана: у паузы и
+                    // ходьбы указателя в кадре нет, и длительности сценария она им не сдвигает. Место
+                    // общее для всех действий и потому покрывает и отказ посреди ведения — иначе рука
+                    // осталась бы в кадре, а снять её после конца прогона уже нечем.
+                    if (InputSource.PointerShown)
+                    {
+                        yield return new WaitForSeconds(POINTER_HOLD);
+                        InputSource.HidePointer();
+                    }
 
                     if (failure != null)
                         break;
                 }
 
+                // Отказ случился до маркера — записи не начиналось, и закрывать нечего.
+                if (fragment == null)
+                    break;
+
                 yield return new WaitForSeconds(SCENE_PAD);
 
                 recorder.End();
-                Files.Add(file);
+                Files.Add(fragment);
+                fragment = null;
 
                 yield return new WaitForSeconds(FLUSH);
             }
 
             Finish();
+        }
+
+        /// <summary>
+        /// Начать фрагмент сцены. Отказ пакета записи прекращает прогон: снимать дальше нечем.
+        /// </summary>
+        private bool TryBegin(ShootScene scene)
+        {
+            try
+            {
+                fragment = recorder.Begin(scene.id);
+            }
+            catch (Exception ex)
+            {
+                // Наружу уходит только текст, а разбираться придётся по месту отказа: без стека
+                // причина видна лишь по сообщению.
+                Debug.LogException(ex);
+                Fail(ex.Message);
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -143,14 +236,6 @@ namespace Mmogick.VideoRig
 
         private void Attach()
         {
-            Texture2D texture = HandCursor.OpenTexture;
-
-            if (texture == null)
-            {
-                Fail("не нашлась картинка указателя");
-                return;
-            }
-
             module = EventSystem.current != null ? EventSystem.current.currentInputModule : null;
 
             if (module == null)
@@ -159,20 +244,9 @@ namespace Mmogick.VideoRig
                 return;
             }
 
-            Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
-
-            // Точка попадания у картинки своя (у ладони — между пальцами), а положение рисуемой руки
-            // задаётся её точкой опоры: переводим одну в другую. Отсчёт точки попадания идёт сверху, у
-            // точки опоры — снизу.
-            Vector2 pivot = new Vector2(
-                HandCursor.OpenHotspot.x / texture.width,
-                1f - HandCursor.OpenHotspot.y / texture.height);
-
-            InputSource.BeginScript(
-                sprite,
-                new Vector2(texture.width, texture.height) * POINTER_SCALE,
-                pivot,
-                new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0));
+            // Указатель ждёт в середине кадра: оттуда идёт первое ведение, и путь руки к цели виден
+            // зрителю целиком. Самой руки в кадре пока нет — её показывает ведение.
+            InputSource.BeginScript(new Vector3(Screen.width * 0.5f, Screen.height * 0.5f, 0));
 
             pointerInput = module.gameObject.AddComponent<ScenarioPointerInput>();
             savedOverride = module.inputOverride;
@@ -194,6 +268,14 @@ namespace Mmogick.VideoRig
 
         private IEnumerator Do(ShootAction action)
         {
+            // Ожидание перехода — единственный шаг, осмысленный при поднятой панели загрузки: её снятия он
+            // и ждёт. Общее условие шага панель отбивает целиком, потому у этого шага своё — оно внутри.
+            if (action.@do == "wait_map")
+            {
+                yield return WaitMap(action);
+                yield break;
+            }
+
             if (!Ready(action))
                 yield break;
 
@@ -202,7 +284,7 @@ namespace Mmogick.VideoRig
                 case "wait":
                     if (action.seconds <= 0)
                     {
-                        Fail("действие wait без длительности");
+                        Fail("не задана длительность");
                         yield break;
                     }
 
@@ -212,7 +294,7 @@ namespace Mmogick.VideoRig
                 case "pointer":
                     if (!HasTarget(action))
                     {
-                        Fail("действие pointer без цели");
+                        Fail("цель не задана");
                         yield break;
                     }
 
@@ -251,7 +333,7 @@ namespace Mmogick.VideoRig
                     break;
 
                 default:
-                    Fail("неизвестное действие сценария: " + action.@do);
+                    Fail("вид действия сценарию неизвестен");
                     break;
             }
         }
@@ -262,6 +344,16 @@ namespace Mmogick.VideoRig
 
             if (!TryTarget(action, out to))
                 yield break;
+
+            // Рука появляется в кадре ровно у тех действий, что ею пользуются: ведение к цели и нажатие по
+            // цели, которое с того же ведения начинается. Пауза, ходьба по направлению и нажатие без цели
+            // идут без указателя — зритель смотрит игру, а не сеанс работы за компьютером. Снимает руку
+            // прогон по концу действия (Play).
+            if (!InputSource.ShowPointer(POINTER_SCALE))
+            {
+                Fail("не нашлась картинка указателя");
+                yield break;
+            }
 
             Vector3 from = InputSource.MousePosition;
             float seconds = action.seconds > 0 ? action.seconds : POINTER_SECONDS;
@@ -294,13 +386,97 @@ namespace Mmogick.VideoRig
             yield return null;
         }
 
+        /// <summary>
+        /// Дождаться, пока мир снова готов принимать действия после перехода дверью. Дверь уводит на карту,
+        /// которой у клиента ещё нет: сервер поднимает панель загрузки на несколько секунд, и всякий
+        /// следующий шаг сценария на ней отбивается (<see cref="Ready"/>) — без этого шага сам переход в
+        /// кадр не снять.
+        ///
+        /// Ждём ГОТОВНОСТИ мира, а не факта смены карты: дверь срабатывает от шага НА её клетку, и переход
+        /// случается посреди предыдущего действия — ходьбы. К началу этого шага карта бывает уже сменена, и
+        /// условие «дождись смены» ждало бы второго перехода, которого сценарий не заказывал. Готовность
+        /// спрашиваем тем же составом, что вход в сценарий (<see cref="WaitWorld"/>): панель снята,
+        /// персонаж и камера на месте.
+        ///
+        /// Обратный случай — переход ещё не начался: сервер отвечает на дверь не в тот же кадр, готовым
+        /// стоит мир ПРЕЖНЕЙ карты, и шаг прошёл бы мгновенно. От этого держится окно <see cref="MAP_GRACE"/>:
+        /// в нём шаг ждёт самого перехода — панели загрузки либо смены карты под персонажем.
+        ///
+        /// Переход бесшовной границей открытого мира идёт тем же шагом: карта меняется и там, а панели
+        /// просто не бывает — ждать её незачем.
+        /// </summary>
+        private IEnumerator WaitMap(ShootAction action)
+        {
+            PlayerModel player = PlayerController.Player;
+
+            // Персонажа в мире нет — переход уже идёт: на смене карты его объект пересоздают, и между
+            // старым и новым он отсутствует. Прежней карты у такого шага нет (null), признака перехода ждать
+            // незачем — сразу ждём готовности.
+            int? from = player?.map;
+            float limit = action.seconds > 0 ? action.seconds : MAP_TIMEOUT;
+            float deadline = Time.realtimeSinceStartup + limit;
+            float grace = Time.realtimeSinceStartup + MAP_GRACE;
+
+            while (from != null && Time.realtimeSinceStartup < grace && !LoadingScreen.IsShown
+                && PlayerController.Player != null && PlayerController.Player.map == from)
+                yield return null;
+
+            // Признака перехода не появилось вовсе: персонаж не дошёл до клетки двери либо шаг стоит не за
+            // тем действием. Молча пропустить нельзя — сцена снялась бы без того, ради чего её и снимают.
+            if (from != null && !LoadingScreen.IsShown
+                && PlayerController.Player != null && PlayerController.Player.map == from)
+            {
+                Fail("перехода не случилось за " + MAP_GRACE + " с: персонаж остался на карте " + from
+                    + " — до клетки двери он не дошёл либо шаг стоит не за тем действием");
+                yield break;
+            }
+
+            while (LoadingScreen.IsShown || PlayerController.Player == null || Camera.main == null)
+            {
+                if (Time.realtimeSinceStartup > deadline)
+                {
+                    Fail("мир не пришёл в готовность за " + limit + " с после перехода");
+                    yield break;
+                }
+
+                yield return null;
+            }
+
+            Reattach();
+        }
+
+        /// <summary>
+        /// Перевесить перехват ввода на модуль ТЕКУЩЕЙ сцены. Переход дверью грузит игровую сцену заново —
+        /// у панели загрузки это отдельная ступень, — и EventSystem вместе с модулем ввода пересоздаётся:
+        /// перехват, поставленный на прежний модуль, уходит с ним, а нажатия сценария по интерфейсу
+        /// перестают доходить. Молча: нажатия по МИРУ идут не через модуль и работать продолжают, потому
+        /// сцена снимается «почти правильно» — окно, которое должно было открыться, просто не появляется.
+        ///
+        /// Прежний модуль уничтожен вместе со сценой, снимать с него перехват нечем и незачем; ввод,
+        /// который стоял на новом модуле до нас, запоминаем — его вернёт <see cref="Detach"/>.
+        /// </summary>
+        private void Reattach()
+        {
+            BaseInputModule fresh = EventSystem.current != null ? EventSystem.current.currentInputModule : null;
+
+            if (fresh == null || fresh == module)
+                return;
+
+            module = fresh;
+            savedOverride = fresh.inputOverride;
+            pointerInput = fresh.gameObject.AddComponent<ScenarioPointerInput>();
+            fresh.inputOverride = pointerInput;
+
+            Debug.Log("VideoRig: перехват ввода перевешен на модуль новой сцены");
+        }
+
         private IEnumerator WalkDirection(ShootAction action)
         {
             Vector2 direction = new Vector2(action.x, action.y);
 
             if (direction.sqrMagnitude < 0.0001f || action.seconds <= 0)
             {
-                Fail("действие walk_dir без направления либо без длительности");
+                Fail("не задано направление либо длительность");
                 yield break;
             }
 
@@ -435,7 +611,7 @@ namespace Mmogick.VideoRig
 
             if (declared != 1)
             {
-                Fail("у действия " + action.@do + " объявлено целей: " + declared + ", а должна быть ровно одна");
+                Fail("объявлено целей: " + declared + ", а должна быть ровно одна");
                 return false;
             }
 
@@ -443,7 +619,7 @@ namespace Mmogick.VideoRig
             {
                 if (action.screen.Length != 2)
                 {
-                    Fail("цель screen задаётся парой чисел");
+                    Fail("точка кадра задаётся парой чисел");
                     return false;
                 }
 
@@ -460,7 +636,7 @@ namespace Mmogick.VideoRig
 
             if (!OnScreen(point))
             {
-                Fail("цель действия " + action.@do + " лежит вне кадра: " + point);
+                Fail("цель лежит вне кадра: " + point);
                 return false;
             }
 
@@ -484,7 +660,7 @@ namespace Mmogick.VideoRig
 
                 if (found != null)
                 {
-                    Fail("объектов интерфейса " + name + " на экране несколько — целиться не во что");
+                    Fail("объектов интерфейса с таким именем на экране несколько — целиться не во что");
                     return false;
                 }
 
@@ -493,7 +669,7 @@ namespace Mmogick.VideoRig
 
             if (found == null)
             {
-                Fail("на экране нет объекта интерфейса " + name);
+                Fail("такого объекта интерфейса на экране нет");
                 return false;
             }
 
@@ -528,7 +704,7 @@ namespace Mmogick.VideoRig
                 return TryRect((RectTransform)bar.transform, out point);
             }
 
-            Fail("на панели быстрых действий нет слота " + num);
+            Fail("такого слота на панели быстрых действий нет");
             return false;
         }
 
@@ -554,7 +730,7 @@ namespace Mmogick.VideoRig
 
             if (cell.Length != 2)
             {
-                Fail("цель map задаётся парой чисел");
+                Fail("клетка карты задаётся парой чисел");
                 return false;
             }
 
@@ -620,7 +796,7 @@ namespace Mmogick.VideoRig
 
                 if (found == null)
                 {
-                    Fail("в мире нет сущности с ключом " + key);
+                    Fail("сущности с таким ключом в мире нет");
                     return false;
                 }
             }
@@ -648,24 +824,128 @@ namespace Mmogick.VideoRig
             return point.x >= 0 && point.y >= 0 && point.x <= UnityEngine.Screen.width && point.y <= UnityEngine.Screen.height;
         }
 
+        /// <summary>
+        /// Отказ прогона. Текст называет МЕСТО в сценарии — ход прогона плюс шаг с его объявленной целью, —
+        /// и лишь затем причину: по одной причине место не восстановить, а по одной экранной точке разбор
+        /// сводится к гаданию, какая сцена и куда целилась. Состав одинаков у каждого отказа: разбор не
+        /// должен зависеть от того, на какой проверке упало.
+        /// </summary>
         private void Fail(string message)
         {
-            failure = message;
-            Debug.LogError("VideoRig: " + message);
+            string place = Status;
+
+            if (step != null)
+            {
+                // Цель объявляется ровно одним полем (TryTarget), потому в место идёт первое непустое;
+                // шаг без цели (пауза, ходьба по направлению) называется одним своим видом.
+                string target = step.screen != null ? " screen [" + string.Join(",", step.screen) + "]"
+                    : step.ui != null ? " ui " + step.ui
+                    : step.bar > 0 ? " bar " + step.bar
+                    : step.map != null ? " map [" + string.Join(",", step.map) + "]"
+                    : step.entity != null ? " entity " + step.entity
+                    : "";
+
+                place += ", шаг " + step.@do + target;
+            }
+
+            failure = place + " — " + message;
+            Debug.LogError("VideoRig: " + failure);
+        }
+
+        /// <summary>
+        /// Снять фрагменты отказавшего прогона: материал с обрывом посреди действия негоден весь, а
+        /// сборщик ролика берёт из каталога вывода всё, что там лежит, — оставленный файл уехал бы в ролик.
+        /// Снимаются РОВНО свои фрагменты, поимённо: в том же каталоге лежат фрагменты прошлых прогонов, и
+        /// маска по каталогу забрала бы их вместе со своими.
+        ///
+        /// Зовётся после остановки записи: поток файла пакет закрывает прямо в ней и файл отпускает, а
+        /// удерживаемый им файл не снять.
+        /// </summary>
+        private void Discard()
+        {
+            // Фрагмент, который писался в момент отказа либо обрыва, в перечень снятых ещё не попал, а на
+            // диске уже лежит — сборщику ролика он неотличим от годного.
+            if (fragment != null)
+            {
+                Files.Add(fragment);
+                fragment = null;
+            }
+
+            foreach (string file in Files)
+            {
+                try
+                {
+                    if (File.Exists(file))
+                        File.Delete(file);
+                }
+                catch (Exception ex)
+                {
+                    // Фрагмент остался лежать у сборщика — это тяжелее самого отказа прогона: без этой
+                    // строки брак ушёл бы в ролик молча.
+                    Debug.LogException(ex);
+                    failure += "; фрагмент " + file + " остался в каталоге вывода: " + ex.Message;
+                }
+            }
+
+            Files = new List<string>();
         }
 
         private void Finish()
         {
+            // Регистрацию снимает только СВОЙ прогон: запуск второго поверх недоигравшего первого
+            // перевешивает её на себя, и чужое завершение оставило бы обрыв нового без сноса.
+            if (current == this)
+                current = null;
+
             recorder.End();
             Detach();
 
+            int shot = Files.Count;
+
+            if (failure != null)
+                Discard();
+
             Status = failure == null
-                ? "готово, снято сцен: " + Files.Count
-                : "отказ: " + failure + " (снято до отказа: " + Files.Count + ")";
+                ? "готово, снято сцен: " + shot
+                : "отказ: " + failure + " (снятое удалено, фрагментов: " + shot + ")";
 
             Debug.Log("VideoRig: " + Status);
 
             UnityEngine.Object.Destroy(host);
+
+            // Отказ прогона — ошибка игры: игровой канал копит текст, закрывает соединение и следующим
+            // кадром уводит на экран входа, где текст и показывается. Ставится последним: после него
+            // прогону делать нечего, а состояние, на котором он оборван, канал уже признал негодным.
+            if (failure != null)
+                ConnectController.Error("VideoRig: " + failure);
+        }
+
+        /// <summary>
+        /// Снять оборванный прогон: игру остановили посреди съёмки — руками, пересборкой кода либо закрытием
+        /// редактора. Корутина умирает вместе с игрой, <see cref="Finish"/> не отрабатывает, и фрагменты
+        /// обрыва уехали бы к сборщику ролика наравне с годными.
+        ///
+        /// Запись останавливаем сами: поток файла пакет закрывает прямо в остановке, потому снимать
+        /// фрагменты сразу за ней безопасно. Игровым каналом ошибку не поднимаем — игры, которой её
+        /// показывать, уже нет.
+        /// </summary>
+        internal static void Abort()
+        {
+            if (current == null)
+                return;
+
+            ScenarioRunner run = current;
+            current = null;
+
+            run.recorder.End();
+
+            int shot = Files.Count + (run.fragment != null ? 1 : 0);
+
+            run.failure = "игру остановили посреди съёмки";
+            run.Discard();
+
+            Status = "обрыв: " + run.failure + " (снятое удалено, фрагментов: " + shot + ")";
+            Debug.Log("VideoRig: " + Status);
         }
     }
 }

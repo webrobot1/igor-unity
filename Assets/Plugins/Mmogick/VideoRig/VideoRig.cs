@@ -13,14 +13,21 @@ namespace Mmogick.VideoRig
     /// Порядок прогона: войти в игру обычным путём (Play Mode, кнопка «Войти»), затем позвать
     /// <see cref="Run"/>. Ждать загрузки мира не нужно — прогон ждёт его сам.
     ///
-    /// Каталог вывода — параметр. Пакет записи пишет только по локальному пути Windows: сетевое имя чужой
-    /// файловой системы он молча проглатывает, не создав файла и ничего не сказав, — поэтому фрагменты
-    /// пишутся в локальный каталог, а к сборщику ролика их переносит тот, кто прогон запустил.
+    /// Сценарий и каталог вывода — параметры; штатно оба лежат в каталоге ролика на сервере, куда Windows
+    /// ходит буквой диска, назначенной файловой системе WSL. Только буквой: сетевое имя `\\сервер\...`
+    /// сборщик пути пакета записи схлопывает до пути без диска (двойной разделитель в начале сжимает в
+    /// один), файл уходит в корень текущего диска, и ошибки при этом не приходит.
     /// </summary>
     public static class VideoRig
     {
-        /// <summary>Куда пишутся фрагменты, когда запускающий не назвал каталог.</summary>
-        private const string DEFAULT_OUTPUT = "C:/Temp/mmogick-video";
+        /// <summary>
+        /// Запасной каталог фрагментов, когда запускающий не назвал каталог: `Temp/` проекта. Он под игнором
+        /// git, а редактор очищает его при своём закрытии — снятое туда забирать до выхода из редактора.
+        /// </summary>
+        private static string DefaultOutput
+        {
+            get { return Path.Combine(Path.GetDirectoryName(Application.dataPath), "Temp", "mmogick-video"); }
+        }
 
         /// <summary>Ход последнего прогона и снятые им фрагменты — их опрашивает запускающий.</summary>
         public static string Status
@@ -34,8 +41,10 @@ namespace Mmogick.VideoRig
         }
 
         /// <summary>
-        /// Запустить сценарий. <paramref name="outputDir"/> пуст — каталог собирается из
-        /// <see cref="DEFAULT_OUTPUT"/> и имени сценария.
+        /// Запустить сценарий. Штатный <paramref name="outputDir"/> — каталог кадров ролика на сервере
+        /// (`shots/` в каталоге ролика) через букву диска файловой системы WSL: фрагменты ложатся к
+        /// сборщику ролика сразу. Пуст — каталог собирается из <see cref="DefaultOutput"/> и имени файла
+        /// сценария.
         /// </summary>
         public static string Run(string scenarioPath, string outputDir = null)
         {
@@ -44,8 +53,11 @@ namespace Mmogick.VideoRig
 
             ShootScenario scenario = ShootScenario.Load(scenarioPath);
 
+            // Сценарий зовётся именем своего файла: собственного имени документ не несёт.
+            string name = Path.GetFileNameWithoutExtension(scenarioPath);
+
             if (string.IsNullOrEmpty(outputDir))
-                outputDir = Path.Combine(DEFAULT_OUTPUT, scenario.name ?? Path.GetFileNameWithoutExtension(scenarioPath));
+                outputDir = Path.Combine(DefaultOutput, name);
 
             outputDir = outputDir.Replace('\\', '/');
 
@@ -62,7 +74,7 @@ namespace Mmogick.VideoRig
             ScenarioHost behaviour = host.AddComponent<ScenarioHost>();
             behaviour.StartCoroutine(new ScenarioRunner(scenario, outputDir, host).Play());
 
-            return "сценарий " + scenario.name + ": сцен " + scenario.scenes.Count + ", вывод " + outputDir;
+            return "сценарий " + name + ": сцен " + scenario.scenes.Count + ", вывод " + outputDir;
         }
 
         /// <summary>
@@ -70,16 +82,22 @@ namespace Mmogick.VideoRig
         /// состояние, а домен между запусками игры в этом проекте не перезагружается: оставшийся от
         /// прерванного прогона перехват сделал бы игру неуправляемой мышью, и причина этого была бы не
         /// видна ниоткуда.
+        ///
+        /// Тем же выходом снимается и материал прогона, оборванного на полпути: прогон живёт корутиной
+        /// внутри игры и об её остановке не узнаёт вовсе.
         /// </summary>
         [InitializeOnLoadMethod]
-        private static void ReleaseInput()
+        private static void ReleaseRun()
         {
             InputSource.EndScript();
 
             EditorApplication.playModeStateChanged += state =>
             {
-                if (state == PlayModeStateChange.ExitingPlayMode)
-                    InputSource.EndScript();
+                if (state != PlayModeStateChange.ExitingPlayMode)
+                    return;
+
+                InputSource.EndScript();
+                ScenarioRunner.Abort();
             };
         }
     }

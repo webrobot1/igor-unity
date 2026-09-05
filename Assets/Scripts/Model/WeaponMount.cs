@@ -19,17 +19,14 @@ namespace Mmogick
     // («точка присутствует в кадре»): ракурс скелет переключает тем, что кожа одного ракурса надета в свои
     // слоты, а прочие пусты. Кость якоря своих слотов не несёт — она РОДИТЕЛЬ костей, на которых висит кожа
     // ракурса, потому якорь ищется по её ПОДДЕРЕВУ.
+    // Активного якоря в кадре нет — предмет не рисуется вовсе: ракурс, которого в этом кадре не видно,
+    // предмета не несёт. То же правило держит страничный проигрыватель скелета (spine-pose-bridge.js).
     public class WeaponMount : MonoBehaviour
     {
-        private const float Ppu = 100f;          // как в AnimationCacheService.GetSprite
-
-        // Доля роста НОСИТЕЛЯ, которую занимает надетый предмет по своей длинной стороне при scale слота = 1.
-        // Доля берётся от РОСТА носителя, а не от клетки: тело нормируется к высоте, которую объявил
-        // сервер (VisualBuilder.Fit), и у сущности со своим размером она клетке не равна. Размер надетого предмета — величина, задаваемая ЗДЕСЬ, а не разрешением
-        // исходника: без нормализации предмет получал бы размер своего PNG в масштабе скелета (400px-меч ≈ рост
-        // персонажа, 574px-посох — полтора роста). Тонкая подгонка под конкретный слот/скелет — множитель scale
-        // слота (сервер).
-        private const float MountSpan = 0.6f;
+        // Пикселей графики на единицу спрайта (как в AnimationCacheService.GetSprite). Той же величиной
+        // масштабируется кусок предмета: единица скелета в наших пакетах — ПИКСЕЛЬ графики, а кусок собран
+        // из спрайта с этим Ppu, потому натуральный размер картинки в скелете требует ровно такой поправки.
+        private const float Ppu = 100f;
 
         // Порог пересчёта вершин куска на скелете: RegionAttachment.UpdateSequence аллоцирует массивы вершин
         // и UV, а посадка предмета пересчитывается каждый кадр. Ниже порога изменение неразличимо на глаз, и
@@ -50,7 +47,6 @@ namespace Mmogick
         {
             public int angle;
             public Sprite grip;      // создаётся в Apply, освобождается в Release
-            public float span;       // длинная сторона видимых пикселей исходника, мировые юниты при scale=1
 
             // Кусок для слота-держателя и его материал. Материал свой, потому что текстура предмета атласу
             // скелета не принадлежит; шейдер — тот же, каким SpineCacheService собирает страницы атласа
@@ -71,7 +67,6 @@ namespace Mmogick
 
             public SpineCacheService.SlotAnchor[] anchors;
             public Slot[] holders;       // держатели якорей, по индексам anchors; null — держателя нет
-            public int fallback = -1;    // индекс якоря с первым существующим держателем; -1 — ставить некуда
             public bool tried;
             public SkeletonAnimation skeleton;    // скелет, под который якоря резолвили: сменился — резолвим заново
             public Slot holder;                   // держатель, в котором сейчас стоит кусок
@@ -139,10 +134,8 @@ namespace Mmogick
         // выбирается по ракурсу тела), rotationMode — AnimationCacheService.RotationMode.* (mirror_x
         // добавляет зеркальных кандидатов). Якоря слота резолвятся отложенно (SpineAnchors).
         // Grip-спрайты (pivot = хват, 0..1, центр вращения) пересоздаются из текстур исходников один раз
-        // здесь — не покадрово (Sprite.Create аллоцирует). Здесь же замеряется span варианта: у grip-спрайта
-        // меш FullRect (прозрачные поля включены), поэтому видимые пиксели меряем по ИСХОДНИКУ из кеша — он
-        // создан с мешом Tight, и tight-rect у него честный (тем же замером нормализуется предмет на земле).
-        // Масштаб под span и рост носителя считает покадровая посадка — он зависит от активного якоря и варианта.
+        // здесь — не покадрово (Sprite.Create аллоцирует). Меш у них FullRect: кусок несёт картинку целиком,
+        // как её нарисовал художник, — прозрачные поля входят в размер наравне с рисунком.
         private void Apply(string slot, VariantSource[] variants, string rotationMode)
         {
             Detach(slot);   // пересоздаём с нуля: освобождает прежние grip-спрайты (набор мог измениться)
@@ -161,15 +154,11 @@ namespace Mmogick
             for (int i = 0; i < variants.Length; i++)
             {
                 Texture2D tex = variants[i].sprite.texture;
-                Vector2 visible = AnimationCacheService.TryGetTightRect(variants[i].sprite, out Rect tight)
-                    ? tight.size
-                    : variants[i].sprite.bounds.size;
                 var v = new Variant
                 {
                     angle = variants[i].angle,
                     grip = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height),
                         new Vector2(variants[i].pivotX, variants[i].pivotY), Ppu, 0, SpriteMeshType.FullRect),
-                    span = Mathf.Max(visible.x, visible.y),
                 };
                 // Кусок скелета берёт pivot спрайта своим началом координат (Sprite.ToAtlasRegion кладёт
                 // его в offsetX/offsetY региона): доворот и зеркало идут вокруг ХВАТА, отдельной
@@ -300,22 +289,19 @@ namespace Mmogick
             Skeleton skeleton = renderer != null ? renderer.Skeleton : null;
             if (skeleton == null) return;
 
-            // Мировых единиц на единицу скелета: тело нормировано в клетку масштабом своего объекта
-            // (VisualBuilder.Fit), и предмет считает свой размер в тех же единицах. Знак X — зеркало
-            // тела: корень сущности флипает себя при смене направления, скелет наследует флип.
+            // Знак X — зеркало тела: корень сущности флипает себя при смене направления, скелет наследует
+            // флип, и вариант картинки выбирается уже с учётом этого (PickVariant).
             Transform t = renderer.Component != null ? renderer.Component.transform : null;
-            float unit = t != null ? Mathf.Abs(t.lossyScale.y) : 1f;
-            if (unit < 0.0001f) unit = 1f;
             bool mirrored = t != null && t.lossyScale.x < 0f;
 
             _holderSlots ??= HolderSlots(skeleton);
 
             foreach (Mounted m in _slots.Values)
-                MountPiece(m, skeleton, unit, mirrored);
+                MountPiece(m, skeleton, mirrored);
         }
 
         // Посадка куска предмета в слот-держатель скелета — раз в кадр на каждый надетый предмет.
-        private void MountPiece(Mounted m, Skeleton skeleton, float unit, bool mirrored)
+        private void MountPiece(Mounted m, Skeleton skeleton, bool mirrored)
         {
             // Скелет сменился — прежние якоря, держатели и посадка кусков принадлежали ему.
             if (!ReferenceEquals(m.skeleton, _skel))
@@ -323,7 +309,6 @@ namespace Mmogick
                 m.skeleton = _skel;
                 m.anchors = null;
                 m.holders = null;
-                m.fallback = -1;
                 m.tried = false;
                 m.holder = null;
                 if (m.variants != null)
@@ -333,7 +318,8 @@ namespace Mmogick
             // Скелет на сущности есть — значит его пакет уже лежит на диске (им скелет и собран), и якоря
             // читаются с первой попытки. Повторять резолв незачем: следующий повод — смена скелета выше.
             // Держатели резолвим тем же разом: поиск слота по имени идёт перебором всего перечня, а
-            // покадрово нужен сам слот, не его имя.
+            // покадрово нужен сам слот, не его имя. Ни один держатель в скелете не нашёлся — слот остаётся
+            // нерезолвнутым: ставить кусок некуда, и покадровый поиск активного якоря такому слоту не нужен.
             if (!m.tried)
             {
                 m.tried = true;
@@ -341,18 +327,19 @@ namespace Mmogick
                 if (slots != null && slots.TryGetValue(m.slot, out List<SpineCacheService.SlotAnchor> anchors)
                     && anchors != null && anchors.Count > 0)
                 {
-                    m.anchors = anchors.ToArray();
-                    m.holders = new Slot[m.anchors.Length];
-                    for (int i = 0; i < m.anchors.Length; i++)
+                    var holders = new Slot[anchors.Count];
+                    bool any = false;
+                    for (int i = 0; i < anchors.Count; i++)
                     {
-                        string name = m.anchors[i].holder;
+                        string name = anchors[i].holder;
                         if (string.IsNullOrEmpty(name)) continue;   // якорь без держателя: ставить кусок некуда
-                        m.holders[i] = skeleton.FindSlot(name);
-                        if (m.holders[i] != null && m.fallback < 0) m.fallback = i;
+                        holders[i] = skeleton.FindSlot(name);
+                        any |= holders[i] != null;
                     }
+                    if (any) { m.anchors = anchors.ToArray(); m.holders = holders; }
                 }
             }
-            if (m.anchors == null || m.fallback < 0) { ClearHolder(m); return; }
+            if (m.anchors == null) { ClearHolder(m); return; }
 
             // Активный якорь — тот, в чьём ПОДДЕРЕВЕ костей висит надетая в этом кадре кожа: так скелет и
             // показывает ракурс — кожа одного ракурса надета, слоты прочих пусты. Поддерево, а не сама
@@ -360,7 +347,8 @@ namespace Mmogick
             // Держатели экипировки перебор пропускает: они не кожа, а место куска надетого предмета, и
             // сидят на кости СВОЕГО якоря — занятый держатель опознавался бы кожей своего же ракурса, и
             // предмет навсегда оставался бы на якоре, выбранном в первом кадре.
-            // Ни одной такой — запасной якорь: у скелета без ракурсов выбирать не из чего.
+            // Ни одной такой — предмет в этом кадре не рисуется: клип, нарисованный вне костей ракурсов,
+            // активного якоря не даёт вовсе.
             int idx = -1;
             foreach (Slot dressed in skeleton.Slots)
             {
@@ -368,7 +356,7 @@ namespace Mmogick
                 idx = AnchorOf(m.holders, dressed.Bone);
                 if (idx >= 0) break;
             }
-            if (idx < 0) idx = m.fallback;
+            if (idx < 0) { ClearHolder(m); return; }
 
             SpineCacheService.SlotAnchor pick = m.anchors[idx];
             Slot holder = m.holders[idx];
@@ -377,17 +365,12 @@ namespace Mmogick
             Variant variant = m.variants[vi];
             if (variant.piece == null) { ClearHolder(m); return; }
 
-            BonePose bone = holder.Bone.AppliedPose;
-
-            // Размер в руке НОРМИРУЕМ: длинная сторона видимых пикселей предмета = MountSpan × scale
-            // якоря от роста носителя. Кусок живёт в системе координат
-            // кости и унаследовал бы и масштаб тела (unit), и масштаб самой кости, — размер получался бы не
-            // из данных, а из разрешения PNG и того, что анимация делает с рукой. Потому делим на оба.
-            float boneScale = (bone.WorldScaleX + bone.WorldScaleY) * 0.5f;
-            if (boneScale < 0.0001f) boneScale = 1f;
-            float s = variant.span > 0.0001f
-                ? MountSpan * pick.scale / (variant.span * boneScale * unit)
-                : pick.scale;
+            // Кусок рисуется в НАТУРАЛЬНУЮ величину своей картинки: сколько в ней пикселей, столько единиц
+            // скелета он и занимает. Поправка одна — Ppu: кусок собран из спрайта, где пиксели поделены на
+            // Ppu (Apply), а единица скелета есть пиксель. Ни масштаб тела, ни масштаб кости отсюда не
+            // вычитаются: предмет живёт внутри скелета и тянется вместе с ним и с рукой, как части тела.
+            // Подгонку под конкретный слот и скелет задаёт множитель scale якоря (сервер).
+            float s = Ppu * pick.scale;
             float sx = flip ? -s : s;   // зеркало вокруг pivot'а (хвата) — рукоять остаётся на кости
 
             // Предмет следует за костью: нарисованное направление варианта нормализуется к канону
@@ -401,8 +384,8 @@ namespace Mmogick
             {
                 variant.piece.SetScale(sx, s);
                 // Сдвиг от кости задан в пикселях исходной графики, и скелет записан в них же — единица
-                // скелета есть пиксель, потому сдвиг кладётся как есть: к мировым единицам его приводит
-                // масштаб объекта скелета, нормирующий тело в клетку.
+                // скелета есть пиксель, потому сдвиг кладётся как есть: к мировым единицам его, как и сам
+                // кусок, приводит масштаб объекта скелета.
                 variant.piece.SetPositionOffset(pick.offsetX, pick.offsetY);
                 variant.piece.SetRotation(rot);
                 variant.piece.UpdateSequence();
@@ -429,8 +412,9 @@ namespace Mmogick
             return -1;
         }
 
-        // Снять кусок с держателя: якорей не нашлось, держателя в скелете нет, активный якорь сменился на
-        // другую кость, предмет снят. Держатели у сервера пустые — чужого в них не бывает.
+        // Снять кусок с держателя: якорей не нашлось, держателя в скелете нет, в этом кадре не активен ни
+        // один якорь слота, активный якорь сменился на другую кость, предмет снят. Держатели у сервера
+        // пустые — чужого в них не бывает.
         private static void ClearHolder(Mounted m)
         {
             if (m.holder != null) m.holder.Pose.Attachment = null;

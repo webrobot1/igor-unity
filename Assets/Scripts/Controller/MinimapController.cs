@@ -18,9 +18,21 @@ namespace Mmogick
     ///
     /// Маркеры сущностей — UI-точки поверх (<see cref="entityMarkerPrefab"/>), позиция считается как
     /// разница МИРОВЫХ позиций (сущность − игрок) × масштаб. Фон и точки живут в одном масштабе: обоим
-    /// половина стороны панели соответствует охвату радара, потому точка над сущностью ложится ровно туда
-    /// же, где сущность видна в основном окне относительно игрока. Тем же порядком показаны переходы на
-    /// другие карты — они не сущности, а разметка самой карты (<see cref="DrawWarps"/>).
+    /// половина стороны панели соответствует РАДИУСУ ЖИЗНИ игрока (<see cref="EntityModel.lifeRadius"/>),
+    /// потому точка над сущностью ложится ровно туда же, где сущность видна в основном окне относительно
+    /// игрока. Тем же порядком показаны переходы на другие карты — они не сущности, а разметка самой карты
+    /// (<see cref="DrawWarps"/>).
+    ///
+    /// Охват берётся именно из радиуса жизни, а не из обзора камеры: за этим радиусом сервер механик не
+    /// считает — сущности там стоят на последнем присланном положении. Прежде радар считался от камеры и
+    /// оттого был вдвое шире жизни при любой настройке обзора — три четверти его площади показывали
+    /// застывших. Теперь наоборот: камера показывает половину радиуса жизни (CameraController), и радар
+    /// заведомо шире экрана — иначе он лишь повторял бы видимое.
+    ///
+    /// Панель КВАДРАТНАЯ, и это не украшение: сервер оживляет квадрат клеток вокруг живой сущности —
+    /// обходит матрицу позиций по обеим осям в пределах радиуса (World::filter). Половина стороны панели
+    /// равна радиусу жизни, потому её углы совпадают с углами этой зоны, а существа в них живые наравне
+    /// с теми, кто рядом. Круглый радар обрезал бы именно их.
     /// </summary>
     abstract public class MinimapController : PlayerController
     {
@@ -45,10 +57,6 @@ namespace Mmogick
         [SerializeField]
         private GameObject minimapMapPrefab;
 
-        /// <summary>Основная игровая камера — источник охвата радара (его orthographicSize может меняться в рантайме).</summary>
-        [SerializeField]
-        private Camera mainCamera;
-
         /// <summary>Квадратный контейнер точек-маркеров, наложенный ровно на RawImage (тот же размер).</summary>
         [SerializeField]
         private RectTransform markerArea;
@@ -69,14 +77,6 @@ namespace Mmogick
         [SerializeField]
         private Text mapNameLabel;
 
-        /// <summary>
-        /// Множитель охвата радара относительно основной камеры: minimapSize = mainCamera.size × factor.
-        /// Дефолт 2 — радар видит вдвое дальше по стороне (площадь ∝ size², т.е. вчетверо по площади).
-        /// Подбирается в инспекторе.
-        /// </summary>
-        [SerializeField]
-        private float minimapZoomFactor = 2f;
-
         /// <summary>Сторона текстуры метки игрока — общей у радара и обзорной карты.</summary>
         private const int MARKER_TEXTURE_SIZE = 32;
 
@@ -89,10 +89,15 @@ namespace Mmogick
         /// отмечает место на карте, а не наклеена поверх неё.
         ///
         /// Значение выведено из прежнего размера метки радара: точка держалась в сцене размером 10.4
-        /// пикселя панели, а при фактическом охвате радара на клетку приходится 5.88 пикселя панели —
-        /// частное этих двух чисел и стоит здесь, отчего вид радара и остался прежним. Охват задают
-        /// <see cref="minimapZoomFactor"/> и обзор камеры, а обзор камеры считается из присланного
-        /// сервером радиуса жизни игрока и соотношения сторон экрана (см. CameraController).
+        /// пикселя панели, а при тогдашнем охвате радара на клетку приходилось 5.88 пикселя панели —
+        /// частное этих двух чисел и стоит здесь.
+        ///
+        /// Под уменьшение радара его не пересчитывают, хотя соблазн есть: радар с переходом на радиус
+        /// жизни стал вдвое ближе, клетка на панели выросла вдвое, и точки вместе с ней. Число общее с
+        /// обзорной картой мира, а её масштаб прежний — там клетка занимает около полутора пикселей окна,
+        /// и всякое уменьшение делает метки неразличимыми (проверено: при значении 1 метки обзорной карты
+        /// вышли по 1.6 пикселя, метка игрока — 2.4). Крупная точка радара при этом не врёт: она
+        /// показывает, что сущность стоит на соседней клетке, — метки соседей и должны соприкасаться.
         /// </summary>
         protected const float MARKER_TILES = 1.768f;
 
@@ -132,12 +137,6 @@ namespace Mmogick
             if (minimapMapPrefab == null)
             {
                 Error("Мини-карта: не присвоен префаб картинки карты minimapMapPrefab");
-                return;
-            }
-
-            if (mainCamera == null)
-            {
-                Error("Мини-карта: не присвоена основная камера mainCamera");
                 return;
             }
 
@@ -303,14 +302,14 @@ namespace Mmogick
                 return;
             }
 
-            // Пикселей панели на клетку карты: половина стороны области соответствует охвату радара,
-            // а он привязан к основной камере (её размер меняется в рантайме — читаем каждый кадр).
+            // Пикселей панели на клетку карты: половина стороны области соответствует радиусу жизни игрока
+            // (он меняется в рантайме вместе с настройкой обзора — читаем каждый кадр). Нулевой радиус
+            // значит, что сервер ещё не прислал его: до этого фон не масштабируем.
             float halfPx = markerArea.rect.height * 0.5f;
-            if (halfPx <= 0f)
+            if (halfPx <= 0f || player.lifeRadius <= 0)
                 return;
 
-            float radius = mainCamera.orthographicSize * minimapZoomFactor;
-            float pixelsPerTile = halfPx / radius;
+            float pixelsPerTile = halfPx / player.lifeRadius;
 
             // Где игрок во всём мире: место его карты в раскладке плюс его клетка внутри неё. Раскладка
             // считает клетки картинок карт (ось Y вниз), потому позиция сцены переводится в тот же счёт
@@ -513,8 +512,11 @@ namespace Mmogick
             if (panelSize.x <= 0f || panelSize.y <= 0f)
                 return;   // layout ещё не посчитан (первый кадр) — пропускаем, отрисуем в следующем
 
+            if (player.lifeRadius <= 0)
+                return;   // радиус жизни ещё не пришёл с сервера — масштабировать не от чего
+
             System.Func<Vector3, Vector2> mapper;
-            float? cullRadius;
+            Vector2? cullHalfSize;
             float markerSize;
 
             if (current != null && !current.hasOpenworldPosition)
@@ -525,7 +527,8 @@ namespace Mmogick
                 // от левого верхнего угла панели, минус её половина — перевод в систему координат маркеров,
                 // где ноль есть центр markerArea). Клетку берём переводом MapImageCell: картинка считает
                 // клетки от своего угла, сцена — от середины клетки и от ног сущности. Радиуса отсечения
-                // нет: комната видна целиком, культить по кругу открытого мира здесь нечего.
+                // по панели нет: комната видна целиком, культить по кругу открытого мира здесь нечего —
+                // сущностей за границей жизни отсекает общая проверка ниже, она от масштаба не зависит.
                 mapper = worldPos =>
                 {
                     Vector2 cell = MapImageCell(worldPos);
@@ -535,7 +538,7 @@ namespace Mmogick
                          panelSize.y / 2f - cell.y / current.height * panelSize.y
                     );
                 };
-                cullRadius = null;
+                cullHalfSize = null;
 
                 // Точка круглая, а панель интерьера растянута по осям РАЗДЕЛЬНО — размер выводим от одного
                 // коэффициента, и взят коэффициент ВЫСОТЫ (пикселей панели на клетку комнаты по вертикали):
@@ -547,13 +550,16 @@ namespace Mmogick
             {
                 // Открытый мир: фон панорамируется вокруг игрока — тем же выражением, что и в
                 // UpdateMinimapMaps, иначе точки разъедутся с картинкой. Игрок неподвижен в центре, точки
-                // вне круга охвата радара гасятся. Считается РАЗНОСТЬ позиций сцены, потому перевод в
+                // вне круга панели гасятся (круг этот и есть радиус жизни: панель им же и масштабирована,
+                // потому отсечение по панели совпадает с общей проверкой границы жизни ниже, а держатся
+                // оба — панель отсекает и переходы карты, которым до жизни дела нет). Считается РАЗНОСТЬ
+                // позиций сцены, потому перевод в
                 // клетки картинки (MapImageCell) здесь не нужен: он сдвигает обе точки одинаково и в
                 // разности пропадает — с картинкой их совмещает сдвиг самого фона в UpdateMinimapMaps.
                 float halfPx = panelSize.y * 0.5f;
-                float pixelsPerUnit = halfPx / (mainCamera.orthographicSize * minimapZoomFactor);
+                float pixelsPerUnit = halfPx / player.lifeRadius;
                 mapper = worldPos => new Vector2(worldPos.x - playerPos.x, worldPos.y - playerPos.y) * pixelsPerUnit;
-                cullRadius = halfPx;
+                cullHalfSize = panelSize * 0.5f;
                 markerSize = MARKER_TILES * pixelsPerUnit;
             }
 
@@ -561,15 +567,15 @@ namespace Mmogick
                 playerMarker.gameObject.SetActive(true);
             ApplyPlayerMarker(playerMarker, player.prefab);
             playerMarker.rectTransform.anchoredPosition = mapper(playerPos);
-            // Размер меток радара считается здесь каждый кадр, а не берётся из сцены: охват камеры
+            // Размер меток радара считается здесь каждый кадр, а не берётся из сцены: радиус жизни
             // меняется в рантайме, и пиксель панели на клетку вместе с ним.
             float ownSize = markerSize * PLAYER_MARKER_SCALE;
             playerMarker.rectTransform.sizeDelta = new Vector2(ownSize, ownSize);
 
             // Переходы — первыми: точки берутся из пула по порядку, и ранние ложатся в иерархии ниже.
             // Существо, стоящее на переходе, должно быть видно поверх него, а не наоборот.
-            int used = DrawWarps(mapper, cullRadius, markerSize, 0);
-            used = DrawGates(mapper, cullRadius, markerSize, used);
+            int used = DrawWarps(mapper, cullHalfSize, markerSize, 0);
+            used = DrawGates(mapper, cullHalfSize, markerSize, used);
 
             foreach (Transform mapZone in worldObject.transform)
             {
@@ -589,8 +595,9 @@ namespace Mmogick
 
                     Vector2 markerPos = mapper(entityTransform.position);
 
-                    if (cullRadius.HasValue && markerPos.magnitude > cullRadius.Value)
-                        continue;   // вне круга радара — за границей видимой области
+                    if (cullHalfSize.HasValue
+                        && (Mathf.Abs(markerPos.x) > cullHalfSize.Value.x || Mathf.Abs(markerPos.y) > cullHalfSize.Value.y))
+                        continue;   // за краем панели
 
                     PlaceMarker(GetPooledMarker(used++), markerPos, MarkerSprite(color.Value), markerSize);
                 }
@@ -609,9 +616,9 @@ namespace Mmogick
         /// заводит. Обходятся все карты в сцене — соседние тоже видны на радаре, а переход у их края
         /// игроку нужен ровно затем, чтобы дойти до него. Перевод мировой позиции в пиксель панели —
         /// забота <paramref name="mapper"/> (см. <see cref="UpdateMarkers"/>): режим (интерьер/открытый
-        /// мир) сюда не просачивается, отсечение по кругу — только когда <paramref name="cullRadius"/> задан.
+        /// мир) сюда не просачивается, отсечение по краям панели — только когда <paramref name="cullHalfSize"/> задан.
         /// </summary>
-        private int DrawWarps(System.Func<Vector3, Vector2> mapper, float? cullRadius, float markerSize, int used)
+        private int DrawWarps(System.Func<Vector3, Vector2> mapper, Vector2? cullHalfSize, float markerSize, int used)
         {
             foreach (Transform grid in mapObject.transform)
             {
@@ -626,7 +633,8 @@ namespace Mmogick
                     // координатах сцены — тех же, в которых сюда приходят игрок и сущности.
                     Vector2 markerPos = mapper(warp.GetComponent<WarpMarker>().scene);
 
-                    if (cullRadius.HasValue && markerPos.magnitude > cullRadius.Value)
+                    if (cullHalfSize.HasValue
+                        && (Mathf.Abs(markerPos.x) > cullHalfSize.Value.x || Mathf.Abs(markerPos.y) > cullHalfSize.Value.y))
                         continue;   // за границей видимой области радара
 
                     PlaceMarker(GetPooledMarker(used++), markerPos, MarkerSprite(WARP_COLOR), markerSize);
@@ -646,13 +654,14 @@ namespace Mmogick
         /// сжата в панель, и поклеточные метки слились бы в неразличимую полосу. По всей ширине прохода
         /// метки стоят там, где места хватает, — на самой земле (<see cref="GateController"/>).
         /// </summary>
-        private int DrawGates(System.Func<Vector3, Vector2> mapper, float? cullRadius, float markerSize, int used)
+        private int DrawGates(System.Func<Vector3, Vector2> mapper, Vector2? cullHalfSize, float markerSize, int used)
         {
             foreach (Gate gate in getGates())
             {
                 Vector2 markerPos = mapper(gate.center);
 
-                if (cullRadius.HasValue && markerPos.magnitude > cullRadius.Value)
+                if (cullHalfSize.HasValue
+                    && (Mathf.Abs(markerPos.x) > cullHalfSize.Value.x || Mathf.Abs(markerPos.y) > cullHalfSize.Value.y))
                     continue;   // за границей видимой области радара
 
                 PlaceMarker(GetPooledMarker(used++), markerPos, UnavailableSprite(), markerSize);

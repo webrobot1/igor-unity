@@ -13,7 +13,8 @@ using UnityEngine.Networking;
 namespace Mmogick
 {
 	// Content-addressable кеш анимаций игры. Endpoint'ы:
-	//   GET /animation/patch/{gameId}/{token}/prefabs?since=  — дельта prefab'ов: {items: slug→entry, all: [slug], version}
+	//   GET /animation/patch/{gameId}/{token}/prefabs?since=  — дельта prefab'ов: {items: slug→entry, all: [slug],
+	//                                                          version, image_size_default, animation_size_default}
 	//   GET /animation/patch/{gameId}/{token}/animations     — полный список animation_id → updated_timestamp
 	//   GET /animation/patch/{gameId}/{token}/images          — ZIP картинок (sha256.ext) (If-Modified-Since)
 	//
@@ -44,7 +45,10 @@ namespace Mmogick
 		// Бампится и на смену ФОРМЫ значения компонента внутри component_value: состав entry при этом прежний,
 		// а разбор идёт по форме — на лежалой записи он падает, и дельта по дате её не подменит (сервер шлёт
 		// только записи, изменившиеся с прошлой синхронизации, а у давно не правленного prefab'а дата прежняя).
-		private const int CACHE_SCHEMA_VERSION = 8;
+		// Бампится и на смену ПРАВИЛА заполнения поля при прежних составе и форме: лежалая запись несёт
+		// значение, которого сервер уже не кладёт, разбор на ней не падает, и расхождение молчит — так с
+		// полем size, которое приходит только у носителя со своим размером (умолчание едет конвертом ответа).
+		private const int CACHE_SCHEMA_VERSION = 9;
 
 		// Разбор серверного payload: сервер шлёт скаляры всегда, включая null (null ≡ дефолт поля), а без
 		// Ignore Newtonsoft пишет null в не-nullable поле (version, animation, angle, pivotX/Y, id) и роняет
@@ -54,6 +58,16 @@ namespace Mmogick
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
+
+		// Умолчания размера тела — одно на игру у каждого рода визуала (набор картинок, скелет), в той же форме
+		// делителя, что size записи. Действуют у записи, своего size не приславшей (см. PrefabEntry.size).
+		// Приходят КОНВЕРТОМ /prefabs на каждый запрос каталога, включая пустую дельту: их источник — константа
+		// сервера, отметок правки у неё нет, и дельта по ?since после её смены не пере-шлёт ни одной записи.
+		// На диск не пишутся: канал отдаёт их безусловно перед каждым входом в игру, а лежалая копия молча
+		// разошлась бы с сервером — ровно то расхождение, ради которого поле и заведено. Пусто — каталог этой
+		// сессией не синхронизирован (SyncLibrary не отработал): читатели падают, см. GetPrefabSize.
+		private static float? _imageSizeDefault;
+		private static float? _animationSizeDefault;
 
 		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
 
@@ -165,12 +179,16 @@ namespace Mmogick
 			public List<ActionBinding> actions;
 
 			/// <summary>
-			/// ДЕЛИТЕЛЬ целевой высоты тела (per-prefab константа, приходит с /prefabs, задаётся в админке при
-			/// конфигурации prefab'а): высота тела в клетках объявлена на сервере, на клиент уходит обратная
-			/// ей величина. Клиент приводит тело к высоте 1/size клеток — общей точкой сборки визуала
+			/// ДЕЛИТЕЛЬ целевого размера тела (per-prefab константа, приходит с /prefabs, задаётся в админке при
+			/// конфигурации prefab'а): размер тела в клетках объявлен на сервере, на клиент уходит обратная
+			/// ему величина. Меряется он по ДЛИННОЙ стороне фигуры — лежащая встаёт в него длиной, стоящая
+			/// высотой. Клиент приводит длинную сторону тела к 1/size клеток — общей точкой сборки визуала
 			/// (VisualBuilder: Fit у скелета, CreateImage у картинки). Габариты самой фигуры замеряются
 			/// у неё всегда.
-			/// Если null (поле не задано на сервере) — тело приводится к одной клетке.
+			/// Ключа нет — своего размера у носителя графики (набор картинок либо вариант скелета) не задано:
+			/// действует умолчание своего рода из конверта ответа (_imageSizeDefault/_animationSizeDefault),
+			/// подставляет его GetPrefabSize. Умолчание живёт константой сервера, и копия его в записи не
+			/// доехала бы до клиента, забравшего каталог до её смены: дельта считается по отметкам правки записей.
 			/// </summary>
 			public float? size;
 			public bool h_mirror;
@@ -275,19 +293,32 @@ namespace Mmogick
 			public string ImageFile => IsImage ? sha256 + "." + extension : null;
 		}
 
-		// Возвращает per-prefab "size" (высота тела в единицах скелета) из library, если задан, иначе null.
+		// Делитель целевого размера тела prefab'а (см. PrefabEntry.size) — единственная точка правила «своё
+		// у записи, иначе умолчание её рода»: род различается тем же признаком, каким клиент везде отличает
+		// набор картинок от скелета (IsImage). Своего числа клиент не держит — обе величины идут с сервера.
 		// Используется сборкой визуала для точной нормализации размера без замера габаритов.
 		// Контракт: вызывать ТОЛЬКО после того как SyncAll отработал (что гарантировано
 		// SigninController.LoadMain — он awaitит SyncAll до ConnectController.Connect, поэтому
 		// любой WS-спавн приходит уже с загруженным _library). Вызов до SyncAll — это баг вызывающей стороны,
-		// поэтому бросаем exception вместо тихого null: null-возврат от «prefab без size» и null от «library
-		// не загружена» — разные вещи, и глотать второе опасно (сборка визуала уйдёт в замер габаритов,
-		// замаскировав проблему timing'а).
+		// поэтому бросаем exception вместо тихого null: null-возврат от «prefab'а нет в каталоге» и null от
+		// «library не загружена» — разные вещи, и глотать второе опасно (сборка визуала уйдёт в замер габаритов,
+		// замаскировав проблему timing'а). По той же причине падаем и на незагруженном умолчании: без него
+		// размер записи без своего size не разрешается вовсе, а подстановка своего числа увела бы тело
+		// от серверного молча.
+		// null — prefab'а нет в каталоге: легитимное отсутствие, вызывающий рисует не эту запись.
 		public static float? GetPrefabSize(string prefab)
 		{
 			if (_library == null)
 				throw new InvalidOperationException("AnimationCacheService.GetPrefabSize вызван до SyncAll (_library == null). prefab=" + prefab + ". Вызывайте только после завершения SigninController.LoadMain.");
-			return _library.TryGetValue(prefab, out PrefabEntry e) ? e.size : (float?)null;
+			if (!_library.TryGetValue(prefab, out PrefabEntry e))
+				return null;
+			if (e.size.HasValue)
+				return e.size;
+
+			float? fallback = e.IsImage ? _imageSizeDefault : _animationSizeDefault;
+			if (!fallback.HasValue)
+				throw new InvalidOperationException("AnimationCacheService.GetPrefabSize: умолчание размера не загружено (SyncLibrary не отработал). prefab=" + prefab + ". Вызывайте только после завершения SigninController.LoadMain.");
+			return fallback;
 		}
 
 		// Анимация, чей скелет носит prefab. 0 — скелета у него нет вовсе (набор картинок либо только вид):
@@ -643,6 +674,10 @@ namespace Mmogick
 			// сессии (повторный логин после Error) упадёт на этом guard'е.
 			_manifest = null;
 			_library = null;
+			// Умолчания размера снимаются вместе с каталогом: они его часть, а не отдельное состояние —
+			// оставшись, они отвечали бы по снесённому каталогу.
+			_imageSizeDefault = null;
+			_animationSizeDefault = null;
 			_spriteCache.Clear();
 			// Каталог структур сносится ниже целиком — разобранное из него в памяти пережило бы снос и
 			// осталось бы отвечать по снятым файлам (память живёт до остановки игры, не до сброса кеша).
@@ -853,6 +888,12 @@ namespace Mmogick
 			public Dictionary<string, PrefabEntry> items;  // только изменившиеся с since (slug → entry)
 			public List<string> all;                       // все текущие slug игры (для детекции удалений)
 			public long version;                            // max updated отданных items — клиент шлёт как since далее
+
+			// Умолчания размера по роду визуала — общий канал, приходят на каждый запрос каталога и делятся
+			// на все записи без своего size (см. _imageSizeDefault/_animationSizeDefault). Nullable, чтобы
+			// отличить пришедшее значение от неприсланного ключа: неприсланный — негодный ответ, не ноль.
+			public float? image_size_default;
+			public float? animation_size_default;
 		}
 
 		// Дельта-синхронизация библиотеки prefab'ов. Мёржит изменившиеся entry в _library и удаляет slug'и,
@@ -884,6 +925,25 @@ namespace Mmogick
 
 			if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
 
+			// Умолчания размера — часть КАЖДОГО ответа каталога, включая пустую дельту: ими разрешается размер
+			// записи без своего size, и без них рисовать её нечем. Отсутствие ключа либо неположительный
+			// делитель — негодные данные: отказываем ответу целиком, кеш остаётся прежним, вход в игру
+			// прерывается ошибкой (SigninController). Тихая подстановка своего числа развела бы размер тела
+			// с серверным и молчала бы об этом.
+			float? imageDefault     = parsed.image_size_default;
+			float? animationDefault = parsed.animation_size_default;
+			if (!imageDefault.HasValue || imageDefault.Value <= 0f
+				|| !animationDefault.HasValue || animationDefault.Value <= 0f)
+			{
+				onError?.Invoke("AnimationCache library: /prefabs без годных умолчаний размера (image_size_default="
+					+ (imageDefault.HasValue ? imageDefault.Value.ToString() : "нет") + ", animation_size_default="
+					+ (animationDefault.HasValue ? animationDefault.Value.ToString() : "нет") + ")");
+				yield break;
+			}
+
+			_imageSizeDefault     = imageDefault;
+			_animationSizeDefault = animationDefault;
+
 			if (_library == null) _library = new Dictionary<string, PrefabEntry>();
 
 			// Мёрж изменившихся entry (replace по slug).
@@ -902,7 +962,9 @@ namespace Mmogick
 			}
 
 			_manifest.prefab_version = parsed.version;
-			Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed + ", всего " + _library.Count);
+			Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed
+				+ ", всего " + _library.Count + ", умолчание размера: картинка " + imageDefault.Value
+				+ ", скелет " + animationDefault.Value);
 			SaveLibrary(gameId);
 			SaveManifest(gameId);
 		}

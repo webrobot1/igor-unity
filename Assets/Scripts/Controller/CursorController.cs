@@ -20,6 +20,20 @@ namespace Mmogick
 
         private Vector3 move_to = Vector3.zero;
 
+        /// <summary>
+        /// Отклонение джойстика, за которым начинается ходьба: подогнано под размер его круга — пока палец
+        /// внутри, он выбирает направление, выйдя за круг — уже ведёт персонажа.
+        /// </summary>
+        private const float WALK_THRESHOLD = 0.5f;
+
+        /// <summary>
+        /// На джойстик опустили палец, а разобрано это касание ещё не было. Ставит реле нажатия, снимает
+        /// <see cref="HandleMovementInput"/> — там уже прочитано отклонение джойстика: порядок обхода
+        /// обработчиков объекта и порядок Update'ов сцены нам не подчинены, и решение, принятое в самом
+        /// реле, зависело бы от того, успел ли джойстик обновить своё значение.
+        /// </summary>
+        private bool joystick_touched;
+
         [Header("Для работы с курсором и движением")]
 
         /// <summary>
@@ -83,6 +97,15 @@ namespace Mmogick
             }
             hoverHighlight.gameObject.SetActive(false);
 
+            // Касание джойстика игра слышит сама: своего сигнала о нём чужой пакет джойстика не даёт, а
+            // разбор управления читает лишь отклонение — нажатие в центр от нетронутого джойстика по нему
+            // неотличимо. Реле вешаем кодом, как ответ клавишей Enter у окна количества: объект джойстика
+            // лежит в сцене, а связка живёт ровно столько, сколько сам контроллер.
+            PointerDownRelay relay = joystick.GetComponent<PointerDownRelay>();
+            if (relay == null)
+                relay = joystick.gameObject.AddComponent<PointerDownRelay>();
+            relay.Pressed = () => joystick_touched = true;
+
             // До прихода настроек джойстик скрыт: показывает его настройка игрока, а она приезжает уже
             // после входа — иначе он мелькал бы у того, кто им не пользуется. Не объявлена игрой вовсе —
             // остаётся скрытым (SettingsController, ветка рядом с «Тестовым режимом»).
@@ -139,49 +162,46 @@ namespace Mmogick
                 cursor.raycastTarget = false;
                 GameObject gameObject = null;
 
-                // RaycastAll, а не одиночный Raycast: когда игрок СТОИТ на подбираемом предмете, его
-                // собственный коллайдер (тело отрисовано поверх) перекрывает предмет, и одиночный raycast
-                // вернул бы самого игрока — клик «по себе» не доходил до предмета, и команда подбора
-                // (item/pickup) не отправлялась вовсе: вещь под ногами поднять было нечем.
-                // Перебираем все попадания в порядке возрастания дистанции и берём первую сущность, КРОМЕ
-                // своего игрока: предмет под ногами оказывается следующим хитом и становится целью клика.
-                // Для врагов/NPC порядок тот же, что давал одиночный raycast (ближайший хит) — поведение
-                // по ним не меняется. GetComponentInParent (а не GetComponent) — чтобы клик по дочернему
-                // коллайдеру сущности (например по кликабельной надписи EquipableGroundMarker над предметом
-                // на земле) считался кликом по самой сущности-корню. Корневой collider тела находит себя же.
-                RaycastHit2D[] hits = Physics2D.RaycastAll(Camera.main.ScreenToWorldPoint(InputSource.MousePosition), Vector2.zero, Mathf.Infinity);
-                EntityModel hitEntity = null;
-                foreach (RaycastHit2D h in hits)
+                // Нажатие, попавшее в элемент интерфейса, до мира не доходит вовсе: интерфейс разбираем
+                // ПЕРВЫМ, мировой луч пускаем только на пустом под указателем интерфейсе. Иначе касание
+                // круга джойстика — им игрок просит персонажа ВСТАТЬ — над сущностью выбирало бы её целью,
+                // а у сущности без добычи ещё и ставило маршрут к ней: остановка снималась бы тем же
+                // касанием, которым заказана.
+                GameObject uiHit = ScreenUiAtPointer(InputSource.MousePosition);
+                bool overUi = uiHit != null;
+                if (overUi)
                 {
-                    if (h.transform == null) continue;
-                    EntityModel e = h.transform.GetComponentInParent<EntityModel>();
-                    if (e == null) continue;
-                    if (PlayerController.Player != null && e == PlayerController.Player) continue;   // клик «сквозь себя» к предмету под ногами
-                    hitEntity = e;
-                    break;
+                    gameObject = uiHit;
+                    player.Log("Кликнули на UI " + gameObject.name);
                 }
-                if (hitEntity != null)
+                else
                 {
-                    gameObject = hitEntity.gameObject;
-                    player.Log("Кликнули на объект " + gameObject.name);
-                }
-
-                else if
-                (
-                    (EventSystem.current.IsPointerOverGameObject() || (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)))
-                )
-                {
-                    PointerEventData pointerData = new PointerEventData(EventSystem.current);
-                    pointerData.position = InputSource.MousePosition;
-
-                    List<RaycastResult> results = new List<RaycastResult>();
-                    EventSystem.current.RaycastAll(pointerData, results);
-
-                    if (results.Count > 0)
+                    // RaycastAll, а не одиночный Raycast: когда игрок СТОИТ на подбираемом предмете, его
+                    // собственный коллайдер (тело отрисовано поверх) перекрывает предмет, и одиночный raycast
+                    // вернул бы самого игрока — клик «по себе» не доходил до предмета, и команда подбора
+                    // (item/pickup) не отправлялась вовсе: вещь под ногами поднять было нечем.
+                    // Перебираем все попадания в порядке возрастания дистанции и берём первую сущность, КРОМЕ
+                    // своего игрока: предмет под ногами оказывается следующим хитом и становится целью клика.
+                    // Для врагов/NPC порядок тот же, что давал одиночный raycast (ближайший хит) — поведение
+                    // по ним не меняется. GetComponentInParent (а не GetComponent) — чтобы клик по дочернему
+                    // коллайдеру сущности (например по кликабельной надписи EquipableGroundMarker над предметом
+                    // на земле) считался кликом по самой сущности-корню. Корневой collider тела находит себя же.
+                    RaycastHit2D[] hits = Physics2D.RaycastAll(Camera.main.ScreenToWorldPoint(InputSource.MousePosition), Vector2.zero, Mathf.Infinity);
+                    EntityModel hitEntity = null;
+                    foreach (RaycastHit2D h in hits)
                     {
-                        gameObject = results[0].gameObject;
-                        player.Log("Кликнули на UI " + gameObject.name);
-                    }    
+                        if (h.transform == null) continue;
+                        EntityModel e = h.transform.GetComponentInParent<EntityModel>();
+                        if (e == null) continue;
+                        if (PlayerController.Player != null && e == PlayerController.Player) continue;   // клик «сквозь себя» к предмету под ногами
+                        hitEntity = e;
+                        break;
+                    }
+                    if (hitEntity != null)
+                    {
+                        gameObject = hitEntity.gameObject;
+                        player.Log("Кликнули на объект " + gameObject.name);
+                    }
                 }
 
                 if (MyMoveable != null)
@@ -203,7 +223,10 @@ namespace Mmogick
                             CloseAllMenu();
                     }
                 }
-                else
+                // Пустые руки: нажатие трактуем по миру, только когда его не взял интерфейс. Иначе нажатие
+                // по элементу, под которым мира не видно, читалось бы кликом по земле — персонаж уходил бы
+                // под нажатую кнопку.
+                else if (!overUi)
                 {
                     if(gameObject == null)
                     {
@@ -306,6 +329,71 @@ namespace Mmogick
 
         private PointerEventData hoverPointer;
 
+        /// <summary>Кадр и точка экрана, которыми заполнен <see cref="hoverHits"/>.</summary>
+        private int hoverHitsFrame = -1;
+
+        private Vector3 hoverHitsAt;
+
+        /// <summary>
+        /// Попадания указателя в холсты сцены. Считаем лучом EventSystem: IsPointerOverGameObject отвечает
+        /// про СИСТЕМНУЮ мышь, а при съёмке ролика указатель ведёт сценарий и системная мышь стоит не там
+        /// (см. <see cref="InputSource"/> — указатель читается одной точкой). Касание пальцем покрыто тем же
+        /// лучом: позиция касания приходит в Input.mousePosition, откуда её и берёт InputSource.
+        /// Результат лежит в общем буфере и живёт до следующего вызова.
+        ///
+        /// За кадр по одной точке луч идёт ОДИН раз: спрашивают его и подсветка контейнера, и форма
+        /// указателя, и разбор нажатия, а обходит он ВСЕ холсты сцены — экранные вместе с мировыми над
+        /// каждым существом.
+        /// </summary>
+        private List<RaycastResult> RaycastUi(Vector3 screenPos)
+        {
+            if (hoverHitsFrame == Time.frameCount && hoverHitsAt == screenPos)
+                return hoverHits;
+
+            hoverHitsFrame = Time.frameCount;
+            hoverHitsAt = screenPos;
+            hoverHits.Clear();
+
+            if (EventSystem.current == null)
+                return hoverHits;
+
+            if (hoverPointer == null)
+                hoverPointer = new PointerEventData(EventSystem.current);
+
+            hoverPointer.position = screenPos;
+            EventSystem.current.RaycastAll(hoverPointer, hoverHits);
+
+            return hoverHits;
+        }
+
+        /// <summary>
+        /// Элемент ЭКРАННОГО холста под указателем либо null, когда под указателем интерфейса нет. Экранный
+        /// холст лежит поверх мировых, и то, что в него попало, мира под собой не отдаёт: нажатие туда не
+        /// доходит, кольцо наведения там не рисуется. Мировые холсты тем же лучом приходят наравне — имя и
+        /// полоски над существом, надпись над лежащей вещью, — но они часть МИРА и разбираются мировым
+        /// лучом: кликабельная надпись у вещи ради этого и заведена.
+        /// </summary>
+        private GameObject ScreenUiAtPointer(Vector3 screenPos)
+        {
+            List<RaycastResult> hits = RaycastUi(screenPos);
+
+            for (int i = 0; i < hits.Count; i++)
+            {
+                // Рука курсора интерфейсом под указателем не считается: пока предмет несут, её
+                // raycastTarget включён, и она перекрывала бы собой всё, на что указывают.
+                if (cursor != null && hits[i].gameObject == cursor.gameObject)
+                    continue;
+
+                Canvas canvas = hits[i].gameObject.GetComponentInParent<Canvas>();
+                if (canvas == null || canvas.rootCanvas.renderMode == RenderMode.WorldSpace)
+                    continue;
+
+                return hits[i].gameObject;
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Форма указателя на всю игру решается здесь одной точкой: элементы интерфейса лишь отвечают,
         /// возьмёт ли их нажатие (<see cref="ITakeable"/>), и своей формы не ставят — иначе одно окно
@@ -326,21 +414,15 @@ namespace Mmogick
                 return;
             }
 
-            if (hoverPointer == null)
-                hoverPointer = new PointerEventData(EventSystem.current);
-
-            hoverPointer.position = InputSource.MousePosition;
-
-            hoverHits.Clear();
-            EventSystem.current.RaycastAll(hoverPointer, hoverHits);
+            List<RaycastResult> hits = RaycastUi(InputSource.MousePosition);
 
             HandCursor.Shape shape = HandCursor.Shape.Default;
 
-            for (int i = 0; i < hoverHits.Count; i++)
+            for (int i = 0; i < hits.Count; i++)
             {
                 // Признак ищем ВВЕРХ по иерархии: попадание приходит в надпись либо рамку внутри
                 // карточки, а отвечает за взятие сама карточка либо ячейка.
-                ITakeable takeable = hoverHits[i].gameObject.GetComponentInParent<ITakeable>();
+                ITakeable takeable = hits[i].gameObject.GetComponentInParent<ITakeable>();
 
                 if (takeable == null)
                     continue;
@@ -420,6 +502,25 @@ namespace Mmogick
                     vertical = InputSource.GetAxis("Vertical") != 0 ? InputSource.GetAxis("Vertical") : joystick.Vertical;
                     horizontal = InputSource.GetAxis("Horizontal") != 0 ? InputSource.GetAxis("Horizontal") : joystick.Horizontal;
 
+                    // Палец лёг на джойстик, а с места его не повели — игрок просит ВСТАТЬ: шаг с нулевым
+                    // направлением снимает на сервере действующую команду движения, и маршрут по клику, и
+                    // ход джойстиком. Иначе встать, не сделав шага, нечем — отпущенный джойстик оставляет
+                    // персонажа идти по прежней команде. Порог тот же, что у отправки шага ниже: пока палец
+                    // не вышел за круг, ходьбы по джойстику нет вовсе, и касание значит только остановку.
+                    if (joystick_touched)
+                    {
+                        joystick_touched = false;
+
+                        if (Math.Abs(horizontal) <= WALK_THRESHOLD && Math.Abs(vertical) <= WALK_THRESHOLD)
+                        {
+                            WalkResponse stop = new WalkResponse();
+
+                            stop.x = 0;
+                            stop.y = 0;
+                            stop.Send();
+                        }
+                    }
+
                     // если ответа  сервера дождались (есть пинг-скорость на движение) и дистанция  такая что уже можно слать новый запрос 
                     // или давно ждем (если нас будет постоянно отбрасывать от дистанции мы встанем и сможем идти в другом направлении)
                     if (
@@ -434,8 +535,7 @@ namespace Mmogick
                     {
                         if (vertical != 0 || horizontal != 0)
                         {
-                            // я подогнал магнитуду под размер круга джойстика (выйдя за него мы уже будем идти а не менять направления)
-                            if (Math.Abs(horizontal) > 0.5 || Math.Abs(vertical) > 0.5)
+                            if (Math.Abs(horizontal) > WALK_THRESHOLD || Math.Abs(vertical) > WALK_THRESHOLD)
                             {
                                 // не путать импульс нажатия кнопки в определенном направлении с forward (направлением движения, т.е нормальизованным вектором)
                                 Vector3 vector = new Vector3(horizontal, vertical, 0).normalized;
@@ -596,7 +696,10 @@ namespace Mmogick
         /// </summary>
         private void UpdateHoverHighlight(Vector3 screenPos)
         {
-            ObjectModel hovered = ContainerAtScreen(screenPos);
+            // Под элементом интерфейса кольца нет: нажатие туда до мира не доходит (см. разбор нажатия в
+            // Update), а кольцо обещает игроку ровно этот клик. Тем же признаком снимается и мировой луч —
+            // пока указатель над интерфейсом, искать под ним контейнер незачем.
+            ObjectModel hovered = ScreenUiAtPointer(screenPos) != null ? null : ContainerAtScreen(screenPos);
             if (hovered != null)
             {
                 FitHighlightTo(hovered);

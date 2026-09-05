@@ -37,9 +37,10 @@ namespace Mmogick
 		/// картинки и без скелета, поэтому её размер обязан отвечать РОДУ сущности: существо занимает клетку
 		/// (та же цель, что у нормализации настоящих тел — VisualBuilder), предмет — заметно меньше,
 		/// иначе он выходит крупнее любого предмета с картинкой и спорит с фигурой персонажа.
-		/// Своей высоты у такого предмета нет вовсе: серверный size приезжает только вместе с картинкой либо
-		/// анимацией — здесь стоит типовая высота предмета этой игры (столько же сервер подставляет дефолтом
-		/// предметам с картинкой). Род сущности решает серверная library (AnimationCacheService.IsGroundItem).
+		/// Серверной доли клетки у такого предмета нет вовсе — ни своей, ни умолчания: и то и другое приходит
+		/// от НОСИТЕЛЯ графики (набор картинок либо вариант скелета), которого у него нет, и брать её отсюда
+		/// нечем. Число ниже — типовая доля клетки у предмета без графики.
+		/// Род сущности решает серверная library (AnimationCacheService.IsGroundItem).
 		/// </summary>
 		private const float PlaceholderHeightCreature = 1f;
 		private const float PlaceholderHeightItem = 0.3f;
@@ -200,6 +201,16 @@ namespace Mmogick
 		}
 
 		/// <summary>
+		/// Имя Resources-префаба для сущности, у чьего вида своего файла нет (Prefabs/{kind} отсутствует).
+		/// Умолчание — модель объекта: без полоски здоровья и без выбора целью. Игра переопределяет по
+		/// ДАННЫМ пакета спавна: вид в пакете не едет, состав компонентов едет.
+		/// </summary>
+		protected virtual string FallbackKind(EntityRecive recive)
+		{
+			return "object";
+		}
+
+		/// <summary>
 		/// обработка кокнретной сущности (создание и обновлелние)
 		/// </summary>
 		protected virtual GameObject UpdateObject(int map_id, string key, EntityRecive recive)
@@ -224,18 +235,13 @@ namespace Mmogick
 				// GetPrefabKind строгий: бросит, если prefab'а нет в library — это нарушение целостности данных.
 				string kind = AnimationCacheService.GetPrefabKind(recive.prefab);
 
-				// Единый префаб на kind: Assets/Resources/Prefabs/{kind}.prefab.
+				// Единый префаб на kind: Assets/Resources/Prefabs/{kind}.prefab; у вида без своего файла
+				// заготовку называет FallbackKind.
 				// Визуал (скелет Spine) подтягивается с сервера по recive.prefab, если анимация есть в кеше.
 				// Если нет — остаётся корневой fallback-SpriteRenderer с "unknow" спрайтом.
 				UnityEngine.Object ob = Resources.Load("Prefabs/" + kind, typeof(GameObject));
-
-				// все новые  kind = prefab.object
 				if (ob == null)
-				{
-					ob = Resources.Load("Prefabs/object", typeof(GameObject));
-					//Error("WebSocket: Отсутствует префаб Prefabs/" + kind + " для объекта " + key);
-					//return null;
-				}
+					ob = Resources.Load("Prefabs/" + FallbackKind(recive), typeof(GameObject));
 
 				prefab = Instantiate(ob) as GameObject;
 				prefab.name = key;
@@ -439,8 +445,9 @@ namespace Mmogick
 				try { sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); }
 				catch (Exception ex) { Error(ex.Message); return; }
 
-				// Размер целиком ведёт СЕРВЕР: wire несёт size всегда (свой дефолт null→1 подставляет он —
-				// сменится дефолт, клиент не правится). Нормализацию по нему держит общая точка сборки.
+				// Размер целиком ведёт СЕРВЕР: своё значение записи, а нет его — умолчание её рода из конверта
+				// каталога; своего числа клиент не держит, и смена серверного умолчания правки его не требует.
+				// Разрешение обоих звеньев — за GetPrefabSize, нормализацию по нему держит общая точка сборки.
 				VisualBuilder.Create(go, VisualBuilder.Source.Image(sprite, AnimationCacheService.GetPrefabSize(newPrefab)));
 
 				model.Log("image-sprite " + newPrefab + " применён");

@@ -43,24 +43,35 @@ namespace Mmogick
 
         private static bool held;
 
-        /// <summary>Картинка указателя, которой сценарий рисует руку в кадре.</summary>
+        /// <summary>Указатель, рисуемый сейчас в кадре. Пусто — указателя в кадре нет.</summary>
         private static Sprite pointerSprite;
+
+        /// <summary>
+        /// Картинка руки курсора, собранная под кадр. Живёт между показами: сценарий показывает и прячет
+        /// руку у каждого своего ведения, а пересборка на каждый показ оставляла бы за прогон десятки
+        /// мёртвых объектов. Статика переживает остановку игры, а созданный ею спрайт — нет, поэтому
+        /// живость проверяем Unity-сравнением на каждой выдаче.
+        /// </summary>
+        private static Sprite hand;
 
         /// <summary>Размер указателя в пикселях кадра и точка картинки, которой он попадает в экран.</summary>
         private static Vector2 pointerSize;
 
         private static Vector2 pointerPivot;
 
-        /// <summary>
-        /// Начать перехват. <paramref name="cursorSprite"/> — картинка указателя: системный курсор в
-        /// запись не попадает (его рисует система поверх картинки окна), поэтому в кадре указатель
-        /// рисует сама игра рукой курсора.
-        /// </summary>
-        public static void BeginScript(Sprite cursorSprite, Vector2 size, Vector2 pivot, Vector3 startPointer)
+        /// <summary>Виден ли указатель сценария в кадре.</summary>
+        public static bool PointerShown
         {
-            pointerSprite = cursorSprite;
-            pointerSize = size;
-            pointerPivot = pivot;
+            get { return pointerSprite != null; }
+        }
+
+        /// <summary>
+        /// Начать перехват. Указателя в кадре при этом нет: показывает и прячет его сам сценарий по ходу
+        /// прогона (<see cref="ShowPointer"/>, <see cref="HidePointer"/>).
+        /// </summary>
+        public static void BeginScript(Vector3 startPointer)
+        {
+            pointerSprite = null;
             pointer = startPointer;
             axisHorizontal = 0;
             axisVertical = 0;
@@ -68,6 +79,43 @@ namespace Mmogick
             upFrame = -1;
             held = false;
             Scripted = true;
+        }
+
+        /// <summary>
+        /// Показать указатель в кадре: системный курсор в запись не попадает — его рисует система поверх
+        /// картинки окна, — поэтому руку рисует сама игра рукой курсора. <paramref name="scale"/> — во
+        /// сколько раз она крупнее системной: размер кадра знает снимающий, не игра. Отказ (картинки
+        /// указателя нет) возвращается признаком: без руки прогон снимает не то, что заказан.
+        /// </summary>
+        public static bool ShowPointer(float scale)
+        {
+            Texture2D texture = HandCursor.OpenTexture;
+
+            if (texture == null)
+                return false;
+
+            if (hand == null)
+                hand = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+
+            // Точка попадания у картинки своя (у ладони — между пальцами), а положение рисуемой руки
+            // задаётся её точкой опоры: переводим одну в другую. Отсчёт точки попадания идёт сверху, у
+            // точки опоры — снизу.
+            pointerPivot = new Vector2(
+                HandCursor.OpenHotspot.x / texture.width,
+                1f - HandCursor.OpenHotspot.y / texture.height);
+
+            pointerSize = new Vector2(texture.width, texture.height) * scale;
+            pointerSprite = hand;
+            return true;
+        }
+
+        /// <summary>
+        /// Убрать указатель из кадра. Гасит картинку <see cref="DrawPointer"/> следующим кадром: рисует
+        /// её игра, ей же и снимать — снаружи до картинки курсора не дотянуться.
+        /// </summary>
+        public static void HidePointer()
+        {
+            pointerSprite = null;
         }
 
         public static void EndScript()
@@ -101,13 +149,22 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Нарисовать указатель сценария рукой курсора. Пока в руке несут предмет, картинку держит сам
-        /// курсор — её и оставляем: что именно в руке, важнее формы указателя.
+        /// Нарисовать указатель сценария рукой курсора либо убрать его из кадра — сценарий показывает
+        /// руку лишь на время действия, которое ею пользуется. Пока в руке несут предмет, картинку
+        /// держит сам курсор — её и оставляем: что именно в руке, важнее формы указателя.
         /// </summary>
         public static void DrawPointer(Image cursor)
         {
-            if (!Scripted || pointerSprite == null || CursorController.MyMoveable != null)
+            if (!Scripted || CursorController.MyMoveable != null)
                 return;
+
+            if (pointerSprite == null)
+            {
+                // Гасим тем же, чем гасит картинку курсора сама игра при пустой руке: спрайт остаётся,
+                // невидим цвет.
+                cursor.color = new Color(0, 0, 0, 0);
+                return;
+            }
 
             cursor.sprite = pointerSprite;
             cursor.color = Color.white;

@@ -11,20 +11,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "mcp__ai-game-developer__editor-application-set-state",
+        "matcher": "mcp__ai-game-developer__editor-application-set-state|Bash",
         "hooks": [
           {
             "type": "command",
             "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-guard.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|Bash|Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-stop-reminder.sh"
           }
         ]
       },
@@ -36,6 +27,15 @@
             "command": "bash /mnt/c/Unity/release/.claude/hooks/skill-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/write-scope-guard.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -44,6 +44,26 @@
           {
             "type": "command",
             "command": "bash /mnt/c/Unity/release/.claude/hooks/orchestration-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-stop-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-stop-reminder.sh"
           }
         ]
       }

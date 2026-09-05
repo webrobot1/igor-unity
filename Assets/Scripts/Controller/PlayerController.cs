@@ -82,6 +82,16 @@ namespace Mmogick
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore }));
         }
 
+        /// <summary>
+        /// Существо со здоровьем строится как существо: полоска здоровья, выбор целью, урон. Здоровье —
+        /// компонент полного пакета спавна: вид без своего файла, но с ним, получает заготовку врага;
+        /// без него — умолчание платформы (модель объекта).
+        /// </summary>
+        protected override string FallbackKind(EntityRecive recive)
+        {
+            return CreatureComponentsRecive.Of(recive)?.hp != null ? "enemy" : base.FallbackKind(recive);
+        }
+
         protected virtual void HandleData(NewRecive<PlayerRecive, CreatureRecive> recive)
         {
             // после ACTION_LOAD старые объекты будут заменены новыми объектами клонами и надо сохранить все ключи что нам нужно будет залинковать с игроком (напрмиер цель)

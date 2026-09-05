@@ -5,114 +5,94 @@
 # теряется молча — вносить её в источник. Серверного репозитория нет под рукой → назвать нужную
 # правку пользователю.
 
-# PreToolUse hook (Edit|Write|Bash|Agent|Task): напоминание об ОСТАВЛЕННОМ Play Mode — перед шагом,
-# который Unity НЕ использует, при игре, запущенной ТЕМ ЖЕ вызывающим. Шаг — момент срабатывания,
-# не критерий остановки. Сам критерий текст не несёт: он лежит в каноне клиента
-# (/mnt/c/Unity/release/CLAUDE.md, «Вход в игру»), копия расходилась бы с ним молча — хук даёт
-# состояние Play Mode и шаг, решение остаётся за правилом. Канон не наследуется ни одной сессией и
-# доезжает только явным чтением — оттого его адрес стоит в самом напоминании.
-# Момент ЗАПУСКА игры держит unity-skill-reminder.sh («остановить по сбору данных», одно на эпизод);
-# тут ВТОРОЙ момент — уход вызывающего в другую работу при уже запущенной игре.
+# Stop|SubagentStop hook: напоминание об идущем Play Mode на завершении ответа. Момент один — ответ
+# закончился, а игра идёт: до следующего сообщения она висит без присмотра.
+# Шаговых входов (правка файла, запуск агента, долгая команда) у хука нет: состояние берётся
+# опросом живого редактора, и на каждой правке файла тот стоил бы сетевого вызова за правку.
+# Момент ВХОДА в игру держит гейт клиентского репозитория unity-playmode-guard.sh: он стоит на
+# самом вызове запуска и спрашивает то же состояние. Момент первого вызова тула редактора и
+# момент запуска игры («остановить по сбору данных») держит unity-skill-reminder.sh.
 #
-# Точки входа и их повод:
-#   - правка файла — вызывающий ушёл в код; повод сильнее браузерного: по канону клиента правка C#
-#     при запущенном Play Mode выбрасывает из игры, и висящая сессия входа теряется впустую;
-#   - запуск агента — он работает минутами, игра всё это время висит без присмотра;
-#   - долгая команда оболочки — прогон тестов, анализатор, фон.
-# Вызовы тулов редактора и прогон тестов Unity точками входа НЕ идут: это сама работа с Unity, а не
-# уход от неё. По той же причине из точек входа снята команда оболочки, зовущая Unity-CLI: она канал
-# вызова тула, а её долгий timeout иначе дал бы напоминание прямо перед вызовом, ОСТАНАВЛИВАЮЩИМ
-# игру. Ярлык шага считает общий носитель (lib/transcript.py, leaving_step) — тот же, что у
-# браузерного напоминания.
+# Состояние даёт САМ редактор (`editor-application-get-state`), не транскрипт: игру останавливает
+# кто угодно мимо хука — человек в редакторе, параллельная сессия, — и счёт по транскрипту
+# расходился бы с действительностью молча. Редактор не ответил (Editor выключен, плагин не поднят,
+# таймаут) — хук молчит: о недоступности редактора шуметь нечем.
+# Канал опроса — прямой JSON-RPC по адресу MCP-сервера. `npx unity-mcp-cli run-tool` отдаёт то же
+# состояние за 2.9 с против 0.25 с у полного вызова отсюда (замер 05.09.2026), а цена платится на
+# КАЖДОМ завершении ответа Unity-сессии. Запрет свода `unity` на сырое рукопожатие — о канале
+# работы агента, не о коде хуков, ходящих по тому же порту. Тело опроса повторяет
+# unity-playmode-guard.sh осознанно: тот живёт в клиентском репозитории и уезжает вместе с ним, а
+# общий модуль `lib/` доезжает туда лишь как зависимость ЗЕРКАЛИРУЕМОГО скрипта — связь косвенная.
+# Разбор CLI-вызова оба берут вопреки ей общим носителем (`lib/unity_cli.py`): расхождение форм у
+# двух каналов ОДНОГО вызова молчаливо, а обрыв самой связи гейт называет вслух пометкой.
 #
-# Состояние игры берётся из транскрипта ВЫЗЫВАЮЩЕГО (lib/transcript.py, caller_transcript): у
-# субагента — собственного, иначе Play Mode родителя читался бы как свой. Считаются вызовы,
-# МЕНЯЮЩИЕ состояние редактора (`editor-application-set-state`), ОБОИМИ каналами разом: тулом
-# MCP-сервера (субагент, которому сервер подключён) и командой оболочки `npx unity-mcp-cli run-tool`
-# (главная сессия, у которой тулов этого сервера нет) — канал у одного и того же действия свой на
-# каждый запуск, и хук, знающий один, молчал бы у половины вызывающих. Команда опознаётся по
-# ПОЗИЦИИ имени в части цепочки (lib/chain_parser.py), не по вхождению его в текст: тем же текстом
-# вызов ходит аргументом чужой команды — телом heredoc, шаблоном поиска, фикстурой набора. Игра
-# запущена, когда последний такой вызов нёс isPlaying=true. Опрос живого редактора состоянием не
-# берётся: он платится сетевым вызовом на КАЖДОЙ правке файла, а цена выше снимаемого промаха.
-# Игра, запущенная НЕ вызывающим (человеком, параллельной сессией), в счёт не идёт — останавливать
-# чужое канон запрещает.
+# Автора запуска хук не называет: `editor-application-get-state` отдаёт сам факт игры, без автора.
+# Текст сообщает наблюдаемое и отсылает к канону клиента (/mnt/c/Unity/release/CLAUDE.md, «Вход в
+# игру»): случаи «своя» и «не своя» разводит он, копия критерия в хуке разошлась бы с ним молча.
+# Канон не наследуется ни одной сессией и доезжает только явным чтением — оттого его адрес стоит в
+# самом напоминании.
 #
-# Повторы: одно напоминание на ЭПИЗОД игры — маркер хранит число вызовов смены состояния на момент
-# напоминания, следующее идёт лишь после нового такого вызова. Правка тут НЕ исключение, в отличие
-# от браузерного напоминания: серия, в которую уходит вызывающий, у Play Mode состоит как раз из
-# правок, и строка на каждой из них дала бы ту самую пачку одинаковых строк подряд; вдобавок первая
-# же правка C# роняет игру из Play Mode сама (канон клиента), и повтор утверждал бы состояние, за
-# которое хук уже не отвечает. Ключ маркера — идентификатор вызывающего (episode_key): `session_id`
-# у субагентов общий с родителем, и один ключ на всех гасил бы напоминание соседям.
-# Регистрируется в настройках ОБОИХ проектов абсолютным путём: Play Mode запускают и серверная
-# сессия, и работающая из репозитория клиента, а настройки каждая читает свои.
-# Не блокирует: инжектит additionalContext.
+# ЦЕНУ опроса гейтит транскрипт ВЫЗЫВАЮЩЕГО (lib/transcript.py, caller_transcript): опрос идёт,
+# только когда вызывающий сам звал смену состояния редактора — тулом MCP-сервера (субагент,
+# которому сервер подключён) либо командой `npx unity-mcp-cli run-tool` (главная сессия, у которой
+# тулов этого сервера нет). Состояния признак не даёт и дать не может: он лишь повод спросить
+# редактор. Вызывающий игру не запускал — по канону она ему «не своя», трогать её нельзя, и
+# напоминание было бы шумом. Тем же вызовом берётся АДРЕС опроса: у канала CLI — `--url` самой
+# команды, у канала MCP — имя сервера из имени тула плюс `.mcp.json` проекта сессии (файл один на
+# оба проекта, реестр адресов у каждого свой). Команда опознаётся по ПОЗИЦИИ имени в части цепочки
+# (lib/unity_cli.py поверх lib/chain_parser.py), не по вхождению его в текст: тем же текстом вызов
+# ходит аргументом чужой команды — телом heredoc, шаблоном поиска, фикстурой набора самопроверки.
+# Носитель опознания общий с гейтом входа: тот стоит на ТОМ ЖЕ вызове, и вторая копия разбора
+# разошлась бы с ним молча — форма, видная одному, второму невидима.
+# `SubagentStop` без `agent_id` — молчание: свой эпизод адресовать нечем, а `transcript_path` ведёт
+# тогда в чужой транскрипт.
+# Маркера-троттлинга нет: состояние наблюдаемое, напоминание идёт, пока идёт игра, — остановят её
+# хоть мимо хука, следующий опрос вернёт false и хук смолкнет сам.
+# Регистрируется в настройках ОБОИХ проектов абсолютным путём на Stop|SubagentStop: Play Mode
+# запускают и серверная сессия, и работающая из репозитория клиента, а настройки каждая читает свои.
+# Не блокирует: инжектит additionalContext под `hookEventName` СВОЕГО события — поле из схемы
+# соседнего программа отбрасывает молча. `decision: "block"` тут негоден: находка ШТАТНАЯ,
+# состояния под чужое действие не несёт (skill `gate-mechanics`, «Канал ДОКЛАДА хука»).
 
 input=$(cat)
 hooks_dir="$(cd "$(dirname "$0")" && pwd)"
 
-{ read -r trigger; read -r episode; read -r key; } < <(python3 -c '
-import sys, os, json, re
+command -v python3 >/dev/null 2>&1 || exit 0
+
+HOOK_INPUT="$input" python3 - "$hooks_dir" <<'PY' 2>/dev/null
+import json, os, sys, time, urllib.request
 
 sys.path.insert(0, os.path.join(sys.argv[1], "lib"))
-from chain_parser import command_index, name, split_parts, tokens
-from transcript import caller_transcript, episode_key, leaving_step
+from transcript import caller_transcript
+from unity_cli import tool_calls
 
 # Тул смены состояния редактора: MCP-канал зовёт его именем тула, CLI-канал — позиционным
-# аргументом команды оболочки.
+# аргументом команды оболочки. Читающий тул даёт состояние, менять его не может — поводом не идёт.
 STATE = "editor-application-set-state"
-CLI = "unity-mcp-cli"
-# Значение isPlaying в аргументах вызова CLI: между именем поля и значением стоят кавычки,
-# двоеточие и экранирование — их набор разнится по форме записи вызова.
-VALUE = re.compile(r"isPlaying\W{0,8}(true|false)", re.I)
+READ = "editor-application-get-state"
+BUDGET = 3.0
+
+OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def truthy(given):
-    if isinstance(given, str):
-        return given.strip().lower() in ("true", "1", "yes")
-    return bool(given)
-
-
-def cli_parts(command):
-    """Части цепочки, ЗАПУСКАЮЩИЕ Unity-CLI: токены части, начиная с имени команды.
-
-    Признак — ПОЗИЦИЯ команды в части (lib/chain_parser.py), не вхождение имени в текст: тем же
-    текстом команда ходит аргументом — телом heredoc, фикстурой набора самопроверки, шаблоном
-    поиска по транскрипту, — и по вхождению напоминание срывалось бы на собственной работе агента.
-    """
-    for part in split_parts(command):
-        toks = tokens(part)
-        start = command_index(toks)
-        if start >= len(toks):
-            continue
-
-        names = [name(t) for t in toks[start:]]
-        if names[0] in ("npx", CLI) and CLI in names:
-            yield toks[start:], names
-
-
-def cli_switch(command):
-    """Значение isPlaying у вызова тула смены состояния через CLI; такого вызова нет — None."""
-    found = None
-    for toks, names in cli_parts(command):
-        if "run-tool" not in names or STATE not in names:
-            continue
-
-        value = VALUE.search(" ".join(toks))
-        if value:
-            found = value.group(1).lower() == "true"
+def cli_url(command):
+    """Адрес сервера у вызова смены состояния через CLI; такого вызова нет — пустая строка."""
+    found = ""
+    for opts in tool_calls(command, STATE):
+        found = opts.get("--url") or found
 
     return found
 
 
-def switches(path):
-    """Вызовы смены Play Mode в порядке появления: True — запуск, False — остановка."""
-    out = []
+def probe_address(path):
+    """Адрес опроса, взятый у ПОСЛЕДНЕГО вызова смены состояния в транскрипте вызывающего:
+    (имя MCP-сервера, адрес из команды CLI). Вызовов не было — обе части пусты, опрос не идёт.
+    """
+    server = url = ""
     try:
         fh = open(path, "r", errors="ignore")
     except OSError:
-        return out
+        return server, url
 
     with fh:
         for line in fh:
@@ -137,48 +117,109 @@ def switches(path):
                 given = block.get("input")
                 given = given if isinstance(given, dict) else {}
                 if called.endswith(STATE):
-                    if "isPlaying" in given:
-                        out.append(truthy(given.get("isPlaying")))
+                    parts = called.split("__")
+                    if len(parts) > 2 and parts[0] == "mcp":
+                        server, url = parts[1], ""
                 elif called == "Bash":
-                    switched = cli_switch(given.get("command") or "")
-                    if switched is not None:
-                        out.append(switched)
+                    found = cli_url(given.get("command") or "")
+                    if found:
+                        server, url = "", found
 
-    return out
+    return server, url
+
+
+def address(event, server, url):
+    """Адрес MCP-сервера: у канала CLI он стоит в самой команде, у канала MCP берётся из
+    `.mcp.json` проекта сессии — файл один на оба проекта, реестр адресов у каждого свой."""
+    if url:
+        return url
+
+    for base in (os.environ.get("CLAUDE_PROJECT_DIR") or "", event.get("cwd") or "",
+                 os.path.realpath(os.path.join(sys.argv[1], "..", ".."))):
+        if not base:
+            continue
+        try:
+            with open(os.path.join(base, ".mcp.json"), encoding="utf-8") as fh:
+                return json.load(fh)["mcpServers"][server]["url"]
+        except Exception:
+            continue
+
+    return ""
+
+
+def rpc(url, payload, sid, deadline):
+    req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json, text/event-stream")
+    if sid:
+        req.add_header("Mcp-Session-Id", sid)
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise TimeoutError("исчерпан бюджет ожидания")
+    with OPENER.open(req, timeout=min(2.0, left)) as r:
+        return r.headers, r.read().decode("utf-8", "replace")
+
+
+def payload(text):
+    """Тело HTTP-транспорта приходит SSE-строкой `data: {...}`, stdio-транспорта — голым JSON."""
+    for line in text.splitlines():
+        if line.startswith("data:"):
+            try:
+                return json.loads(line[5:].strip())["result"]["structuredContent"]["result"]
+            except Exception:
+                pass
+    return json.loads(text)["result"]["structuredContent"]["result"]
+
+
+def is_playing(url):
+    """Редактор отвечает, что игра идёт. Не ответил — None: молчим, а не гадаем."""
+    deadline = time.monotonic() + BUDGET
+    try:
+        headers, _ = rpc(url, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                               "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                                          "clientInfo": {"name": "unity-playmode-stop-reminder",
+                                                         "version": "1"}}}, None, deadline)
+        sid = headers.get("Mcp-Session-Id")
+        if sid:
+            rpc(url, {"jsonrpc": "2.0", "method": "notifications/initialized"}, sid, deadline)
+        _, body = rpc(url, {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                            "params": {"name": READ, "arguments": {}}}, sid, deadline)
+        return bool(payload(body).get("IsPlaying"))
+    except Exception:
+        return None
 
 
 try:
-    d = json.loads(sys.stdin.read())
+    d = json.loads(os.environ.get("HOOK_INPUT", ""))
 except Exception:
     sys.exit(0)
 
-trigger = leaving_step(d)
-if not trigger:
+event = d.get("hook_event_name") or ""
+if event not in ("Stop", "SubagentStop"):
     sys.exit(0)
 
-# Команда, ЗАПУСКАЮЩАЯ Unity-CLI, — работа с Unity, а не уход от неё.
-if d.get("tool_name") == "Bash" and next(cli_parts((d.get("tool_input") or {}).get("command") or ""), None):
+# Конец прохода субагента без его идентификатора: транскрипт тогда родительский, эпизод чужой.
+if event == "SubagentStop" and not d.get("agent_id"):
     sys.exit(0)
 
 path = caller_transcript(d)
-calls = switches(path) if path else []
-print(trigger)
-print(len(calls) if (calls and calls[-1]) else 0)
-print(episode_key(d))
-' "$hooks_dir" <<< "$input" 2>/dev/null)
+if not path:
+    sys.exit(0)
 
-[ -n "${trigger:-}" ] || exit 0
-[ "${episode:-0}" -gt 0 ] 2>/dev/null || exit 0
+server, url = probe_address(path)
+if not server and not url:
+    sys.exit(0)
 
-marker="/tmp/unity-playmode-stop-reminder-${key}"
-[ "$(cat "$marker" 2>/dev/null)" = "$episode" ] && exit 0
-echo "$episode" > "$marker"
+url = address(d, server, url)
+if not url or is_playing(url) is not True:
+    sys.exit(0)
 
-case "$trigger" in
-  edit)  lead="следующий шаг — правка файла." ;;
-  agent) lead="следующий шаг — запуск агента: он работает минутами, игра всё это время висит без присмотра." ;;
-  long)  lead="следующий шаг — долгая не-Unity работа (прогон тестов, анализатор, фоновая команда): игра всё это время висит без присмотра." ;;
-esac
-
-printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"Напоминание: Play Mode запущен твоим вызовом и остановки среди твоих вызовов нет, %s Критерий остановки — канон клиента /mnt/c/Unity/release/CLAUDE.md, «Вход в игру»."}}\n' "$lead"
+print(json.dumps({"hookSpecificOutput": {
+    "hookEventName": event,
+    "additionalContext": "Напоминание: редактор отвечает, что Play Mode ИДЁТ, а ответ завершается "
+                         "— до следующего сообщения игра остаётся без присмотра. Кто её запустил, "
+                         "состояние редактора не называет. Что с этим делать — канон клиента "
+                         "/mnt/c/Unity/release/CLAUDE.md, «Вход в игру»."}},
+                 ensure_ascii=False))
+PY
 exit 0

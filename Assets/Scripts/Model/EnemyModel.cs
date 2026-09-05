@@ -103,7 +103,7 @@ namespace Mmogick
 			{
 				if (components.speed != null)
 				{
-					speed = (int)components.speed;
+					speed = components.speed;
 					//anim.speed = speed;
 				}
 

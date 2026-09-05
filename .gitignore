@@ -72,91 +72,7 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 *.log
-# .claude: под контролем версий hooks, settings.json и ведомые копии сводов правил
-# (.claude/skills/{core,code,csharp,browser,orchestration}/SKILL.md) — их перезаписывает хук серверного
-# репозитория, и без них сторона без сервера правил не получает вовсе.
-# Ниже перечислены авто-генерённые Unity-плагином доки тулов: перегенерятся, ручная правка затрётся.
-# Перечень поимённый и пополняется при обновлении плагина: .claude/skills целиком НЕ отсекать — вместе
-# с доками уйдут копии сводов, и канал доставки правил обнулится молча.
-.claude/scheduled_tasks.lock
-.claude/skills/assets-copy/SKILL.md
-.claude/skills/assets-create-folder/SKILL.md
-.claude/skills/assets-delete/SKILL.md
-.claude/skills/assets-find/SKILL.md
-.claude/skills/assets-find-built-in/SKILL.md
-.claude/skills/assets-get-data/SKILL.md
-.claude/skills/assets-material-create/SKILL.md
-.claude/skills/assets-modify/SKILL.md
-.claude/skills/assets-move/SKILL.md
-.claude/skills/assets-prefab-close/SKILL.md
-.claude/skills/assets-prefab-create/SKILL.md
-.claude/skills/assets-prefab-instantiate/SKILL.md
-.claude/skills/assets-prefab-open/SKILL.md
-.claude/skills/assets-prefab-save/SKILL.md
-.claude/skills/assets-refresh/SKILL.md
-.claude/skills/assets-shader-get-data/SKILL.md
-.claude/skills/assets-shader-list-all/SKILL.md
-.claude/skills/console-clear-logs/SKILL.md
-.claude/skills/console-get-logs/SKILL.md
-.claude/skills/editor-application-get-state/SKILL.md
-.claude/skills/editor-application-set-state/SKILL.md
-.claude/skills/editor-selection-get/SKILL.md
-.claude/skills/editor-selection-set/SKILL.md
-.claude/skills/gameobject-component-add/SKILL.md
-.claude/skills/gameobject-component-destroy/SKILL.md
-.claude/skills/gameobject-component-get/SKILL.md
-.claude/skills/gameobject-component-list-all/SKILL.md
-.claude/skills/gameobject-component-modify/SKILL.md
-.claude/skills/gameobject-create/SKILL.md
-.claude/skills/gameobject-destroy/SKILL.md
-.claude/skills/gameobject-duplicate/SKILL.md
-.claude/skills/gameobject-find/SKILL.md
-.claude/skills/gameobject-modify/SKILL.md
-.claude/skills/gameobject-set-parent/SKILL.md
-.claude/skills/object-get-data/SKILL.md
-.claude/skills/object-modify/SKILL.md
-.claude/skills/package-add/SKILL.md
-.claude/skills/package-list/SKILL.md
-.claude/skills/package-remove/SKILL.md
-.claude/skills/package-search/SKILL.md
-.claude/skills/ping/SKILL.md
-.claude/skills/profiler-capture-frame/SKILL.md
-.claude/skills/profiler-clear-data/SKILL.md
-.claude/skills/profiler-enable-module/SKILL.md
-.claude/skills/profiler-get-memory-stats/SKILL.md
-.claude/skills/profiler-get-rendering-stats/SKILL.md
-.claude/skills/profiler-get-script-stats/SKILL.md
-.claude/skills/profiler-get-status/SKILL.md
-.claude/skills/profiler-list-modules/SKILL.md
-.claude/skills/profiler-load-data/SKILL.md
-.claude/skills/profiler-save-data/SKILL.md
-.claude/skills/profiler-start/SKILL.md
-.claude/skills/profiler-stop/SKILL.md
-.claude/skills/reflection-method-call/SKILL.md
-.claude/skills/reflection-method-find/SKILL.md
-.claude/skills/scene-create/SKILL.md
-.claude/skills/scene-get-data/SKILL.md
-.claude/skills/scene-list-opened/SKILL.md
-.claude/skills/scene-open/SKILL.md
-.claude/skills/scene-save/SKILL.md
-.claude/skills/scene-set-active/SKILL.md
-.claude/skills/scene-unload/SKILL.md
-.claude/skills/screenshot-camera/SKILL.md
-.claude/skills/screenshot-game-view/SKILL.md
-.claude/skills/screenshot-isolated/SKILL.md
-.claude/skills/screenshot-scene-view/SKILL.md
-.claude/skills/script-delete/SKILL.md
-.claude/skills/script-execute/SKILL.md
-.claude/skills/script-read/SKILL.md
-.claude/skills/script-update-or-create/SKILL.md
-.claude/skills/tests-run/SKILL.md
-.claude/skills/tool-list/SKILL.md
-.claude/skills/tool-set-enabled-state/SKILL.md
-.claude/skills/type-get-json-schema/SKILL.md
-.claude/skills/unity-initial-setup/SKILL.md
-.claude/skills/unity-skill-create/SKILL.md
-.claude/skills/unity-skill-generate/SKILL.md
-.claude/skills/unity-tool-list/SKILL.md
+
 
 # Assets/Plugins: track only known plugins, ignore auto-generated (NuGet, etc.)
 Assets/Plugins/*
@@ -177,3 +93,4 @@ Assets/Plugins/*
 
 # Байткод-кеш модулей, зеркалируемых сюда из серверного репозитория: пишется при каждом запуске копии хука.
 __pycache__/
+*.pyc

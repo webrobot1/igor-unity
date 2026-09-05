@@ -1,6 +1,7 @@
 #!/bin/bash
 # Прогон гейта unity-playmode-guard.sh на синтетических событиях PreToolUse:
-#   BLOCK     — код 2 плюс текст отказа в stderr (ветвь, ради которой гейт заведён);
+#   BLOCK     — отказ обоими каналами разом: код 2 с текстом в stderr и `permissionDecision`
+#               на stdout (ветвь, ради которой гейт заведён);
 #   UNCHECKED — код 0 плюс additionalContext на stdout: проверка не прошла, вызов не блокирован;
 #   PASS      — код 0 без вывода: случай не наш, вызов идёт дальше.
 # Хуком НЕ является — ни в одних настройках не регистрируется, запускается вручную:
@@ -11,6 +12,11 @@
 # Unity Editor и настоящий Unity MCP набору не нужны: адрес сервера хук читает из .mcp.json, и
 # набор подставляет собственный HTTP-фейк во временном каталоге. Ни один кейс не трогает ни
 # редактор, ни сцены, ни сеть за пределы localhost.
+# Каналов входа у гейта ДВА, и кейсы идут по каждому: вызов тула MCP-сервера и команда оболочки
+# `npx unity-mcp-cli run-tool`. Вторая ось кейсов — ФОРМА ЗАПИСИ команды: гейт меряет ПОЗИЦИЮ имени
+# в части цепочки, и тихий пропуск живёт там, где перед ней стоит ещё слово — тело цикла, вторая
+# часть цепочки. Зеркальная сторона — текст, вызовом НЕ являющийся: имя тула аргументом чужой
+# команды и телом heredoc, поданным на ввод, обязано остаться незамеченным.
 # Правится разбор события, порядок опроса Unity либо текст отказа — прогнать набор: тело хука
 # читается правдоподобно и при сломанном разборе, а цена промаха двусторонняя. Тихий пропуск
 # вешает редактор модальным окном, снять которое может только человек; лишний отказ рубит вход
@@ -155,6 +161,14 @@ json.dump({"mcpServers": {"ai-game-developer": {"type": "http", "url": "http://1
 
 cfg() { printf '%s' "$1" > "$T/cfg.json"; }
 
+bash_event() { # bash_event <команда оболочки>
+  CMD="$1" python3 -c '
+import json, os
+print(json.dumps({"hook_event_name": "PreToolUse", "tool_name": "Bash",
+                  "tool_input": {"command": os.environ["CMD"]}}, ensure_ascii=False))
+'
+}
+
 event() { # event <tool_name> <isPlaying как JSON-литерал | OMIT> [cwd]
   TOOL="$1" PLAY="$2" CWD="${3-}" python3 -c '
 import json, os
@@ -236,7 +250,8 @@ says "несохранённая сцена: имя"       "$STDERR" "Main"
 says "несохранённая сцена: модалка"   "$STDERR" "Scene(s) Have Been Modified"
 says "несохранённая сцена: свои"      "$STDERR" "scene-save"
 says "несохранённая сцена: чужие"     "$STDERR" "редактор занят"
-if [ -z "$STDOUT" ]; then ok; else bad "несохранённая сцена: stdout пуст" "отказ ушёл и на stdout: «$STDOUT»"; fi
+says "несохранённая сцена: канал JSON"  "$STDOUT" '"permissionDecision": "deny"'
+says "несохранённая сцена: причина в JSON" "$STDOUT" "Запуск Play Mode отклонён"
 
 cfg '{"mode":"sse","session":true,"scenes":[{"Name":"Main","IsDirty":true},{"Name":"UI","IsDirty":true}]}'
 call "$(event "$TOOL" true)"
@@ -269,10 +284,19 @@ want "строка yes"   BLOCK
 call "$(event "$TOOL" '"True"')"
 want "строка True"  BLOCK
 
-# --- Play Mode уже идёт: окна не будет, IsDirty относится к временной копии сцены
+# --- Play Mode уже идёт: вход в идущую игру канон запрещает, автор запуска ниоткуда не наблюдаем.
+# Сцены тут любые: до их разбора дело не доходит, а IsDirty в Play Mode относится к временной копии.
 cfg '{"mode":"sse","session":true,"playing":true,"scenes":[{"Name":"Main","IsDirty":true}]}'
 call "$(event "$TOOL" true)"
-want "Play Mode уже идёт" PASS
+want "игра уже идёт: отказ"            BLOCK
+says "игра уже идёт: наблюдаемое"      "$STDERR" "УЖЕ ИДЁТ"
+says "игра уже идёт: автор не назван"  "$STDERR" "состояние редактора не называет"
+says "игра уже идёт: адрес канона"     "$STDERR" "/mnt/c/Unity/release/CLAUDE.md"
+says "игра уже идёт: канал JSON"       "$STDOUT" '"permissionDecision": "deny"'
+
+cfg '{"mode":"sse","session":true,"playing":true,"scenes":[{"Name":"Main","IsDirty":false}]}'
+call "$(event "$TOOL" true)"
+want "игра идёт при чистых сценах: отказ" BLOCK
 
 # --- состояние редактора не отдалось: режим правки тут обычный случай, отказ остаётся в силе
 cfg '{"mode":"sse","session":true,"state_fail":true,"scenes":[{"Name":"Main","IsDirty":true}]}'
@@ -321,9 +345,108 @@ call "$(event "mcp__unity-absent-server__editor-application-set-state" true)"
 want "сервера нет в .mcp.json"        UNCHECKED
 says "сервера нет: назван поимённо"   "$STDOUT" "unity-absent-server"
 
-call "$(event "Bash" true)"
+call "$(event "editor-application-set-state" true)"
 want "имя тула не MCP-формы"          UNCHECKED
 says "имя тула не MCP-формы: причина" "$STDOUT" "нет имени MCP-сервера"
+
+# --- канал CLI: тот же тул зовётся командой оболочки у сессии, которой тулы сервера не поданы.
+# Адрес редактора стоит в самой команде: `.mcp.json` тут не при чём, и каталог проекта кейсам не
+# нужен.
+URL="http://127.0.0.1:$PORT/mcp"
+RUN="npx unity-mcp-cli run-tool editor-application-set-state"
+
+cfg "$DIRTY"
+call "$(bash_event "$RUN --input '{\"isPlaying\":true}' --url $URL")"
+want "CLI: запуск при несохранённой"        BLOCK
+says "CLI: запуск — имя сцены"              "$STDERR" "Main"
+says "CLI: запуск — канал JSON"             "$STDOUT" '"permissionDecision": "deny"'
+
+call "$(bash_event "$RUN --input={\"isPlaying\":true} --url=$URL")"
+want "CLI: форма --флаг=значение"           BLOCK
+
+call "$(bash_event "cd /tmp && $RUN --input '{\"isPlaying\":true}' --url $URL")"
+want "CLI: вторая часть цепочки"            BLOCK
+
+call "$(bash_event "for i in 1; do $RUN --input '{\"isPlaying\":true}' --url $URL ; done")"
+want "CLI: тело цикла"                      BLOCK
+
+call "$(bash_event "unity-mcp-cli run-tool editor-application-set-state --input '{\"isPlaying\":true}' --url $URL")"
+want "CLI: вызов без npx"                   BLOCK
+
+# `--input` не разобран как JSON — флаг читается по сырому тексту параметра. Значение приходит
+# переменной оболочки либо теряет кавычки на разборе команды: запуск обязан быть отбит, явная
+# остановка — пропущена, иначе гейт рубит саму остановку игры.
+call "$(bash_event "$RUN --input 'сломанный json' --url $URL")"
+want "CLI: --input не разобран"             BLOCK
+
+call "$(bash_event "$RUN --url $URL")"
+want "CLI: --input не передан"              BLOCK
+
+call "$(bash_event "$RUN --input \"\$JSON\" --url $URL")"
+want "CLI: --input переменной оболочки"     BLOCK
+
+call "$(bash_event "$RUN --input {\"isPlaying\":true} --url $URL")"
+want "CLI: запуск без кавычек JSON"         BLOCK
+
+cfg "$DIRTY"
+call "$(bash_event "$RUN --input {\"isPlaying\":false} --url $URL")"
+want       "CLI: остановка без кавычек JSON"  PASS
+silent_net "CLI: остановка без кавычек JSON"
+
+call "$(bash_event "$RUN --input={\"isPlaying\":false} --url=$URL")"
+want       "CLI: остановка формой --флаг=значение" PASS
+silent_net "CLI: остановка формой --флаг=значение"
+
+cfg '{"mode":"sse","session":true,"playing":true,"scenes":[{"Name":"Main","IsDirty":false}]}'
+call "$(bash_event "$RUN --input '{\"isPlaying\":true}' --url $URL")"
+want "CLI: игра уже идёт"                   BLOCK
+says "CLI: игра уже идёт — наблюдаемое"     "$STDERR" "УЖЕ ИДЁТ"
+
+# --- канал CLI: случай не наш — в сеть не ходим вовсе
+cfg "$DIRTY"
+call "$(bash_event "$RUN --input '{\"isPlaying\":false}' --url $URL")"
+want       "CLI: остановка"                 PASS
+silent_net "CLI: остановка"
+
+call "$(bash_event "npx unity-mcp-cli run-tool editor-application-get-state --url $URL")"
+want       "CLI: читающий тул"              PASS
+silent_net "CLI: читающий тул"
+
+call "$(bash_event "grep -n \"$RUN\" /dev/null")"
+want       "CLI: имя тула аргументом чужой команды" PASS
+silent_net "CLI: имя тула аргументом чужой команды"
+
+call "$(bash_event "cat > $T/fixture.txt <<'EOF'
+$RUN --input '{\"isPlaying\":true}' --url $URL
+EOF")"
+want       "CLI: тело heredoc данными"      PASS
+silent_net "CLI: тело heredoc данными"
+
+cfg "$CLEAN"
+call "$(bash_event "$RUN --input '{\"isPlaying\":true}' --url $URL")"
+want        "CLI: чистые сцены"             PASS
+touched_net "CLI: чистые сцены"
+
+# --- адрес редактора: у канала CLI он есть только в самой команде
+cfg "$DIRTY"
+call "$(bash_event "$RUN --input '{\"isPlaying\":true}'")"
+want "CLI: без --url"                       UNCHECKED
+says "CLI: без --url — причина"             "$STDOUT" "адрес редактора"
+silent_net "CLI: без --url"
+
+# --- общий носитель разбора команды не доехал в контур: гейт не молчит и не падает, а помечает.
+# В клиентский контур lib/unity_cli.py везёт зеркалирование серверного репозитория — связь
+# косвенная, и её обрыв обязан быть слышен на самом вызове.
+mkdir -p "$T/nolib"
+cp "$HOOK" "$T/nolib/"
+: > "$T/calls.log"
+STDOUT="$(printf '%s' "$(bash_event "$RUN --input '{\"isPlaying\":true}' --url $URL")" \
+  | CLAUDE_PROJECT_DIR="$T" bash "$T/nolib/$(basename "$HOOK")" 2>"$T/stderr.txt")"
+CODE=$?
+case "$STDOUT" in *'"additionalContext"'*) VERDICT=UNCHECKED;; *) VERDICT=PASS;; esac
+want       "CLI: модуль разбора не доехал"  UNCHECKED
+says       "CLI: модуль разбора — назван"   "$STDOUT" "lib/unity_cli.py"
+silent_net "CLI: модуль разбора не доехал"
 
 # --- битый вход: разбирать нечего, работу не ронять
 : > "$T/calls.log"
@@ -353,6 +476,18 @@ silent_net "без python3"
 
 nopy "$(event "$TOOL" false)"
 if [ "$CODE" = 0 ] && [ -z "$STDOUT" ]; then ok; else bad "без python3: остановка тиха" "код $CODE, вывод «$STDOUT»"; fi
+
+nopy "$(bash_event "$RUN --input '{\"isPlaying\":true}' --url $URL")"
+says       "без python3: CLI помечен"   "$STDOUT" "нет python3"
+silent_net "без python3: CLI"
+
+nopy "$(bash_event "$RUN --input '{\"isPlaying\":false}' --url $URL")"
+if [ "$CODE" = 0 ] && [ -z "$STDOUT" ]; then ok; else bad "без python3: CLI-остановка тиха" "код $CODE, вывод «$STDOUT»"; fi
+
+# --- событие мимо гейта: отсев до запуска интерпретатора
+call "$(bash_event "ls -la /tmp")"
+want       "команда не про Play Mode"   PASS
+silent_net "команда не про Play Mode"
 
 # --- регистрация: хук молчит и при исправном теле, если его не позвали. Файл один на два контура,
 #     копий нет — регистрацию держат ОБА реестра настроек, и снятие одной стороны бесшумно.
@@ -391,7 +526,11 @@ for label, path in targets:
             # Диск Windows бита исполнения не держит: без явного `bash` вызов падает молча.
             bad.append(label + ": хук зарегистрирован без запуска через bash — «%s»" % command)
         if "editor-application-set-state" not in matcher:
-            bad.append(label + ": матчер «%s» не ловит запуск Play Mode" % matcher)
+            bad.append(label + ": матчер «%s» не ловит запуск Play Mode тулом MCP" % matcher)
+        # Второй канал того же запуска — команда оболочки `npx unity-mcp-cli run-tool`: у сессии
+        # без тулов сервера он единственный, и матчер без Bash её вызов не видит.
+        if "Bash" not in matcher.split("|"):
+            bad.append(label + ": матчер «%s» не ловит запуск Play Mode командой оболочки" % matcher)
 
 print("|".join(bad))
 sys.stderr.write("\n".join(skipped))

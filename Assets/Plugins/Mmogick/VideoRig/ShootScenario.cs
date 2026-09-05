@@ -16,12 +16,10 @@ namespace Mmogick.VideoRig
     /// </summary>
     public class ShootScenario
     {
-        /// <summary>Имя сценария. Каталогом вывода не является — его задаёт запускающий.</summary>
-        public string name;
-
         /// <summary>
-        /// Размер кадра и частота. Ролик собирается в 1920×1080 при 30 кадрах/с; фрагмент меньшего
-        /// размера сборщик растянет, и игровые сцены выйдут мягче соседних кадров админки.
+        /// Размер кадра и частота записи. Документ их не несёт — носитель здесь один, и он обязан отвечать
+        /// формату сборки ролика: 1920×1080 при 30 кадрах/с. Фрагмент меньшего размера сборщик растянет, и
+        /// игровые сцены выйдут мягче соседних кадров админки.
         /// </summary>
         public int width = 1920;
 
@@ -55,13 +53,39 @@ namespace Mmogick.VideoRig
 
                 if (scene.actions == null || scene.actions.Count == 0)
                     throw new InvalidOperationException("сцена " + scene.id + " не объявляет ни одного действия");
+
+                int marks = 0;
+                int markAt = -1;
+
+                for (int i = 0; i < scene.actions.Count; i++)
+                {
+                    if (scene.actions[i].@do != ShootAction.RECORD)
+                        continue;
+
+                    marks++;
+                    markAt = i;
+                }
+
+                if (marks > 1)
+                    throw new InvalidOperationException("в сцене " + scene.id + " маркеров " + ShootAction.RECORD
+                        + " несколько (" + marks + "): разрыв записи посреди сцены задаётся отдельной сценой, а не вторым маркером");
+
+                if (markAt == scene.actions.Count - 1)
+                    throw new InvalidOperationException("в сцене " + scene.id + " маркер " + ShootAction.RECORD
+                        + " стоит последним действием: записывать после него нечего, фрагмент вышел бы пустым");
             }
 
             return scenario;
         }
     }
 
-    /// <summary>Сцена ролика: свой файл записи «идентификатор.mp4» и список действий персонажа.</summary>
+    /// <summary>
+    /// Сцена ролика: свой файл записи «идентификатор.mp4» и список действий персонажа. Пишется не весь
+    /// список — с какого места пошёл фрагмент, говорит действие-маркер <see cref="ShootAction.RECORD"/>:
+    /// до него персонаж добирается до места и встаёт как надо, и в кадр это не идёт. Маркер в сцене один,
+    /// и после него остаётся хотя бы одно действие; разрыв записи посреди сцены выражается отдельной
+    /// сценой. Маркера нет — пишется вся сцена, с первого действия.
+    /// </summary>
     public class ShootScene
     {
         public string id;
@@ -77,11 +101,20 @@ namespace Mmogick.VideoRig
     /// click    — то же ведение (если цель задана) и нажатие в конце. Нажатие идёт тем же путём, что
     ///            живое: через тот же источник ввода, который читают и игра, и EventSystem.
     /// walk_dir — держать направление движения (x, y) на seconds: путь клавиатурных осей.
+    /// wait_map — дождаться перехода персонажа на другую карту, не дольше seconds (по умолчанию — свой
+    ///            потолок ожидания).
+    /// record   — отметка начала записи, без параметров: с неё пошёл фрагмент сцены.
     ///
     /// Цель у pointer и click задаётся РОВНО одним полем: screen, ui, bar, map либо entity.
     /// </summary>
     public class ShootAction
     {
+        /// <summary>
+        /// Вид действия, которым сцена отмечает начало своей записи. Правила его места в сцене — у
+        /// <see cref="ShootScene"/>.
+        /// </summary>
+        public const string RECORD = "record";
+
         public string @do;
 
         public float seconds;
