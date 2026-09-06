@@ -156,6 +156,11 @@ namespace Mmogick
 		/// </summary>
 		public void OnVisualReady()
 		{
+			// Тело сменилось — прежний поиск скелета устарел: у сущности он мог не найтись вовсе
+			// (картинка, заглушка), а теперь есть, и запомненное отсутствие соврало бы (см. Skeleton).
+			_skeleton = null;
+			_skeletonSearched = false;
+
 			if (lifeBarHiddenForBuild)
 			{
 				lifeBarHiddenForBuild = false;
@@ -525,15 +530,20 @@ namespace Mmogick
 		/// </summary>
 		public virtual Event getEvent(string group)
 		{
-			if (!events.ContainsKey(group))
-			{
-				events.Add(group, new Event());
-				events[group].action = null;
-				events[group].from_client = true;
-				events[group].finish = DateTime.Now;
-			}
+			// Одно обращение к словарю на вызов: зовут на КАЖДОЕ событие КАЖДОЙ сущности каждого пакета.
+			if (events.TryGetValue(group, out Event known))
+				return known;
 
-			return events[group];
+			Event created = new Event
+			{
+				action = null,
+				from_client = true,
+				finish = DateTime.Now,
+			};
+
+			events.Add(group, created);
+
+			return created;
 		}
 
 		/// <summary>
@@ -633,7 +643,11 @@ namespace Mmogick
 				if (_universalController == null)
 				{
 					_universalControllerMissing = true;
-					LogWarning("GetUniversalController: Resources/Animations/Universal не найден — fallback-эффекты отключены");
+					// Инвариант СБОРКИ: ассет либо лежит в проекте, либо нет — состояние это не игровое, и
+					// подробным журналом его гасить нельзя (LogWarning молчит при verbose = false, а
+					// докблок обещает предупреждение). Сигналим тем же каналом, что и прочие нехватки
+					// сборки (WeaponMount.Apply).
+					LogError("GetUniversalController: Resources/Animations/Universal не найден — fallback-эффекты отключены");
 				}
 			}
 			return _universalController;
@@ -682,8 +696,42 @@ namespace Mmogick
 		// запустить другой, показать или спрятать, — собрано тут: вызывающие спрашивают тело, не зная,
 		// чем оно собрано.
 
-		/// <summary>Скелет Spine сущности; null — тело не собрано (картинка, заглушка либо ещё качается).</summary>
-		private SkeletonAnimation Skeleton => GetComponentInChildren<SkeletonAnimation>();
+		/// <summary>
+		/// Скелет Spine сущности; null — тело не собрано (картинка, заглушка либо ещё качается).
+		///
+		/// Ссылку держим полем: тело спрашивают на КАЖДУЮ сущность каждого пакета и по нескольку раз за
+		/// разбор (есть ли клип, какой играет, повторяется ли, запустить другой), а поиск в потомках
+		/// обходит всё поддерево сущности — то же основание, что у <see cref="EnsureRenderRefs"/> и у
+		/// буфера рендереров ниже.
+		///
+		/// Запоминается и ОТСУТСТВИЕ тела: у сущности с картинкой и у заглушки вида скелета нет вовсе,
+		/// и без этого они платили бы обходом поддерева на каждом пакете — ровно там, где искать
+		/// заведомо нечего. Оттого признак поиска отдельный от самой ссылки: пустая ссылка значит и
+		/// «ещё не искали», и «тела нет», а различает их он.
+		///
+		/// Сбрасывает поиск смена визуала — <see cref="OnVisualReady"/>, единая точка «тело собрано и
+		/// показано» у всех трёх форм сборки. Уничтоженный прежний скелет ловится и сам, Unity-проверкой
+		/// `== null`: она и держит выдачу верной, если сброс почему-то не пришёл.
+		/// </summary>
+		private SkeletonAnimation Skeleton
+		{
+			get
+			{
+				if (_skeleton != null)
+					return _skeleton;
+
+				if (!_skeletonSearched)
+				{
+					_skeleton = GetComponentInChildren<SkeletonAnimation>();
+					_skeletonSearched = true;
+				}
+
+				return _skeleton;
+			}
+		}
+
+		private SkeletonAnimation _skeleton;
+		private bool _skeletonSearched;
 
 		/// <summary>Собрано ли тело, которым управляют клипами.</summary>
 		public bool HasBody => Skeleton != null;
@@ -765,15 +813,21 @@ namespace Mmogick
 		/// у которого своего спрайта нет вовсе.
 		///
 		/// Состав рендереров не запоминается: тело пересобирается в любой момент (смена облика, надетый
-		/// предмет), и снятый однажды список назавтра красил бы не то.
+		/// предмет), и снятый однажды список назавтра красил бы не то. Собирается он в общий буфер, а не
+		/// в свой массив на вызов: прозрачность переписывают КАЖДЫЙ кадр, пока игрок в призрачном режиме
+		/// (PlayerModel.LateUpdate), и массив на вызов был бы мусором за кадр — то же основание, что у
+		/// <see cref="TryGetVisualBounds"/> ниже.
 		/// </summary>
 		public void SetBodyAlpha(float alpha)
 		{
-			foreach (var sr in GetComponentsInChildren<SpriteRenderer>(true))
+			GetComponentsInChildren(true, _spriteBuffer);
+			for (int i = 0; i < _spriteBuffer.Count; i++)
 			{
+				var sr = _spriteBuffer[i];
 				var color = sr.color;
 				sr.color = new Color(color.r, color.g, color.b, alpha);
 			}
+			_spriteBuffer.Clear();
 
 			var skeleton = Skeleton;
 			if (skeleton != null && skeleton.Skeleton != null)
@@ -912,17 +966,25 @@ namespace Mmogick
 		{
 			bounds = new Bounds();
 			bool has = false;
-			var renderers = GetComponentsInChildren<Renderer>();
-			for (int i = 0; i < renderers.Length; i++)
+			// Буфер общий и живёт между вызовами: границы спрашивают каждый кадр у каждого тела (коллайдер
+			// трупа, полоски срока и очереди), и массив на каждый вызов был бы мусором за кадр.
+			GetComponentsInChildren(false, _rendererBuffer);
+			for (int i = 0; i < _rendererBuffer.Count; i++)
 			{
-				if (!renderers[i].enabled) continue;
+				Renderer renderer = _rendererBuffer[i];
+				if (!renderer.enabled) continue;
 				// Пустой спрайт рисует ничто, а границы у рендерера всё равно есть — такой в тело не идёт.
-				if (renderers[i] is SpriteRenderer sprite && sprite.sprite == null) continue;
-				if (!has) { bounds = renderers[i].bounds; has = true; }
-				else bounds.Encapsulate(renderers[i].bounds);
+				if (renderer is SpriteRenderer sprite && sprite.sprite == null) continue;
+				if (!has) { bounds = renderer.bounds; has = true; }
+				else bounds.Encapsulate(renderer.bounds);
 			}
+			_rendererBuffer.Clear();
 			return has;
 		}
+
+		private static readonly List<Renderer> _rendererBuffer = new List<Renderer>();
+
+		private static readonly List<SpriteRenderer> _spriteBuffer = new List<SpriteRenderer>();
 
 		/// <summary>
 		///  базовая корутина уничтожение с карты объекта при уничтожении с сервера. ее можно и скорее нужно переопределять насыщая анмиацией это действи
@@ -945,7 +1007,7 @@ namespace Mmogick
 				}
 				Log("Удаление - Существо так и не перешло на новую карту");
 			}
-			StartCoroutine("Destroy");
+			StartCoroutine(Destroy());
 			yield break;
 		}	
 		

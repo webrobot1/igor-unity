@@ -36,6 +36,15 @@
             "command": "bash /mnt/c/Unity/release/.claude/hooks/write-scope-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /mnt/c/Unity/release/.claude/hooks/unity-playmode-stop-reminder.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [

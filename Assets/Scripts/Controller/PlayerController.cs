@@ -121,7 +121,7 @@ namespace Mmogick
             // настоящие сбои в нём тонут.
             if (recive.action == ACTION_LOAD && tmp_target != null && Target == null)
             {
-                GameObject gameObject = GameObject.Find(tmp_target);
+                GameObject gameObject = FindEntity(tmp_target);
                 if (gameObject == null)
                 {
                     player.Log("Цель не пережила перезагрузку мира: " + tmp_target);
@@ -155,7 +155,7 @@ namespace Mmogick
 
                             if (attacker != null)
                             {
-                                GameObject gameObject = GameObject.Find(attacker);
+                                GameObject gameObject = FindEntity(attacker);
                                 if (gameObject != null)
                                 {
                                     ObjectModel attackerModel = gameObject.GetComponent<EnemyModel>();
@@ -193,7 +193,11 @@ namespace Mmogick
                          Target.key != gameObject.key
                              &&
                          (
-                             (!persist_target && Vector3.Distance(Target.position, player.position) > Vector3.Distance(gameObject.transform.position, player.position))
+                             // Обе стороны — по МИРОВЫМ координатам. EntityModel.position серверная и
+                             // локальная внутри зоны своей карты, а зона смежной карты сдвинута на её место
+                             // в мире (UpdateController: map_zone.localPosition = getSides()[...]): взяв её,
+                             // сравнение считало бы расстояния в двух разных системах отсчёта.
+                             (!persist_target && Vector3.Distance(Target.transform.position, player.transform.position) > Vector3.Distance(gameObject.transform.position, player.transform.position))
                                  ||
                              current == null
                                  ||

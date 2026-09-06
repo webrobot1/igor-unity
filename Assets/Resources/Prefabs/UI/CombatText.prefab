@@ -155,3 +155,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Mmogick.CombatText
   speed: 1
   lifeTime: 1.5
+  text: {fileID: 1695745913020591168}

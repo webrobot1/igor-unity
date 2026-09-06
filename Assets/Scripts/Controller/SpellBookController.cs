@@ -8,7 +8,8 @@ using WebGLSupport;
 namespace Mmogick
 {
     /// <summary>
-	/// Класс для обновления Меню настрое игрока
+	/// Книга заклинаний игрока: список выученных с их свойствами и вкладки по стихиям.
+	/// Из чего собирается и почему именно в HandleData — у самого <see cref="HandleData"/>.
 	/// </summary>
     abstract public class SpellBookController : UIController
     {

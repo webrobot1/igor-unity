@@ -5,7 +5,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -32,9 +31,6 @@ namespace Mmogick
 	// цепочки разрешения значения у префаба (GetComponentValue) и именем файла иконки (GetComponentSprite).
 	public static class AnimationCacheService
 	{
-		[DllImport("__Internal")]
-		private static extern void JsSync();
-
 		private const string MANIFEST_FILE        = "sync.json";
 		private const string LIBRARY_FILE         = "library.json";
 		private const string IMAGES_DIR           = "images";
@@ -69,16 +65,33 @@ namespace Mmogick
 		private static float? _imageSizeDefault;
 		private static float? _animationSizeDefault;
 
-		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
+		// Графика анимаций: точка отсчёта по центру — так картинка центруется на клетке сущности; надетый
+		// предмет свой хват задаёт сам, пересоздавая спрайт из этой же текстуры (WeaponMount.Apply).
+		// Пикселей на единицу — 100, ровно столько же считает WeaponMount.Ppu: предмет собирает кусок из этой
+		// текстуры, и разный масштаб дал бы разный размер. Меш Tight — чтобы Sprite.bounds (и bounds рендерера)
+		// отсекали прозрачные поля картинки: без этого предмет с «воздухом» вокруг содержимого мерился бы
+		// завышенными габаритами и выходил бы мельче остальных. Числом треугольников от FullRect он и
+		// отличается — рисуется то же самое.
+		// Ключ — готовое имя файла (sha256.ext), дописывать к нему нечего.
+		private static readonly SpriteCache _sprites = new SpriteCache(
+			"AnimationCache", ImagesPath, "", new Vector2(0.5f, 0.5f), _ => 100f, SpriteMeshType.Tight,
+			gameId =>
+			{
+				if (_manifest != null)
+				{
+					_manifest.archive_last_modified = null;
+					SaveManifest(gameId);
+				}
+			});
 
 		/// <summary>
 		/// Tight-rect спрайта в sprite-local мировых единицах; начало координат — PIVOT спрайта (у спрайтов
-		/// этого кеша он по центру, см. Sprite.Create ниже), т.е. yMax — высота верхнего края непрозрачных
+		/// этого кеша он по центру, см. <see cref="_sprites"/>), т.е. yMax — высота верхнего края непрозрачных
 		/// пикселей НАД центром, и по одной высоте rect'а положение края не восстановить.
 		/// Берётся из <see cref="Sprite.vertices"/> — при Tight-меше Unity туда кладёт вершины полигона вокруг
 		/// непрозрачных пикселей. <see cref="Sprite.bounds"/> не подходит: он считает всю sprite.rect целиком,
 		/// и PNG с прозрачными полями искажают замеры, которыми нормируют размер (тело сущности, надетый
-		/// предмет). Требует Tight-меша — у спрайтов этого кеша он задаётся в <see cref="Sprite.Create"/> ниже,
+		/// предмет). Требует Tight-меша — у спрайтов этого кеша он задан при его создании (<see cref="_sprites"/>),
 		/// у ассетов Unity — через TextureImporter.spriteMeshType=Tight (см. README / raw .meta files).
 		/// </summary>
 		public static bool TryGetTightRect(Sprite s, out Rect rect)
@@ -559,59 +572,25 @@ namespace Mmogick
 			return result;
 		}
 
-		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx)
-		// при неуспешном HTTP-запросе. Fallback — код+generic error от UnityWebRequest.
-		private static string ExtractError(UnityWebRequest req)
-		{
-			string body = req.downloadHandler?.text;
-			if (!string.IsNullOrEmpty(body))
-			{
-				try
-				{
-					var err = JsonConvert.DeserializeObject<Dictionary<string, string>>(body);
-					if (err != null && err.TryGetValue("error", out string msg) && !string.IsNullOrEmpty(msg))
-						return msg;
-				}
-				catch { }
-			}
-			return req.responseCode + " " + req.error;
-		}
+		// Подкаталог кеша игры под анимации: свои каталоги этого кеша лежат в нём.
+		private const string ROOT_DIR = "animations";
 
-		// Корень кеша анимаций для игры
-		private static string AnimationsPath(int gameId)
-		{
-			string folder;
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				folder = "idbfs";
-			#else
-				folder = Application.persistentDataPath;
-			#endif
-			string path = Path.Combine(folder, "games", gameId.ToString(), "animations");
-			if (!Directory.Exists(path)) Directory.CreateDirectory(path);
-			return path;
-		}
-
-		private static string ImagesPath(int gameId)          => Path.Combine(AnimationsPath(gameId), IMAGES_DIR);
-		private static string StructPath(int gameId)          => Path.Combine(AnimationsPath(gameId), STRUCT_DIR);
+		private static string ImagesPath(int gameId)          => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), IMAGES_DIR);
+		private static string StructPath(int gameId)          => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), STRUCT_DIR);
 
 		// Те же каталоги кешу скелетов Spine: картинки у него общие с этим кешем (страницы атласа — это они
 		// же), а пакет скелета лежит в каталоге структур своей анимации. Своих каталогов он не заводит —
 		// иначе сброс кеша анимаций оставлял бы их сиротами.
 		public static string ImagesDirPath(int gameId)        => ImagesPath(gameId);
 		public static string StructuresPath(int gameId)       => StructPath(gameId);
-		private static string ManifestPath(int gameId)        => Path.Combine(AnimationsPath(gameId), MANIFEST_FILE);
-		private static string LibraryPath(int gameId)         => Path.Combine(AnimationsPath(gameId), LIBRARY_FILE);
+		private static string ManifestPath(int gameId)        => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), MANIFEST_FILE);
+		private static string LibraryPath(int gameId)         => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), LIBRARY_FILE);
 
 		// Загружает manifest + library + files с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
 			string mp = ManifestPath(gameId);
-			// Рассинхрон disk↔RAM (sync.json удалён внешним кодом / ручной очисткой кэша, но _manifest
-			// в RAM держит timestamp прошлого архива) — нарушение контракта: AnimationCacheService —
-			// единственный владелец этих файлов. Падаем громко (skill code «Отказ и дефолт»), чтобы виновный
-			// код был починен у источника, а не маскировался силент-ресетом.
-			if (_manifest != null && !File.Exists(mp))
-				throw new InvalidOperationException("AnimationCache: sync.json отсутствует на диске, но _manifest загружен в RAM. Кто-то очистил кэш мимо ResetCache() — почините источник.");
+			GameCache.RequireManifestOnDisk("AnimationCache", _manifest, mp);
 			if (_manifest == null)
 			{
 				_manifest = File.Exists(mp)
@@ -647,21 +626,9 @@ namespace Mmogick
 			if (!Directory.Exists(StructPath(gameId))) Directory.CreateDirectory(StructPath(gameId));
 		}
 
-		private static void SaveManifest(int gameId)
-		{
-			File.WriteAllText(ManifestPath(gameId), JsonConvert.SerializeObject(_manifest));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-		}
+		private static void SaveManifest(int gameId) => GameCache.WriteJson(ManifestPath(gameId), _manifest);
 
-		private static void SaveLibrary(int gameId)
-		{
-			File.WriteAllText(LibraryPath(gameId), JsonConvert.SerializeObject(_library));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-		}
+		private static void SaveLibrary(int gameId) => GameCache.WriteJson(LibraryPath(gameId), _library);
 
 		// Полный сброс локального кеша анимаций игры: manifest, library, structures/, images/.
 		// Вызывается при обнаружении рассинхронизации (например, сервер отвечает 404 на animation_id из library).
@@ -678,7 +645,7 @@ namespace Mmogick
 			// оставшись, они отвечали бы по снесённому каталогу.
 			_imageSizeDefault = null;
 			_animationSizeDefault = null;
-			_spriteCache.Clear();
+			_sprites.Clear();
 			// Каталог структур сносится ниже целиком — разобранное из него в памяти пережило бы снос и
 			// осталось бы отвечать по снятым файлам (память живёт до остановки игры, не до сброса кеша).
 			SpineCacheService.Reset();
@@ -694,9 +661,7 @@ namespace Mmogick
 
 			Directory.CreateDirectory(StructPath(gameId));
 			Directory.CreateDirectory(ImagesPath(gameId));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
+			GameCache.Flush();
 		}
 
 		// Полная синхронизация перед входом в игру: архив картинок + library + версии анимаций + предзагрузка скелетов. Вызывать ДО Connect.
@@ -730,7 +695,7 @@ namespace Mmogick
 
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("AnimationCache animations: " + ExtractError(req));
+				onError?.Invoke("AnimationCache animations: " + GameCache.ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -834,7 +799,7 @@ namespace Mmogick
 			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("AnimationCache archive: " + ExtractError(req));
+				onError?.Invoke("AnimationCache archive: " + GameCache.ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -875,10 +840,8 @@ namespace Mmogick
 			Debug.Log("AnimationCache: архив картинок обновлён, распаковано " + extractedCount + " файлов");
 			_manifest.archive_last_modified = lastMod;
 			SaveManifest(gameId);
-			_spriteCache.Clear(); // новые картинки могли появиться
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
+			_sprites.Clear(); // новые картинки могли появиться
+			GameCache.Flush();
 		}
 
 		// Конверт дельта-ответа /prefabs?since= (см. серверный Animation/PatchController::prefabs).
@@ -911,7 +874,7 @@ namespace Mmogick
 
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("AnimationCache library: " + ExtractError(req));
+				onError?.Invoke("AnimationCache library: " + GameCache.ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -1065,69 +1028,15 @@ namespace Mmogick
 			return (bestClip, bestFlip, bestAngle);
 		}
 
-		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш
-		// (удаляет PNG и сбрасывает archive_last_modified — иначе следующий sync получит 304 и файл
-		// не перекачается) и бросает Exception с контекстом. Вызыватель оборачивает в try/catch и
-		// сам решает что делать (обычно — ConnectController.Error + оставить sprite=null).
+		// Sprite по имени файла ("sha256.ext"): картинка локального кеша, разобранная по конвенции графики
+		// анимаций (см. _sprites). Битую картинку кеш снимает сам и бросает Exception с контекстом;
+		// вызыватель оборачивает в try/catch и сам решает что делать (обычно — ConnectController.Error
+		// плюс оставить sprite=null), а следующий sync перекачает файл с сервера.
+		// Имени нет — рисовать нечего: легитимное отсутствие, у вызывающего своя реакция на null.
 		public static Sprite TryGetSprite(int gameId, string fileName)
 		{
-			try { return GetSprite(gameId, fileName); }
-			catch (Exception ex)
-			{
-				if (!string.IsNullOrEmpty(fileName))
-				{
-					string path = Path.Combine(ImagesPath(gameId), fileName);
-					// Причину неудачного сноса называем вслух: без неё следующий заход находит тот же битый
-					// файл, снова падает на нём и снова молча не может его снять.
-					try { if (File.Exists(path)) File.Delete(path); }
-					catch (Exception drop) { Debug.LogWarning("AnimationCache: битую картинку " + fileName + " не снять: " + drop.Message); }
-					_spriteCache.Remove(fileName);
-					if (_manifest != null)
-					{
-						_manifest.archive_last_modified = null;
-						SaveManifest(gameId);
-					}
-				}
-				throw new Exception("AnimationCache: битый image '" + fileName + "' удалён из кеша, перекачается на следующем sync — " + ex.Message, ex);
-			}
-		}
-
-		// Sprite по имени файла ("sha256.ext"): грузится из локального кеша, кешируется в памяти.
-		// pivot=(0.5, 0.5) — центр: так картинка центруется на клетке сущности. Надетый предмет свой pivot
-		// (хват) задаёт сам, пересоздавая спрайт из этой же текстуры (WeaponMount.Apply).
-		public static Sprite GetSprite(int gameId, string fileName)
-		{
 			if (string.IsNullOrEmpty(fileName)) return null;
-			// Unity-объект в словаре может быть уничтожен Resources.UnloadUnusedAssets при переходе сцен
-			// (static-ссылка C# живёт, но нативный ресурс снесён). Проверяем через == null и пересоздаём.
-			if (_spriteCache.TryGetValue(fileName, out Sprite cached) && cached != null) return cached;
-
-			string path = Path.Combine(ImagesPath(gameId), fileName);
-			if (!File.Exists(path))
-			{
-				throw new Exception("AnimationCache: отсутствует картинка " + fileName + " (архив устарел?)");
-			}
-
-			byte[] bytes = File.ReadAllBytes(path);
-			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-			// LoadImage возвращает false на битых PNG или PNG, которые Unity не умеет парсить
-			// (наблюдалось на валидных файлах с большими iTXt-чанками XMP-метаданных от Photoshop).
-			// Кидаем — вызыватель решит, удалить файл из кеша / сбросить manifest / показать Error.
-			if (!tex.LoadImage(bytes))
-				throw new Exception("AnimationCache: Unity.Texture2D.LoadImage не справился с " + fileName + " (" + bytes.Length + " байт)");
-			tex.filterMode = FilterMode.Point;
-			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
-			// PixelsPerUnit должен совпадать с тем, в котором считает размер надетого предмета WeaponMount.Ppu
-			// (=100): предмет пересоздаёт спрайт из этой же текстуры, и разный масштаб дал бы разный размер.
-			// SpriteMeshType.Tight — чтобы Sprite.bounds (и SpriteRenderer.bounds) отсекали прозрачные поля PNG.
-			// Критично для нормализации размера: без этого предмет с «воздухом» вокруг контента в своём
-			// PNG-е измерялся бы завышенными bounds и выходил бы мельче остальных.
-			// Рендеринг FullRect vs Tight отличается только числом треугольников меша — визуально идентично.
-			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.Tight);
-			s.hideFlags = HideFlags.DontUnloadUnusedAsset;
-			_spriteCache[fileName] = s;
-			Debug.Log("AnimationCache: спрайт " + fileName + " загружен с диска");
-			return s;
+			return _sprites.Get(gameId, fileName);
 		}
 
 		// Все имена префабов игры (из /prefabs). Используется для создания GameObject'ов по префабам.

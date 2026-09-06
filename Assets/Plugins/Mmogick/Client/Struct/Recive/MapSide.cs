@@ -30,10 +30,5 @@ namespace Mmogick
 		/// только по явному false, иначе она мигала бы на каждом старте.
 		/// </summary>
 		public bool? ready;
-
-		new public string ToString()
-		{
-			return x + "," + y;
-		}
 	}
 }

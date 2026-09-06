@@ -5,10 +5,16 @@
 # теряется молча — вносить её в источник. Серверного репозитория нет под рукой → назвать нужную
 # правку пользователю.
 
-# Stop|SubagentStop hook: напоминание об идущем Play Mode на завершении ответа. Момент один — ответ
-# закончился, а игра идёт: до следующего сообщения она висит без присмотра.
-# Шаговых входов (правка файла, запуск агента, долгая команда) у хука нет: состояние берётся
-# опросом живого редактора, и на каждой правке файла тот стоил бы сетевого вызова за правку.
+# Stop|SubagentStop hook: идущий Play Mode на завершении ответа. Момент один — ответ закончился, а
+# игра идёт: до следующего сообщения она висит без присмотра. Игру, запущенную этим вызывающим и им не
+# остановленную, хук ОСТАНАВЛИВАЕТ сам; чужую (после его собственной остановки) лишь называет.
+# Шаговый вход один — ВОПРОС ЧЕЛОВЕКУ (`AskUserQuestion`): он равен концу ответа по СРОКУ — окно
+# ждёт человека и не кончится, пока тот не ответит, хоть часами, — потому игра на нём и гасится, а
+# не напоминается. Напоминанием тут не обойтись вовсе: оно доедет до модели лишь после ответа
+# человека, то есть после всего простоя, ради которого заведено. Прочих шаговых входов (правка
+# файла, запуск агента, долгая команда) у хука нет: состояние берётся опросом живого редактора, и
+# на каждой правке файла тот стоил бы сетевого вызова за правку; ярлык шага считает общий носитель
+# lib/transcript.py (leaving_step) — его же делит напоминание об оставленном браузере.
 # Момент ВХОДА в игру держит гейт клиентского репозитория unity-playmode-guard.sh: он стоит на
 # самом вызове запуска и спрашивает то же состояние. Момент первого вызова тула редактора и
 # момент запуска игры («остановить по сбору данных») держит unity-skill-reminder.sh.
@@ -63,7 +69,7 @@ HOOK_INPUT="$input" python3 - "$hooks_dir" <<'PY' 2>/dev/null
 import json, os, sys, time, urllib.request
 
 sys.path.insert(0, os.path.join(sys.argv[1], "lib"))
-from transcript import caller_transcript
+from transcript import caller_transcript, leaving_step
 from unity_cli import tool_calls
 
 # Тул смены состояния редактора: MCP-канал зовёт его именем тула, CLI-канал — позиционным
@@ -75,24 +81,42 @@ BUDGET = 3.0
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def cli_url(command):
-    """Адрес сервера у вызова смены состояния через CLI; такого вызова нет — пустая строка."""
-    found = ""
-    for opts in tool_calls(command, STATE):
-        found = opts.get("--url") or found
+def truthy(value):
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes")
+    return bool(value)
 
-    return found
+
+def cli_call(command):
+    """Последний вызов смены состояния через CLI в команде: (был ли, адрес --url, запуск ли).
+    Флаг лежит в JSON параметра --input; не разобран — считается запуском, как у гейта входа."""
+    seen, found, launch = False, "", False
+    for opts in tool_calls(command, STATE):
+        seen = True
+        found = opts.get("--url") or found
+        raw = opts.get("--input") or ""
+        try:
+            parsed = json.loads(raw)
+        except ValueError:
+            parsed = None
+        launch = truthy(parsed.get("isPlaying", True)) if isinstance(parsed, dict) else "false" not in raw.lower()
+
+    return seen, found, launch
 
 
 def probe_address(path):
     """Адрес опроса, взятый у ПОСЛЕДНЕГО вызова смены состояния в транскрипте вызывающего:
-    (имя MCP-сервера, адрес из команды CLI). Вызовов не было — обе части пусты, опрос не идёт.
+    (имя MCP-сервера, адрес из команды CLI, был ли последний вызов ЗАПУСКОМ). Вызовов не было —
+    первые две части пусты, опрос не идёт. Признак запуска решает исход: игру, запущенную этим
+    вызывающим и не остановленную им, хук останавливает сам; игру после его же остановки запустил
+    кто-то другой — о ней только напоминание.
     """
     server = url = ""
+    launched = False
     try:
         fh = open(path, "r", errors="ignore")
     except OSError:
-        return server, url
+        return server, url, launched
 
     with fh:
         for line in fh:
@@ -120,12 +144,14 @@ def probe_address(path):
                     parts = called.split("__")
                     if len(parts) > 2 and parts[0] == "mcp":
                         server, url = parts[1], ""
+                        launched = truthy(given.get("isPlaying"))
                 elif called == "Bash":
-                    found = cli_url(given.get("command") or "")
-                    if found:
+                    seen, found, launch = cli_call(given.get("command") or "")
+                    if seen and found:
                         server, url = "", found
+                        launched = launch
 
-    return server, url
+    return server, url, launched
 
 
 def address(event, server, url):
@@ -171,22 +197,39 @@ def payload(text):
     return json.loads(text)["result"]["structuredContent"]["result"]
 
 
+def session(url, deadline):
+    headers, _ = rpc(url, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                           "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                                      "clientInfo": {"name": "unity-playmode-stop-reminder",
+                                                     "version": "1"}}}, None, deadline)
+    sid = headers.get("Mcp-Session-Id")
+    if sid:
+        rpc(url, {"jsonrpc": "2.0", "method": "notifications/initialized"}, sid, deadline)
+    return sid
+
+
 def is_playing(url):
     """Редактор отвечает, что игра идёт. Не ответил — None: молчим, а не гадаем."""
     deadline = time.monotonic() + BUDGET
     try:
-        headers, _ = rpc(url, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-                               "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                                          "clientInfo": {"name": "unity-playmode-stop-reminder",
-                                                         "version": "1"}}}, None, deadline)
-        sid = headers.get("Mcp-Session-Id")
-        if sid:
-            rpc(url, {"jsonrpc": "2.0", "method": "notifications/initialized"}, sid, deadline)
+        sid = session(url, deadline)
         _, body = rpc(url, {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
                             "params": {"name": READ, "arguments": {}}}, sid, deadline)
         return bool(payload(body).get("IsPlaying"))
     except Exception:
         return None
+
+
+def stop_playing(url):
+    """Остановить игру тем же тулом, которым её запускал вызывающий. Не вышло — False."""
+    deadline = time.monotonic() + BUDGET
+    try:
+        sid = session(url, deadline)
+        rpc(url, {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                  "params": {"name": STATE, "arguments": {"isPlaying": False}}}, sid, deadline)
+        return True
+    except Exception:
+        return False
 
 
 try:
@@ -195,7 +238,13 @@ except Exception:
     sys.exit(0)
 
 event = d.get("hook_event_name") or ""
-if event not in ("Stop", "SubagentStop"):
+if event not in ("Stop", "SubagentStop", "PreToolUse"):
+    sys.exit(0)
+
+# Шаговый вход один — вопрос человеку. Прочие шаги (правка файла, запуск агента, долгая команда)
+# кончаются сами, и опрос живого редактора на каждом из них стоил бы сетевого вызова за шаг; окно
+# же ждёт человека и не кончится, пока тот не ответит, — цена одного опроса там оправдана сроком.
+if event == "PreToolUse" and leaving_step(d) != "wait":
     sys.exit(0)
 
 # Конец прохода субагента без его идентификатора: транскрипт тогда родительский, эпизод чужой.
@@ -206,7 +255,7 @@ path = caller_transcript(d)
 if not path:
     sys.exit(0)
 
-server, url = probe_address(path)
+server, url, launched = probe_address(path)
 if not server and not url:
     sys.exit(0)
 
@@ -214,12 +263,33 @@ url = address(d, server, url)
 if not url or is_playing(url) is not True:
     sys.exit(0)
 
+# Игру запустил этот вызывающий и сам не остановил — хук останавливает её: замер отдачи показал, что
+# напоминание на завершении ответа почти не исполняется, а висящий Play Mode ест ресурсы машины до
+# следующего сообщения. Канон клиента разрешает трогать только СВОЮ игру: последний вызов смены
+# состояния у вызывающего — запуск, значит игра его. Последним была остановка — игру перезапустил
+# кто-то другой, её не трогаем и лишь называем наблюдаемое.
+waiting = event == "PreToolUse"
+moment = ("перед вопросом человеку: ответа он ждёт сколько угодно, и всё это время игра висела бы "
+          "без присмотра" if waiting else
+          "на завершении ответа: до следующего сообщения игра висела бы без присмотра")
+
+if launched and stop_playing(url):
+    print(json.dumps({"hookSpecificOutput": {
+        "hookEventName": event,
+        "additionalContext": "Play Mode остановлен хуком " + moment + ": игру запустил этот "
+                             "вызывающий и не остановил. Останавливать сразу по сбору данных "
+                             "остаётся за вызывающим — канон клиента "
+                             "/mnt/c/Unity/release/CLAUDE.md, «Вход в игру»."}},
+                     ensure_ascii=False))
+    sys.exit(0)
+
 print(json.dumps({"hookSpecificOutput": {
     "hookEventName": event,
-    "additionalContext": "Напоминание: редактор отвечает, что Play Mode ИДЁТ, а ответ завершается "
-                         "— до следующего сообщения игра остаётся без присмотра. Кто её запустил, "
-                         "состояние редактора не называет. Что с этим делать — канон клиента "
-                         "/mnt/c/Unity/release/CLAUDE.md, «Вход в игру»."}},
+    "additionalContext": "Напоминание: редактор отвечает, что Play Mode ИДЁТ, а вызывающий уходит "
+                         + ("в ожидание ответа человека" if waiting else "с завершением ответа")
+                         + " — игра остаётся без присмотра. Кто её запустил, состояние редактора не "
+                           "называет. Что с этим делать — канон клиента "
+                           "/mnt/c/Unity/release/CLAUDE.md, «Вход в игру»."}},
                  ensure_ascii=False))
 PY
 exit 0

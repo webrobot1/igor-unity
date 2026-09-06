@@ -73,7 +73,7 @@ node_root="/var/www/html/node"
 
 if ! command -v python3 >/dev/null 2>&1; then
   if printf '%s' "$input" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"Bash"'; then
-    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"skill-guard: владение путём не проверено — в окружении нет python3. Вызов не блокирован. Проверь сам: `.claude/agents|hooks|workflows` правит team-lead, `.claude/skills`, markdown корня проекта (`CLAUDE.md`, `README.md`), markdown `.claude/**` вне зон выше, `docs/`, `.install/`, `Build/*.md` и `Build/<бандл>/instructions.md` — skill-editor, `.claude/settings.json` — team-lead и главная сессия, маркер `.claude/agents/<имя>.last` — агент этого имени и team-lead, маркер `.claude/workflows/*.last` — главная сессия; `Plans/` и markdown вне перечисленных мест под защиту не подпадают. Корневой `CLAUDE.md` внешнего контура — канон клиентского репозитория и канон репозитория узла — правит skill-editor; настройки внешнего контура — team-lead и главная сессия; ведомая копия свода либо скрипта в этих контурах не правится никем: правка идёт в серверный источник. Командой оболочки эта проверка не обходится."}}'
+    echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"skill-guard: владение путём не проверено — в окружении нет python3. Вызов не блокирован. Проверь сам: `.claude/agents|hooks|workflows` правит главная сессия, `.claude/skills`, markdown корня проекта (`CLAUDE.md`, `README.md`), markdown `.claude/**` вне зон выше, `docs/`, `.install/`, `Build/*.md` и `Build/<бандл>/instructions.md` — skill-editor, `.claude/settings.json` — главная сессия, маркер `.claude/agents/<имя>.last` — агент этого имени и главная сессия, маркер `.claude/workflows/*.last` — главная сессия; `Plans/` и markdown вне перечисленных мест под защиту не подпадают. Корневой `CLAUDE.md` внешнего контура — канон клиентского репозитория и канон репозитория узла — правит skill-editor; настройки внешнего контура — главная сессия; ведомая копия свода либо скрипта в этих контурах не правится никем: правка идёт в серверный источник. Командой оболочки эта проверка не обходится."}}'
     exit 0
   fi
   echo "[skill-guard] в окружении нет python3 — проверить владельца защищённого пути нечем: правка отклонена" >&2
@@ -132,15 +132,15 @@ def under(rel, prefix):
 # не состоялась: разъезд их не виден ни на одном рабочем вызове, оттого его ловит набор
 # самопроверки. Сама проза с таблицей тоже сверяется набором: кейс «проза зоны владения ↔
 # фактический вердикт гейта» разбирает её на классы путей и спрашивает вердикт по каждому.
-OWNERS_BRIEF = ("`.claude/agents|hooks|workflows` правит team-lead, `.claude/skills`, markdown "
+OWNERS_BRIEF = ("`.claude/agents|hooks|workflows` правит главная сессия, `.claude/skills`, markdown "
                 "корня проекта (`CLAUDE.md`, `README.md`), markdown `.claude/**` вне зон выше, "
                 "`docs/`, `.install/`, `Build/*.md` и `Build/<бандл>/instructions.md` — skill-editor, "
-                "`.claude/settings.json` — team-lead и главная сессия, маркер "
-                "`.claude/agents/<имя>.last` — агент этого имени и team-lead, маркер "
+                "`.claude/settings.json` — главная сессия, маркер "
+                "`.claude/agents/<имя>.last` — агент этого имени и главная сессия, маркер "
                 "`.claude/workflows/*.last` — главная сессия; `Plans/` и markdown вне "
                 "перечисленных мест под защиту не подпадают. Корневой `CLAUDE.md` внешнего "
                 "контура — канон клиентского репозитория и канон репозитория узла — правит "
-                "skill-editor; настройки внешнего контура — team-lead и главная сессия; ведомая "
+                "skill-editor; настройки внешнего контура — главная сессия; ведомая "
                 "копия свода либо скрипта в этих контурах не правится никем: правка идёт в "
                 "серверный источник.")
 

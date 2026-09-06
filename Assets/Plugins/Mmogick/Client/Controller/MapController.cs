@@ -195,8 +195,12 @@ namespace Mmogick
 						if (!recive.sides.ContainsKey(map_id))
 						{
 							Debug.Log("Карты: уничтожаем неиспользуемую карту " + map_id);
-							DestroyImmediate(mapObject.transform.Find(map_id.ToString()).gameObject);
-							DestroyImmediate(worldObject.transform.Find(map_id.ToString()).gameObject);
+
+							// Сама карта уже в руках обхода; её зону сущностей берём до сноса — у снесённого
+							// объекта имени уже не спросить.
+							Transform zone = worldObject.transform.Find(grid.name);
+							DestroyImmediate(grid.gameObject);
+							DestroyImmediate(zone.gameObject);
 
 							_maps.Remove(map_id);
 						}
@@ -507,10 +511,11 @@ namespace Mmogick
 					grid.localPosition = mapPos + TILE_OFFSET;
 
 					// мы сортировку устанавливаем в двух местах - здесь и при приходе данных сущностей. тк объекты могут быть загружены раньше карты и наоборот
-					if (worldObject.transform.Find(grid.gameObject.name) != null)
+					Transform zone = worldObject.transform.Find(grid.name);
+					if (zone != null)
 					{
-						worldObject.transform.Find(grid.gameObject.name).localPosition = mapPos;
-						foreach (Transform child in worldObject.transform.Find(grid.gameObject.name))
+						zone.localPosition = mapPos;
+						foreach (Transform child in zone)
 						{
 							var model = child.GetComponent<EntityModel>();
 							if (model != null)
@@ -518,14 +523,15 @@ namespace Mmogick
 								int order = _maps[map_id].spawn_sort + model.sort;
 
 								// SortingGroup гарантирован на корне каждой сущности (см. UpdateController.UpdateObject).
-								var group = child.gameObject.GetComponent<UnityEngine.Rendering.SortingGroup>();
+								var group = child.GetComponent<UnityEngine.Rendering.SortingGroup>();
 								if (group != null)
 									group.sortingOrder = order;
 
-								if (child.gameObject.GetComponentInChildren<Canvas>())
+								var barCanvas = child.GetComponentInChildren<Canvas>();
+								if (barCanvas != null)
 									// +100 (а не +1) — запас на дочерние рендереры визуала: они ведут свой порядок
 									// внутри сущности, и холст LifeBar обязан лежать выше любого из них.
-									child.gameObject.GetComponentInChildren<Canvas>().sortingOrder = _maps[map_id].spawn_sort + 100 + model.sort;
+									barCanvas.sortingOrder = _maps[map_id].spawn_sort + 100 + model.sort;
 							}
 						}
 					}

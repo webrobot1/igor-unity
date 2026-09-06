@@ -260,6 +260,42 @@ namespace Mmogick
 			StartCoroutine(LoadMain(recive));
 		}
 
+		/// <summary>
+		/// Чего не хватает в пакете входа, чтобы игру можно было начать; null — всё на месте. Поля
+		/// контракта (<see cref="SigninRecive"/>) сервер обязан прислать всегда и непустыми: ими клиент
+		/// повторяет серверный расчёт шага, резолвит позу покоя и рисует ячейки экипировки, а своих
+		/// умолчаний у него нет — подставленное число молча увело бы клиент от сервера.
+		///
+		/// Проверка стоит В САМОМ НАЧАЛЕ входа, до синхронизации кешей и смены сцены, по двум причинам.
+		/// Первая — показать отказ: текст читает игрок на экране входа, а тот выгружается вместе с
+		/// RegisterScene, и проверка после выгрузки говорить ему уже некуда. Вторая — цена: незачем
+		/// качать графику карт и анимации ради входа, который всё равно не состоится.
+		/// Сигналим игровым каналом, не броском: бросок из корутины движок гасит записью в консоль, а
+		/// игрок остаётся перед поднятой панелью загрузки навсегда и без единого слова.
+		/// </summary>
+		private static string Contract(SigninRecive data)
+		{
+			if (string.IsNullOrEmpty(data.idle_action))
+				return "не задано действие покоя (idle)";
+
+			if (data.creep_depth <= 0)
+				return "не задана глубина упора в преграду (creep_depth)";
+
+			if (data.corner_offset <= 0)
+				return "не задан отступ обхода угла (corner_offset)";
+
+			if (data.passable_search_radius <= 0)
+				return "не задан радиус поиска проходимой клетки (passable_search_radius)";
+
+			if (data.world == 0)
+				return "у карты не указан мир (world)";
+
+			if (data.equipment_slot == null || data.equipment_slot.Count == 0)
+				return "у игры не заведено ни одного слота экипировки (equipment_slot)";
+
+			return null;
+		}
+
 		// PS для webgl рекомендую отключить profiling в Build Settings чтобы заполнит память браузера после прихода по websocket пакетов в логах
 		private IEnumerator LoadMain(SigninRecive data)
 		{
@@ -273,6 +309,9 @@ namespace Mmogick
 
 			else if (string.IsNullOrEmpty(data.token))
 				Error("Не указан token");
+
+			else if (Contract(data) != null)
+				Error("Сервер игры настроен не полностью: " + Contract(data));
 
 			else
 			{
@@ -313,10 +352,10 @@ namespace Mmogick
 					yield break;
 				}
 				
-				if (!SceneManager.GetSceneByName("MainScene").IsValid())
+				if (!SceneManager.GetSceneByName(SCENE_MAIN).IsValid())
 				{
 					Debug.Log("Загружаю сцену игры ");
-					AsyncOperation asyncLoad = SceneManager.LoadSceneAsync("MainScene", new LoadSceneParameters(LoadSceneMode.Additive));
+					AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(SCENE_MAIN, new LoadSceneParameters(LoadSceneMode.Additive));
 					// asyncLoad.allowSceneActivation = false;
 
 					// Wait until the asynchronous scene fully loads
@@ -325,32 +364,24 @@ namespace Mmogick
 						LoadingScreen.SetStage(LoadingScreen.Stage.Scene, asyncLoad.progress);
 						yield return null;
 					}
-					SceneManager.UnloadScene("RegisterScene");
+
+					// Выгрузка АСИНХРОННАЯ и дождаться её обязательно: синхронный вызов движок объявил
+					// устаревшим и небезопасным, а дальше идут настройки соединения и сам вход на карту —
+					// они рассчитывают, что сцены входа уже нет. Пустая операция значит, что выгружать
+					// нечего (сцену сняли раньше).
+					AsyncOperation unload = SceneManager.UnloadSceneAsync(SCENE_REGISTER);
+					while (unload != null && !unload.isDone)
+						yield return null;
 				}
 				// idle_action задаём ДО Connect, чтобы первый же спавн мог сразу резолвить idle-клип через
-				// ConnectController.idle_action. По контракту сервер ВСЕГДА шлёт непустое поле "idle" в
-				// /auth response — пустота = нарушение контракта, падаем громко, чтобы баг серверной
-				// конфигурации не маскировался.
-				if (string.IsNullOrEmpty(data.idle_action))
-					throw new Exception("Сервер не отдал поле 'idle' в /auth response. По контракту оно обязательно.");
-
+				// ConnectController.idle_action. Контракт поля проверен на входе в метод (см. Contract).
 				ConnectController.idle_action = data.idle_action;
 				ConnectController.step = data.step;
 				ConnectController.position_precision = data.position_precision;
 				ConnectController.server_fps = data.fps;
 
 				// Геометрия упора в преграду: ею клиент повторяет серверный расчёт шага и отличает глухой упор
-				// от места, где серверу ещё есть куда шагнуть. По контракту оба поля приходят всегда и строго
-				// больше нуля (см. SigninRecive) — иначе клиент считал бы шаг по чужой геометрии молча.
-				if (data.creep_depth <= 0)
-					throw new Exception("Сервер не отдал поле 'creep_depth' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
-
-				if (data.corner_offset <= 0)
-					throw new Exception("Сервер не отдал поле 'corner_offset' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
-
-				if (data.passable_search_radius <= 0)
-					throw new Exception("Сервер не отдал поле 'passable_search_radius' в /auth response либо оно не больше нуля. По контракту оно обязательно.");
-
+				// от места, где серверу ещё есть куда шагнуть. Контракт полей проверен на входе (см. Contract).
 				ConnectController.creep_depth = data.creep_depth;
 				ConnectController.corner_offset = data.corner_offset;
 				ConnectController.passable_search_radius = data.passable_search_radius;
@@ -359,16 +390,11 @@ namespace Mmogick
 				ConnectController.warp_class = data.warp;
 
 				// Мир текущей карты — им обзорная карта отбирает свои карты из общего кеша (см. поля).
-				if (data.world == 0)
-					throw new Exception("Сервер не отдал поле 'world' в /auth response. По контракту оно обязательно.");
-
 				ConnectController.world = data.world;
 				ConnectController.world_name = data.world_name;
 
-				// equipment_slot — справочник slug-ов слотов экипировки игры. По контракту приходит непустой
-				// (см. SigninRecive.equipment_slot). UI рисует ровно эти ячейки.
-				if (data.equipment_slot == null || data.equipment_slot.Count == 0)
-					throw new Exception("Сервер не отдал поле 'equipment_slot' в /auth response (или оно пусто). По контракту обязательно.");
+				// equipment_slot — справочник slug-ов слотов экипировки игры; контракт проверен на входе.
+				// UI рисует ровно эти ячейки.
 				ConnectController.equipment_slot = data.equipment_slot;
 
 				ConnectController.Connect(data.host, data.token, data.key);

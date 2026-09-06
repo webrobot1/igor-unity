@@ -11,7 +11,7 @@ namespace Mmogick
         // Видимая иконка (child корня). На неё ложится sprite; localScale=1 (вариант 2 — size в UI не влияет).
         // Корневой image остаётся для layout preferred-size (LayoutGroup spellbook'а читает
         // image.sprite.rect) и color-cascade в ActionBar; делается невидимым через color.a=0
-        // в prefab'е. Если icon==null — fallback на старое поведение (sprite на корне).
+        // в prefab'е.
         [SerializeField]
         protected Image icon;
 
@@ -24,8 +24,7 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Видимая иконка (child), на которой применяется server size через localScale=1/size.
-        /// Может быть null на старых instance'ах префабов — вызывающий код должен делать fallback на Image.
+        /// Видимая иконка (child): её спрайт, цвет и масштаб зеркалят слот панели и ячейка экипировки.
         /// </summary>
         public Image Icon
         {
@@ -48,18 +47,13 @@ namespace Mmogick
             Sprite sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, prefab)
                 ?? Resources.Load<Sprite>("unknow");
 
-            if (image != null)
-            {
-                image.sprite = sprite;
-                image.preserveAspect = true;
-                // image.color.a не трогаем — prefab держит 0 для невидимости
-            }
-            if (icon != null)
-            {
-                icon.sprite = sprite;
-                icon.preserveAspect = true;
-                icon.transform.localScale = Vector3.one;   // вариант 2: фикс размер слота, size игнорируется
-            }
+            image.sprite = sprite;
+            image.preserveAspect = true;
+            // image.color.a не трогаем — prefab держит 0 для невидимости
+
+            icon.sprite = sprite;
+            icon.preserveAspect = true;
+            icon.transform.localScale = Vector3.one;   // вариант 2: фикс размер слота, size игнорируется
         }
 
         /// <summary>
@@ -72,8 +66,18 @@ namespace Mmogick
 
         protected virtual void Awake()
         {
+            // Error() не бросает — без return ApplyPrefabImage разыменовал бы тот же null.
             if (image == null)
-                ConnectController.Error("не найден объект sprite в для элемента Заклинания в книге");
+            {
+                ConnectController.Error("не назначен корневой Image у элемента " + name);
+                return;
+            }
+
+            if (icon == null)
+            {
+                ConnectController.Error("не назначена видимая иконка icon у элемента " + name);
+                return;
+            }
         }
 
         public virtual string GetTooltipText() { return null; }

@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+
+// Только контекст аннотаций: поле пакета объявлено nullable (ActionBarsResponse), а полный nullable-режим
+// на весь контроллер поднял бы предупреждения по каждому неаннотированному полю цепочки.
+#nullable enable annotations
 using System.Linq;
 using UnityEngine;
 
@@ -72,8 +76,11 @@ namespace Mmogick
         /// Сколько слотов у панели быстрых действий: число ключей в умолчании компонента actionbars — оно же
         /// объявление самой панели («столько слотов игра даёт игроку»). Умолчания в каталоге нет (компонент
         /// без него либо префаб неизвестен) — берём размер пришедшего набора: при первом входе он полный.
+        /// Имя своё, не <c>SlotCount</c>: так зовётся число слотов ИНВЕНТАРЯ у звена цепочки выше
+        /// (<see cref="InventoryController.SlotCount"/>), а это про панель — разные величины одним именем
+        /// в одной цепочке компилятор и отбивал предупреждением о сокрытии.
         /// </summary>
-        private int SlotCount(string prefab, int fallback)
+        private int DeclaredSlotCount(string prefab, int fallback)
         {
             Newtonsoft.Json.Linq.JToken declared = AnimationCacheService.GetComponentValue(prefab, COMPONENT_ACTIONBARS, null);
             int count = declared != null ? declared.Children().Count() : 0;
@@ -121,7 +128,7 @@ namespace Mmogick
                     // РАЗНИЦУ (изменившиеся слоты), и его размер числом слотов не является — панель, собранная
                     // по нему, вышла бы короче при первой же дельте.
                     if (_actionBars == null)
-                        InitializeActionBars(SlotCount(recive.prefab, actionbars.Count));
+                        InitializeActionBars(DeclaredSlotCount(recive.prefab, actionbars.Count));
 
                     foreach (var action in actionbars)
                     {

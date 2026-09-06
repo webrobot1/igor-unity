@@ -23,7 +23,7 @@ namespace Mmogick
     // предмета не несёт. То же правило держит страничный проигрыватель скелета (spine-pose-bridge.js).
     public class WeaponMount : MonoBehaviour
     {
-        // Пикселей графики на единицу спрайта (как в AnimationCacheService.GetSprite). Той же величиной
+        // Пикселей графики на единицу спрайта (как в конвенции кеша графики AnimationCacheService). Той же величиной
         // масштабируется кусок предмета: единица скелета в наших пакетах — ПИКСЕЛЬ графики, а кусок собран
         // из спрайта с этим Ppu, потому натуральный размер картинки в скелете требует ровно такой поправки.
         private const float Ppu = 100f;
@@ -146,7 +146,11 @@ namespace Mmogick
             // предмет и тело обязаны рисоваться одинаково.
             Shader pieceShader = Shader.Find("Spine/Skeleton");
             if (pieceShader == null)
-                Debug.LogWarning("WeaponMount " + slot + ": шейдера Spine/Skeleton нет — кусок предмета не собрать");
+            {
+                // Инвариант сборки, не состояние данных: без шейдера ни один предмет не нарисуется.
+                ConnectController.Error("WeaponMount " + slot + ": шейдера Spine/Skeleton нет — кусок предмета не собрать");
+                return;
+            }
 
             Mounted m = new Mounted { slot = slot };
             m.rotationMode = rotationMode;
@@ -163,12 +167,9 @@ namespace Mmogick
                 // Кусок скелета берёт pivot спрайта своим началом координат (Sprite.ToAtlasRegion кладёт
                 // его в offsetX/offsetY региона): доворот и зеркало идут вокруг ХВАТА, отдельной
                 // компенсации разницы «pivot ↔ центр куска» не нужно.
-                if (pieceShader != null)
-                {
-                    v.grip.name = "WeaponMount_" + slot + "_" + v.angle;   // имя куска: пустое рантайм отвергает
-                    v.material = new Material(pieceShader) { name = v.grip.name, mainTexture = tex };
-                    v.piece = v.grip.ToRegionAttachment(v.material);
-                }
+                v.grip.name = "WeaponMount_" + slot + "_" + v.angle;   // имя куска: пустое рантайм отвергает
+                v.material = new Material(pieceShader) { name = v.grip.name, mainTexture = tex };
+                v.piece = v.grip.ToRegionAttachment(v.material);
                 m.variants[i] = v;
             }
             // Посадка куска — покадрово (зависит от активного якоря и ракурса); покадровый проход идёт

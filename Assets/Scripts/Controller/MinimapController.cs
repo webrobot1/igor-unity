@@ -120,6 +120,42 @@ namespace Mmogick
         /// <summary>Идёт отрисовка картинки карты — вторую одновременно не начинаем.</summary>
         private bool _minimapRendering;
 
+        /// <summary>
+        /// Величины перевода мировой позиции в пиксель панели, выставленные на этот кадр
+        /// (<see cref="UpdateMarkers"/>); сам перевод — <see cref="MapToPanel"/>. Поля, а не захват
+        /// замыканием: перевод считается на КАЖДОМ кадре и для каждой метки, а замыкание стоило бы двух
+        /// объектов в кадр — того же мусора, ради отсутствия которого тут пулятся метки и держатся
+        /// готовыми картинки.
+        /// </summary>
+        private bool _panelInterior;
+        private Vector2 _panelSize;
+        private TileCacheService.CachedMap _panelMap;
+        private Vector3 _panelPlayerPos;
+        private float _panelPixelsPerUnit;
+
+        /// <summary>
+        /// Мировая позиция → пиксель панели относительно её центра, по режиму текущего кадра.
+        /// Интерьер: фон закреплён и растянут на всю панель по обеим осям РАЗДЕЛЬНО (аспект комнаты с
+        /// аспектом панели не совпадает), потому клетка карты переводится в долю ширины и высоты порознь,
+        /// тем же преобразованием, что и сама картинка комнаты (<see cref="DrawSoleMinimapTile"/>). Клетку
+        /// даёт MapImageCell: картинка считает клетки от своего угла, сцена — от середины клетки и от ног
+        /// сущности.
+        /// Открытый мир: фон панорамируется вокруг игрока, потому считается РАЗНОСТЬ позиций сцены — перевод
+        /// в клетки картинки тут не нужен, он сдвигает обе точки одинаково и в разности пропадает.
+        /// </summary>
+        private Vector2 MapToPanel(Vector3 worldPos)
+        {
+            if (!_panelInterior)
+                return new Vector2(worldPos.x - _panelPlayerPos.x, worldPos.y - _panelPlayerPos.y) * _panelPixelsPerUnit;
+
+            Vector2 cell = MapImageCell(worldPos);
+
+            return new Vector2(
+                -_panelSize.x / 2f + cell.x / _panelMap.width  * _panelSize.x,
+                 _panelSize.y / 2f - cell.y / _panelMap.height * _panelSize.y
+            );
+        }
+
         protected override void Awake()
         {
             if (minimapRoot == null)
@@ -192,7 +228,7 @@ namespace Mmogick
             // Шапка текущей карты — общий вход обоих рисующих методов (фон и точки): берём ОДИН раз на
             // кадр, а не по разу в каждом — второй проход по тому же словарю карт был бы параллельным
             // обходом тех же данных ради того же вопроса (интерьер это или мозаика открытого мира).
-            Dictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
+            IReadOnlyDictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
             maps.TryGetValue(player.map, out TileCacheService.CachedMap current);
 
             UpdateMinimapMaps(playerPos, maps, current);
@@ -280,7 +316,7 @@ namespace Mmogick
         /// Карта, картинки которой ещё нет, рисуется по одной за раз в фоне: рисование стоит сборки целой
         /// карты, и пачкой оно подвесило бы игру. До готовности место карты остаётся пустым.
         /// </summary>
-        private void UpdateMinimapMaps(Vector3 playerPos, Dictionary<int, TileCacheService.CachedMap> maps, TileCacheService.CachedMap current)
+        private void UpdateMinimapMaps(Vector3 playerPos, IReadOnlyDictionary<int, TileCacheService.CachedMap> maps, TileCacheService.CachedMap current)
         {
             // Шапка текущей карты ещё не легла в кеш (RememberMap пишет её по завершении скачивания JSON
             // карты) — до этого момента фон пустой.
@@ -320,10 +356,9 @@ namespace Mmogick
 
             foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in maps)
             {
-                // Интерьер того же world, но не карта игрока сейчас, — в мозаике не участвует: несколько
-                // интерьеров делят один world (CachedMap.hasOpenworldPosition), их x=0,y=0 условны и без
-                // этого фильтра наложились бы друг на друга либо подменяли бы друг друга на радаре.
-                if (!pair.Value.hasOpenworldPosition && pair.Key != player.map)
+                // Что в раскладку мира не идёт, решает единая точка (TileCacheService.InWorldLayout) — тем
+                // же отбором живёт обзорная карта; здесь отсеянная плитка ещё и гасится, раз выложена.
+                if (!TileCacheService.InWorldLayout(pair.Value, pair.Key, player.map))
                 {
                     if (_minimapTiles.TryGetValue(pair.Key, out RectTransform stale) && stale.gameObject.activeSelf)
                         stale.gameObject.SetActive(false);
@@ -375,7 +410,7 @@ namespace Mmogick
         /// обойдённых комнат держал бы эти мегабайты до конца игры. Вернувшаяся карта создаётся заново из
         /// PNG в кеше на диске — тем же путём, что и в первый раз (<see cref="EnsureMinimapTile"/>).
         /// </summary>
-        private void ReleaseStaleMinimapTiles(Dictionary<int, TileCacheService.CachedMap> maps, int soleMapId)
+        private void ReleaseStaleMinimapTiles(IReadOnlyDictionary<int, TileCacheService.CachedMap> maps, int soleMapId)
         {
             // Список нужен только на смену набора: словарь правится по его итогам, а во время обхода его
             // трогать нельзя. В обычном кадре снимать нечего, и он не создаётся вовсе.
@@ -503,7 +538,7 @@ namespace Mmogick
         ///   наоборот, ПОЛОЖЕНИЕ игрока внутри комнаты решает, куда лечь его точке (в центре панели он
         ///   только тогда, когда физически стоит в центре комнаты), а точки прочих сущностей кладутся по
         ///   их СОБСТВЕННЫМ координатам той же трансформацией — неподвижно относительно фона, когда идёт
-        ///   сам игрок. Общая часть обеих веток вынесена в <paramref name="mapper"/> (мировая позиция →
+        ///   сам игрок. Общая часть обеих веток вынесена в <see cref="MapToPanel"/> (мировая позиция →
         ///   пиксель панели относительно её центра) — циклы по сущностям и переходам не дублируются.
         /// </summary>
         private void UpdateMarkers(Vector3 playerPos, TileCacheService.CachedMap current)
@@ -515,29 +550,22 @@ namespace Mmogick
             if (player.lifeRadius <= 0)
                 return;   // радиус жизни ещё не пришёл с сервера — масштабировать не от чего
 
-            System.Func<Vector3, Vector2> mapper;
             Vector2? cullHalfSize;
             float markerSize;
 
-            if (current != null && !current.hasOpenworldPosition)
-            {
-                // Интерьер: фон закреплён и растянут по обеим осям независимо (аспект комнаты не совпадает
-                // с аспектом панели) — потому коэффициенты X/Y считаются РАЗДЕЛЬНО, тем же преобразованием,
-                // что и картинка комнаты в DrawSoleMinimapTile (клетка карты → доля ширины/высоты → пиксель
-                // от левого верхнего угла панели, минус её половина — перевод в систему координат маркеров,
-                // где ноль есть центр markerArea). Клетку берём переводом MapImageCell: картинка считает
-                // клетки от своего угла, сцена — от середины клетки и от ног сущности. Радиуса отсечения
-                // по панели нет: комната видна целиком, культить по кругу открытого мира здесь нечего —
-                // сущностей за границей жизни отсекает общая проверка ниже, она от масштаба не зависит.
-                mapper = worldPos =>
-                {
-                    Vector2 cell = MapImageCell(worldPos);
+            // Режим и его величины кладём в поля, а перевод зовём методом (MapToPanel): считается это на
+            // КАЖДОМ кадре, а замыкание с захватом стоило бы двух объектов в кадр — ровно того мусора, ради
+            // отсутствия которого тут пулятся метки и держатся готовыми картинки.
+            _panelInterior = current != null && !current.hasOpenworldPosition;
+            _panelSize = panelSize;
+            _panelMap = current;
+            _panelPlayerPos = playerPos;
 
-                    return new Vector2(
-                        -panelSize.x / 2f + cell.x / current.width  * panelSize.x,
-                         panelSize.y / 2f - cell.y / current.height * panelSize.y
-                    );
-                };
+            if (_panelInterior)
+            {
+                // Радиуса отсечения по панели нет: комната видна целиком, культить по кругу открытого мира
+                // здесь нечего — сущностей за границей жизни отсекает общая проверка ниже, она от масштаба
+                // не зависит.
                 cullHalfSize = null;
 
                 // Точка круглая, а панель интерьера растянута по осям РАЗДЕЛЬНО — размер выводим от одного
@@ -548,17 +576,14 @@ namespace Mmogick
             }
             else
             {
-                // Открытый мир: фон панорамируется вокруг игрока — тем же выражением, что и в
-                // UpdateMinimapMaps, иначе точки разъедутся с картинкой. Игрок неподвижен в центре, точки
-                // вне круга панели гасятся (круг этот и есть радиус жизни: панель им же и масштабирована,
-                // потому отсечение по панели совпадает с общей проверкой границы жизни ниже, а держатся
-                // оба — панель отсекает и переходы карты, которым до жизни дела нет). Считается РАЗНОСТЬ
-                // позиций сцены, потому перевод в
-                // клетки картинки (MapImageCell) здесь не нужен: он сдвигает обе точки одинаково и в
-                // разности пропадает — с картинкой их совмещает сдвиг самого фона в UpdateMinimapMaps.
+                // Открытый мир: игрок неподвижен в центре, точки вне круга панели гасятся. Круг этот и есть
+                // радиус жизни — панель им же и масштабирована, потому отсечение по панели совпадает с общей
+                // проверкой границы жизни ниже; держатся оба, панель отсекает и переходы карты, которым до
+                // жизни дела нет. Масштаб тот же, что у фона в UpdateMinimapMaps, иначе точки разъедутся
+                // с картинкой.
                 float halfPx = panelSize.y * 0.5f;
                 float pixelsPerUnit = halfPx / player.lifeRadius;
-                mapper = worldPos => new Vector2(worldPos.x - playerPos.x, worldPos.y - playerPos.y) * pixelsPerUnit;
+                _panelPixelsPerUnit = pixelsPerUnit;
                 cullHalfSize = panelSize * 0.5f;
                 markerSize = MARKER_TILES * pixelsPerUnit;
             }
@@ -566,7 +591,7 @@ namespace Mmogick
             if (!playerMarker.gameObject.activeSelf)
                 playerMarker.gameObject.SetActive(true);
             ApplyPlayerMarker(playerMarker, player.prefab);
-            playerMarker.rectTransform.anchoredPosition = mapper(playerPos);
+            playerMarker.rectTransform.anchoredPosition = MapToPanel(playerPos);
             // Размер меток радара считается здесь каждый кадр, а не берётся из сцены: радиус жизни
             // меняется в рантайме, и пиксель панели на клетку вместе с ним.
             float ownSize = markerSize * PLAYER_MARKER_SCALE;
@@ -574,8 +599,8 @@ namespace Mmogick
 
             // Переходы — первыми: точки берутся из пула по порядку, и ранние ложатся в иерархии ниже.
             // Существо, стоящее на переходе, должно быть видно поверх него, а не наоборот.
-            int used = DrawWarps(mapper, cullHalfSize, markerSize, 0);
-            used = DrawGates(mapper, cullHalfSize, markerSize, used);
+            int used = DrawWarps(cullHalfSize, markerSize, 0);
+            used = DrawGates(cullHalfSize, markerSize, used);
 
             foreach (Transform mapZone in worldObject.transform)
             {
@@ -593,7 +618,7 @@ namespace Mmogick
                     if (color == null)
                         continue;   // цвета метки у вида нет — контент игры его на картах не показывает
 
-                    Vector2 markerPos = mapper(entityTransform.position);
+                    Vector2 markerPos = MapToPanel(entityTransform.position);
 
                     if (cullHalfSize.HasValue
                         && (Mathf.Abs(markerPos.x) > cullHalfSize.Value.x || Mathf.Abs(markerPos.y) > cullHalfSize.Value.y))
@@ -615,10 +640,10 @@ namespace Mmogick
         /// на земле и точка на радаре зажигаются от одного источника, второго разбора разметки радар не
         /// заводит. Обходятся все карты в сцене — соседние тоже видны на радаре, а переход у их края
         /// игроку нужен ровно затем, чтобы дойти до него. Перевод мировой позиции в пиксель панели —
-        /// забота <paramref name="mapper"/> (см. <see cref="UpdateMarkers"/>): режим (интерьер/открытый
+        /// забота <see cref="MapToPanel"/> (см. <see cref="UpdateMarkers"/>): режим (интерьер/открытый
         /// мир) сюда не просачивается, отсечение по краям панели — только когда <paramref name="cullHalfSize"/> задан.
         /// </summary>
-        private int DrawWarps(System.Func<Vector3, Vector2> mapper, Vector2? cullHalfSize, float markerSize, int used)
+        private int DrawWarps(Vector2? cullHalfSize, float markerSize, int used)
         {
             foreach (Transform grid in mapObject.transform)
             {
@@ -631,7 +656,7 @@ namespace Mmogick
                     // Место перехода берём у самой метки (WarpMarker.scene), а не её позицию: метка
                     // накрывает квадрат клетки нарисованного полотна, а точки панели считаются в
                     // координатах сцены — тех же, в которых сюда приходят игрок и сущности.
-                    Vector2 markerPos = mapper(warp.GetComponent<WarpMarker>().scene);
+                    Vector2 markerPos = MapToPanel(warp.GetComponent<WarpMarker>().scene);
 
                     if (cullHalfSize.HasValue
                         && (Mathf.Abs(markerPos.x) > cullHalfSize.Value.x || Mathf.Abs(markerPos.y) > cullHalfSize.Value.y))
@@ -648,17 +673,17 @@ namespace Mmogick
         /// Метки проходов в недоступные соседние карты (<see cref="MapController.getGates"/>): крест на
         /// каждом свободном участке общей границы — ровно там, где игрок упрётся в невидимую стену, пробуя
         /// перейти. Считает их сам MapController: разметка карт и доступность соседей — его данные, а не
-        /// показа. Перевод в пиксель панели — общий <paramref name="mapper"/> (см. <see cref="UpdateMarkers"/>).
+        /// показа. Перевод в пиксель панели — общий <see cref="MapToPanel"/> (см. <see cref="UpdateMarkers"/>).
         ///
         /// Метка на проход одна, в его середине (<see cref="MapController.Gate.center"/>): на радаре карта
         /// сжата в панель, и поклеточные метки слились бы в неразличимую полосу. По всей ширине прохода
         /// метки стоят там, где места хватает, — на самой земле (<see cref="GateController"/>).
         /// </summary>
-        private int DrawGates(System.Func<Vector3, Vector2> mapper, Vector2? cullHalfSize, float markerSize, int used)
+        private int DrawGates(Vector2? cullHalfSize, float markerSize, int used)
         {
             foreach (Gate gate in getGates())
             {
-                Vector2 markerPos = mapper(gate.center);
+                Vector2 markerPos = MapToPanel(gate.center);
 
                 if (cullHalfSize.HasValue
                     && (Mathf.Abs(markerPos.x) > cullHalfSize.Value.x || Mathf.Abs(markerPos.y) > cullHalfSize.Value.y))

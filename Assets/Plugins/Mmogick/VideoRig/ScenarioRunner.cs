@@ -900,7 +900,9 @@ namespace Mmogick.VideoRig
             recorder.End();
             Detach();
 
-            int shot = Files.Count;
+            // Незакрытый фрагмент лежит на диске наравне с закрытыми, а в перечень его донесёт только
+            // Discard — считаем его здесь же, тем же счётом, что и обрыв (см. Abort).
+            int shot = Files.Count + (fragment != null ? 1 : 0);
 
             if (failure != null)
                 Discard();

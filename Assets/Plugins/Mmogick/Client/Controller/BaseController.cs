@@ -30,6 +30,11 @@ namespace Mmogick
 			};
 		}
 
+		// Имена сцен клиента: их называют обе стороны перехода — вход грузит игровую и выгружает сцену
+		// входа, возврат делает обратное, — и литералами они разъехались бы молча.
+		public const string SCENE_REGISTER = "RegisterScene";
+		public const string SCENE_MAIN = "MainScene";
+
 		// Настройки соединения с сервером
 		public static int GAME_ID = 1;                     // здесь должен быть указан id ВАШЕГО проекта в личном кабинете http://mmogick.ru  раздела Игры
 		protected string SERVER = "localhost";			   // это физический адрес удаленного vps сервера где крутится prodiction (дефолтное значение, можно переопределить через UI)
@@ -72,9 +77,11 @@ namespace Mmogick
 			#endif
 		}
 
+		// Своей метки времени тут нет: её ставит единая точка журнала (Mmogick.Debug), и второй формат
+		// рядом разводил бы соседние строки одного журнала — «21:11:28 : …» против «[21:11:28:050] …».
 		public static void Log(object obj)
 		{
-			UnityEngine.Debug.Log(System.DateTime.Now.ToLongTimeString() + " : " + obj);
+			Debug.Log(obj);
 		}
 	}
 }

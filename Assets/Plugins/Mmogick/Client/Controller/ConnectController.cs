@@ -5,7 +5,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 using UnityEngine;
@@ -206,6 +205,12 @@ namespace Mmogick
 		private static List<double> pings = new List<double>();
 
 		/// <summary>
+		/// Рабочая копия окна под сортировку (см. <see cref="UpdatePingStats"/>). Длина — размер окна: больше
+		/// <see cref="MAX_PING_HISTORY"/> замеров в нём не держится.
+		/// </summary>
+		private static readonly double[] ping_window = new double[MAX_PING_HISTORY];
+
+		/// <summary>
 		/// метка времени, снятая в момент прихода уведомления о перезагрузке карты. Замер задержки с меткой
 		/// СТАРШЕ этой ушёл на сервер до перезагрузки, а вернулся после неё — он мерит простой сервера, не сеть,
 		/// и в окно не берётся. Не снимается: эхо таких замеров приходит уже ПОСЛЕ поднятого мира — сервер
@@ -226,9 +231,14 @@ namespace Mmogick
 		private static ConcurrentQueue<string> recives = new ConcurrentQueue<string>();
 
 		/// <summary>
-		/// список полученных от сервера данных (по мере игры они отсюда будут забираться)
+		/// Ошибки, ждущие показа игроку. Наполняет их <see cref="Error"/>, а зовётся он из колбэков
+		/// библиотеки соединения — то есть из СЕТЕВОГО потока (см. <see cref="CloseSocket"/>: библиотека
+		/// вызывает их из своего конечного автомата); читает и чистит главный, каждый кадр в
+		/// <see cref="Update"/>. Оттого носитель потокобезопасный — тот же, что у очереди пришедших
+		/// пакетов выше: обычный список рвался бы на одновременных записи и чистке, теряя сообщение либо
+		/// падая на несогласованном внутреннем массиве.
 		/// </summary>
-		private static List<string> errors = new List<string>();
+		private static ConcurrentQueue<string> errors = new ConcurrentQueue<string>();
 
 
 		protected override void Awake()
@@ -352,7 +362,7 @@ namespace Mmogick
 					StopAllCoroutines();
 
 					coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
-					errors.Clear();
+					errors.Clear();   // очередь потокобезопасна: снимок для текста снят строкой выше
 				}
 			}
 		}
@@ -397,7 +407,7 @@ namespace Mmogick
 			string address = "ws://" + host;
 			Debug.Log("WebSocket - соединяемся сервером " + address);
 
-			if (coroutine == null && errors.Count == 0)
+			if (errors.Count == 0)
             {		
 				if (connect!=null && (connect.ReadyState == WebSocketState.Open || connect.ReadyState == WebSocketState.Connecting))
 				{
@@ -623,8 +633,7 @@ namespace Mmogick
 
 							// Пересчёт на КАЖДОМ замере: оценка обязана идти и ВНИЗ. Обновление лишь на переполнении
 							// окна либо на новом максимуме удерживало бы однажды снятое большое значение навсегда.
-							ping = Median(pings);
-							max_ping = Math.Round(pings.Max(), 3);
+							UpdatePingStats();
 						}
 
 						if (reload == ReloadStatus.None)
@@ -768,16 +777,25 @@ namespace Mmogick
 		public static bool IsReloading => reloading;
 
 		/// <summary>
-		/// Медиана окна замеров. Копию сортируем, а не сам список: его наполняет поток приёма пакетов.
+		/// Пересчёт оценок окна замеров — медианы (<see cref="ping"/>) и максимума (<see cref="max_ping"/>).
+		/// Обе снимаются с одного отсортированного окна: максимум — его последний элемент.
+		///
+		/// Сортируем КОПИЮ, а не сам список: в нём замеры лежат по порядку прихода, и по нему из окна
+		/// вытесняются самые старые. Копия — общий буфер, а не новый список на вызов: пересчёт идёт на каждом
+		/// замере, до двух раз в секунду, и своя копия оседала бы мусором всю игру.
 		/// </summary>
-		private static double Median(List<double> values)
+		private static void UpdatePingStats()
 		{
-			List<double> sorted = new List<double>(values);
-			sorted.Sort();
+			int count = pings.Count;
+			for (int i = 0; i < count; i++)
+				ping_window[i] = pings[i];
 
-			int middle = sorted.Count / 2;
+			Array.Sort(ping_window, 0, count);
 
-			return Math.Round(sorted.Count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2, 3);
+			int middle = count / 2;
+
+			ping = Math.Round(count % 2 == 1 ? ping_window[middle] : (ping_window[middle - 1] + ping_window[middle]) / 2, 3);
+			max_ping = Math.Round(ping_window[count - 1], 3);
 		}
 
 		/// <summary>
@@ -863,7 +881,7 @@ namespace Mmogick
 		{
 			// Текст уходит игроку на экран входа, потому от исключения берём сообщение, а не весь ToString со стеком;
 			// стек и без того попадает в лог строкой ниже.
-			errors.Add(ex != null ? text + ": " + ex.Message : text);
+			errors.Enqueue(ex != null ? text + ": " + ex.Message : text);
 
 			if (ex!=null)
 				Debug.LogException(ex);
@@ -885,7 +903,7 @@ namespace Mmogick
 		{
 			Debug.LogWarning("WebSocket: загружаем сцену регистрации");
 
-			const string REGISTER_SCENE = "RegisterScene";
+			const string REGISTER_SCENE = SCENE_REGISTER;
 
 			if (!SceneManager.GetSceneByName(REGISTER_SCENE).IsValid())
 			{
@@ -913,7 +931,13 @@ namespace Mmogick
 				}
 			}
 
-			SceneManager.UnloadScene("MainScene");
+			// Выгрузка АСИНХРОННАЯ и дождаться её обязательно: синхронный вызов движок объявил
+			// устаревшим и небезопасным, а следующие строки работают по свершившемуся факту — ищут
+			// надпись ошибки и форму входа, которых на выгружаемой сцене быть уже не должно.
+			// Пустая операция значит, что выгружать нечего: игровой сцены нет (сюда пришли до входа).
+			AsyncOperation unload = SceneManager.UnloadSceneAsync(SCENE_MAIN);
+			while (unload != null && !unload.isDone)
+				yield return null;
 
 			if (error != null)
 				// Панель загрузки снимает сам показ ошибки: дальше игрок читает её и входит сам. В соседней

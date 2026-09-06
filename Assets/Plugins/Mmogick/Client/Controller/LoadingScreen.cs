@@ -52,14 +52,38 @@ namespace Mmogick
 		[SerializeField]
 		private Text progressText;
 
-		private static LoadingScreen instance;
+		/// <summary>
+		/// КЭШ единственного живого экземпляра, а не единственный его носитель: статику обнуляет перезагрузка
+		/// домена — редактор пересобирает код, не выходя из игры, — а сам объект её переживает, и Awake ему
+		/// второй раз не зовут. Пустое поле поэтому значит «ещё не искали», а не «экземпляра нет».
+		/// </summary>
+		private static LoadingScreen _instance;
+
+		/// <summary>
+		/// Экземпляр панели: из кэша, а при пустом кэше — поиском по сценам. Панель живёт вне сцен и одна на
+		/// игру (см. Awake), потому поиск возвращает ровно её.
+		/// </summary>
+		private static LoadingScreen Instance
+		{
+			get
+			{
+				if (_instance == null)
+					_instance = FindAnyObjectByType<LoadingScreen>(FindObjectsInactive.Include);
+
+				return _instance;
+			}
+		}
 
 		private void Awake()
 		{
 			// Сцена входа загружается заново при каждом возврате на неё, а прежний экземпляр пережил её
-			// выгрузку — второй лишний.
-			if (instance != null && instance != this)
+			// выгрузку — второй лишний. Прежнего ищем по сценам, не по кэшу: после перезагрузки домена кэш
+			// пуст при живом прежнем объекте, и по пустому кэшу второй экземпляр записал бы себя поверх него.
+			foreach (var other in FindObjectsByType<LoadingScreen>(FindObjectsInactive.Include))
 			{
+				if (other == this)
+					continue;
+
 				Destroy(gameObject);
 				return;
 			}
@@ -67,27 +91,29 @@ namespace Mmogick
 			if (panel == null || progressFill == null || progressText == null)
 				throw new System.Exception("Панель загрузки: не присвоены объект панели, полоса либо подпись");
 
-			instance = this;
+			_instance = this;
 			DontDestroyOnLoad(gameObject);
 		}
 
 		public static void Show()
 		{
-			if (instance == null)
+			var screen = Instance;
+			if (screen == null)
 				throw new System.Exception("Панель загрузки: экземпляра нет — вход в игру начинается со сцены входа, она его и несёт");
 
-			if (!instance.panel.activeSelf)
+			if (!screen.panel.activeSelf)
 			{
-				instance.panel.SetActive(true);
-				instance.Fill(0f);
+				screen.panel.SetActive(true);
+				screen.Fill(0f);
 			}
 		}
 
 		public static void Hide()
 		{
 			// Экземпляра нет только до первого Awake сцены входа — скрывать в этот момент нечего.
-			if (instance != null && instance.panel.activeSelf)
-				instance.panel.SetActive(false);
+			var screen = Instance;
+			if (screen != null && screen.panel.activeSelf)
+				screen.panel.SetActive(false);
 		}
 
 		/// <summary>
@@ -95,7 +121,7 @@ namespace Mmogick
 		/// переходе между соседними картами открытого мира, где панель не поднимают вовсе, — сообщённая
 		/// ступень подняла бы её (см. SetStage).
 		/// </summary>
-		public static bool IsShown => instance != null && instance.panel.activeSelf;
+		public static bool IsShown => Instance != null && Instance.panel.activeSelf;
 
 		/// <summary>
 		/// Ступень пройденного ожидания; within — доля внутри неё (0..1) там, где её есть чем мерить.
@@ -109,7 +135,7 @@ namespace Mmogick
 			// Ступени считаем от единицы: начатая ступень — уже пройденная часть пути, и первая из них не
 			// оставляет игрока перед нулём на всё ожидание сервера. Знаменатель на ту же единицу больше,
 			// поэтому последняя ступень по-прежнему закрашивает полосу целиком.
-			instance.Fill(((int)stage + Mathf.Clamp01(within) + 1f) / ((int)Stage.Ready + 1f));
+			Instance.Fill(((int)stage + Mathf.Clamp01(within) + 1f) / ((int)Stage.Ready + 1f));
 		}
 
 		private void Fill(float value)

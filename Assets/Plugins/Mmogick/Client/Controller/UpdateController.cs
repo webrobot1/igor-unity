@@ -1,10 +1,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Text;
 using UnityEngine;
 
 namespace Mmogick
@@ -277,42 +274,17 @@ namespace Mmogick
 				var fallbackSr = prefab.GetComponent<SpriteRenderer>();
 				if (fallbackSr != null && fallbackSr.sprite != null)
 				{
-					// Нормализуем по max(width, height) — иначе вытянутые горизонтально спрайты
-					// (молния 3:1) после нормализации по Y становятся 3 клетки в ширину.
-					// Симметрично нормализации настоящего тела (VisualBuilder.Fit — по большей стороне).
-					float native = AnimationCacheService.TryGetTightRect(fallbackSr.sprite, out Rect tight)
-						? Mathf.Max(tight.width, tight.height)
-						: Mathf.Max(fallbackSr.sprite.bounds.size.x, fallbackSr.sprite.bounds.size.y);
 					// Критерий «это предмет» — тот же, каким подбираемым предметам вешается маркер-подсветка
 					// (MainController.UpdateObject): род сущности задаётся её prefab'ом в серверной library,
 					// второго признака под размер заводить незачем. recive.prefab здесь непуст —
 					// GetPrefabKind выше уже отрезолвил по нему Resources-префаб.
-					float target = AnimationCacheService.IsGroundItem(recive.prefab)
-						? PlaceholderHeightItem
-						: PlaceholderHeightCreature;
-					Vector3 oldScale = prefab.transform.localScale;
-					if (native > 0.0001f && oldScale.y > 0.0001f)
-					{
-						// После root.scale *= factor мировой max(W,H) спрайта = oldScale.y * factor * native = target.
-						float factor = target / (native * oldScale.y);
-						prefab.transform.localScale = new Vector3(oldScale.x * factor, oldScale.y * factor, oldScale.z);
-
-						// Дети/компоненты, чьи размеры тюнились под oldScale, компенсируем.
-						float inv = 1f / factor;
-						var lifeBar = prefab.transform.Find("LifeBar");
-						if (lifeBar != null)
-						{
-							lifeBar.localScale = new Vector3(inv, inv, 1f);
-							var p = lifeBar.localPosition;
-							lifeBar.localPosition = new Vector3(p.x * inv, p.y * inv, p.z);
-						}
-						var capsule = prefab.GetComponent<CapsuleCollider2D>();
-						if (capsule != null)
-						{
-							capsule.size *= inv;
-							capsule.offset *= inv;
-						}
-					}
+					// Саму подгонку ведёт общая точка сборки визуала: и заглушка, и настоящая картинка
+					// обязаны меряться одним счётом, иначе сущность выходила бы разного размера смотря
+					// чем её нарисовали.
+					VisualBuilder.FitSprite(prefab, fallbackSr.sprite,
+						AnimationCacheService.IsGroundItem(recive.prefab)
+							? PlaceholderHeightItem
+							: PlaceholderHeightCreature);
 				}
 
 				model = prefab.GetComponent<EntityModel>();
@@ -436,8 +408,7 @@ namespace Mmogick
 				// item'а). Параметр startDisabled=true критически важен: без него Animator перехватывает
 				// SR.sprite и item рендерится пустым (apple, firebolt без иконки). PlayAction включит
 				// Animator в момент проигрывания эффекта.
-				var entityModel = go.GetComponent<Mmogick.EntityModel>();
-				if (entityModel != null) entityModel.EnsureUniversalAnimator(startDisabled: true);
+				model.EnsureUniversalAnimator(startDisabled: true);
 
 				// TryGetSprite инвалидирует битый кеш и бросает exception — ловим, выходим
 				// (визуал отменяется, на следующем sync файл перекачается).
@@ -520,11 +491,10 @@ namespace Mmogick
 				// Animator'а: PlayAction вернёт его на SR, когда сущность оживёт после dead (иначе она застряла
 				// бы на dead-кадре, т.к. writeDefaults=false держит последний кадр анимации). startDisabled=true:
 				// в idle Animator не должен перехватывать placeholder; PlayAction включит его в момент эффекта.
-				var entityModel = go.GetComponent<Mmogick.EntityModel>();
 				var sr = go.GetComponent<SpriteRenderer>();
-				if (entityModel != null && sr != null && sr.sprite != null)
-					entityModel.SetFallbackSprite(sr.sprite);
-				if (entityModel != null) entityModel.EnsureUniversalAnimator(startDisabled: true);
+				if (sr != null && sr.sprite != null)
+					model.SetFallbackSprite(sr.sprite);
+				model.EnsureUniversalAnimator(startDisabled: true);
 				model.LogWarning("prefab '" + newPrefab + "' без image/animation — fallback-визуал kind + Universal overlay (dead/remove)");
 				// kind-only визуал (placeholder) окончателен и виден сразу — точка «визуал готов» здесь.
 				model.OnVisualReady();

@@ -57,10 +57,10 @@ namespace Mmogick
             {
                 if (PlayerController.Player != null && PlayerController.Player.action != PlayerController.ACTION_REMOVE)
                 {
-                    // Мирорим видимую иконку с server-size scale (1/size). Затемнение недоступного
-                    // считаем сами: карточка книги гасит свою иконку только пока открыта её вкладка,
-                    // и её цвет замер бы на последнем значении перед скрытием.
-                    if (_icon != null && _item.Icon != null)
+                    // Мирорим видимую иконку. Затемнение недоступного считаем сами: карточка книги гасит
+                    // свою иконку только пока открыта её вкладка, и её цвет замер бы на последнем
+                    // значении перед скрытием.
+                    if (_icon != null)
                     {
                         Color color = _item.Icon.color;
                         color.a = _item.IsUnavailable() ? 0.5f : 1f;
@@ -155,7 +155,9 @@ namespace Mmogick
 
         void IPointerClickHandler.OnPointerClick(PointerEventData eventData)
         {
+#if UNITY_EDITOR
             Debug.Log("Быстрая клавиша " + num + ": нажали "+(_item == null?"на пустую":"на присвоенную"));
+#endif
 
             // на сервере есть првоерка на то можем ли мы стрелять, но что бы не сдать впустую запрос который никчему не приведет  - ограничим и тут
             if (PlayerController.Player == null || PlayerController.Player.action == PlayerController.ACTION_REMOVE || PlayerController.Player.hp <= 0)

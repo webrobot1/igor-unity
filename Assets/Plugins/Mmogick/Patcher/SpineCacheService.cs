@@ -354,7 +354,7 @@ namespace Mmogick
 			{
 				Texture2D texture = Texture(gameId, page);
 				if (texture == null)
-					return "SpineCache: страницы «" + page + "» нет в кеше картинок";
+					return "SpineCache: страница «" + page + "» не читается: её нет в кеше картинок либо картинка битая";
 				textures.Add(texture);
 			}
 
@@ -395,7 +395,12 @@ namespace Mmogick
 				return null;
 
 			var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-			texture.LoadImage(File.ReadAllBytes(file));
+			// Исход разбора картинки смотрим, как и общий кеш спрайтов обоих соседей, читающих те же файлы
+			// (SpriteCache): на битом PNG движок возвращает false, текстура остаётся
+			// заготовкой, и скелет молча рисуется мусором. Отдаём null — вызывающий назовёт страницу.
+			if (!texture.LoadImage(File.ReadAllBytes(file)))
+				return null;
+
 			texture.name = Path.GetFileNameWithoutExtension(page);
 			_textures[page] = texture;
 			return texture;

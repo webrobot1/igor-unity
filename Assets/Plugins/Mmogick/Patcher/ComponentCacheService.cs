@@ -4,7 +4,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -27,11 +26,11 @@ namespace Mmogick
 	// кладёт та же предзагрузка, что и скелеты тел (AnimationCacheService).
 	public static class ComponentCacheService
 	{
-		[DllImport("__Internal")]
-		private static extern void JsSync();
-
 		private const string MANIFEST_FILE  = "sync.json";
 		private const string DIRECTORY_FILE = "component.json";
+
+		// Подкаталог кеша игры под справочник компонентов.
+		private const string ROOT_DIR       = "component";
 
 		// Версия формата локального кеша (ComponentEntry/component.json). Бамп при смене состава записи либо
 		// ФОРМЫ значения внутри неё: дельта везёт только изменившееся, у давно не правленного компонента дата
@@ -112,32 +111,14 @@ namespace Mmogick
 			public string clip;
 		}
 
-		// Корень кеша справочника для игры
-		private static string DirectoryPath(int gameId)
-		{
-			string folder;
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				folder = "idbfs";
-			#else
-				folder = Application.persistentDataPath;
-			#endif
-			string path = Path.Combine(folder, "games", gameId.ToString(), "component");
-			if (!Directory.Exists(path)) Directory.CreateDirectory(path);
-			return path;
-		}
-
-		private static string ManifestPath(int gameId)  => Path.Combine(DirectoryPath(gameId), MANIFEST_FILE);
-		private static string DirectoryFile(int gameId) => Path.Combine(DirectoryPath(gameId), DIRECTORY_FILE);
+		private static string ManifestPath(int gameId)  => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), MANIFEST_FILE);
+		private static string DirectoryFile(int gameId) => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), DIRECTORY_FILE);
 
 		// Загружает отметку синхронизации и сам справочник с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
 			string mp = ManifestPath(gameId);
-			// Рассинхрон disk↔RAM (sync.json удалён внешним кодом, а отметка держится в памяти) — нарушение
-			// контракта: этими файлами владеет только ComponentCacheService. Падаем громко, чтобы виновный
-			// код чинили у источника, а не маскировали тихим сбросом.
-			if (_manifest != null && !File.Exists(mp))
-				throw new InvalidOperationException("ComponentCache: sync.json отсутствует на диске, но отметка загружена в память. Кто-то очистил кэш мимо ResetCache() — почините источник.");
+			GameCache.RequireManifestOnDisk("ComponentCache", _manifest, mp);
 
 			if (_manifest == null)
 			{
@@ -167,21 +148,9 @@ namespace Mmogick
 			}
 		}
 
-		private static void SaveManifest(int gameId)
-		{
-			File.WriteAllText(ManifestPath(gameId), JsonConvert.SerializeObject(_manifest));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-		}
+		private static void SaveManifest(int gameId) => GameCache.WriteJson(ManifestPath(gameId), _manifest);
 
-		private static void SaveDirectory(int gameId)
-		{
-			File.WriteAllText(DirectoryFile(gameId), JsonConvert.SerializeObject(_components));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-		}
+		private static void SaveDirectory(int gameId) => GameCache.WriteJson(DirectoryFile(gameId), _components);
 
 		// Полный сброс кеша справочника: отметка и сам справочник. Следующий Sync соберёт его с нуля.
 		public static void ResetCache(int gameId)
@@ -199,9 +168,7 @@ namespace Mmogick
 			}
 			catch (Exception ex) { Debug.LogWarning("ComponentCache: ошибка при сбросе кеша: " + ex.Message); }
 
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
+			GameCache.Flush();
 		}
 
 		// Дельта-синхронизация справочника перед входом в игру. Мёржит изменившиеся записи и удаляет slug'и,
@@ -223,7 +190,7 @@ namespace Mmogick
 
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("ComponentCache: " + ExtractError(req));
+				onError?.Invoke("ComponentCache: " + GameCache.ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -257,24 +224,6 @@ namespace Mmogick
 			Debug.Log("ComponentCache: справочник синхронизирован (since=" + since + "), изменено " + changed + ", всего " + _components.Count);
 			SaveDirectory(gameId);
 			SaveManifest(gameId);
-		}
-
-		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx)
-		// при неуспешном HTTP-запросе. Fallback — код+generic error от UnityWebRequest.
-		private static string ExtractError(UnityWebRequest req)
-		{
-			string body = req.downloadHandler?.text;
-			if (!string.IsNullOrEmpty(body))
-			{
-				try
-				{
-					var err = JsonConvert.DeserializeObject<Dictionary<string, string>>(body);
-					if (err != null && err.TryGetValue("error", out string msg) && !string.IsNullOrEmpty(msg))
-						return msg;
-				}
-				catch { }
-			}
-			return req.responseCode + " " + req.error;
 		}
 
 		// Умолчание компонента — значение, одинаковое для всех, кому компонент положен. Точечный

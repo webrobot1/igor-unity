@@ -114,9 +114,26 @@ namespace Mmogick
 		// открытыми — часть предметов могла не влезть в инвентарь.
 		private static bool _closeWhenEmpty;
 
-		// Инстанс контроллера для статических точек входа (Item.Use, кнопка, RefreshWindow): единственный
-		// на сцене, заполняется в Awake — Find не нужен.
+		// КЭШ инстанса контроллера, а не единственный его носитель: статику гасит перезагрузка домена —
+		// редактор пересобирает правку кода, не выходя из игры, — а объект сцены её переживает, и Awake
+		// ему второй раз не зовут. Пустое поле поэтому значит «ещё не искали», а не «инстанса нет».
 		private static LootWindowController _instance;
+
+		/// <summary>
+		/// Инстанс контроллера для статических точек входа (Item.Use, кнопка, RefreshWindow): из кэша, а при
+		/// пустом кэше — поиском по сценам. Цепочка контроллеров сходится в одном компоненте сцены, потому
+		/// поиск возвращает ровно его; нет игровой сцены — нет и инстанса, и вызывающие это учитывают.
+		/// </summary>
+		private static LootWindowController Instance
+		{
+			get
+			{
+				if (_instance == null)
+					_instance = FindAnyObjectByType<LootWindowController>(FindObjectsInactive.Include);
+
+				return _instance;
+			}
+		}
 
 		protected override void Awake()
 		{
@@ -463,7 +480,7 @@ namespace Mmogick
 		/// </summary>
 		private static void ShowLoot(string key, CorpseLootMarker marker, EntityModel container)
 		{
-			LootWindowController instance = _instance;
+			LootWindowController instance = Instance;
 			if (instance == null) return;
 
 			// Слоты пересоздаём ТОЛЬКО на смене трупа либо пришедшей дельте добычи: RefreshWindow
@@ -665,10 +682,10 @@ namespace Mmogick
 				_lootGroup.interactable = true;
 			}
 
-			if (wasOpen && _instance != null && _instance.inventoryGroup != null)
+			if (wasOpen && Instance != null && Instance.inventoryGroup != null)
 			{
-				_instance.inventoryGroup.alpha = 0;
-				_instance.inventoryGroup.blocksRaycasts = false;
+				Instance.inventoryGroup.alpha = 0;
+				Instance.inventoryGroup.blocksRaycasts = false;
 			}
 		}
 

@@ -9,12 +9,17 @@ namespace Mmogick
 	/// Класс настройки зоны видимости вокруг игрока
 	/// </summary>
 
-    // этот скрипт будет работать даже без запуска игры в редакторе unity (онлайном показывать видимость игрока)
-    [ExecuteInEditMode]
     public class CameraController : MonoBehaviour
     {
         private Dictionary<int, MapSide> last_sides;
         private float last_view;
+
+        /// <summary>
+        /// Главная камера, найденная один раз. Поиск по метке движка (<c>Camera.main</c>) стоит обхода
+        /// помеченных объектов, а нужен он тут по многу раз В КАЖДОМ кадре. Живость проверяем: смена сцены
+        /// уничтожает камеру, и найденное надо искать заново.
+        /// </summary>
+        private Camera cam;
 
         private float minX;
         private float minY;
@@ -30,6 +35,12 @@ namespace Mmogick
         {
             if (PlayerController.Player != null)
 		    {
+                if (cam == null)
+                    cam = Camera.main;
+
+                if (cam == null)
+                    return;   // камеры на сцене ещё нет — двигать нечего
+
                 /// <summary>
                 /// зона видимости вокруг игрока
                 /// </summary>
@@ -44,19 +55,19 @@ namespace Mmogick
                 // шире экрана» держится тогда при любом значении, которое игрок выставит.
                 float view = PlayerController.Player.lifeRadius / 2f;
 
-                if (Camera.main.aspect >= targetRation)
+                if (cam.aspect >= targetRation)
                 {
                     height = (view - 0.5f) / 2;
                 }
                 else
                 {
-                    float defferenceSize = targetRation / Camera.main.aspect;
+                    float defferenceSize = targetRation / cam.aspect;
                     height = (view - 0.5f) / 2 * defferenceSize;
                 }
 
-                if(Camera.main.orthographicSize != height)
+                if(cam.orthographicSize != height)
                 {
-                    Camera.main.orthographicSize = height;
+                    cam.orthographicSize = height;
                 }
 
                 // Кламп к границам обзора — только когда номер карты игрока СОГЛАСОВАН со списком соседей:
@@ -74,23 +85,23 @@ namespace Mmogick
                         last_view = view;
                     }
 
-                    Camera.main.transform.position = new Vector3(Mathf.Clamp(PlayerController.Player.transform.position.x, minX, maxX), Mathf.Clamp(PlayerController.Player.transform.position.y, minY, maxY), Camera.main.transform.position.z);
+                    cam.transform.position = new Vector3(Mathf.Clamp(PlayerController.Player.transform.position.x, minX, maxX), Mathf.Clamp(PlayerController.Player.transform.position.y, minY, maxY), cam.transform.position.z);
                 }
                 else
-                    Camera.main.transform.position = new Vector3(PlayerController.Player.transform.position.x, PlayerController.Player.transform.position.y, Camera.main.transform.position.z);
+                    cam.transform.position = new Vector3(PlayerController.Player.transform.position.x, PlayerController.Player.transform.position.y, cam.transform.position.z);
                }
         }
 
         private void UpdateView()
         {
             Dictionary<int, MapDecode> maps = PlayerController.getMaps();
-            float width = Camera.main.orthographicSize * Camera.main.aspect;
+            float width = cam.orthographicSize * cam.aspect;
 
             minX = 0 + width;
-            minY = maps[PlayerController.Player.map].height * -1 + Camera.main.orthographicSize + 1;
+            minY = maps[PlayerController.Player.map].height * -1 + cam.orthographicSize + 1;
 
             maxX = maps[PlayerController.Player.map].width - width;
-            maxY = 1 - Camera.main.orthographicSize;
+            maxY = 1 - cam.orthographicSize;
 
             last_sides = PlayerController.getSides();
 
@@ -107,7 +118,7 @@ namespace Mmogick
                     // еще не все карты ббыли загружены
                     if (!maps.ContainsKey(side.Key))
                     {
-                        Camera.main.transform.position = new Vector3(PlayerController.Player.transform.position.x, PlayerController.Player.transform.position.y, Camera.main.transform.position.z);
+                        cam.transform.position = new Vector3(PlayerController.Player.transform.position.x, PlayerController.Player.transform.position.y, cam.transform.position.z);
                         return;
                     }
 

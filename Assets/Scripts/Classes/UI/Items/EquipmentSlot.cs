@@ -55,7 +55,6 @@ namespace Mmogick
         }
 
         // Установка ярлыка на конкретный slot инвентаря (или 0 = снять экипировку).
-        // EquipmentController зовёт это вместо устаревшего SetItem(item).
         public void SetInventorySlotNum(int slotNum)
         {
             _inventorySlotNum = slotNum;
@@ -108,9 +107,7 @@ namespace Mmogick
                 return;
             }
 
-            // Используем Item.Icon (видимая иконка с server-size scale), fallback на Image.
-            Image src = item.Icon != null ? item.Icon : item.Image;
-            _icon.sprite = src.sprite;
+            _icon.sprite = item.Icon.sprite;
             _icon.color = Color.white;
             _icon.preserveAspect = true;
             _icon.enabled = _icon.sprite != null;

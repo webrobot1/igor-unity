@@ -52,6 +52,9 @@ namespace Mmogick
 		/// </summary>
 		private static float _softness;
 
+		/// <summary>Слой меток переходов по своей карте — см. его поиск в LateUpdate.</summary>
+		private static readonly Dictionary<Transform, Transform> _warpLayers = new Dictionary<Transform, Transform>();
+
 		private static readonly Vector4[] _centers = new Vector4[MaxCenters];
 		private static readonly List<Vector4> _found = new List<Vector4>();
 		private static readonly List<Vector4> _foundWarps = new List<Vector4>();
@@ -115,17 +118,38 @@ namespace Mmogick
 					? renderer.sharedMaterial.color
 					: Color.white;
 
-				// Свой экземпляр материала на слой: порядок отрисовки у каждого свой. Через
-				// MaterialPropertyBlock его передать нельзя — блок ставится на ВЕСЬ рендерер и перебивает
-				// текстуру, которую тайлы подставляют каждый свою (у тайла собственная картинка, общего
-				// атласа нет — TileCacheService), отчего слой рисуется чужими тайлами.
-				Material instance = new Material(material);
-				instance.SetFloat(LayerOrderId, renderer.sortingOrder);
-				instance.SetColor(ColorId, tint);
-
-				renderer.sharedMaterial = instance;
+				renderer.sharedMaterial = Instance(material, renderer.sortingOrder, tint);
 			}
 		}
+
+		/// <summary>
+		/// Материал слоя по его порядку отрисовки и оттенку. Экземпляр нужен свой: через
+		/// MaterialPropertyBlock значения не передать — блок ставится на ВЕСЬ рендерер и перебивает
+		/// текстуру, которую тайлы подставляют каждый свою (у тайла собственная картинка, общего
+		/// атласа нет — TileCacheService), отчего слой рисуется чужими тайлами.
+		///
+		/// Экземпляры ОБЩИЕ на пару значений, а не по одному на слой: карты выкладываются и сносятся на
+		/// каждом переходе открытого мира, а созданный кодом материал уничтожения рендерера не переживает
+		/// как ассет — он остаётся жить сиротой, и за сессию их копились бы сотни. Пар же немного:
+		/// перекрывающих слоёв у карты единицы, а порядок и оттенок у одноимённых слоёв соседних карт
+		/// совпадают. Набор живёт, пока идёт игра; уничтоженный экземпляр отсекает Unity-проверка.
+		/// </summary>
+		private static Material Instance(Material source, int order, Color tint)
+		{
+			var key = (order, (Color32)tint);
+			if (_instances.TryGetValue(key, out Material known) && known != null)
+				return known;
+
+			Material instance = new Material(source);
+			instance.SetFloat(LayerOrderId, order);
+			instance.SetColor(ColorId, tint);
+
+			_instances[key] = instance;
+			return instance;
+		}
+
+		private static readonly Dictionary<(int, Color32), Material> _instances =
+			new Dictionary<(int, Color32), Material>();
 
 		private static Material GetMaterial()
 		{
@@ -170,9 +194,17 @@ namespace Mmogick
 					if (!child.gameObject.activeInHierarchy)
 						continue;
 
-					// SortingGroup на корне сущности — источник её порядка отрисовки (UpdateController).
-					SortingGroup group = child.GetComponent<SortingGroup>();
-					if (group == null || child.GetComponent<EntityModel>() == null)
+					// Порядок отрисовки берём у самой сущности: она держит ссылку на свою группу
+					// сортировки готовой (EntityModel.EnsureRenderRefs заполняет её на каждый пакет), а
+					// собственный поиск компонента шёл бы здесь по КАЖДОЙ сущности КАЖДЫЙ кадр — вторым
+					// проходом за тем, что соседний уже добыл.
+					EntityModel entity = child.GetComponent<EntityModel>();
+					if (entity == null)
+						continue;
+
+					entity.EnsureRenderRefs();
+					SortingGroup group = entity.sortingGroup;
+					if (group == null)
 						continue;
 
 					Vector3 position = child.position;
@@ -188,9 +220,22 @@ namespace Mmogick
 			// значит transform и есть контейнер.
 			foreach (Transform map in transform)
 			{
-				Transform warps = map.Find(WarpMarker.LAYER);
-				if (warps == null)
-					continue;   // игра переходами по разметке не пользуется либо карта ещё строится
+				// Слой меток ищется по имени, и результат меняется лишь с загрузкой карты — держим его
+				// памяткой на саму карту: без неё поиск потомка по имени шёл бы каждый кадр по каждой
+				// выложенной карте. Уничтоженную карту Unity-проверка отсекает сама, и памятка о ней
+				// снимается при первом же промахе.
+				Transform warps;
+				if (!_warpLayers.TryGetValue(map, out warps) || warps == null)
+				{
+					warps = map.Find(WarpMarker.LAYER);
+					if (warps == null)
+					{
+						_warpLayers.Remove(map);
+						continue;   // игра переходами по разметке не пользуется либо карта ещё строится
+					}
+
+					_warpLayers[map] = warps;
+				}
 
 				foreach (Transform warp in warps)
 				{

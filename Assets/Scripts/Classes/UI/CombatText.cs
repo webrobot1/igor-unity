@@ -12,6 +12,7 @@ namespace Mmogick
         [SerializeField]
         private float lifeTime = 1.5f;
 
+        [SerializeField]
         private Text text;
 
         // Чья это надпись и когда появилась — по ним CombatTextController разводит соседние во времени надписи
@@ -25,9 +26,14 @@ namespace Mmogick
             Born = Time.time;
         }
 
+        void Awake()
+        {
+            if (text == null)
+                ConnectController.Error("у префаба боевого текста " + name + " не назначена надпись text");
+        }
+
         void Start()
         {
-            text = GetComponentInChildren<Text>();
             StartCoroutine(FadeOut());
         }
 
@@ -38,18 +44,15 @@ namespace Mmogick
 
         private IEnumerator FadeOut()
         {
-            float startAlpha = text != null ? text.color.a : 1f;
+            float startAlpha = text.color.a;
             float rate = 1.0f / lifeTime;
             float progress = 0.0f;
 
             while (progress < 1.0f)
             {
-                if (text != null)
-                {
-                    Color tmp = text.color;
-                    tmp.a = Mathf.Lerp(startAlpha, 0, progress);
-                    text.color = tmp;
-                }
+                Color tmp = text.color;
+                tmp.a = Mathf.Lerp(startAlpha, 0, progress);
+                text.color = tmp;
 
                 progress += rate * Time.deltaTime;
                 yield return null;

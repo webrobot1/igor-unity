@@ -9,10 +9,5 @@ namespace Mmogick
 	{
 		public float x;
 		public float y;
-
-		new public string ToString()
-        {
-			return x + "," + y;
-        }
 	}
 }

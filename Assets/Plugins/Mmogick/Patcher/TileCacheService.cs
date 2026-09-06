@@ -6,7 +6,6 @@ using System.IO;
 using System.IO.Compression;
 using UnityEngine;
 using UnityEngine.Networking;
-using System.Runtime.InteropServices;
 
 namespace Mmogick
 {
@@ -22,9 +21,6 @@ namespace Mmogick
 	//   sync.json                 — { archive_last_modified, tileset_versions: {id: ts}, map_versions: {mapId: ts} }
 	public static class TileCacheService
 	{
-		[DllImport("__Internal")]
-		private static extern void JsSync();
-
 		private const string MANIFEST_FILE = "sync.json";
 		private const string TILES_DIR = "tiles";
 		private const string TILESET_DIR = "tileset";
@@ -50,7 +46,21 @@ namespace Mmogick
 		private static SyncManifest _manifest;
 		private static Dictionary<string, TilesetMeta> _tilesets;
 		private static Dictionary<string, Tile> _meta;
-		private static readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
+
+		// Графика тайлов: точка отсчёта в левом нижнем углу, пикселей на единицу — ширина самой текстуры.
+		// Вместе это даёт «один тайл = одна клетка мира» при любом разрешении картинки, и на этот pivot
+		// опирается раскладка карты (MapDecodeModel.BuildTileMatrix крутит тайл вокруг центра ячейки).
+		// Ключ — голый отпечаток тайла, хвост имени файла кеш дописывает сам.
+		private static readonly SpriteCache _sprites = new SpriteCache(
+			"TileCache", TilesPath, ".png", new Vector2(0, 0), tex => tex.width, SpriteMeshType.FullRect,
+			gameId =>
+			{
+				if (_manifest != null)
+				{
+					_manifest.archive_last_modified = null;
+					SaveManifest(gameId);
+				}
+			});
 
 		// Шапка скачанной карты: мир, имя и место в открытом мире. Держится в манифесте, а не читается из
 		// самих карт: обзорной карте мира нужны шапки ВСЕХ скачанных карт, а разбор их файлов целиком —
@@ -94,55 +104,18 @@ namespace Mmogick
 		}
 
 
-		// Корень кеша для игры
-		private static string GamePath(int gameId)
-		{
-			string folder;
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				folder = "idbfs";
-			#else
-				folder = Application.persistentDataPath;
-			#endif
-			string path = Path.Combine(folder, "games", gameId.ToString());
-			if (!Directory.Exists(path)) Directory.CreateDirectory(path);
-			return path;
-		}
+		private static string TilesPath(int gameId)  => Path.Combine(GameCache.RootPath(gameId), TILES_DIR);
+		private static string MapsPath(int gameId)   => Path.Combine(GameCache.RootPath(gameId), MAPS_DIR);
+		private static string WorldMapPath(int gameId) => Path.Combine(GameCache.RootPath(gameId), WORLDMAP_DIR);
 
-		private static string TilesPath(int gameId)  => Path.Combine(GamePath(gameId), TILES_DIR);
-		private static string MapsPath(int gameId)   => Path.Combine(GamePath(gameId), MAPS_DIR);
-		private static string WorldMapPath(int gameId) => Path.Combine(GamePath(gameId), WORLDMAP_DIR);
-
-		private static string ManifestPath(int gameId) => Path.Combine(GamePath(gameId), MANIFEST_FILE);
-		private static string TilesetPath(int gameId) => Path.Combine(GamePath(gameId), TILESET_DIR);
+		private static string ManifestPath(int gameId) => Path.Combine(GameCache.RootPath(gameId), MANIFEST_FILE);
+		private static string TilesetPath(int gameId) => Path.Combine(GameCache.RootPath(gameId), TILESET_DIR);
 		private static string TilesetFilePath(int gameId, string tilesetId) => Path.Combine(TilesetPath(gameId), tilesetId + ".json");
-
-		// Извлекает текст серверной ошибки из body ({"error":"..."} — exceptionHandler и явные 4xx/5xx).
-		// Fallback — код+generic error от UnityWebRequest.
-		private static string ExtractError(UnityWebRequest req)
-		{
-			string body = req.downloadHandler?.text;
-			if (!string.IsNullOrEmpty(body))
-			{
-				try
-				{
-					var err = JsonConvert.DeserializeObject<Dictionary<string, string>>(body);
-					if (err != null && err.TryGetValue("error", out string msg) && !string.IsNullOrEmpty(msg))
-						return msg;
-				}
-				catch { }
-			}
-			return req.responseCode + " " + req.error;
-		}
 
 		private static void EnsureLoaded(int gameId)
 		{
 			string mp = ManifestPath(gameId);
-			// Рассинхрон disk↔RAM (sync.json удалён внешним кодом / ручной очисткой кэша, но _manifest
-			// в RAM держит timestamp прошлого архива) — нарушение контракта: TileCacheService —
-			// единственный владелец этих файлов. Падаем громко (skill code «Отказ и дефолт»), чтобы виновный
-			// код был починен у источника, а не маскировался силент-ресетом.
-			if (_manifest != null && !File.Exists(mp))
-				throw new InvalidOperationException("TileCache: sync.json отсутствует на диске, но _manifest загружен в RAM. Кто-то очистил кэш мимо ResetCache() — почините источник.");
+			GameCache.RequireManifestOnDisk("TileCache", _manifest, mp);
 			if (_manifest == null)
 			{
 				_manifest = File.Exists(mp)
@@ -160,6 +133,7 @@ namespace Mmogick
 					_manifest.tileset_versions.Clear();
 					_manifest.map_versions.Clear();
 					_manifest.maps.Clear();
+					_worldMaps = null;   // набор карт очищен — прежний отбор мира устарел (см. GetWorldMaps)
 					if (Directory.Exists(MapsPath(gameId)))
 						foreach (string file in Directory.GetFiles(MapsPath(gameId), "*.json"))
 							File.Delete(file);
@@ -213,13 +187,7 @@ namespace Mmogick
 			if (!Directory.Exists(WorldMapPath(gameId))) Directory.CreateDirectory(WorldMapPath(gameId));
 		}
 
-		private static void SaveManifest(int gameId)
-		{
-			File.WriteAllText(ManifestPath(gameId), JsonConvert.SerializeObject(_manifest));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
-		}
+		private static void SaveManifest(int gameId) => GameCache.WriteJson(ManifestPath(gameId), _manifest);
 
 		public static void ResetCache(int gameId)
 		{
@@ -230,7 +198,8 @@ namespace Mmogick
 			_manifest = null;
 			_tilesets = null;
 			_meta = null;
-			_spriteCache.Clear();
+			_worldMaps = null;   // набор карт снесён — прежний отбор мира устарел (см. GetWorldMaps)
+			_sprites.Clear();
 
 			try
 			{
@@ -246,9 +215,7 @@ namespace Mmogick
 			Directory.CreateDirectory(TilesetPath(gameId));
 			Directory.CreateDirectory(MapsPath(gameId));
 			Directory.CreateDirectory(WorldMapPath(gameId));
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
+			GameCache.Flush();
 		}
 
 		// Полная синхронизация перед входом в игру: архив PNG + мета. Вызывать ДО Connect.
@@ -288,7 +255,7 @@ namespace Mmogick
 			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("TileCache archive: " + ExtractError(req));
+				onError?.Invoke("TileCache archive: " + GameCache.ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -327,10 +294,8 @@ namespace Mmogick
 			Debug.Log("TileCache: архив тайлов обновлён, распаковано " + extractedCount + " файлов");
 			_manifest.archive_last_modified = lastMod;
 			SaveManifest(gameId);
-			_spriteCache.Clear(); // новые PNG могли появиться — сбросим кеш спрайтов
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
+			_sprites.Clear(); // новые PNG могли появиться — сбросим кеш спрайтов
+			GameCache.Flush();
 		}
 
 		// Tileset meta: 1) GET /tileset → список {id: timestamp}  2) GET /tileset/{id} для изменившихся
@@ -345,7 +310,7 @@ namespace Mmogick
 
 			if (listReq.result != UnityWebRequest.Result.Success)
 			{
-				onError?.Invoke("TileCache tileset list: " + ExtractError(listReq));
+				onError?.Invoke("TileCache tileset list: " + GameCache.ExtractError(listReq));
 				listReq.Dispose();
 				yield break;
 			}
@@ -377,7 +342,7 @@ namespace Mmogick
 
 				if (req.result != UnityWebRequest.Result.Success)
 				{
-					Debug.LogWarning("TileCache: ошибка загрузки тайлсета " + tilesetId + ": " + ExtractError(req));
+					Debug.LogWarning("TileCache: ошибка загрузки тайлсета " + tilesetId + ": " + GameCache.ExtractError(req));
 					req.Dispose();
 					continue;
 				}
@@ -443,9 +408,7 @@ namespace Mmogick
 				Debug.Log("TileCache: все тайлсеты актуальны");
 			}
 
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
+			GameCache.Flush();
 		}
 
 		// terrain.json + tile meta карты: If-Modified-Since → 304 из кеша, иначе скачать и сохранить.
@@ -478,7 +441,7 @@ namespace Mmogick
 			}
 			if (req.result != UnityWebRequest.Result.Success)
 			{
-				callback(null, "TileCache map " + mapId + ": " + ExtractError(req));
+				callback(null, "TileCache map " + mapId + ": " + GameCache.ExtractError(req));
 				req.Dispose();
 				yield break;
 			}
@@ -491,9 +454,7 @@ namespace Mmogick
 			if (!string.IsNullOrEmpty(newLastMod))
 				_manifest.map_versions[mapId] = newLastMod;
 			RememberMap(gameId, mapId, json);   // сам сохраняет манифест — вместе с версией выше
-			#if UNITY_WEBGL && !UNITY_EDITOR
-				JsSync();
-			#endif
+			GameCache.Flush();
 
 			Debug.Log("TileCache: карта " + mapId + " скачана с сервера");
 			callback(json, null);
@@ -520,13 +481,34 @@ namespace Mmogick
 				height = map.height,
 			};
 
+			_worldMaps = null;   // набор карт пополнился — прежний отбор мира устарел (см. GetWorldMaps)
+
 			SaveManifest(gameId);
 		}
 
+		// Отбор карт одного мира, посчитанный в прошлый раз. Спрашивают его ПОКАДРОВО (радар держит фон по
+		// нему каждый кадр), а меняется он только с приходом новой карты в кеш — потому отбор считается один
+		// раз и держится до правки манифеста. Без этого каждый кадр стоил бы обхода всех скачанных карт с
+		// новым словарём на выброс: канон клиента («Замер производительности клиента») мерит покадровый код
+		// именно мусором за кадр. Снимают отбор все три точки правки набора карт: приход карты (RememberMap),
+		// сброс кеша (ResetCache) и миграция схемы.
+		private static int _worldMapsWorld = -1;
+		private static Dictionary<int, CachedMap> _worldMaps;
+
 		// Скачанные карты указанного мира — источник обзорной карты: показывается ровно то, что игрок уже
 		// видел (кеш пополняют только загруженные карты — своя и смежные). Ключ — id карты.
-		public static Dictionary<int, CachedMap> GetWorldMaps(int gameId, int worldId)
+		// Отдаётся ОБЩИЙ отбор, править его нельзя (оттого и тип только для чтения): нужен свой изменяемый
+		// набор — снять с него копию.
+		public static IReadOnlyDictionary<int, CachedMap> GetWorldMaps(int gameId, int worldId)
 		{
+			// Готовый отбор отдаётся БЕЗ обращения к диску: спрашивают его покадрово (радар держит по
+			// нему фон каждый кадр), а EnsureLoaded на каждом вызове проверял бы наличие манифеста и
+			// четырёх каталогов кеша — около десятка обращений к файловой системе и полтора десятка
+			// строк-мусора за кадр. Диск нужен лишь тому, кто кеш ЧИТАЕТ либо ПИШЕТ, — сюда он попадает
+			// только на пересчёте отбора, то есть при первом спросе и после смены набора карт.
+			if (_worldMaps != null && _worldMapsWorld == worldId)
+				return _worldMaps;
+
 			EnsureLoaded(gameId);
 
 			Dictionary<int, CachedMap> result = new Dictionary<int, CachedMap>();
@@ -534,7 +516,30 @@ namespace Mmogick
 				if (pair.Value.world == worldId)
 					result.Add(pair.Key, pair.Value);
 
+			_worldMapsWorld = worldId;
+			_worldMaps = result;
+
 			return result;
+		}
+
+		/// <summary>
+		/// Идёт ли карта в раскладку мира — мозаику, которую показывают обзорная карта и радар.
+		///
+		/// Карта БЕЗ места в открытом мире (интерьер, подземелье) идёт в неё лишь тогда, когда игрок
+		/// стоит В НЕЙ: показать её надо — иначе, зайдя в банк, игрок увидит пустое окно, — но и только
+		/// её одну. Таких карт у одного мира много (банк, кузница, тюрьма одного города), места в
+		/// раскладке у них нет вовсе, а координаты записи подставлены нулями
+		/// (<see cref="CachedMap.hasOpenworldPosition"/>): пусти их все — они лягут одной точкой друг на
+		/// друга и на карту, которая стоит в нуле по-настоящему, а кто кого перекроет, решал бы порядок
+		/// обхода словаря. Карты открытого мира правило не трогает.
+		///
+		/// Точка ОДНА на оба показа: разойдись их отборы — окно карты и радар показали бы разный состав
+		/// мира, и расхождение это молчит. Что делать с отсеянным, каждый показ решает сам: обзорная
+		/// карта не берёт запись в свою раскладку, радар гасит уже выложенную плитку.
+		/// </summary>
+		public static bool InWorldLayout(CachedMap map, int mapId, int currentMapId)
+		{
+			return map.hasOpenworldPosition || mapId == currentMapId;
 		}
 
 		// Скачанная карта из кеша (тот же JSON, что отдаёт GetMap) — для отрисовки миниатюры карты, которую
@@ -593,59 +598,11 @@ namespace Mmogick
 			SaveManifest(gameId);
 		}
 
-		// Wrapper над GetSprite: на любой сбой (LoadImage / отсутствие файла) инвалидирует битый кеш
-		// (удаляет PNG и сбрасывает archive_last_modified — иначе следующий sync получит 304 и файл
-		// не перекачается) и бросает Exception с контекстом. Вызыватель оборачивает в try/catch и
-		// сам решает что делать (обычно — ConnectController.Error + оставить sprite=null).
-		public static Sprite TryGetSprite(int gameId, string sha256)
-		{
-			try { return GetSprite(gameId, sha256); }
-			catch (Exception ex)
-			{
-				if (!string.IsNullOrEmpty(sha256))
-				{
-					string path = Path.Combine(TilesPath(gameId), sha256 + ".png");
-					try { if (File.Exists(path)) File.Delete(path); } catch { /* нет прав / уже удалён */ }
-					_spriteCache.Remove(sha256);
-					if (_manifest != null)
-					{
-						_manifest.archive_last_modified = null;
-						SaveManifest(gameId);
-					}
-				}
-				throw new Exception("TileCache: битый тайл '" + sha256 + "' удалён из кеша, перекачается на следующем sync — " + ex.Message, ex);
-			}
-		}
-
-		// Sprite по sha256: грузится из PNG-файла локального кеша, кешируется в памяти.
-		public static Sprite GetSprite(int gameId, string sha256)
-		{
-			// Unity-объект в словаре может быть уничтожен Resources.UnloadUnusedAssets при переходе сцен
-			// (static-ссылка C# живёт, но нативный ресурс снесён). Проверяем через == null и пересоздаём.
-			if (_spriteCache.TryGetValue(sha256, out Sprite cached) && cached != null) return cached;
-
-			string path = Path.Combine(TilesPath(gameId), sha256 + ".png");
-			if (!File.Exists(path))
-			{
-				throw new Exception("TileCache: отсутствует графика тайла " + sha256 + " (архив устарел?)");
-			}
-
-			byte[] bytes = File.ReadAllBytes(path);
-			Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-			// Битые PNG — Unity вернёт false, текстура останется в fallback-состоянии и тайл тихо
-			// отрисуется мусором. Сразу вызываем ConnectController.Error (UI-ошибка + отсоединение),
-			// файл удаляем — следующий sync перекачает с сервера. Вызыватель получит null sprite,
-			// клетка карты останется пустой вместо мусора.
-			if (!tex.LoadImage(bytes))
-				throw new Exception("TileCache: Unity.Texture2D.LoadImage не справился с " + sha256 + " (" + bytes.Length + " байт)");
-			tex.filterMode = FilterMode.Point;
-			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
-			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0, 0), tex.width, 0, SpriteMeshType.FullRect);
-			s.hideFlags = HideFlags.DontUnloadUnusedAsset;
-			_spriteCache[sha256] = s;
-			Debug.Log("TileCache: спрайт " + sha256 + " загружен с диска");
-			return s;
-		}
+		// Sprite тайла по его отпечатку: PNG локального кеша, разобранный по конвенции тайла (см. _sprites).
+		// Битый тайл кеш снимает сам и бросает Exception с контекстом. Вызыватель оборачивает в try/catch и
+		// сам решает что делать (обычно — ConnectController.Error + оставить sprite=null): клетка карты
+		// останется пустой вместо мусора, а следующий sync перекачает тайл с сервера.
+		public static Sprite TryGetSprite(int gameId, string sha256) => _sprites.Get(gameId, sha256);
 
 		// Мета по sha256. Контракт по _meta тот же что у _library в AnimationCacheService — вызывать
 		// только после EnsureLoaded/sync (applySprite зовётся при декодировании карты, когда тайлсеты

@@ -160,19 +160,38 @@ namespace Mmogick
 			sr.enabled = true;
 			sr.sprite = sprite;
 
-			float targetSpan = TargetSpan(serverSize);
+			FitSprite(go, sprite, TargetSpan(serverSize));
+		}
 
+		/// <summary>
+		/// Приводит длинную сторону КАРТИНКИ на корне сущности к целевой, правя масштаб самого корня.
+		///
+		/// Собственный габарит картинки берётся по НЕПРОЗРАЧНЫМ пикселям, границы всего кадра идут лишь
+		/// откатом: PNG с прозрачными полями иначе меряется завышенно, и предмет выходит мельче
+		/// остальных. Нормируется БОЛЬШАЯ сторона — вытянутый предмет (топор, посох) при нормировке по
+		/// высоте лёг бы поперёк во всю клетку.
+		///
+		/// Полоска здоровья и капсула щелчка компенсируются обратно: их мировой размер задан префабом и
+		/// от размера картинки зависеть не должен. Формула идемпотентна — повторное применение на уже
+		/// приведённом масштабе даёт ту же длину.
+		///
+		/// Точка ОДНА на оба места, которые этим заняты: сборка визуала из картинки и нормировка
+		/// заглушки вида при спавне (UpdateController). Разойдись копии — одна и та же сущность
+		/// выходила бы разного размера, смотря чем её нарисовали.
+		/// </summary>
+		public static void FitSprite(GameObject go, Sprite sprite, float targetSpan)
+		{
 			float nativeSpan = AnimationCacheService.TryGetTightRect(sprite, out Rect tight)
 				&& Mathf.Max(tight.width, tight.height) > 0.0001f
 				? Mathf.Max(tight.width, tight.height)
 				: Mathf.Max(sprite.bounds.size.x, sprite.bounds.size.y);
 
-			if (nativeSpan <= 0.0001f) return;
+			Vector3 s = go.transform.localScale;
+			if (nativeSpan <= 0.0001f || Mathf.Abs(s.y) <= 0.0001f) return;
 
 			// scale.y * factor = targetSpan/nativeSpan → итоговая мировая длинная сторона кадра = targetSpan
 			// при любом размере картинки.
-			float factor = targetSpan / (nativeSpan * go.transform.localScale.y);
-			Vector3 s = go.transform.localScale;
+			float factor = targetSpan / (nativeSpan * s.y);
 			go.transform.localScale = new Vector3(s.x * factor, s.y * factor, s.z);
 
 			float inv = 1f / factor;

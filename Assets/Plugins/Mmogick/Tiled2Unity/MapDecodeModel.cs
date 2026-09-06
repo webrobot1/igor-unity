@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -35,6 +36,23 @@ namespace Mmogick
 		private static readonly Dictionary<string, TilemapModel> tileAssets = new Dictionary<string, TilemapModel>();
 		private static int tileAssetsGame;
 
+		/// <summary>Resources-префаб слоя тайлов: на нём стоят и игровые слои карты, и отладочные.</summary>
+		private const string TilemapPrefab = "Prefabs/Tilemap";
+
+		/// <summary>
+		/// Новый слой тайлов из Resources-префаба. Префаб — часть сборки клиента, и его отсутствие значит
+		/// сборку битую: без проверки движок отдаёт пустоту, а падение приходит строкой ниже, у первого
+		/// обращения к компоненту, и причины уже не называет.
+		/// </summary>
+		private static GameObject NewTilemapLayer()
+		{
+			UnityEngine.Object prefab = Resources.Load(TilemapPrefab, typeof(GameObject));
+			if (prefab == null)
+				throw new Exception("Карта: в сборке нет префаба слоя тайлов Resources/" + TilemapPrefab);
+
+			return (GameObject) UnityEngine.Object.Instantiate(prefab);
+		}
+
 		/// <summary>
 		/// Плитка для клетки: из набора, а при первом появлении — создаётся и в набор кладётся.
 		/// Ключ — картинка вместе с флагами разворота: одна и та же картинка, повёрнутая иначе, это другая плитка.
@@ -43,6 +61,13 @@ namespace Mmogick
 		{
 			if (tileAssetsGame != gameId)
 			{
+				// Плитки созданы кодом (CreateInstance): снятие ссылки объект движка не уничтожает — он жил бы
+				// до конца сессии. Картинки прошлой игры к этому моменту уже ни на чём не стоят: карты сносит
+				// MapController.Awake при входе.
+				foreach (TilemapModel stale in tileAssets.Values)
+					if (stale != null)
+						UnityEngine.Object.Destroy(stale);
+
 				tileAssets.Clear();
 				tileAssetsGame = gameId;
 			}
@@ -137,7 +162,7 @@ namespace Mmogick
 
 			foreach (Layer layer in map.layer.Values)
 			{
-				GameObject newLayer = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
+				GameObject newLayer = NewTilemapLayer();
 				newLayer.name = layer.name;
 				newLayer.transform.SetParent(grid, false);
 				newLayer.GetComponent<TilemapRenderer>().sortingOrder = sort;
@@ -206,18 +231,7 @@ namespace Mmogick
 				}
 
 				if (layer.opacity < 1f)
-				{
-					Renderer[] mRenderers = newLayer.GetComponentsInChildren<Renderer>();
-					for (int i = 0; i < mRenderers.Length; i++)
-					{
-						for (int j = 0; j < mRenderers[i].materials.Length; j++)
-						{
-							Color matColor = mRenderers[i].materials[j].color;
-							matColor.a = layer.opacity;
-							mRenderers[i].materials[j].color = matColor;
-						}
-					}
-				}
+					ApplyOpacity(newLayer, layer.opacity);
 
 				if (spawnLayerName != null && layer.name == spawnLayerName)
 				{
@@ -283,6 +297,58 @@ namespace Mmogick
 
 
 		/// <summary>
+		/// Собственная прозрачность слоя карты (opacity из редактора карт) — общим экземпляром материала
+		/// на её значение, не своим у каждого слоя.
+		///
+		/// Обращение к `materials` рендерера ИНСТАНЦИРУЕТ его материалы и отдаёт новый массив на каждый
+		/// вызов: прежний код звал его трижды за проход и заводил экземпляр каждому слою каждой карты, а
+		/// созданный кодом материал уничтожения рендерера не переживает как ассет — карты же выкладывают
+		/// и сносят на каждом переходе открытого мира, и сироты копились бы всю сессию. Значений
+		/// прозрачности в карте единицы, потому набор общий; тем же приёмом живут материалы окна
+		/// прозрачности (TilemapXray.Instance), и оттенок отсюда читает как раз оно.
+		/// </summary>
+		private static void ApplyOpacity(GameObject layerObject, float opacity)
+		{
+			foreach (Renderer renderer in layerObject.GetComponentsInChildren<Renderer>())
+			{
+				Material source = renderer.sharedMaterial;
+				if (source == null)
+					continue;
+
+				Color tint = source.color;
+				tint.a = opacity;
+				renderer.sharedMaterial = TintedMaterial(source, tint);
+			}
+		}
+
+		/// <summary>Материал-копия исходного с заданным цветом; общий на пару «исходный, цвет».</summary>
+		private static Material TintedMaterial(Material source, Color tint)
+		{
+			// Ключ — сам исходный материал, не его номер: номер движок объявил устаревшим, а ссылка
+			// адресует тот же экземпляр и в словаре сравнивается по нему же.
+			var key = (source, (Color32)tint);
+			if (tinted.TryGetValue(key, out Material known) && known != null)
+				return known;
+
+			Material instance = new Material(source) { color = tint };
+			tinted[key] = instance;
+			return instance;
+		}
+
+		private static readonly Dictionary<(Material, Color32), Material> tinted =
+			new Dictionary<(Material, Color32), Material>();
+
+		/// <summary>Шейдер линий отладочных контуров объектов-разметки (см. buildDebugObjects).</summary>
+		private const string DebugLineShader = "Sprites/Default";
+
+		/// <summary>
+		/// Материал линий отладочных контуров — ОДИН на всю сессию (см. buildDebugObjects). Пусто — ещё не
+		/// создавали либо объект движка уничтожен: статика переживает остановку игры, а созданный кодом
+		/// материал — нет.
+		/// </summary>
+		private static Material lineMaterial;
+
+		/// <summary>
 		/// Построить отладочный слой карты, если он ещё не построен. Зовётся при включении галочки тестового
 		/// режима: до этого слоёв нет вовсе — они втрое дороже самой карты, а видит их лишь разработчик.
 		/// Карта уже уничтожена либо данных о ней нет — тихо выходим.
@@ -310,7 +376,7 @@ namespace Mmogick
 		{
 			// Отладочный слой-сетка. Видимость — галочка «Сетка» debug-панели (DebugLayers.ShowGrid),
 			// применяется и к картам, загружаемым позже (см. DebugPanelController).
-			GameObject debugGrid = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
+			GameObject debugGrid = NewTilemapLayer();
 			debugGrid.name = DebugLayers.GRID;
 			debugGrid.transform.SetParent(grid, false);
 			debugGrid.GetComponent<TilemapRenderer>().sortingOrder = src.sort;
@@ -359,7 +425,7 @@ namespace Mmogick
 			// Отладочный слой непроходимых тайлов. Видимость — галочка «Коллизии» debug-панели
 			// (DebugLayers.ShowCollision); её блок открывает настройка игрока «Тестовый режим», а сами слои
 			// стартуют выключенными — их зажигает только сама галочка. Применяется и к картам, загружаемым позже.
-				GameObject debugCollision = UnityEngine.Object.Instantiate(Resources.Load("Prefabs/Tilemap", typeof(GameObject))) as GameObject;
+				GameObject debugCollision = NewTilemapLayer();
 				debugCollision.name = DebugLayers.COLLISION;
 				debugCollision.transform.SetParent(grid, false);
 				debugCollision.GetComponent<TilemapRenderer>().sortingOrder = src.sort + 1;
@@ -424,7 +490,20 @@ namespace Mmogick
 			labelCanvas.sortingOrder = src.sort + 3;
 			Font labelFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-			Material lineMat = new Material(Shader.Find("Sprites/Default"));
+			// Материал линий ОБЩИЙ, а не свой у каждой карты: слой строится заново при каждой её выкладке, а
+			// созданный кодом материал уничтожения рендерера не переживает как ассет — карты же выкладывают и
+			// сносят на каждом переходе открытого мира, и сироты копились бы всю сессию (тем же приёмом живут
+			// материалы прозрачности, см. TintedMaterial). Шейдер спрашиваем с проверкой: он часть сборки
+			// клиента, и его отсутствие — та же битая сборка, что и у префаба слоя (NewTilemapLayer).
+			if (lineMaterial == null)
+			{
+				Shader lineShader = Shader.Find(DebugLineShader);
+				if (lineShader == null)
+					throw new Exception("Карта: в сборке нет шейдера " + DebugLineShader + " для линий отладочных контуров");
+
+				lineMaterial = new Material(lineShader);
+			}
+
 			int objectsCount = 0;
 
 			foreach (Layer layer in src.map.layer.Values)
@@ -437,7 +516,7 @@ namespace Mmogick
 					if (!string.IsNullOrEmpty(obj.tile))
 						continue;
 
-					DrawDebugObject(debugObjects.transform, labelCanvas.transform, labelFont, obj, src.map.tilewidth, src.map.tileheight, lineMat, src.sort + 2);
+					DrawDebugObject(debugObjects.transform, labelCanvas.transform, labelFont, obj, src.map.tilewidth, src.map.tileheight, lineMaterial, src.sort + 2);
 					objectsCount++;
 				}
 			}
@@ -624,7 +703,7 @@ namespace Mmogick
 		/// <summary>
 		/// Собирает матрицу преобразования тайла по Tiled-флагам.
 		///
-		/// Спрайты тайлов имеют pivot (0,0) (см. TileCacheService.Sprite.Create),
+		/// Спрайты тайлов имеют pivot (0,0) (см. конвенцию кеша тайлов в TileCacheService),
 		/// один тайл = 1 unit. Все преобразования применяются вокруг центра ячейки (0.5, 0.5).
 		///
 		/// Сводная таблица для квадратной карты (Tiled tmx-spec):

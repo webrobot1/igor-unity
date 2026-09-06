@@ -164,6 +164,18 @@ namespace Mmogick
         /// <summary>Текущее увеличение раскладки. Переживает закрытие окна — игрок вернётся к тому же виду.</summary>
         private float worldMapZoom = ZOOM_MIN;
 
+        /// <summary>
+        /// Раскладка, по которой РАЗЛОЖЕНЫ картинки карт сейчас: набор карт, охват мира и масштаб вписывания.
+        /// Считается один раз сборкой и держится до следующей — пока окно открыто, картинки не перекладываются
+        /// (увеличение и перетаскивание двигают контейнер целиком). Точка игрока обязана считаться по ЭТИМ
+        /// величинам, а не по свежим: пересчёт на каждом кадре и стоил бы обхода всего кеша карт с новым
+        /// словарём на кадр, и разъезжался бы с рисунком, стоило набору карт пополниться при открытом окне.
+        /// null — раскладки ещё нет (окно не открывали либо показывать было нечего).
+        /// </summary>
+        private Dictionary<int, TileCacheService.CachedMap> worldMapLayout;
+        private RectInt worldMapLayoutBounds;
+        private float worldMapLayoutScale;
+
         protected override void Awake()
         {
             if (worldMapGroup == null)
@@ -295,14 +307,31 @@ namespace Mmogick
 
             worldMapImages.Clear();
 
-            Dictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
-            KeepOnlyCurrentInterior(maps, player == null ? -1 : player.map);
+            // Копия: кеш отдаёт общий отбор только для чтения, а мозаике он нужен просеянным (интерьеры ниже).
+            Dictionary<int, TileCacheService.CachedMap> maps = new Dictionary<int, TileCacheService.CachedMap>();
+            foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world))
+                maps.Add(pair.Key, pair.Value);
+
+            // Что в раскладку мира не идёт, решает единая точка (TileCacheService.InWorldLayout) — тем же
+            // отбором живёт радар. Список нужен потому, что словарь правится по итогам обхода, а во время
+            // обхода его трогать нельзя.
+            int currentMapId = player == null ? -1 : player.map;
+            List<int> stale = null;
+
+            foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in maps)
+                if (!TileCacheService.InWorldLayout(pair.Value, pair.Key, currentMapId))
+                    (stale ??= new List<int>()).Add(pair.Key);
+
+            if (stale != null)
+                foreach (int mapId in stale)
+                    maps.Remove(mapId);
 
             // Карт нет — шапка текущей карты ещё не легла в кеш (RememberMap пишет её по завершении
             // скачивания JSON карты, а до этого момента её нет ни в одном мире). Показывать нечего, точку
             // игрока тоже: она без раскладки бессмысленна.
             if (maps.Count == 0)
             {
+                worldMapLayout = null;
                 worldMapPlayerMarker.gameObject.SetActive(false);
                 ShowLegend();   // показывать нечего — и объяснять цвета нечего
                 worldMapBuilding = false;
@@ -311,6 +340,11 @@ namespace Mmogick
 
             RectInt bounds = WorldBounds(maps);
             float scale = WorldMapScale(bounds);
+
+            // Раскладка, по которой лягут картинки: точка игрока считается по ней же каждый кадр.
+            worldMapLayout = maps;
+            worldMapLayoutBounds = bounds;
+            worldMapLayoutScale = scale;
 
             foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in maps)
             {
@@ -679,24 +713,6 @@ namespace Mmogick
             ) * padding;
         }
 
-        /// <summary>
-        /// Интерьер того же world, но не карта игрока сейчас, — из мозаики убирает: несколько интерьеров
-        /// делят один world (см. CachedMap.hasOpenworldPosition), у их записей нет второй настоящей позиции —
-        /// без фильтра они наложились бы друг на друга в раскладке либо подменяли бы друг друга по порядку
-        /// обхода Dictionary. Карты, стоящие в открытом мире, фильтр не трогает.
-        /// </summary>
-        private static void KeepOnlyCurrentInterior(Dictionary<int, TileCacheService.CachedMap> maps, int currentMapId)
-        {
-            List<int> stale = null;
-            foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in maps)
-                if (!pair.Value.hasOpenworldPosition && pair.Key != currentMapId)
-                    (stale ??= new List<int>()).Add(pair.Key);
-
-            if (stale != null)
-                foreach (int mapId in stale)
-                    maps.Remove(mapId);
-        }
-
         /// <summary>Охват раскладки в тайлах: от левого-верхнего угла самой крайней карты до правого-нижнего.</summary>
         private static RectInt WorldBounds(Dictionary<int, TileCacheService.CachedMap> maps)
         {
@@ -732,21 +748,24 @@ namespace Mmogick
 
         /// <summary>
         /// Ставит точку игрока по его месту во всём мире: положение его карты в раскладке плюс его положение
-        /// внутри карты. Игрока ещё нет либо его карта в раскладке не стоит — точку прячем.
+        /// внутри карты. Зовётся каждый кадр открытого окна — игрок ходит и с раскрытой картой, — потому
+        /// берёт УЖЕ посчитанную раскладку (<see cref="worldMapLayout"/>), а не спрашивает кеш карт заново:
+        /// свежий набор карт стоил бы обхода всего кеша с новым словарём на кадр и мог бы разойтись с тем,
+        /// по которому картинки разложены. Игрока ещё нет, раскладки ещё нет либо его карты в ней не стоит
+        /// (пришёл на карту, которой не было при сборке) — точку прячем: место её в этой раскладке не
+        /// определено, а раскладка пересобирается следующим открытием окна.
         /// </summary>
         private void PlaceWorldMapPlayer()
         {
-            Dictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
-            KeepOnlyCurrentInterior(maps, player == null ? -1 : player.map);
-
-            if (player == null || !maps.TryGetValue(player.map, out TileCacheService.CachedMap current))
+            if (player == null || worldMapLayout == null
+                || !worldMapLayout.TryGetValue(player.map, out TileCacheService.CachedMap current))
             {
                 worldMapPlayerMarker.gameObject.SetActive(false);
                 return;
             }
 
-            RectInt bounds = WorldBounds(maps);
-            float scale = WorldMapScale(bounds);
+            RectInt bounds = worldMapLayoutBounds;
+            float scale = worldMapLayoutScale;
 
             if (!worldMapPlayerMarker.gameObject.activeSelf)
                 worldMapPlayerMarker.gameObject.SetActive(true);

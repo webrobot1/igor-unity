@@ -87,7 +87,6 @@ namespace Mmogick
                 {
                     // не только скрыть но и позволить кликать по той области что бы ходить персонажем
                     targetFrame.alpha = 0;
-                    //targetFrame.blocksRaycasts = false;
 
                     // Имя гаснет вместе с рамкой: показанное имя без рамки читалось бы как живая цель.
                     // Пока цель есть, имя ведёт FixedUpdate — оно приходит с сервера отдельным пакетом
@@ -135,7 +134,6 @@ namespace Mmogick
 
                         // покажем целиком верхнюю группу с анимациями
                         targetFrame.alpha = 1;
-                       // targetFrame.blocksRaycasts = true;
                     }
                 }
             }

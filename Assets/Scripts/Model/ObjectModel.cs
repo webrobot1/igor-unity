@@ -1,10 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
 
 namespace Mmogick
 {
@@ -56,6 +53,8 @@ namespace Mmogick
 		private Vector2 _liveCapsuleOffset;
 		private bool _liveCapsuleSaved;
 		private bool _capsuleFittedToCorpse;
+		private Bounds _corpseFittedTo;   // границы тела, под которые капсула подогнана сейчас
+		private DeathTimer _deathTimer;
 
 		/// <summary>
 		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
@@ -102,7 +101,7 @@ namespace Mmogick
 
 				// Отсчёт срока над телом навешиваем по действию, а не по составу компонентов: срок есть и
 				// у тела без добычи, и у игрока. Компонент сам решает, показывать ли (см. DeathTimer).
-				if (GetComponent<DeathTimer>() == null) gameObject.AddComponent<DeathTimer>();
+				if (_deathTimer == null) _deathTimer = gameObject.AddComponent<DeathTimer>();
 			}
 			else RestoreLiveCollider();
 
@@ -142,6 +141,10 @@ namespace Mmogick
 			if (_corpseCapsule == null) { _corpseCapsule = GetComponent<CapsuleCollider2D>(); if (_corpseCapsule == null) return; }
 			if (!TryGetVisualBounds(out Bounds b) || b.size.x < 0.01f || b.size.y < 0.01f) return;
 
+			// Те же границы, что кадром раньше, — капсула уже по ним: запись size/offset пересобирает форму
+			// коллайдера, а тело трупа неподвижно почти весь срок.
+			if (_capsuleFittedToCorpse && b == _corpseFittedTo) return;
+
 			if (!_liveCapsuleSaved)
 			{
 				_liveCapsuleSize = _corpseCapsule.size;
@@ -155,6 +158,7 @@ namespace Mmogick
 			Vector3 centerLocal = transform.InverseTransformPoint(b.center);
 			_corpseCapsule.offset = new Vector2(centerLocal.x, centerLocal.y);
 			_corpseCapsule.size = new Vector2(b.size.x / sx * CORPSE_HIT_GAP, b.size.y / sy * CORPSE_HIT_GAP);
+			_corpseFittedTo = b;
 			_capsuleFittedToCorpse = true;
 		}
 

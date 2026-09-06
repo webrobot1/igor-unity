@@ -17,6 +17,8 @@ namespace Mmogick
         [SerializeField]
         private RectTransform content;
 
+        private Canvas _canvas;
+
         /// <summary>
         /// Идёт ли перетаскивание карты. Пока тянут, форму указателя держит эта область, а не общий
         /// разбор наведения: карту тащат «наотмашь», указатель при этом уходит за её края, и сжатая
@@ -36,8 +38,19 @@ namespace Mmogick
 
         private void Awake()
         {
+            // Error() не бросает — без return OnDrag разыменовал бы те же null.
             if (content == null)
+            {
                 BaseController.Error("Карта мира: перетаскиванию не присвоен контейнер раскладки content");
+                return;
+            }
+
+            _canvas = GetComponentInParent<Canvas>();
+            if (_canvas == null)
+            {
+                BaseController.Error("Карта мира: область перетаскивания лежит вне холста");
+                return;
+            }
         }
 
         public void OnBeginDrag(PointerEventData eventData)
@@ -65,9 +78,7 @@ namespace Mmogick
         {
             // delta приходит в пикселях экрана, а холст масштабируется под разрешение — переводим через
             // масштаб холста, иначе на телефоне карта уезжала бы быстрее пальца.
-            float canvasScale = GetComponentInParent<Canvas>().scaleFactor;
-
-            MainController.Instance.MoveWorldMap(content.anchoredPosition + eventData.delta / canvasScale);
+            MainController.Instance.MoveWorldMap(content.anchoredPosition + eventData.delta / _canvas.scaleFactor);
         }
     }
 }

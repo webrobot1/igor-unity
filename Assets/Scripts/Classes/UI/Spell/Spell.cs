@@ -1,12 +1,8 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.Rendering;
 using UnityEngine.UI;
-using WebGLSupport;
 
 namespace Mmogick
 {
@@ -224,11 +220,9 @@ namespace Mmogick
 
                 remain.text = onCooldown ? PlayerController.Player.GetEventRemain(@event) + " сек." : "0 сек.";
 
-                // Cooldown alpha — на видимый icon (если есть), иначе fallback на корневой image.
-                // Корневой image держит alpha=0 (prefab), мигрировать её на icon — единственный
-                // способ показать затемнение пользователю; ActionBar мирорит icon.color (см. ActionBar.FixedUpdate).
-                Image alphaTarget = icon != null ? icon : image;
-                alphaTarget.color = new Color(alphaTarget.color.r, alphaTarget.color.g, alphaTarget.color.b, unavailable ? 0.5f : 1f);
+                // Затемнение — на видимой иконке: корневой image держит alpha=0 (prefab), и гасить его
+                // нечем; ActionBar мирорит icon.color (см. ActionBar.FixedUpdate).
+                icon.color = new Color(icon.color.r, icon.color.g, icon.color.b, unavailable ? 0.5f : 1f);
                 image.raycastTarget = true;
             } 
         }
@@ -267,12 +261,16 @@ namespace Mmogick
 
                 if (bar.Item != this)
                 {
+#if UNITY_EDITOR
                     Debug.Log("Быстрая клавиша " + bar.num + ": отправим на сервер установку заклинания " + Magic);
+#endif
                     response.actionbars.Add(bar.num, new ActionBarsRecive("spell", Magic));
                 }
                 else
                 {
+#if UNITY_EDITOR
                     Debug.LogWarning("Быстрая клавиша " + bar.num + ": Попытка установить одинаковые значение - очищаем ячейку");
+#endif
                     response.actionbars.Add(bar.num, null);
                 }
                 response.Send();
@@ -281,10 +279,12 @@ namespace Mmogick
             {
                 if(ManaCost <= PlayerController.Player.mp)
                 {
+#if UNITY_EDITOR
                     Debug.Log("Используем заклинание "+ Magic);
+#endif
                     switch (@event)
                     {
-                        case "fight/bolt":
+                        case BoltResponse.GROUP:
                             BoltResponse response = new BoltResponse();
                             response.spell = Magic;
 
@@ -324,7 +324,7 @@ namespace Mmogick
 
                             response.Send();
                         break;
-                        case "magic/heal":
+                        case HealResponse.GROUP:
                             HealResponse heal = new HealResponse();
                             heal.spell = Magic;
 
@@ -333,7 +333,9 @@ namespace Mmogick
                             // быстрых действий, и кликом по себе, и обе двери ведут сюда.
                             if (NothingToHeal && (obj == null || obj.GetComponent<PlayerModel>() == PlayerController.Player))
                             {
+#if UNITY_EDITOR
                                 Debug.Log("Заклинание " + Magic + ": запас здоровья полон, лечить нечего");
+#endif
                                 return;
                             }
 
@@ -343,7 +345,9 @@ namespace Mmogick
                                 // иначе она молча гасится у сервера, а пауза заклинания у игрока уже пошла бы.
                                 if (obj.GetComponent<PlayerModel>() == null)
                                 {
+#if UNITY_EDITOR
                                     Debug.LogWarning("Заклинание " + Magic + ": лечить можно только игрока");
+#endif
                                     return;
                                 }
 

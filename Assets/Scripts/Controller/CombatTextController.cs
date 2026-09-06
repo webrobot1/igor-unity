@@ -34,7 +34,7 @@ namespace Mmogick
             EnemyModel enemy = null;
             int? hpBefore = null;
             int? mpBefore = null;
-            GameObject existing = GameObject.Find(key);
+            GameObject existing = FindEntity(key);
             if (existing != null)
             {
                 enemy = existing.GetComponent<EnemyModel>();
