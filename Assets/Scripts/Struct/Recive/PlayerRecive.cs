@@ -1,9 +1,11 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
 	/// Структура полученных данных - игрок
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class PlayerRecive : CreatureRecive
 	{
 		public new PlayerComponentsRecive components = null;

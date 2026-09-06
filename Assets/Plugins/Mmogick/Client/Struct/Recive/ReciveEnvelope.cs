@@ -1,3 +1,5 @@
+using System;
+
 namespace Mmogick
 {
     /// <summary>
@@ -12,7 +14,7 @@ namespace Mmogick
     /// Полный пакет (<see cref="Recive{P, E}"/>) наследует эти поля, а не повторяет: это один и тот же пакет,
     /// прочитанный на разную глубину, и имена его служебных полей заданы здесь одним списком.
     /// </summary>
-    [System.Serializable]
+    [Serializable]
     public class ReciveEnvelope
     {
         public long unixtime;

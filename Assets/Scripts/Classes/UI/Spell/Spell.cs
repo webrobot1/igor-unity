@@ -310,8 +310,6 @@ namespace Mmogick
                             }
                             else if(pos != Vector2.zero)
                             {
-                                PlayerController.Player.Forward = new Vector3(pos.x, pos.y, PlayerController.Player.Forward.z);
-
                                 response.x = Math.Round(pos.x, PlayerController.position_precision);
                                 response.y = Math.Round(pos.y, PlayerController.position_precision);
                             }

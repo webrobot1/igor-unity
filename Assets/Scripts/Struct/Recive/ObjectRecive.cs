@@ -1,9 +1,11 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
 	/// Структура полученных данных - объект
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class ObjectRecive : EntityRecive
 	{
 		

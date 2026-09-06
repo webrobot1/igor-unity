@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace Mmogick
@@ -5,7 +6,7 @@ namespace Mmogick
 	/// <summary>
 	/// отдельный тайл в палитре который может быть отдельынм спрайтом
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class TileAnimation
 	{
 		public string frame;

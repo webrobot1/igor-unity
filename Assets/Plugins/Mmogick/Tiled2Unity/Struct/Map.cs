@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
@@ -5,7 +6,7 @@ namespace Mmogick
 	/// <summary>
 	/// —труктура полученных данных - карты
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class Map
 	{
 		// Срез карты (terrain.json) общий для игрового процесса, клиента и админки — оттого несёт и поля,

@@ -1,8 +1,9 @@
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
 {
-    [System.Serializable]
+    [Serializable]
     public class TilesetMeta
     {
         public Dictionary<string, Tile> tile;
@@ -10,7 +11,7 @@ namespace Mmogick
         public Dictionary<string, TilesetMetaEntry> tilesetMeta;
     }
 
-    [System.Serializable]
+    [Serializable]
     public class TilesetMetaEntry
     {
         public string name;

@@ -25,13 +25,10 @@ namespace Mmogick
 		private const int Order = 61;          // поверх тела и обводки
 		private const float FadeSpeed = 10f;   // скорость появления/угасания плашки под курсором
 
-		private static Camera _cam;
-
 		private string _prefabPath;
 		private EntityModel _model;
 		private WorldLabel _label;
 		private Vector3 _labelScale;    // масштаб надписи, как он задан в её префабе
-		private Collider2D _ownerCollider;
 		private Graphic[] _markers;     // мировая разметка на сущности (полоска жизней и прочее)
 		private readonly Vector3[] _corners = new Vector3[4];
 		private float _hover;           // 0..1, сглаженная видимость плашки (0 — скрыта)
@@ -66,7 +63,7 @@ namespace Mmogick
 		{
 			if (_model == null) return;
 
-			bool hovered = Hovered();
+			bool hovered = CursorController.IsHovered(_model);
 			_hover = Mathf.MoveTowards(_hover, hovered ? 1f : 0f, Time.deltaTime * FadeSpeed);
 
 			// Пока сущности не касались курсором, надписи у неё нет вовсе: сущностей на карте десятки,
@@ -92,25 +89,6 @@ namespace Mmogick
 			_label.SetText(_model.DisplayName);
 			Place();
 			_label.SetAlpha(_hover);
-		}
-
-		/// <summary>
-		/// Сущность под курсором. Наведение держится и когда курсор ушёл с тела на саму надпись: она
-		/// кликабельна, и исчезновение из-под курсора отняло бы клик по ней. Скрытая надпись наведения
-		/// не держит — иначе над сущностью осталась бы невидимая зона, ловящая курсор.
-		/// </summary>
-		private bool Hovered()
-		{
-			if (_cam == null) _cam = Camera.main;
-			if (_cam == null) return false;
-
-			Vector3 world = _cam.ScreenToWorldPoint(InputSource.MousePosition);
-			Vector2 point = new Vector2(world.x, world.y);
-
-			if (_ownerCollider == null) _ownerCollider = GetComponent<Collider2D>();
-			if (_ownerCollider != null && _ownerCollider.OverlapPoint(point)) return true;
-
-			return _hover > 0.001f && _label != null && _label.ClickArea.OverlapPoint(point);
 		}
 
 		/// <summary>

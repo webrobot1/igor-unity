@@ -1,6 +1,8 @@
+using System;
+
 namespace Mmogick
 {
-    [System.Serializable]
+    [Serializable]
     public class TileProperty
     {
         public string name;

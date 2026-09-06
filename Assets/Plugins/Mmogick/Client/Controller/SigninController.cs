@@ -364,14 +364,6 @@ namespace Mmogick
 						LoadingScreen.SetStage(LoadingScreen.Stage.Scene, asyncLoad.progress);
 						yield return null;
 					}
-
-					// Выгрузка АСИНХРОННАЯ и дождаться её обязательно: синхронный вызов движок объявил
-					// устаревшим и небезопасным, а дальше идут настройки соединения и сам вход на карту —
-					// они рассчитывают, что сцены входа уже нет. Пустая операция значит, что выгружать
-					// нечего (сцену сняли раньше).
-					AsyncOperation unload = SceneManager.UnloadSceneAsync(SCENE_REGISTER);
-					while (unload != null && !unload.isDone)
-						yield return null;
 				}
 				// idle_action задаём ДО Connect, чтобы первый же спавн мог сразу резолвить idle-клип через
 				// ConnectController.idle_action. Контракт поля проверен на входе в метод (см. Contract).
@@ -398,6 +390,13 @@ namespace Mmogick
 				ConnectController.equipment_slot = data.equipment_slot;
 
 				ConnectController.Connect(data.host, data.token, data.key);
+
+				// Сцена входа снимается ПОСЛЕДНИМ шагом и без ожидания конца: этот метод — корутина
+				// объекта САМОЙ сцены входа, и её выгрузка объект уничтожает, обрывая корутину на первом
+				// же yield после вызова. Всё, что стоит выше, обязано отработать до этого вызова, а ждать
+				// его нечего — после него в методе не остаётся ничего. Выгружаемая сцена гарантированно
+				// загружена: не будь её, не было бы и объекта, на котором эта корутина крутится.
+				SceneManager.UnloadSceneAsync(SCENE_REGISTER);
 
 				// asyncLoad.allowSceneActivation = true;
 			}

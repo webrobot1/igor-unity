@@ -214,7 +214,7 @@ namespace Mmogick
         /// </summary>
         public static bool TestMode { get; private set; }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
+        protected override GameObject UpdateObject(int map_id, Transform map_zone, string key, EntityRecive recive)
         {
             if (key == player_key && ((PlayerRecive)recive).components != null)
             {
@@ -282,7 +282,7 @@ namespace Mmogick
                 }
             }
 
-            return base.UpdateObject(map_id, key, recive);
+            return base.UpdateObject(map_id, map_zone, key, recive);
         }
 
         private void ScrollOnChange(string key, Slider slider, Text text)

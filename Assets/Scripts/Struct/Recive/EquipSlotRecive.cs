@@ -1,3 +1,5 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
@@ -6,7 +8,7 @@ namespace Mmogick
 	/// по нему строится наложение на скелете; у ЧУЖОЙ сущности инвентарь не приходит вовсе, и prefab —
 	/// единственный источник её внешнего вида. null вместо объекта — слот пуст (предмет снят).
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class EquipSlotRecive
 	{
 		public int idx;

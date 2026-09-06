@@ -120,11 +120,6 @@ namespace Mmogick
             ReleaseCursor();
         }
 
-        /// <summary>
-        /// если мы стреляем и продолжаем идти заблокируем поворот (он без запроса к серверу делется) в сторону хотьбы (а то спиной стреляем)
-        /// </summary>
-        private DateTime block_forward = DateTime.Now;
-
         protected override void Update ()
         {
             base.Update();
@@ -141,6 +136,7 @@ namespace Mmogick
             InputSource.DrawPointer(cursor);
 #endif
 
+            UpdateHovered(InputSource.MousePosition);
             UpdateHoverHighlight(InputSource.MousePosition);
             UpdateCursorShape();
 
@@ -187,7 +183,7 @@ namespace Mmogick
                     // по ним не меняется. GetComponentInParent (а не GetComponent) — чтобы клик по дочернему
                     // коллайдеру сущности (например по кликабельной надписи EquipableGroundMarker над предметом
                     // на земле) считался кликом по самой сущности-корню. Корневой collider тела находит себя же.
-                    RaycastHit2D[] hits = Physics2D.RaycastAll(Camera.main.ScreenToWorldPoint(InputSource.MousePosition), Vector2.zero, Mathf.Infinity);
+                    RaycastHit2D[] hits = RaycastWorld(InputSource.MousePosition);
                     EntityModel hitEntity = null;
                     foreach (RaycastHit2D h in hits)
                     {
@@ -369,6 +365,81 @@ namespace Mmogick
             EventSystem.current.RaycastAll(hoverPointer, hoverHits);
 
             return hoverHits;
+        }
+
+        /// <summary>Кадр и точка экрана, которыми заполнен <see cref="worldHits"/>.</summary>
+        private int worldHitsFrame = -1;
+
+        private Vector3 worldHitsAt;
+
+        private RaycastHit2D[] worldHits = Array.Empty<RaycastHit2D>();
+
+        /// <summary>Мировая точка указателя, по которой пущен луч, — её же меряют дистанциями вызывающие.</summary>
+        private Vector3 worldHitsPoint;
+
+        /// <summary>
+        /// Попадания указателя в коллайдеры МИРА. За кадр по одной точке луч идёт ОДИН раз: спрашивают его
+        /// и разбор нажатия, и подсветка кликабельной сущности, и набор наведённых сущностей.
+        /// Результат лежит в общем буфере и живёт до следующего вызова.
+        /// </summary>
+        private RaycastHit2D[] RaycastWorld(Vector3 screenPos)
+        {
+            if (worldHitsFrame == Time.frameCount && worldHitsAt == screenPos)
+                return worldHits;
+
+            worldHitsFrame = Time.frameCount;
+            worldHitsAt = screenPos;
+
+            if (Camera.main == null)
+            {
+                worldHits = Array.Empty<RaycastHit2D>();
+                return worldHits;
+            }
+
+            worldHitsPoint = Camera.main.ScreenToWorldPoint(screenPos);
+            worldHits = Physics2D.RaycastAll(worldHitsPoint, Vector2.zero, Mathf.Infinity);
+
+            return worldHits;
+        }
+
+        /// <summary>
+        /// Сущности под указателем в этом кадре. Спрашивает своё наведение каждая сущность и каждый кадр
+        /// (подпись над телом), а под указателем их единицы — общий луч по указателю дешевле, чем проверка
+        /// коллайдера у каждой сущности карты.
+        /// </summary>
+        private static readonly HashSet<EntityModel> hovered = new HashSet<EntityModel>();
+
+        /// <summary>
+        /// Кадр, которым заполнен <see cref="hovered"/>. Набор статический и выход из игры переживает
+        /// (см. skill csharp, «Сборки и статика»): по чужому кадру он отвечает о прошлой сессии.
+        /// </summary>
+        private static int hoveredFrame = -1;
+
+        /// <summary>
+        /// Под указателем ли сущность. Наведение держит и её кликабельная надпись: она ребёнок сущности со
+        /// своим коллайдером, а скрытая надпись коллайдер выключает — наведения такая не даёт.
+        /// </summary>
+        public static bool IsHovered(EntityModel entity)
+        {
+            return hoveredFrame == Time.frameCount && entity != null && hovered.Contains(entity);
+        }
+
+        private void UpdateHovered(Vector3 screenPos)
+        {
+            hovered.Clear();
+            hoveredFrame = Time.frameCount;
+
+            RaycastHit2D[] hits = RaycastWorld(screenPos);
+            for (int i = 0; i < hits.Length; i++)
+            {
+                Transform t = hits[i].transform;
+                if (t == null) continue;
+
+                // Вверх по иерархии: попадание приходит и в дочерний коллайдер сущности — кликабельную
+                // надпись над ней, — а наведён при этом сам её владелец.
+                EntityModel e = t.GetComponentInParent<EntityModel>();
+                if (e != null) hovered.Add(e);
+            }
         }
 
         /// <summary>
@@ -556,10 +627,6 @@ namespace Mmogick
                                 // Опираться на факт НЕПОДВИЖНОСТИ (позиция не сдвинулась с прошлой отправки)
                                 // нельзя: эхо позиции приходит с задержкой и ложно читается как «упёрлись» —
                                 // застревание у стен и углов. Решает только геометрия преград.
-                                // значение forward не сменится (тк его меняет только сервер) но запустится анимация при которой графика персонажа повернется
-                                if (DateTime.Compare(block_forward, DateTime.Now) < 1)
-                                   player.Forward = vector;
-
                                 if (CanServerStep(vector))
                                 {
                                     WalkResponse response = new WalkResponse();
@@ -582,9 +649,6 @@ namespace Mmogick
 
                             move_to = Vector3.zero;
                         }
-
-                        // если с сервера пришла анимация заблокируем повороты вокруг себя на какое то время (а то спиной стреляем идя и стреляя)
-                        block_forward = DateTime.Now.AddSeconds(player.EventTimeout(WalkResponse.GROUP));
                     }
                 }
                 catch (Exception ex)
@@ -777,8 +841,8 @@ namespace Mmogick
         {
             if (Camera.main == null || player == null) return null;
 
-            Vector3 world = Camera.main.ScreenToWorldPoint(screenPos);
-            RaycastHit2D[] hits = Physics2D.RaycastAll(world, Vector2.zero, Mathf.Infinity);
+            RaycastHit2D[] hits = RaycastWorld(screenPos);
+            Vector3 world = worldHitsPoint;
 
             bool containerZone = false;         // первая значимая сущность — контейнер?
             EntityModel nearest = null;

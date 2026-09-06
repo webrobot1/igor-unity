@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
@@ -6,7 +7,7 @@ namespace Mmogick
 	/// Одна позиция контейнера предметов. Формат общий для ЛЮБОГО контейнера сервера (инвентарь игрока,
 	/// добыча трупа) — привязки к конкретному контейнеру у типа нет. null вместо объекта — позиция пуста.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class ItemSlotRecive
 	{
 		public string prefab;

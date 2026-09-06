@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
@@ -7,7 +8,7 @@ namespace Mmogick
 	/// Если объект — тайл-объект, поле tile содержит sha256 привязанного тайла,
 	/// flip-флаги передаются отдельными bool-полями.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class LayerObject
 	{
 		// id и shape кладёт в срез карты сама сборка (сервер): по id объект адресуют страницы админки, по shape

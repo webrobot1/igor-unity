@@ -101,12 +101,6 @@ namespace Mmogick
 		// -1 — окно ещё не открывалось либо открылось только что.
 		private static int _shownCash = -1;
 
-		// Маркер трупа, с которым работает окно (открытого либо того, к которому идём). Кеш нужен
-		// потому, что состояние окна пересчитывается КАЖДЫЙ кадр — сход с клетки и распад тела закрывают
-		// его без всякого пакета, — а GameObject.Find на каждом кадре для этого слишком дорог.
-		private static CorpseLootMarker _marker;
-		private static string _markerKey;
-
 		// Версия добычи, по которой отрисованы слоты сейчас (-1 — окно закрыто/не отрисовано).
 		private static int _renderedVersion = -1;
 
@@ -144,8 +138,6 @@ namespace Mmogick
 			_pendingKey = null;
 			_lootSlots = null;
 			_renderedVersion = -1;
-			_marker = null;
-			_markerKey = null;
 			_dimmedMoney = -1;
 			_shownCash = -1;
 			_lootGroup = lootGroup;
@@ -219,12 +211,12 @@ namespace Mmogick
 		// Добыча приходит компонентом самой сущности — складываем её на сущность (CorpseLootMarker),
 		// оттуда её читают и окно, и отображение трупа на карте. Свой игрок не наш случай: у игроков добычи нет,
 		// его inventory наполняет InventoryController.
-		protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
+		protected override GameObject UpdateObject(int map_id, Transform map_zone, string key, EntityRecive recive)
 		{
 			// Разбор затенённых components — у них самих (CreatureComponentsRecive.Of).
 			CreatureComponentsRecive components = key != player_key ? CreatureComponentsRecive.Of(recive) : null;
 
-			GameObject prefab = base.UpdateObject(map_id, key, recive);
+			GameObject prefab = base.UpdateObject(map_id, map_zone, key, recive);
 
 			// Право на добычу приходит данными своей команды, а не компонентом: оно публично и нужно
 			// издалека — по нему решают, идти к телу или оно чужое. Потому маркер заводится и на одной
@@ -303,7 +295,7 @@ namespace Mmogick
 			{
 				if (_containerKey == null) return null;
 
-				CorpseLootMarker marker = FindMarker(_containerKey);
+				CorpseLootMarker marker = FindOnEntity<CorpseLootMarker>(_containerKey);
 				return marker != null ? marker.Trade : null;
 			}
 		}
@@ -353,7 +345,7 @@ namespace Mmogick
 
 			// Касса торговца конечна: вещь он берёт, пока есть чем расплатиться, — и молчаливый отказ
 			// на дорогой вещи иначе неотличим от «не покупает вовсе».
-			return CashOf(FindMarker(_containerKey)) < sell.Value
+			return CashOf(FindOnEntity<CorpseLootMarker>(_containerKey)) < sell.Value
 				? "Продать за штуку: " + Coins(sell.Value) + " — у торговца не хватает монет"
 				: "Продать за штуку: " + Coins(sell.Value);
 		}
@@ -424,15 +416,14 @@ namespace Mmogick
 		{
 			gone = false;
 
-			CorpseLootMarker marker = FindMarker(key);
+			CorpseLootMarker marker = FindOnEntity<CorpseLootMarker>(key);
 
 			// Сам контейнер ищем в мире, а маркер добычи — отдельно: у объекта-сундука публичного
 			// признака добычи нет вовсе (у лавки он есть — заполненный ценник), и до прихода приватного
 			// состава маркера на сундуке ЕЩЁ НЕТ.
 			// Считать «нет маркера» за «контейнер исчез» нельзя — отложенное открытие гасло бы на
 			// первом же кадре ожидания, и пришедший следом состав окно уже не открывал.
-			// Поиск по сцене — только на этой ветке: у открытого окна маркер есть и берётся из кеша.
-			EntityModel container = marker != null ? marker.GetComponent<EntityModel>() : FindContainer(key);
+			EntityModel container = marker != null ? marker.GetComponent<EntityModel>() : FindOnEntity<EntityModel>(key);
 
 			if (container == null)
 			{
@@ -451,27 +442,16 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Сущность-контейнер по её ключу — есть ли она ещё в мире (маркера добычи может не быть).
-		/// Спрашиваем общий реестр сущностей, а не сцену: ответ нужен КАЖДЫЙ кадр всю дорогу до цели,
-		/// пока состав ещё не пришёл, а поиск по сцене обходит её целиком на каждый такой вопрос.
+		/// Компонент сущности key либо null — сущности нет в мире (либо этого компонента у неё нет):
+		/// сама она (EntityModel), её маркер добычи (CorpseLootMarker). Спрашиваем общий реестр сущностей,
+		/// а не сцену: ответ нужен КАЖДЫЙ кадр всю дорогу до цели и всё время открытого окна — сход с клетки
+		/// и распад тела закрывают его без всякого пакета, — а поиск по сцене обходит её целиком на каждый
+		/// такой вопрос.
 		/// </summary>
-		private static EntityModel FindContainer(string key)
+		private static T FindOnEntity<T>(string key) where T : Component
 		{
 			GameObject go = !string.IsNullOrEmpty(key) ? FindEntity(key) : null;
-			return go != null ? go.GetComponent<EntityModel>() : null;
-		}
-
-		/// <summary>
-		/// Маркер трупа key через кеш. Промах (сущности ещё/уже нет на сцене) не кешируется — иначе
-		/// отложенное открытие не дождалось бы появления тела.
-		/// </summary>
-		private static CorpseLootMarker FindMarker(string key)
-		{
-			if (_markerKey == key && _marker != null) return _marker;
-
-			_marker = CorpseLootMarker.Find(key);
-			_markerKey = _marker != null ? key : null;
-			return _marker;
+			return go != null ? go.GetComponent<T>() : null;
 		}
 
 		/// <summary>
@@ -743,7 +723,7 @@ namespace Mmogick
 		{
 			if (!CanTakeFromOpen()) return false;
 
-			CorpseLootMarker trader = FindMarker(_containerKey);
+			CorpseLootMarker trader = FindOnEntity<CorpseLootMarker>(_containerKey);
 			if (trader == null || trader.Trade == null) return true;
 
 			ItemSlotRecive item = SlotOf(trader, num);
@@ -767,7 +747,7 @@ namespace Mmogick
 		{
 			if (_containerKey == null) return false;
 
-			CorpseLootMarker marker = FindMarker(_containerKey);
+			CorpseLootMarker marker = FindOnEntity<CorpseLootMarker>(_containerKey);
 			return marker != null && marker.CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
 		}
 
@@ -780,7 +760,7 @@ namespace Mmogick
 			if (_containerKey == null || idx == null || idx.Count == 0) return;
 			if (!CanTakeFromOpen()) return;
 
-			CorpseLootMarker trader = FindMarker(_containerKey);
+			CorpseLootMarker trader = FindOnEntity<CorpseLootMarker>(_containerKey);
 			TradeRecive trade = trader != null ? trader.Trade : null;
 
 			// Обычный контейнер: забор бесплатен и идёт позициями целиком — спрашивать не о чем,
@@ -869,7 +849,7 @@ namespace Mmogick
 		{
 			if (_containerKey == null) return;
 
-			CorpseLootMarker marker = FindMarker(_containerKey);
+			CorpseLootMarker marker = FindOnEntity<CorpseLootMarker>(_containerKey);
 			if (marker == null) return;
 
 			_closeWhenEmpty = true;
@@ -886,7 +866,7 @@ namespace Mmogick
 			// скупки, и сделку, на которую у торговца не хватает кассы, — оба условия зеркалим, иначе
 			// предмет уезжал бы в чужое окно без всякого ответа. Что вещь не берут, игрок видит заранее
 			// по её подсказке: скупка идёт от базовой цены предмета, и вещи без цены не торгуются вовсе.
-			CorpseLootMarker trader = FindMarker(_containerKey);
+			CorpseLootMarker trader = FindOnEntity<CorpseLootMarker>(_containerKey);
 			TradeRecive trade = trader != null ? trader.Trade : null;
 
 			// Обычный контейнер: перенос бесплатен и идёт позицией целиком — спрашивать не о чем.

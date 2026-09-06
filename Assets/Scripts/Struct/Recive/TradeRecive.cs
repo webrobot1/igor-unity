@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -24,7 +25,7 @@ namespace Mmogick
 	/// Базовой цены предметов ценник не несёт: она лежит у самого предмета (компонент price) и приезжает
 	/// манифестом префабов — цена нужна и там, где торговца рядом нет вовсе.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class TradeRecive
 	{
 		public float buy;

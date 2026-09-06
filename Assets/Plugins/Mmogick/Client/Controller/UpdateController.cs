@@ -163,7 +163,7 @@ namespace Mmogick
 						{
 							foreach (var player in map.Value.player)
 							{
-								UpdateObject(map.Key, player.Key, player.Value);
+								UpdateObject(map.Key, map_zone, player.Key, player.Value);
 							}
 						}
 
@@ -175,7 +175,7 @@ namespace Mmogick
 						{
 							foreach (var ent in map.Value.entity)
 							{
-								UpdateObject(map.Key, ent.Key, ent.Value);
+								UpdateObject(map.Key, map_zone, ent.Key, ent.Value);
 							}
 						}
 					}
@@ -208,9 +208,12 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// обработка кокнретной сущности (создание и обновлелние)
+		/// обработка кокнретной сущности (создание и обновлелние).
+		/// Зону карты передаёт вызывающий: он её уже нашёл (либо создал) один раз на карту пакета, а сюда
+		/// заходят все её сущности — свой поиск потомка по имени стоил бы обхода зон и строки из номера
+		/// на КАЖДУЮ сущность КАЖДОГО пакета.
 		/// </summary>
-		protected virtual GameObject UpdateObject(int map_id, string key, EntityRecive recive)
+		protected virtual GameObject UpdateObject(int map_id, Transform map_zone, string key, EntityRecive recive)
 		{
 			GameObject prefab = FindEntity(key);
 			EntityModel model;
@@ -347,9 +350,8 @@ namespace Mmogick
 			// прыгает (localPosition сохраняется, родитель сменился, мировая = новый_родитель + старый_local).
 			// Смена родителя перестраивает иерархию сцены, потому делается только при РЕАЛЬНОЙ смене зоны:
 			// у стоящей на месте сущности зона та же самая в каждом пакете.
-			Transform target_zone = worldObject.transform.Find(map_id.ToString());
-			if (prefab.transform.parent != target_zone)
-				prefab.transform.SetParent(target_zone, true);
+			if (prefab.transform.parent != map_zone)
+				prefab.transform.SetParent(map_zone, true);
 
 			try
 			{

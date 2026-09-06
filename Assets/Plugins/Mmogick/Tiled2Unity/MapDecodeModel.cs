@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 using UnityEngine.UI;
@@ -55,9 +56,10 @@ namespace Mmogick
 
 		/// <summary>
 		/// Плитка для клетки: из набора, а при первом появлении — создаётся и в набор кладётся.
-		/// Ключ — картинка вместе с флагами разворота: одна и та же картинка, повёрнутая иначе, это другая плитка.
+		/// Ключ — картинка вместе с флагами разворота и углом: одна и та же картинка, повёрнутая иначе,
+		/// это другая плитка. Угол ненулевым приходит только от объектов слоя — у клеточных тайлов его нет.
 		/// </summary>
-		private static TilemapModel getTileAsset(int gameId, LayerTile tile)
+		private static TilemapModel getTileAsset(int gameId, string sha256, bool flipH, bool flipV, bool flipD, bool rotHex120, float rotation = 0f)
 		{
 			if (tileAssetsGame != gameId)
 			{
@@ -72,18 +74,40 @@ namespace Mmogick
 				tileAssetsGame = gameId;
 			}
 
-			string key = tile.tile
-				+ (tile.flipH ? "H" : "")
-				+ (tile.flipV ? "V" : "")
-				+ (tile.flipD ? "D" : "")
-				+ (tile.rotHex120 ? "R" : "");
+			string key = sha256
+				+ (flipH ? "H" : "")
+				+ (flipV ? "V" : "")
+				+ (flipD ? "D" : "")
+				+ (rotHex120 ? "R" : "")
+				+ (rotation != 0f ? "A" + rotation.ToString(CultureInfo.InvariantCulture) : "");
 
-			if (tileAssets.TryGetValue(key, out TilemapModel known) && known != null)
-				return known;
+			// Живость проверяем и у самой плитки, и у её картинки: спрайты кеша тайлов сносит его очистка
+			// (SpriteCache.Clear — приход нового архива, сброс кеша), а плитку она не трогает. Плитка с
+			// уничтоженной картинкой рисуется белым прямоугольником — ни компилятор, ни консоль этого не
+			// показывают. Первый кадр анимированной плитки лежит и в sprite (см. TilemapModel.addSprites),
+			// потому одной проверки хватает обоим родам плиток.
+			if (tileAssets.TryGetValue(key, out TilemapModel known))
+			{
+				if (known != null && known.sprite != null)
+					return known;
+
+				if (known != null)
+					UnityEngine.Object.Destroy(known);
+			}
 
 			TilemapModel created = TilemapModel.CreateInstance<TilemapModel>();
-			created.transform = BuildTileMatrix(tile.flipH, tile.flipV, tile.flipD, tile.rotHex120);
-			applySprite(created, gameId, tile.tile);
+
+			Matrix4x4 trs = BuildTileMatrix(flipH, flipV, flipD, rotHex120);
+
+			// Tiled rotation для объектов — CW в градусах вокруг точки (x,y), которая совпадает с pivot
+			// спрайта (0,0) в координатах ячейки (Sprite.Create с pivot=(0,0)). Знак инвертируем: Tiled CW →
+			// Unity Z CCW. Поворот применяется СЛЕВА от flip-матрицы: сначала нормализуется ориентация
+			// флагами (внутри ячейки), затем весь объект крутится вокруг pivot.
+			if (rotation != 0f)
+				trs = Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, -rotation)) * trs;
+
+			created.transform = trs;
+			applySprite(created, gameId, sha256);
 
 			tileAssets[key] = created;
 			return created;
@@ -177,7 +201,7 @@ namespace Mmogick
 
 				if (!string.IsNullOrEmpty(layer.tile))
 				{
-					List<LayerTile> tiles = DecodeTileCsv(layer.tile, map.width);
+					List<LayerTile> tiles = DecodeTileCsv(map, layer);
 
 					// Плитка на клетку не создаётся: одна и та же картинка с тем же поворотом повторяется на карте
 					// тысячи раз, а объект плитки от места не зависит — берём готовый из общего набора (см. tileAssets).
@@ -192,7 +216,7 @@ namespace Mmogick
 						LayerTile tile = tiles[i];
 
 						positions[i] = new Vector3Int(tile.x, tile.y, 0);
-						assets[i] = getTileAsset(gameId, tile);
+						assets[i] = getTileAsset(gameId, tile.tile, tile.flipH, tile.flipV, tile.flipD, tile.rotHex120);
 
 						tileCells.Add(new Vector2Int(tile.x, tile.y));
 					}
@@ -209,23 +233,11 @@ namespace Mmogick
 						if (string.IsNullOrEmpty(obj.tile)) continue;
 
 						// Сервер шлёт sha256 в поле tile + flip-флаги отдельными bool. Формат идентичен LayerTile.
-						TilemapModel newTile = TilemapModel.CreateInstance<TilemapModel>();
-						Matrix4x4 trs = BuildTileMatrix(obj.flipH, obj.flipV, obj.flipD, obj.rotHex120);
+						// Плитка берётся из ОБЩЕГО набора наравне с клеточными: объект слоя от клетки отличается
+						// только углом, а объект плитки от места не зависит — своя копия на объект и повторялась
+						// бы у одинаковых объектов, и жила бы до конца сессии (набор сносит смена игры).
+						TilemapModel newTile = getTileAsset(gameId, obj.tile, obj.flipH, obj.flipV, obj.flipD, obj.rotHex120, obj.rotation);
 
-						// Tiled rotation для объектов — CW в градусах вокруг точки (x,y),
-						// которая совпадает с pivot спрайта (0,0) в координатах ячейки
-						// (Sprite.Create с pivot=(0,0)). Знак инвертируем: Tiled CW → Unity Z CCW.
-						// Поворот применяется СЛЕВА от flip-матрицы: сначала нормализуется
-						// ориентация флагами (внутри ячейки), затем весь объект крутится вокруг pivot.
-						if (obj.rotation != 0f)
-						{
-							Matrix4x4 rotMat = Matrix4x4.Rotate(Quaternion.Euler(0f, 0f, -obj.rotation));
-							trs = rotMat * trs;
-						}
-
-						newTile.transform = trs;
-
-						applySprite(newTile, gameId, obj.tile);
 						tilemap.SetTile(new Vector3Int((int)obj.x, (int)obj.y, 0), newTile);
 					}
 				}
@@ -340,13 +352,6 @@ namespace Mmogick
 
 		/// <summary>Шейдер линий отладочных контуров объектов-разметки (см. buildDebugObjects).</summary>
 		private const string DebugLineShader = "Sprites/Default";
-
-		/// <summary>
-		/// Материал линий отладочных контуров — ОДИН на всю сессию (см. buildDebugObjects). Пусто — ещё не
-		/// создавали либо объект движка уничтожен: статика переживает остановку игры, а созданный кодом
-		/// материал — нет.
-		/// </summary>
-		private static Material lineMaterial;
 
 		/// <summary>
 		/// Построить отладочный слой карты, если он ещё не построен. Зовётся при включении галочки тестового
@@ -493,16 +498,9 @@ namespace Mmogick
 			// Материал линий ОБЩИЙ, а не свой у каждой карты: слой строится заново при каждой её выкладке, а
 			// созданный кодом материал уничтожения рендерера не переживает как ассет — карты же выкладывают и
 			// сносят на каждом переходе открытого мира, и сироты копились бы всю сессию (тем же приёмом живут
-			// материалы прозрачности, см. TintedMaterial). Шейдер спрашиваем с проверкой: он часть сборки
-			// клиента, и его отсутствие — та же битая сборка, что и у префаба слоя (NewTilemapLayer).
-			if (lineMaterial == null)
-			{
-				Shader lineShader = Shader.Find(DebugLineShader);
-				if (lineShader == null)
-					throw new Exception("Карта: в сборке нет шейдера " + DebugLineShader + " для линий отладочных контуров");
-
-				lineMaterial = new Material(lineShader);
-			}
+			// материалы прозрачности, см. TintedMaterial). Рендерер контура ставит его через Renderer.material,
+			// а тот назначает КОПИЮ — общий экземпляр никем не правится.
+			Material lineMaterial = ShaderMaterial.Get(DebugLineShader, "линии отладочных контуров карты рисовать нечем");
 
 			int objectsCount = 0;
 
@@ -525,15 +523,24 @@ namespace Mmogick
 			Debug.Log("DebugObjects: " + objectsCount + " объектов-разметки");
 		}
 
+		// Адрес негодной ячейки для текста отказа: карт в сцене несколько, слоёв у каждой десяток, а клеток
+		// десятки тысяч — без адреса «ошибка разбора карты» читателю журнала не говорит ничего.
+		private static string CellAddress(Map map, Layer layer, int cell)
+			=> "Карта " + map.id + " «" + map.name + "», слой «" + layer.name + "», клетка ("
+				+ (cell % map.width) + "," + ((cell / map.width) * -1) + "), позиция " + cell + " в строке";
+
 		// Декод CSV-строки тайлов слоя в набор LayerTile (зеркало серверного LayerTileCsvCodec::decodeCsv).
 		// Формат: "легенда\nданные". До '\n' — distinct sha256 через ';'. После — CSV ячеек через ','.
 		// Ячейка = индекс в легенде (1-based; 0/пусто пропускается) + опц. флаги через '|' битмаской
 		// (1=flipH, 2=flipV, 4=flipD, 8=rotHex120). Позиция ячейки i = y*width+x; y инвертируется (*-1).
-		private static List<LayerTile> DecodeTileCsv(string s, int width)
+		// Негодное значение ячейки — отказ разбора ВСЕЙ карты (ловит MapController: сброс кеша и выход на
+		// экран входа с этим текстом). Пропуск такой клетки был бы дырой в карте: сервер по ней ходит и шлёт
+		// туда сущностей, а клиент рисует пустоту и держит клетку непроходимой.
+		private static List<LayerTile> DecodeTileCsv(Map map, Layer layer)
 		{
 			List<LayerTile> result = new List<LayerTile>();
 
-			s = s.Trim();
+			string s = layer.tile.Trim();
 			if (s.Length == 0)
 				return result;
 
@@ -551,14 +558,16 @@ namespace Mmogick
 					continue;
 
 				string[] cellParts = cell.Split('|');
-				int idx = int.Parse(cellParts[0]);
-				if (idx < 1 || idx > legend.Length)
-				{
-					Debug.LogError("CSV-слой: индекс легенды " + idx + " вне диапазона (легенда из " + legend.Length + " sha, позиция " + i + ")");
-					continue;
-				}
+				if (!int.TryParse(cellParts[0], out int idx))
+					throw new Exception(CellAddress(map, layer, i) + ": номер тайла «" + cellParts[0] + "» не число");
 
-				int flags = cellParts.Length > 1 ? int.Parse(cellParts[1]) : 0;
+				if (idx < 1 || idx > legend.Length)
+					throw new Exception(CellAddress(map, layer, i) + ": номер тайла " + idx
+						+ " вне легенды слоя — в ней " + legend.Length + " записей");
+
+				int flags = 0;
+				if (cellParts.Length > 1 && !int.TryParse(cellParts[1], out flags))
+					throw new Exception(CellAddress(map, layer, i) + ": флаги разворота «" + cellParts[1] + "» не число");
 
 				result.Add(new LayerTile
 				{
@@ -567,8 +576,8 @@ namespace Mmogick
 					flipV     = (flags & 2) != 0,
 					flipD     = (flags & 4) != 0,
 					rotHex120 = (flags & 8) != 0,
-					x         = i % width,
-					y         = (i / width) * -1,
+					x         = i % map.width,
+					y         = (i / map.width) * -1,
 				});
 			}
 

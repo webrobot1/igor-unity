@@ -9,7 +9,6 @@ paths:
   - "Build/Video/**"
   - "storage/game/**"
   - ".playwright-mcp/**"
-  - ".claude/skills/artifact-check/anchor.cs"
 ---
 
 > **Ведомая копия.** Источник — `/var/www/html/game/.claude/skills/artifact-check/SKILL.md` в серверном репозитории; копию перезаписывает его хук при каждой правке источника. Правка копии теряется молча — вносить её в источник. Серверного репозитория нет под рукой → назвать нужную правку пользователю.

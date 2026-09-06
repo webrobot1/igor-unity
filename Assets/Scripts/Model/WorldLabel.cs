@@ -105,12 +105,6 @@ namespace Mmogick
 			clickArea.enabled = shown;
 		}
 
-		/// <summary>Кликабельная зона надписи: по ней владелец решает, держит ли надпись курсор.</summary>
-		public Collider2D ClickArea
-		{
-			get { return clickArea; }
-		}
-
 		/// <summary>Высота плашки в клетках мира — по ней владелец поднимает надпись над телом.</summary>
 		public float WorldHeight
 		{

@@ -1,3 +1,5 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
@@ -7,7 +9,7 @@ namespace Mmogick
 	/// tile (sha256 из легенды) + flip-флаги из битмаски + x/y из позиции ячейки в CSV
 	/// (i = y*width+x; y инвертируется умножением на -1). Отсутствующий флаг = false.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class LayerTile
 	{
 		public string tile;

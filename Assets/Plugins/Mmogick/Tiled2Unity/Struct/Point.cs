@@ -1,10 +1,12 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
 	/// объекты на слое (полигоны, текс, картинки)
 	/// </summary>
 
-	[System.Serializable]
+	[Serializable]
 	public class Point
 	{
 		public float x;

@@ -1,9 +1,11 @@
-﻿namespace Mmogick
+﻿using System;
+
+namespace Mmogick
 {
 	/// <summary>
 	/// Структура полученных данных при авторизации
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class SigninRecive
 	{
 		public string host;

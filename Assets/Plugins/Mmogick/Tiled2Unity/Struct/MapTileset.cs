@@ -1,10 +1,12 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
 	/// Набор графики, подключённый к карте (запись mapTileset среза карты). Сами пиксели и нарезку клиент
 	/// берёт своим каналом кеша тайлов по sha256 — здесь только принадлежность набора карте.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class MapTileset
 	{
 		// Имя файла набора: им набор адресуется внутри карты (в TMX — ссылка на файл).

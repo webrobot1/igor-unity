@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Spine;
 using Spine.Unity;
 using UnityEngine;
@@ -243,7 +242,8 @@ namespace Mmogick
 			rect.offsetMin = Vector2.zero;
 			rect.offsetMax = Vector2.zero;
 
-			var components = SkeletonGraphic.AddSkeletonGraphicAnimationComponents(child, asset, GraphicMaterial());
+			var components = SkeletonGraphic.AddSkeletonGraphicAnimationComponents(child, asset,
+				ShaderMaterial.Get(GRAPHIC_SHADER, "скелет в интерфейсе рисовать нечем"));
 			var graphic = components.skeletonRenderer;
 			var animation = components.skeletonAnimation;
 			if (graphic == null || animation == null || animation.Skeleton == null)
@@ -297,24 +297,6 @@ namespace Mmogick
 
 		/// <summary>Шейдер скелета в холсте — свой у Spine: мировым скелет в интерфейсе не рисуется.</summary>
 		private const string GRAPHIC_SHADER = "Spine/SkeletonGraphic";
-
-		// Материал холста, общий всем значкам: он создан кодом, а статика переживает остановку игры
-		// (перезагрузка домена выключена) — уничтоженный объект отсекаем Unity-оператором и делаем заново.
-		private static Material _graphicMaterial;
-
-		private static Material GraphicMaterial()
-		{
-			if (_graphicMaterial != null)
-				return _graphicMaterial;
-
-			var shader = Shader.Find(GRAPHIC_SHADER);
-			if (shader == null)
-				throw new InvalidOperationException("VisualBuilder: шейдера «" + GRAPHIC_SHADER
-					+ "» нет в сборке — скелет в интерфейсе рисовать нечем");
-
-			_graphicMaterial = new Material(shader);
-			return _graphicMaterial;
-		}
 
 		/// <summary>
 		/// Мировые границы фигуры скелета в её ТЕКУЩЕЙ позе. Замер идёт у самого скелета — по кускам,

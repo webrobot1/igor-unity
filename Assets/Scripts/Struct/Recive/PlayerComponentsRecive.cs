@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 #nullable enable
@@ -7,7 +8,7 @@ namespace Mmogick
 	/// <summary>
 	/// Структура полученных данных - произвольыне поля
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class PlayerComponentsRecive: CreatureComponentsRecive
 	{
 		public Dictionary<string, string>? settings = null;

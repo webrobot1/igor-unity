@@ -135,9 +135,9 @@ namespace Mmogick
             }
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
+        protected override GameObject UpdateObject(int map_id, Transform map_zone, string key, EntityRecive recive)
         {
-            GameObject prefab = base.UpdateObject(map_id, key, recive);
+            GameObject prefab = base.UpdateObject(map_id, map_zone, key, recive);
             if (player != null && prefab!=null)
             {
                 ObjectModel model = prefab.GetComponent<ObjectModel>();

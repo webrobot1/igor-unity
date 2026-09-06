@@ -1,3 +1,5 @@
+using System;
+
 namespace Mmogick
 {
     /// <summary>
@@ -6,7 +8,7 @@ namespace Mmogick
     /// эту же структуру, добавляя своё. Вид сущности в пакете НЕ едет — он выводится из префаба, поэтому
     /// разложить не-игроков по видам на разборе нечем, и состав компонентов у всех один (см. компоненты).
     /// </summary>
-    [System.Serializable]
+    [Serializable]
     public class CreatureRecive : ObjectRecive
     {
         public new CreatureComponentsRecive components;

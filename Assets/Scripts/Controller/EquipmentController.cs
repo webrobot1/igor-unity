@@ -74,11 +74,11 @@ namespace Mmogick
             }
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
+        protected override GameObject UpdateObject(int map_id, Transform map_zone, string key, EntityRecive recive)
         {
             // base сначала: чтобы InventoryController обновил _slots ДО того как мы будем брать оттуда
             // иконки для экипировки через GetItemBySlot.
-            GameObject ret = base.UpdateObject(map_id, key, recive);
+            GameObject ret = base.UpdateObject(map_id, map_zone, key, recive);
 
             // Экипировка приходит на ЛЮБУЮ видимую сущность; разбор затенённых components — у них самих.
             Dictionary<string, EquipSlotRecive> equip = CreatureComponentsRecive.Of(recive)?.equip;

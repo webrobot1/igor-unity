@@ -170,14 +170,6 @@ namespace Mmogick
 			return marker;
 		}
 
-		/// <summary>Маркер живой сущности по её ключу; null — сущности нет на сцене либо у неё нет добычи.</summary>
-		public static CorpseLootMarker Find(string key)
-		{
-			if (string.IsNullOrEmpty(key)) return null;
-			GameObject go = GameObject.Find(key);
-			return go != null ? go.GetComponent<CorpseLootMarker>() : null;
-		}
-
 		private void Awake()
 		{
 			_model = GetComponent<EntityModel>();

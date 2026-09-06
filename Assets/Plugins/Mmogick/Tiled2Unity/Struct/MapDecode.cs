@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,7 +7,7 @@ namespace Mmogick
 	/// <summary>
 	/// —труктура полученных данных - карты
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class MapDecode
 	{
 		public int width;

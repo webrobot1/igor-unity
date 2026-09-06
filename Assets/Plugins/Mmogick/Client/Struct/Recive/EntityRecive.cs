@@ -1,4 +1,5 @@
 using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
@@ -6,7 +7,7 @@ namespace Mmogick
 	/// <summary>
 	/// Структура полученных данных - объект
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class EntityRecive
 	{
 		public float? x;

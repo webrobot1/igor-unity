@@ -1,8 +1,9 @@
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
 {
-		[System.Serializable]
+		[Serializable]
 		public class TileObjectGroup
 		{
 			public string name;

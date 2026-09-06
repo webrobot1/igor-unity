@@ -805,11 +805,15 @@ namespace Mmogick
 			}
 
 			string lastMod = req.GetResponseHeader("Last-Modified");
+			// Запрос отпускаем ДО распаковки: дальше от него ничего не нужно, а выход по её ошибке шёл мимо
+			// Dispose — буфер скачанного архива оставался бы висеть до конца сеанса.
+			byte[] zipBytes = req.downloadedBytes > 0 ? req.downloadHandler.data : null;
+			req.Dispose();
+
 			int extractedCount = 0;
 
-			if(req.downloadedBytes>0)
+			if (zipBytes != null)
 			{
-				byte[] zipBytes = req.downloadHandler.data;
 				try
 				{
 					string imagesDir = ImagesPath(gameId);
@@ -835,8 +839,7 @@ namespace Mmogick
 					yield break;
 				}
 			}
-			req.Dispose();
-			
+
 			Debug.Log("AnimationCache: архив картинок обновлён, распаковано " + extractedCount + " файлов");
 			_manifest.archive_last_modified = lastMod;
 			SaveManifest(gameId);

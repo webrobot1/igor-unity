@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
@@ -7,7 +8,7 @@ namespace Mmogick
     /// <see cref="ReciveEnvelope"/> — тот же пакет, прочитанный на меньшую глубину сетевым потоком,
     /// и держать их вторым списком нельзя: разъехавшись, два списка молча разойдутся и с сервером.
     /// </summary>
-    [System.Serializable]
+    [Serializable]
     public class Recive<P, E> : ReciveEnvelope where P : EntityRecive where E : EntityRecive
     {
         public Dictionary<int, MapRecive<P, E>> world;

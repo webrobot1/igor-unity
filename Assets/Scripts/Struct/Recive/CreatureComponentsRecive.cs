@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 #nullable enable
@@ -18,7 +19,7 @@ namespace Mmogick
 	/// Появилось новое поле от сервера — это сигнал, что клиент отстал: объяви его здесь осознанно.
 	/// Строгую проверку неизвестных полей включает MissingMemberHandling в BaseController.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class CreatureComponentsRecive
 	{
 		/// <summary>

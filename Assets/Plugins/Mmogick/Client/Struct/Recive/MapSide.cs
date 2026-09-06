@@ -1,3 +1,5 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
@@ -5,7 +7,7 @@ namespace Mmogick
 	/// относительно текущей карты в тайлах: знак задаёт сторону (y&gt;0 — сверху, y&lt;0 — снизу,
 	/// x&gt;0 — справа, x&lt;0 — слева), у самой текущей карты смещение нулевое.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class MapSide
 	{
 		/// <summary>

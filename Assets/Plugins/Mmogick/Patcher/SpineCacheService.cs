@@ -31,6 +31,12 @@ namespace Mmogick
 		// Расширение файла кеша пакета.
 		private const string PACKAGE_EXT = ".spine.json";
 
+		/// <summary>
+		/// Шейдер страниц атласа мирового скелета. Открыт наружу: кусок, досаживаемый на чужой скелет
+		/// (надетый предмет), рисуется тем же — иначе тело и предмет разойдутся видом.
+		/// </summary>
+		public const string SKELETON_SHADER = "Spine/Skeleton";
+
 		// Собранные скелеты: «идентификатор анимации/имя варианта» → готовый скелет.
 		private static readonly Dictionary<string, SkeletonDataAsset> _skeletons = new Dictionary<string, SkeletonDataAsset>();
 
@@ -45,6 +51,8 @@ namespace Mmogick
 		// Разобранные якоря экипировки: «идентификатор анимации/имя варианта» → слот → якоря. Разбор пакета
 		// читает с диска и распаковывает файл целиком (скелет и атлас КАЖДОГО варианта), а якоря спрашивают
 		// по надетому предмету на каждом носителе — без памятки один и тот же файл разбирался бы на каждом.
+		// Значение null — тот же разобранный исход: варианта в пакете нет. Без него отрицательный ответ
+		// стоил бы разбора файла на КАЖДЫЙ запрос, а он и есть то, чего памятка избегает.
 		private static readonly Dictionary<string, Dictionary<string, List<SlotAnchor>>> _slots =
 			new Dictionary<string, Dictionary<string, List<SlotAnchor>>>();
 
@@ -215,12 +223,13 @@ namespace Mmogick
 			// Файл сменился — разобранное из ПРЕЖНЕГО в памяти соврёт. Память переживает остановку игры
 			// (перезагрузка домена выключена), потому чистим её тут, у самой записи файла: скачивание —
 			// единственный путь, которым содержимое пакета меняется под уже разобранной памяткой.
-			Forget(animationId);
+			Forget(animationId, destroy: false);
 		}
 
 		/// <summary>
-		/// Якоря экипировки варианта скелета: слот → его якоря. Пусто — у скелета якорей нет; null — пакета
-		/// ещё нет в кеше (скелет не качали).
+		/// Якоря экипировки варианта скелета: слот → его якоря. Пусто — у скелета якорей нет; null — якорей
+		/// взять неоткуда: пакета ещё нет в кеше (скелет не качали), он не разбирается либо этого варианта
+		/// в нём нет.
 		/// </summary>
 		public static Dictionary<string, List<SlotAnchor>> GetSlots(int gameId, int animationId, string entity)
 		{
@@ -229,14 +238,16 @@ namespace Mmogick
 				return memo;
 
 			string packageFile = PackageFile(gameId, animationId);
+			// Единственный исход мимо памятки: файла ещё нет, и следующий заход застанет уже скачанный —
+			// запомненный тут отказ отвечал бы по нему до конца сеанса.
 			if (!File.Exists(packageFile))
 				return null;
 
 			var package = Read(packageFile, out _);
-			if (package == null || package.entity == null || !package.entity.TryGetValue(entity, out var found))
-				return null;
+			memo = package != null && package.entity != null && package.entity.TryGetValue(entity, out var found)
+				? found.object_slot ?? new Dictionary<string, List<SlotAnchor>>()
+				: null;
 
-			memo = found.object_slot ?? new Dictionary<string, List<SlotAnchor>>();
 			_slots[key] = memo;
 			return memo;
 		}
@@ -250,10 +261,48 @@ namespace Mmogick
 			=> asset == null || !_once.TryGetValue(asset, out var once) || !once.Contains(clip);
 
 		/// <summary>
+		/// Снести собранный скелет: сам он, его атлас, материалы страниц атласа и тексты, из которых оба
+		/// собраны, — всё это объекты движка, созданные кодом, и снятой ссылки им мало.
+		/// Текстуры страниц тут не трогаем: они общие у скелетов игры (<see cref="_textures"/>) и сносятся
+		/// сбросом. Материал-образец страниц тоже общий (<see cref="ShaderMaterial"/>) — атлас держит СВОИ
+		/// копии, по одной на страницу, их и сносим.
+		/// </summary>
+		private static void DestroySkeleton(SkeletonDataAsset asset)
+		{
+			if (asset == null) return;
+
+			if (asset.atlasAssets != null)
+				foreach (AtlasAssetBase atlasAsset in asset.atlasAssets)
+				{
+					if (atlasAsset == null) continue;
+
+					if (atlasAsset.Materials != null)
+						foreach (Material material in atlasAsset.Materials)
+							if (material != null) UnityEngine.Object.Destroy(material);
+
+					if (atlasAsset is SpineAtlasAsset spineAtlas && spineAtlas.atlasFile != null)
+						UnityEngine.Object.Destroy(spineAtlas.atlasFile);
+
+					UnityEngine.Object.Destroy(atlasAsset);
+				}
+
+			if (asset.skeletonJSON != null)
+				UnityEngine.Object.Destroy(asset.skeletonJSON);
+
+			UnityEngine.Object.Destroy(asset);
+		}
+
+		/// <summary>
 		/// Забыть разобранное по анимации, файл пакета оставив: зовётся при его перекачке. Отдельно от
 		/// <see cref="Drop"/> — тот снимает и сам файл, а после скачивания снимать нечего.
+		///
+		/// destroy — сносить ли вместе с памятью и сами собранные объекты движка. Сносить их можно ТОЛЬКО
+		/// вне игры: <see cref="Drop"/> зовёт синхронизация перед входом, а она идёт при выгруженной игровой
+		/// сцене. После перекачки пакета (<see cref="Fetch"/>) игра может ИДТИ, и тот же скелет стоит на её
+		/// сущностях — снос вынул бы у игрока картинку из-под ног, потому там только забываем. Забытое без
+		/// сноса живёт до <see cref="Reset"/> либо до остановки игры.
 		/// </summary>
-		private static void Forget(int animationId)
+		private static void Forget(int animationId, bool destroy)
 		{
 			string prefix = animationId + "/";
 			var stale = new List<string>();
@@ -266,7 +315,10 @@ namespace Mmogick
 				// остановку игры). Ключ снимаем по ссылке, без Unity-проверки на живость: уничтоженный объект
 				// она отсекает, а запись словаря он при этом держит.
 				if (_skeletons.TryGetValue(key, out var asset) && !ReferenceEquals(asset, null))
+				{
 					_once.Remove(asset);
+					if (destroy) DestroySkeleton(asset);
+				}
 
 				_skeletons.Remove(key);
 			}
@@ -280,23 +332,38 @@ namespace Mmogick
 		/// <summary>
 		/// Забыть всё разобранное: зовёт сброс кеша анимаций, сносящий сами файлы пакетов. Память переживает
 		/// остановку игры, и без этого выдача отвечала бы по снятым файлам до конца сеанса.
+		/// Собранное создано кодом, и снятой ссылки движку мало: без явного сноса скелеты, их атласы,
+		/// материалы страниц и пиксели текстур лежали бы до конца сеанса. Зовут сброс вне игры (синхронизация
+		/// перед входом) либо на выходе из неё — оттого сносим здесь и то, что <see cref="Forget"/> сносить
+		/// не вправе.
 		/// </summary>
 		public static void Reset()
 		{
+			foreach (SkeletonDataAsset asset in _skeletons.Values)
+				DestroySkeleton(asset);
+
 			_skeletons.Clear();
 			_slots.Clear();
 			_once.Clear();
+
+			foreach (Texture2D texture in _textures.Values)
+				if (texture != null) UnityEngine.Object.Destroy(texture);
+
 			_textures.Clear();
 		}
 
-		/// <summary>Снять кеш пакета анимации — версия разошлась с серверной.</summary>
+		/// <summary>
+		/// Снять кеш пакета анимации — версия разошлась с серверной. Зовёт синхронизация перед входом, а она
+		/// идёт при выгруженной игровой сцене: сущностей, на которых стоял бы снимаемый скелет, в этот момент
+		/// нет — потому собранное сносим совсем, а не только забываем.
+		/// </summary>
 		public static void Drop(int gameId, int animationId)
 		{
 			string packageFile = PackageFile(gameId, animationId);
 			if (File.Exists(packageFile))
 				DeletePackage(packageFile);
 
-			Forget(animationId);
+			Forget(animationId, destroy: true);
 		}
 
 		/// <summary>
@@ -358,8 +425,9 @@ namespace Mmogick
 				textures.Add(texture);
 			}
 
-			// Материал-образец: рантайм-атлас копирует его на каждую страницу, подставляя свою текстуру.
-			var source = new Material(Shader.Find("Spine/Skeleton"));
+			// Материал-образец: рантайм-атлас копирует его на каждую страницу, подставляя свою текстуру, — сам
+			// он ни на чём не остаётся, оттого и берётся общим на все сборки, а не заводится под каждую.
+			var source = ShaderMaterial.Get(SKELETON_SHADER, "скелет сущности рисовать нечем");
 			var atlasAsset = SpineAtlasAsset.CreateRuntimeInstance(new TextAsset(atlasText), textures.ToArray(), source, true);
 			// Масштаб единиц оставляем как есть: высоту тела в клетку приводит сборка визуала, а её делитель
 			// сервер объявляет в тех же единицах, в каких записан скелет.

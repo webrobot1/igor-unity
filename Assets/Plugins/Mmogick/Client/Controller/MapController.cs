@@ -218,15 +218,15 @@ namespace Mmogick
 				{
 					if (!_maps.ContainsKey(side.Key))
 					{
-						StartCoroutine(MapPatcher.Get(SERVER, GAME_ID, player_token, side.Key, (MapPatcher patcher) =>
+						StartCoroutine(TileCacheService.GetMap(SERVER, GAME_ID, side.Key, player_token, (string json, string error) =>
 						{
-							if (patcher.error != null)
+							if (error != null)
 							{
-								Error("Карты: ошибка " + patcher.error);
+								Error("Карты: ошибка " + error);
 								return;
 							}
 
-							if (patcher.result == null || patcher.result.Length == 0)
+							if (json == null || json.Length == 0)
 								Error("Карты: пришел пустой ответ от патчера");
 							else
 							{
@@ -247,7 +247,7 @@ namespace Mmogick
 										grid.gameObject.AddComponent<Grid>();
 										grid.SetParent(mapObject.transform, false);
 
-										_maps.Add(side.Key, MapDecodeModel.generate(patcher.result, grid, GAME_ID));
+										_maps.Add(side.Key, MapDecodeModel.generate(json, grid, GAME_ID));
 
 										// Пришла разметка ещё одной карты — с ней меняется и то, что клиент
 										// знает о преградах на границах (getGates).

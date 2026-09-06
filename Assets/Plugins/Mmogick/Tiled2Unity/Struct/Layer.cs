@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Mmogick
@@ -5,7 +6,7 @@ namespace Mmogick
 	/// <summary>
 	/// Структура полученных данных - слои карты
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class Layer
 	{
 		public string name;

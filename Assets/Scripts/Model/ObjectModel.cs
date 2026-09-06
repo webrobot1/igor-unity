@@ -56,22 +56,6 @@ namespace Mmogick
 		private Bounds _corpseFittedTo;   // границы тела, под которые капсула подогнана сейчас
 		private DeathTimer _deathTimer;
 
-		/// <summary>
-		///  это сторона движения игркоа. как transform forward ,  автоматом нормализует значения
-		/// </summary>
-		public override Vector3 Forward
-		{
-			get { return base.Forward; }
-			set
-			{
-				// вообще сервер сам нормализует но так уменьшиться пакет размера символов
-				if (value.x != base.Forward.x || value.y != base.Forward.y)
-				{
-					base.Forward = value;
-				}
-			}
-		}
-
 		protected virtual void Awake()
 		{
 			animator = GetComponent<Animator>();

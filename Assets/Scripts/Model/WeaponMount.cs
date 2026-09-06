@@ -142,13 +142,14 @@ namespace Mmogick
             if (variants == null || variants.Length == 0)
                 return;
 
-            // Шейдер кусков — тот же, каким собраны страницы атласа самого скелета (SpineCacheService.Build):
-            // предмет и тело обязаны рисоваться одинаково.
-            Shader pieceShader = Shader.Find("Spine/Skeleton");
+            // Шейдер кусков — тот же, каким собраны страницы атласа самого скелета: предмет и тело обязаны
+            // рисоваться одинаково. Материал у куска СВОЙ (своя текстура на вариант) — общего тут не взять.
+            Shader pieceShader = Shader.Find(SpineCacheService.SKELETON_SHADER);
             if (pieceShader == null)
             {
                 // Инвариант сборки, не состояние данных: без шейдера ни один предмет не нарисуется.
-                ConnectController.Error("WeaponMount " + slot + ": шейдера Spine/Skeleton нет — кусок предмета не собрать");
+                ConnectController.Error("WeaponMount " + slot + ": шейдера " + SpineCacheService.SKELETON_SHADER
+                    + " нет — кусок предмета не собрать");
                 return;
             }
 

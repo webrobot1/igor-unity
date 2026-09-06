@@ -1,9 +1,11 @@
+using System;
+
 namespace Mmogick
 {
     /// <summary>
     /// —cтруктура получаемых данных данных
     /// </summary>
-    [System.Serializable]
+    [Serializable]
     public class DataDecodeRecive
     {
         public string data = "";

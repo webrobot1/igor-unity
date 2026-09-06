@@ -55,8 +55,30 @@ namespace Mmogick
 			_onBroken = onBroken;
 		}
 
-		/// <summary>Забыть разобранное: зовут сброс кеша и приход нового архива, где картинки могли смениться.</summary>
-		public void Clear() => _cache.Clear();
+		/// <summary>
+		/// Забыть разобранное: зовут сброс кеша и приход нового архива, где картинки могли смениться.
+		/// Снятой ссылки движку мало — спрайт и его текстура созданы кодом и помечены DontUnloadUnusedAsset,
+		/// то есть выгрузка неиспользуемого их не заберёт: без явного сноса они держали бы свои пиксели до
+		/// конца сеанса (память переживает остановку игры — перезагрузка домена в проекте выключена).
+		/// Текстуру сносим отдельно: спрайт ею не владеет.
+		///
+		/// Кто держит выданный отсюда спрайт, обязан пережить снос — проверять живость и рисовать заново
+		/// (см. MapDecodeModel.getTileAsset). Зовут этот снос вне игры (синхронизация перед входом) либо
+		/// на выходе из неё (ResetCache вместе с ConnectController.Error).
+		/// </summary>
+		public void Clear()
+		{
+			foreach (Sprite sprite in _cache.Values)
+			{
+				if (sprite == null) continue;
+
+				Texture2D texture = sprite.texture;
+				UnityEngine.Object.Destroy(sprite);
+				if (texture != null) UnityEngine.Object.Destroy(texture);
+			}
+
+			_cache.Clear();
+		}
 
 		/// <summary>
 		/// Спрайт по ключу. На любой сбой (файла нет, разбор картинки не удался) инвалидирует битый кеш —

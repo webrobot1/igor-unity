@@ -264,9 +264,9 @@ namespace Mmogick
                 ping.text = "PING: " + Ping() * 1000 + "/" + MaxPing() * 1000 + " ms.";
         }
 
-        protected override GameObject UpdateObject(int map_id, string key, EntityRecive recive)
+        protected override GameObject UpdateObject(int map_id, Transform map_zone, string key, EntityRecive recive)
         {
-            GameObject go = base.UpdateObject(map_id, key, recive);
+            GameObject go = base.UpdateObject(map_id, map_zone, key, recive);
 
             // Маяк-подсветка на подбираемых предметах, лежащих в мире (kind=item / экипируемые). Решаем
             // ЗДЕСЬ, в вызывающем: подходит ли сущность под подсветку — ответственность места, где она

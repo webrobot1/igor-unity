@@ -1,3 +1,5 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
@@ -9,7 +11,7 @@ namespace Mmogick
 	/// свободна любому: право живёт ровно столько, сколько висит сама команда. Сколько осталось до
 	/// расширения круга, несёт остаток той же команды, длина ступени — её длительность.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class LootOwnerRecive
 	{
 		public string[] open;

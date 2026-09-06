@@ -1,8 +1,14 @@
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Tilemaps;
 
-namespace UnityEngine.Tilemaps
+// Плитка тайл-карты движка под своим именем: короткое Tile в этом пространстве имён занято описанием тайла
+// с сервера (Mmogick.Tile), и член пространства имён перебивает импорт — база уехала бы на него молча.
+using TilemapTile = UnityEngine.Tilemaps.Tile;
+
+namespace Mmogick
 {
-    public class TilemapModel : Tile
+    public class TilemapModel : TilemapTile
     {
         private List<Sprite> sprites = new List<Sprite> { };
         protected TilemapModel() { }
@@ -30,9 +36,9 @@ namespace UnityEngine.Tilemaps
             return false;
         }
 
-        public void addSprites(Mmogick.TileAnimation[] animations)
+        public void addSprites(TileAnimation[] animations)
         {
-            foreach (Mmogick.TileAnimation anim in animations)
+            foreach (TileAnimation anim in animations)
             {
                 for (int i = 0; i < anim.duration; i += FrameMs)
                 {

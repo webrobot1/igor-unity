@@ -1,3 +1,5 @@
+using System;
+
 namespace Mmogick
 {
 	/// <summary>
@@ -8,7 +10,7 @@ namespace Mmogick
 	/// серверного пакета строгий (см. BaseController) — лишнее поле роняет разбор целиком, потому отказ и
 	/// разбирается своей структурой, выбираемой по коду ответа.
 	/// </summary>
-	[System.Serializable]
+	[Serializable]
 	public class SigninErrorRecive
 	{
 		/// <summary>
