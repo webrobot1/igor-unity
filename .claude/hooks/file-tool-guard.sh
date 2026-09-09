@@ -163,6 +163,10 @@ def write_targets_src(command, cwd):
         cmd = name(_bare(toks[i])) if i < len(toks) else ""
         if cmd in DELETE_CMDS:
             continue           # удаление — не правка: файлового тула у него нет вовсе
+        if cmd == "mv" or (cmd == "git" and "mv" in [_bare(t) for t in toks[i + 1:i + 4]]):
+            if not os.path.exists(path):
+                continue       # переименование в новый путь — не правка: файлового тула у него нет вовсе;
+                               # цель существует — перезапись содержимого, отказ прежний
         if len(toks) != len(all_toks):
             if cmd not in HAND_WRITE:
                 continue       # содержимое пишет сама команда — законная запись оболочкой

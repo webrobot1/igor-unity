@@ -68,8 +68,6 @@ shopt -u nocasematch
 
 proj="/var/www/html/game"
 hooks="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
-client_root="/mnt/c/Unity/release"
-node_root="/var/www/html/node"
 
 if ! command -v python3 >/dev/null 2>&1; then
   if printf '%s' "$input" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"Bash"'; then
@@ -80,21 +78,21 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 
-HOOK_INPUT="$input" PROJ="$proj" HOOKS_DIR="$hooks" CLIENT_ROOT="$client_root" NODE_ROOT="$node_root" python3 - <<'PY'
+HOOK_INPUT="$input" PROJ="$proj" HOOKS_DIR="$hooks" python3 - <<'PY'
 import json, os, re, sys
 
 sys.path.insert(0, os.path.join(os.environ.get("HOOKS_DIR") or "", "lib"))
 from write_targets import normalize, scan_command, sweep
 from mirror_copy import marked
+from contours import CLIENT_ROOT, NODE_ROOT
 
 PROJ = (os.environ.get("PROJ") or "").rstrip("/")
 
-# Корни ВНЕШНИХ контуров: репозиторий клиента Unity и репозиторий игрового узла. Недоступный корень
-# (диск клиента не смонтирован, репозитория узла на машине нет) ветви не меняет — вердикт по пути
-# считается по самому пути, а пометка ведомости у нечитаемого файла не находится и путь остаётся
-# незащищённым: писать по такому пути всё равно нечем.
-CONTOURS = tuple(r.rstrip("/") for r in (os.environ.get("CLIENT_ROOT") or "",
-                                         os.environ.get("NODE_ROOT") or "") if r)
+# Корни ВНЕШНИХ контуров: репозиторий клиента Unity и репозиторий игрового узла (общий носитель —
+# lib/contours.py). Недоступный корень (диск клиента не смонтирован, репозитория узла на машине нет)
+# ветви не меняет — вердикт по пути считается по самому пути, а пометка ведомости у нечитаемого файла
+# не находится и путь остаётся незащищённым: писать по такому пути всё равно нечем.
+CONTOURS = tuple(r.rstrip("/") for r in (CLIENT_ROOT, NODE_ROOT) if r)
 
 # Псевдо-владелец ведомой копии: реального владельца у неё нет — правка теряется у КАЖДОГО
 # исполнителя, включая владельца сводов, и адресуется она не агенту, а серверному источнику.
