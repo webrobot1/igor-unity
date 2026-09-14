@@ -17,6 +17,9 @@ namespace Mmogick
         /// </summary>
         public const string MONEY_PREFAB = "coin";
 
+        /// <summary>Компонент игрока, чей состав показывает окно инвентаря.</summary>
+        public const string COMPONENT_INVENTORY = "inventory";
+
         [Header("Для работы с инвентарём")]
 
         [SerializeField]

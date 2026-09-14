@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 namespace Mmogick
 {
-    public class SlotScript : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, ITakeable
+    public class SlotScript : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, ITakeable, IPanelElement
     {
         // protected — EquipmentSlot переиспользует тот же binding из Inspector
         // (свой _icon-биндинг в prefab'е equipment-слота уже привязан к этому полю).
@@ -23,6 +23,25 @@ namespace Mmogick
         {
             get { return _slotNum; }
             set { _slotNum = value; }
+        }
+
+        /// <summary>
+        /// Адрес ячейки для сценария съёмки (<see cref="IPanelElement"/>): ячейка своего инвентаря — по его
+        /// номеру, ячейка чужого контейнера — по позиции в нём; различает их та же метка, что и сделку
+        /// (<see cref="LootSlotMarker"/>). Ячейка экипировки переопределяет обе стороны адреса.
+        /// </summary>
+        public virtual string Panel
+        {
+            get { return GetComponent<LootSlotMarker>() != null ? EnemyModel.COMPONENT_LOOT : InventoryController.COMPONENT_INVENTORY; }
+        }
+
+        public virtual string Key
+        {
+            get
+            {
+                LootSlotMarker loot = GetComponent<LootSlotMarker>();
+                return (loot != null ? loot.Num : SlotNum).ToString();
+            }
         }
 
         // virtual — EquipmentSlot переопределяет на чтение через InventoryController.GetItemBySlot,

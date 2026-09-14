@@ -9,7 +9,7 @@ namespace Mmogick
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class Spell: MoveableObject, IPointerClickHandler, ITakeable
+    public class Spell: MoveableObject, IPointerClickHandler, ITakeable, IPanelElement
     {
         /// <summary>Цвет подложки заклинания без стихии: у него нет школы, и оттенок ни о чём не говорит.</summary>
         private static readonly Color NO_ELEMENT_COLOR = new Color(0.62f, 0.66f, 0.74f);
@@ -72,6 +72,20 @@ namespace Mmogick
                 // получает sprite + localScale = 1/serverSize.
                 ApplyPrefabImage(value);
             }
+        }
+
+        /// <summary>
+        /// Адрес карточки для сценария съёмки (<see cref="IPanelElement"/>): панель — книга, компонент, чей
+        /// состав она показывает; ключ — код заклинания, тот же, что уходит в команде.
+        /// </summary>
+        public string Panel
+        {
+            get { return SpellBookController.COMPONENT_SPELL_BOOK; }
+        }
+
+        public string Key
+        {
+            get { return Magic; }
         }
 
         /// <summary>

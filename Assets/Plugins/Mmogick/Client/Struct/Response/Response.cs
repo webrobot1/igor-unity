@@ -40,9 +40,10 @@ namespace Mmogick
         /// </summary>
         public double? ping = null;
 
-        public void Send()
+        /// <summary>Отправить серверу; исход — как у <see cref="ConnectController.Send"/>.</summary>
+        public bool Send()
         {
-            ConnectController.Send(this);
+            return ConnectController.Send(this);
         }
     }
 }

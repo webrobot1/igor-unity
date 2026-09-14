@@ -27,8 +27,8 @@
 #   корень проекта — два уровня над каталогом самого хука. У копии хука в другом репозитории это
 #     его корень: литерал тут не нужен, и зеркалирование тела не правит. В сессии клиента либо узла
 #     множество тем самым сужается до их репозитория и дерева его сессий — принято пользователем;
-#   `permissions.additionalDirectories` из `.claude/settings.json` и `.claude/settings.local.json`
-#     проекта — каждый каталог вместе с РЕПОЗИТОРИЕМ, которому он принадлежит (ближайший `.git`
+#   `permissions.additionalDirectories` из `.claude/settings.json` проекта — каждый каталог вместе с
+#     РЕПОЗИТОРИЕМ, которому он принадлежит (ближайший `.git`
 #     вверх). Объявленный каталог у́же контура: сессия пишет и в канон, план и настройки контура,
 #     лежащие выше него (knowledge-place «Правки конфигурации проекта»; план работы, названный
 #     CLAUDE.md, лежит в репозитории клиента);
@@ -81,7 +81,7 @@ sys.path.insert(0, os.path.join(HOOKS_DIR, "lib"))
 from write_targets import normalize, scan_command
 
 PROJ = os.path.realpath(os.path.join(HOOKS_DIR, "..", ".."))
-SETTINGS = ("settings.json", "settings.local.json")
+SETTINGS = ("settings.json",)
 # Файловые тулы с готовым путём в поле вызова: у Edit и Write — `file_path`, у NotebookEdit —
 # `notebook_path`. Правится парно с matcher регистрации хука — в `.claude/settings.json` проекта и в
 # реестрах контуров, куда хук зеркалируется.

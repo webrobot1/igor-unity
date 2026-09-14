@@ -318,7 +318,7 @@ namespace Mmogick
 						Error("Запись о карте "+ map_id + " игрока не пришла вместе с доступными сторонами");
 
 					#if UNITY_WEBGL && !UNITY_EDITOR
-						WebGLSupport.WebGLDebug.DebugCheck(map_id, Put2Send);
+						WebGLSupport.WebGLDebug.DebugCheck(map_id, json => Put2Send(json));
 					#endif
 				}
 			}

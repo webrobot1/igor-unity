@@ -7,11 +7,25 @@ namespace Mmogick
     /// <summary>
     /// Класс для отправки данных (действий игрока)
     /// </summary>
-    public class ActionBar : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
+    public class ActionBar : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler, IPanelElement
     {
         public int num;
         private MoveableObject _item;
         private Tooltip _tooltip;
+
+        /// <summary>
+        /// Адрес слота для сценария съёмки (<see cref="IPanelElement"/>): панель — компонент, чьи слоты она
+        /// показывает, ключ — номер слота, тот же, что уходит в команде.
+        /// </summary>
+        public string Panel
+        {
+            get { return ActionBarsController.COMPONENT_ACTIONBARS; }
+        }
+
+        public string Key
+        {
+            get { return num.ToString(); }
+        }
 
         // Видимая иконка слота — мирорит _item.Icon.sprite/color/preserveAspect/localScale.
         // Raycast обрабатывает ActionButton.Button (родительский GO), фон рисуется тем же ActionButton.Image (рамка слота).

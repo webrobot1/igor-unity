@@ -9,5 +9,9 @@ namespace Mmogick
     /// </summary>
     public class InfoSpell : InfoIcon
     {
+        public override string Panel
+        {
+            get { return PANEL_PREFIX + SpellBookController.COMPONENT_SPELL_BOOK; }
+        }
     }
 }

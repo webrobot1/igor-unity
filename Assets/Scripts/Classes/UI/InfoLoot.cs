@@ -12,6 +12,11 @@ namespace Mmogick
         /// <summary>Шанс выпадения долей от единицы. Единица — вещь достаётся наверняка.</summary>
         private float _chance;
 
+        public override string Panel
+        {
+            get { return PANEL_PREFIX + EnemyModel.COMPONENT_LOOT_TABLE; }
+        }
+
         private int _min;
         private int _max;
 

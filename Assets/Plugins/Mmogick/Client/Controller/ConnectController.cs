@@ -655,9 +655,16 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// не отправляется моментально а ставиться в очередь на отправку (перезаписывает текущю). придет время - отправится на сервер (может чуть раньше если пинг большой)
+		/// Отправить команду, если группа её событий свободна (условия — у проверки ниже); иначе пакет
+		/// отбрасывается: очереди нет, повтор — забота вызывающего (движение шлёт команду каждый кадр, пока
+		/// зажата клавиша), а в журнал отброс попадает только под <see cref="EntityModel.verbose"/> — он идёт
+		/// по многу раз в секунду.
+		///
+		/// Возвращает, передан ли пакет соединению на отправку; false — пакет не ушёл и сам не уйдёт: нет своего
+		/// существа, идёт загрузка мира либо переподключение, соединение не открыто, существо снято с карты,
+		/// либо группа занята прежней командой. Отправка асинхронна: доставки и ответа сервера значение не обещает.
 		/// </summary>
-		public static void Send(Response data)
+		public static bool Send(Response data)
 		{
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
 			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState == WebSocketState.Open && player.action!=ACTION_REMOVE)
@@ -728,15 +735,16 @@ namespace Mmogick
 #if UNITY_EDITOR
 						Debug.Log("WebSocket: Отправлен пакет " + json);
 #endif
-						Put2Send(json);	
+						return Put2Send(json);
 					}
-					else if (EntityModel.verbose)
+
+					if (EntityModel.verbose)
 						Debug.LogWarning("Слишком частый вызов команды " + data.group + " (" + remain + " секунд осталось)");
 				}
 				catch (Exception ex)
 				{
 					Error("WebSocket: Ошибка отправки данных", ex);
-				}		
+				}
 			}
 			// отсутствие player — одна из причин попасть сюда (первое слагаемое условия выше),
 			// поэтому носителя для записи тут может не быть вовсе
@@ -748,6 +756,8 @@ namespace Mmogick
 				else
 					Debug.LogWarning(message);
 			}
+
+			return false;
 		}
 
 		/// <summary>
@@ -857,23 +867,29 @@ namespace Mmogick
 
 		// оно публичное для отладки в WebGl через админку плагин шлет сюда запрос
 		// не сжимаем отправляемый на сервер пакет (он и так мал - так бы сервер лишнее время тратил на раскодировку а выхлопа сжатия малых пакетов нет и они даже больше)
-		public static void Put2Send(string json)
+		// Возвращает, передан ли пакет соединению: к этой строке его бывает уже закрыл сетевой поток, и тогда пакет не уходит.
+		public static bool Put2Send(string json)
 		{
 			if (json.Length > 0)
 			{
-				// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null 
-				if (connect != null && connect.ReadyState == WebSocketState.Open)
+				// тк у нас в паралельном потоке получаются сообщения то может быть состояние гонки когда доядя до сюда уже будет null
+				WebSocket c = connect;
+
+				if (c != null && c.ReadyState == WebSocketState.Open)
 				{
 					byte[] bytes = Encoding.UTF8.GetBytes(json);
 					#if !UNITY_WEBGL || UNITY_EDITOR
-						connect.SendAsync(bytes, null);
+						c.SendAsync(bytes, null);
 					#else
-						connect.Send(bytes);
+						c.Send(bytes);
 					#endif
+					return true;
 				}
 			}
 			else
 				Error("WebSocket: нельзя отправлять к серверу пустые строки");
+
+			return false;
 		}
 
 		// этот метод по типу exception только выбросит в следующем кадре тк добавляет errors  и выведет в UI ошибку 

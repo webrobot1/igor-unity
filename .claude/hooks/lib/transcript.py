@@ -23,6 +23,7 @@
 Своего транскрипта не нашлось — пусто: транскрипт РОДИТЕЛЯ за свой не выдавать, чужой браузерный
 эпизод в нём читался бы как собственный.
 """
+import hashlib
 import json
 import os
 import re
@@ -172,6 +173,82 @@ def browser_open(calls):
 def episode_key(event):
     """Ключ, разделяющий эпизоды разных вызывающих: у субагентов `session_id` общий с родителем."""
     return event.get("agent_id") or event.get("session_id") or "default"
+
+
+# Сжатие контекста программа отмечает в транскрипте системной записью. То же слово ходит и в выводе
+# тулов (прочитанный журнал, где оно упомянуто), потому сжатием считается разобранная строка по её
+# полям, а вхождение текста лишь отбирает строки под разбор.
+_COMPACT_MARK = b'"compact_boundary"'
+
+
+def compaction_state(path):
+    """Файл, в котором счёт сжатий по транскрипту `path` помнит смещение и число, — рядом с
+    маркерами напоминаний, в общем временном каталоге."""
+    digest = hashlib.sha1(path.encode("utf-8", "surrogateescape")).hexdigest()
+    return os.path.join("/tmp", "compaction-count-" + digest)
+
+
+def compaction_count(event):
+    """Число сжатий контекста у вызывающего — системных записей `compact_boundary` в его транскрипте.
+
+    Транскрипт растёт дописыванием, а хук зовётся на каждом шаге: счёт продолжается со смещения,
+    запомненного прошлым вызовом по тому же файлу, — конца последней целой строки; недописанная
+    строка ждёт следующего вызова. Файл короче запомненного — это уже другой файл, счёт с начала.
+    Своего транскрипта нет — ноль: сжатие родителя контекст субагента не переписывает."""
+    path = caller_transcript(event)
+    if not path:
+        return 0
+
+    state = compaction_state(path)
+    try:
+        with open(state) as fh:
+            offset, count = (int(x) for x in fh.read().split())
+    except (OSError, ValueError):
+        offset, count = 0, 0
+
+    try:
+        fh = open(path, "rb")
+    except OSError:
+        return 0
+
+    with fh:
+        fh.seek(0, os.SEEK_END)
+        if fh.tell() < offset:
+            offset, count = 0, 0
+        fh.seek(offset)
+        data = fh.read()
+
+    whole = data.rfind(b"\n") + 1
+    for line in data[:whole].splitlines():
+        if _COMPACT_MARK not in line:
+            continue
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(rec, dict) and rec.get("type") == "system" \
+                and rec.get("subtype") == "compact_boundary":
+            count += 1
+
+    tmp = "%s.%d" % (state, os.getpid())
+    try:
+        with open(tmp, "w") as out:
+            out.write("%d %d" % (offset + whole, count))
+        os.replace(tmp, state)
+    except OSError:
+        pass    # смещение не запомнено — следующий вызов перечтёт файл с начала, число от этого не меняется
+
+    return count
+
+
+def context_key(event, base):
+    """Ключ маркера напоминания о содержимом контекста: `base` плюс номер сжатия вызывающего.
+
+    Такой маркер гасит напоминание, пока загруженное по нему лежит в контексте. Сжатие переписывает
+    контекст сводкой, и загруженное до него выпадает — после каждого сжатия напоминание приходит один
+    раз снова. Без сжатий ключ равен `base`: маркеры, поставленные до первого сжатия, в силе."""
+    n = compaction_count(event)
+    return "%s-c%d" % (base, n) if n else base
 
 
 def session_transcripts(event):

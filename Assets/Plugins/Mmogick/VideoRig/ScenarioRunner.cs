@@ -276,7 +276,7 @@ namespace Mmogick.VideoRig
                 yield break;
             }
 
-            if (!Ready(action))
+            if (!Ready())
                 yield break;
 
             switch (action.@do)
@@ -322,7 +322,7 @@ namespace Mmogick.VideoRig
 
                     // Пока к цели вели указатель, персонажа могли убить либо снять с карты: условие шага
                     // спрашиваем заново по той же причине, по какой заново берём место цели.
-                    if (!Ready(action))
+                    if (!Ready())
                         yield break;
 
                     yield return Click();
@@ -491,14 +491,15 @@ namespace Mmogick.VideoRig
 
         /// <summary>
         /// Условие, при котором шаг осмыслен. Спрашивается ПЕРЕД шагом и у всех троих участников:
-        /// окружение — мир не на паузе загрузки; действующий — персонаж в мире и способен на то, чего
-        /// шаг от него требует; цель — её разбирает <see cref="TryTarget"/> уже по месту.
+        /// окружение — мир не на паузе загрузки; действующий — персонаж в мире и жив; цель — её
+        /// разбирает <see cref="TryTarget"/> уже по месту.
         ///
-        /// Действующего пропускают чаще прочих: отказ, собранный по одной цели, звучит осмысленно, а
-        /// причина лежит у персонажа — и разбор уходит к цели. Снятое на невыполненном условии хуже
+        /// Живость — условие КАЖДОГО шага, не только действия по миру: мёртвый персонаж в кадре — негодный
+        /// материал по правилу съёмки, какой бы шаг ни снимался, а нажатие по слоту панели мёртвым клиент
+        /// гасит молча (ActionBar), и шаг сошёл бы за выполненный. Снятое на невыполненном условии хуже
         /// неснятого: неподвижное тело в кадре легко принять за годный фрагмент.
         /// </summary>
-        private bool Ready(ShootAction action)
+        private bool Ready()
         {
             if (LoadingScreen.IsShown)
             {
@@ -526,9 +527,6 @@ namespace Mmogick.VideoRig
                 return false;
             }
 
-            if (!ActsOnWorld(action))
-                return true;
-
             if (!Alive(player))
             {
                 Fail("персонаж не способен действовать: запас здоровья "
@@ -538,50 +536,6 @@ namespace Mmogick.VideoRig
             }
 
             return true;
-        }
-
-        /// <summary>
-        /// Требует ли шаг ДЕЙСТВИЯ персонажа по миру — движения, выбора цели, удара — либо лишь ведёт
-        /// указатель и трогает интерфейс. Мёртвый персонаж окно откроет, а с места не сойдёт и не
-        /// ударит: жизни спрашиваем там, где без неё шаг бессмыслен, иначе отказ назвал бы не ту причину.
-        ///
-        /// У нажатия вид решает ЦЕЛЬ, а не само нажатие: имя объекта интерфейса — интерфейс; сущность,
-        /// клетка карты и слот панели — мир. У точки кадра вид заранее не объявлен — спрашиваем то же,
-        /// что спросит разбор нажатия в игре: лежит ли под точкой интерфейс.
-        /// </summary>
-        private bool ActsOnWorld(ShootAction action)
-        {
-            if (action.@do == "walk_dir")
-                return true;
-
-            if (action.@do != "click")
-                return false;
-
-            if (action.ui != null)
-                return false;
-
-            if (action.entity != null || action.map != null || action.bar > 0)
-                return true;
-
-            Vector3 point = action.screen != null && action.screen.Length == 2
-                ? new Vector3(action.screen[0], action.screen[1], 0)
-                : InputSource.MousePosition;
-
-            return !OverUi(point);
-        }
-
-        /// <summary>Лежит ли под точкой кадра интерфейс — тем же путём, каким это спрашивает игра.</summary>
-        private static bool OverUi(Vector3 point)
-        {
-            if (EventSystem.current == null)
-                return false;
-
-            PointerEventData pointer = new PointerEventData(EventSystem.current) { position = point };
-            List<RaycastResult> hits = new List<RaycastResult>();
-
-            EventSystem.current.RaycastAll(pointer, hits);
-
-            return hits.Count > 0;
         }
 
         /// <summary>
@@ -595,19 +549,39 @@ namespace Mmogick.VideoRig
 
         private bool HasTarget(ShootAction action)
         {
-            return action.screen != null || action.ui != null || action.bar > 0 || action.map != null || action.entity != null;
+            return action.ui != null || action.panel != null || action.key != null || action.map != null || action.entity != null;
         }
 
         /// <summary>
         /// Куда на кадре смотрит указатель. Цель задаётся ровно одним полем: несколько разом означают,
-        /// что автор сценария сам не знает, куда целится.
+        /// что автор сценария сам не знает, куда целится. Ключ элемента — спутник панели, своей целью он
+        /// не является.
+        ///
+        /// Найденную точку сверяем с тем, что под ней, — тем же лучом и с теми же исключениями, какими
+        /// разбирает нажатие игра (<see cref="CursorController.ScreenUiAtPointer"/>). Элемент интерфейса
+        /// обязан быть верхним попаданием — сам либо его потомок: окна прячутся прозрачностью, а не
+        /// выключением (UIController.CloseAllMenu), по имени либо ключу находится и элемент закрытого
+        /// окна, и нажатие ушло бы сквозь него в мир, а шаг сошёл бы за выполненный. Над целью мира,
+        /// напротив, интерфейса быть не должно: нажатие досталось бы ему.
         /// </summary>
         private bool TryTarget(ShootAction action, out Vector3 point)
         {
             point = Vector3.zero;
 
-            int declared = (action.screen != null ? 1 : 0) + (action.ui != null ? 1 : 0)
-                + (action.bar > 0 ? 1 : 0) + (action.map != null ? 1 : 0) + (action.entity != null ? 1 : 0);
+            if (action.key != null && action.panel == null)
+            {
+                Fail("ключ элемента задан без панели");
+                return false;
+            }
+
+            if (action.panel != null && action.key == null)
+            {
+                Fail("панель задана без ключа элемента");
+                return false;
+            }
+
+            int declared = (action.ui != null ? 1 : 0) + (action.panel != null ? 1 : 0)
+                + (action.map != null ? 1 : 0) + (action.entity != null ? 1 : 0);
 
             if (declared != 1)
             {
@@ -615,28 +589,52 @@ namespace Mmogick.VideoRig
                 return false;
             }
 
-            if (action.screen != null)
-            {
-                if (action.screen.Length != 2)
-                {
-                    Fail("точка кадра задаётся парой чисел");
-                    return false;
-                }
+            RectTransform element = null;
 
-                point = new Vector3(action.screen[0], action.screen[1], 0);
+            if (action.ui != null && !TryUi(action.ui, out element))
+                return false;
+
+            if (action.panel != null && !TryPanel(action.panel, action.key, out element))
+                return false;
+
+            if (element != null)
+            {
+                if (!TryRect(element, out point))
+                    return false;
             }
-            else if (action.ui != null && !TryUi(action.ui, out point))
-                return false;
-            else if (action.bar > 0 && !TryBar(action.bar, out point))
-                return false;
-            else if (action.map != null && !TryMap(action.map, out point))
-                return false;
-            else if (action.entity != null && !TryEntity(action.entity, out point))
+            else if (action.map != null)
+            {
+                if (!TryMap(action.map, out point))
+                    return false;
+            }
+            else if (!TryEntity(action.entity, out point))
                 return false;
 
             if (!OnScreen(point))
             {
                 Fail("цель лежит вне кадра: " + point);
+                return false;
+            }
+
+            if (MainController.Instance == null)
+            {
+                Fail("интерфейса игры на экране нет — что лежит под точкой цели, не спросить");
+                return false;
+            }
+
+            GameObject top = MainController.Instance.ScreenUiAtPointer(point);
+
+            if (element != null)
+            {
+                if (top == null || !top.transform.IsChildOf(element))
+                {
+                    Fail("цель закрыта другим окном либо скрыта" + (top != null ? ": сверху " + Path(top.transform) : ""));
+                    return false;
+                }
+            }
+            else if (top != null)
+            {
+                Fail("точку закрывает интерфейс: " + Path(top.transform));
                 return false;
             }
 
@@ -647,10 +645,9 @@ namespace Mmogick.VideoRig
         /// Объект интерфейса ищем по имени, а при совпадении имён — по пути в иерархии: имена вроде
         /// «Close» носят кнопки всех окон разом, и одно имя на них не указывает ни на одну.
         /// </summary>
-        private bool TryUi(string name, out Vector3 point)
+        private bool TryUi(string name, out RectTransform found)
         {
-            point = Vector3.zero;
-            RectTransform found = null;
+            found = null;
             bool byPath = name.Contains("/");
 
             foreach (RectTransform rect in UnityEngine.Object.FindObjectsByType<RectTransform>(FindObjectsInactive.Exclude))
@@ -673,7 +670,7 @@ namespace Mmogick.VideoRig
                 return false;
             }
 
-            return TryRect(found, out point);
+            return true;
         }
 
         private static string Path(Transform target)
@@ -686,26 +683,44 @@ namespace Mmogick.VideoRig
             return path;
         }
 
-        private bool TryBar(int num, out Vector3 point)
+        /// <summary>
+        /// Элемент панели по слову панели и ключу — тому, что элемент показывает (<see cref="IPanelElement"/>).
+        /// Обходятся активные компоненты интерфейса: карточки закрытой вкладки книги выключены и не
+        /// находятся, а элемент спрятанного прозрачностью окна находится — его отсеивает сверка с тем,
+        /// что под точкой (<see cref="TryTarget"/>). Ключ сравнивается строкой: число в документе пишется
+        /// строкой.
+        /// </summary>
+        private bool TryPanel(string panel, string key, out RectTransform found)
         {
-            point = Vector3.zero;
+            found = null;
 
-            if (MainController.Instance == null)
+            foreach (MonoBehaviour behaviour in UnityEngine.Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude))
             {
-                Fail("интерфейса игры на экране нет — панели быстрых действий не найти");
+                if (!(behaviour is IPanelElement element) || element.Panel != panel || element.Key != key)
+                    continue;
+
+                if (found != null)
+                {
+                    Fail("элементов панели с таким ключом на экране несколько — целиться не во что");
+                    return false;
+                }
+
+                found = behaviour.transform as RectTransform;
+
+                if (found == null)
+                {
+                    Fail("элемент панели " + behaviour.name + " лежит вне интерфейса — точки кадра у него нет");
+                    return false;
+                }
+            }
+
+            if (found == null)
+            {
+                Fail("элемента панели с таким ключом на экране нет");
                 return false;
             }
 
-            foreach (ActionBar bar in MainController.Instance.ActionBars)
-            {
-                if (bar == null || bar.num != num)
-                    continue;
-
-                return TryRect((RectTransform)bar.transform, out point);
-            }
-
-            Fail("такого слота на панели быстрых действий нет");
-            return false;
+            return true;
         }
 
         private bool TryRect(RectTransform rect, out Vector3 point)
@@ -837,10 +852,10 @@ namespace Mmogick.VideoRig
             if (step != null)
             {
                 // Цель объявляется ровно одним полем (TryTarget), потому в место идёт первое непустое;
-                // шаг без цели (пауза, ходьба по направлению) называется одним своим видом.
-                string target = step.screen != null ? " screen [" + string.Join(",", step.screen) + "]"
-                    : step.ui != null ? " ui " + step.ui
-                    : step.bar > 0 ? " bar " + step.bar
+                // шаг без цели (пауза, ходьба по направлению) называется одним своим видом, у элемента
+                // панели — слово панели с ключом.
+                string target = step.ui != null ? " ui " + step.ui
+                    : step.panel != null || step.key != null ? " panel " + step.panel + "/" + step.key
                     : step.map != null ? " map [" + string.Join(",", step.map) + "]"
                     : step.entity != null ? " entity " + step.entity
                     : "";

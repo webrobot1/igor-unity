@@ -10,8 +10,15 @@ namespace Mmogick
     /// (<see cref="InfoSpell"/>) и его добыча (<see cref="InfoLoot"/>). Общее у них — картинка из
     /// каталога, показ подсказки и запрет применения; расходиться они могут лишь текстом подсказки.
     /// </summary>
-    public abstract class InfoIcon : MoveableObject, IPointerEnterHandler, IPointerExitHandler
+    public abstract class InfoIcon : MoveableObject, IPointerEnterHandler, IPointerExitHandler, IPanelElement
     {
+        /// <summary>
+        /// Начало слова панели у сеток окна сведений (<see cref="IPanelElement"/>): сетка показывает
+        /// компонент ЧУЖОГО существа, и голый slug компонента совпал бы со словом своей панели того же
+        /// компонента — карточка книги и иконка умения цели носили бы один адрес.
+        /// </summary>
+        public const string PANEL_PREFIX = "info_";
+
         protected string _prefab;
         private Tooltip _tooltip;
 
@@ -20,6 +27,15 @@ namespace Mmogick
         /// не пересобирать её каждый кадр.
         /// </summary>
         public string Prefab { get { return _prefab; } }
+
+        /// <summary>Слово панели — у сетки своё: какой компонент цели она показывает.</summary>
+        public abstract string Panel { get; }
+
+        /// <summary>Ключ иконки для сценария съёмки — код префаба, который она показывает.</summary>
+        public string Key
+        {
+            get { return _prefab; }
+        }
 
         /// <summary>
         /// Наполнить иконку. Подсказку передаёт окно: своей ссылки на неё у иконки нет — она рождается

@@ -47,6 +47,20 @@ namespace Mmogick
             slotSlug = slug;
         }
 
+        /// <summary>
+        /// Адрес ячейки для сценария съёмки (<see cref="IPanelElement"/>): панель — компонент экипировки,
+        /// ключ — код слота, тот же, что уходит в команде надевания.
+        /// </summary>
+        public override string Panel
+        {
+            get { return EquipmentController.COMPONENT_EQUIP; }
+        }
+
+        public override string Key
+        {
+            get { return slotSlug; }
+        }
+
         // Чтение Item через инвентарь — НЕТ собственного _item поля. Если slot не задан или
         // в инвентаре по этому индексу пусто/Destroy'ено — null.
         public override Item Item

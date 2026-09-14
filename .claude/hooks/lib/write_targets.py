@@ -606,7 +606,8 @@ def _code_targets(code, cwd, found, unresolved):
     names = set()
     for stmt in writing:
         for m in re.finditer(CODE_PATH, stmt):
-            _record(m.group(), stmt[:200], found, unresolved, cwd)
+            if not _glued_right(stmt, m.start()):
+                _record(m.group(), stmt[:200], found, unresolved, cwd)
         names.update(ADDR_VAR.findall(stmt))
 
     if not names:
@@ -617,7 +618,18 @@ def _code_targets(code, cwd, found, unresolved):
         if not m or m.group(1) not in names:
             continue
         for lit in re.finditer(CODE_PATH, m.group(2)):
-            _record(lit.group(), stmt[:200], found, unresolved, cwd)
+            if not _glued_right(m.group(2), lit.start()):
+                _record(lit.group(), stmt[:200], found, unresolved, cwd)
+
+
+def _glued_right(code, start):
+    """Литерал приклеен справа к выражению (`D + '/x.png'`, `$d.'/x.png'`): это хвост адреса, чьё начало
+    приходит подстановкой, а не адрес от корня файловой системы. `start` — первый символ внутри литерала,
+    перед ним стоит кавычка."""
+    k = start - 2
+    while k >= 0 and code[k] in ' \t':
+        k -= 1
+    return k >= 0 and code[k] in '+.'
 
 
 def _inline_code(command):

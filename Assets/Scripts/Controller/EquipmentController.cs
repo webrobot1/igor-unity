@@ -22,6 +22,9 @@ namespace Mmogick
     // пересоздаёт slot-Item'ы через Clear+Instantiate в UpdateObject.
     abstract public class EquipmentController : InventoryController
     {
+        /// <summary>Компонент экипировки: его состав показывает окно экипировки.</summary>
+        public const string COMPONENT_EQUIP = "equip";
+
         [Header("Для работы с UI экипировки")]
 
         // Контейнер с 8 заранее-расставленными EquipmentSlot (позиции head/chest/hand_r/... статично

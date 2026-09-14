@@ -9,7 +9,7 @@ namespace Mmogick
     /// приходит с самим заклинанием и идёт подписью как есть: перечня стихий у книги нет, вкладки целиком
     /// следуют данным. Своих данных вкладка не хранит: показ и выбор ведёт <see cref="SpellBookController"/>.
     /// </summary>
-    public class SpellTab : MonoBehaviour
+    public class SpellTab : MonoBehaviour, IPanelElement
     {
         /// <summary>Прозрачность невыбранной вкладки — та же, которой гасятся недоступные иконки.</summary>
         private const float UNSELECTED_ALPHA = 0.5f;
@@ -24,6 +24,20 @@ namespace Mmogick
 
         /// <summary>Стихия, за которую отвечает вкладка.</summary>
         public string Element { get; private set; }
+
+        /// <summary>
+        /// Адрес вкладки для сценария съёмки (<see cref="IPanelElement"/>): та же книга, что у карточек,
+        /// ключ — стихия вкладки.
+        /// </summary>
+        public string Panel
+        {
+            get { return SpellBookController.COMPONENT_SPELL_BOOK; }
+        }
+
+        public string Key
+        {
+            get { return Element; }
+        }
 
         /// <summary>
         /// Назначение вкладки стихии. Ссылки префаба проверяются здесь, а не в Awake: Awake отрабатывает
