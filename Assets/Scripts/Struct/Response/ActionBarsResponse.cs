@@ -9,11 +9,13 @@ namespace Mmogick
     /// </summary>
     public class ActionBarsResponse : Response
     {
+        public const string GROUP = "ui/actionbars";
+
         public Dictionary<int, ActionBarsRecive?> actionbars = new Dictionary<int, ActionBarsRecive?>();
 
         public override string group
         {
-            get { return "ui/actionbars"; }
-        }   
+            get { return GROUP; }
+        }
     }
 }

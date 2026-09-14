@@ -1,4 +1,5 @@
 ﻿#if UNITY_EDITOR
+using System;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
@@ -42,6 +43,28 @@ public class Startup : ScriptableObject
 
             EditorBuildSettings.scenes = scenes;
         }
+
+        // Play Mode в редакторе стартует с первой сцены списка сборки — сцены входа, как и собранная игра, —
+        // какие бы сцены ни были открыты: при разработке можно постоянно держать открытой MainScene.
+        // Стартовая сцена задаётся до входа в Play Mode: объекты открытых сцен получают Awake при самом входе,
+        // а объекты игровой сцены читают в нём то, что кладёт только вход в игру.
+        EditorApplication.playModeStateChanged += state =>
+        {
+            if (state != PlayModeStateChange.ExitingEditMode)
+                return;
+
+            string path = EditorBuildSettings.scenes[0].path;
+            SceneAsset start = AssetDatabase.LoadAssetAtPath<SceneAsset>(path);
+
+            if (start == null)
+                throw new InvalidOperationException("Первой сцены списка сборки " + path + " нет в проекте — Play Mode не с чего стартовать");
+
+            // Сцены игра загружает из их файлов: несохранённая правка в игру не попадёт, поэтому изменённые сцены
+            // предлагается сохранить до старта.
+            EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
+
+            EditorSceneManager.playModeStartScene = start;
+        };
 
 
         GraphicsSettings.transparencySortMode = TransparencySortMode.CustomAxis;

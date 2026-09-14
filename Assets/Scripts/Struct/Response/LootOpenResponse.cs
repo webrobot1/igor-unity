@@ -9,16 +9,19 @@ namespace Mmogick
     // очередь инвентарных операций игрока.
     public class LootOpenResponse : Response
     {
+        public const string GROUP = "ui/loot";
+        public const string ACTION = "open";
+
         public string? key = null;
 
         public LootOpenResponse()
         {
-            action = "open";
+            action = ACTION;
         }
 
         public override string group
         {
-            get { return "ui/loot"; }
+            get { return GROUP; }
         }
     }
 }

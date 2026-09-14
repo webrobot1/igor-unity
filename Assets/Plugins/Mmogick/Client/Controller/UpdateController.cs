@@ -249,15 +249,13 @@ namespace Mmogick
 
 				// Non-uniform scale root-префаба в связке с rotated children даёт skew (Unity doc для Transform:
 				// «child rotated relative to a non-uniformly scaled parent might appear skewed»). Скелет живёт
-				// ротированным дочерним объектом, и визуал поплывёт на поворотах. Мы принудительно выставляем uniform
-				// scale (|x|=y), сохраняя знак X (mirror-flip). Если разработчик умышленно задал non-uniform —
-				// пишем warning, чтобы это было видно и исправлено в префабе, а не маскировалось визуалом.
+				// ротированным дочерним объектом, и визуал поплывёт на поворотах. Знак X (mirror-flip) масштабом
+				// не считается: сравниваются |x| и y.
 				Vector3 initScale = prefab.transform.localScale;
 				if (Mathf.Abs(Mathf.Abs(initScale.x) - initScale.y) > 0.0001f)
 				{
-					float signX = initScale.x < 0 ? -1f : 1f;
-					prefab.transform.localScale = new Vector3(signX * initScale.y, initScale.y, initScale.z);
-					Debug.LogWarning("UpdateController: префаб '" + kind + "' имеет non-uniform scale (" + initScale.x + ", " + initScale.y + ") — сброшен до uniform (" + (signX * initScale.y) + ", " + initScale.y + "). Задавайте uniform scale в префабе, иначе дочерний скелет поворотами даёт skew (Transform doc).");
+					Error("UpdateController: префаб '" + kind + "' имеет non-uniform scale (" + initScale.x + ", " + initScale.y + "). Задавайте uniform scale в префабе, иначе дочерний скелет поворотами даёт skew (Transform doc).");
+					return null;
 				}
 
 				// SortingGroup на корне сразу: сортируем всё нарисованное на сущности как единое целое относительно
@@ -337,8 +335,6 @@ namespace Mmogick
 					model.Log("смена визуала с '" + model.prefab + "' на '" + recive.prefab + "'");
 				ApplyVisualPrefab(prefab, model, recive.prefab, key);
 			}
-			else if (string.IsNullOrEmpty(recive.prefab) && string.IsNullOrEmpty(model.prefab))
-				model.LogWarning("не указан префаб");
 
 			// Пакет в текстовом виде собирается ТОЛЬКО под флагом подробного журнала: сериализация выполняется
 			// на каждую сущность каждого кадра и стоит дороже всей остальной обработки пакета вместе взятой.
@@ -416,7 +412,7 @@ namespace Mmogick
 				// (визуал отменяется, на следующем sync файл перекачается).
 				Sprite sprite;
 				try { sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); }
-				catch (Exception ex) { Error(ex.Message); return; }
+				catch (Exception ex) { Error("Картинка префаба " + newPrefab, ex); return; }
 
 				// Размер целиком ведёт СЕРВЕР: своё значение записи, а нет его — умолчание её рода из конверта
 				// каталога; своего числа клиент не держит, и смена серверного умолчания правки его не требует.
@@ -502,7 +498,9 @@ namespace Mmogick
 				model.OnVisualReady();
 			}
 			else
-				model.LogError("префаб '" + newPrefab + "' не определён в library (нет ни image-привязки, ни animation-привязки на сервере)");
+				// Префаб спавна, которого нет в library, отбивает ещё GetPrefabKind; сюда доходит смена
+				// префаба уже живой сущности на неизвестный каталогу входа.
+				Error("Анимации: префаб '" + newPrefab + "' сущности " + key + " не определён в library (нет ни image-привязки, ни animation-привязки на сервере)");
 		}
 
 	}

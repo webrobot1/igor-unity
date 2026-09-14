@@ -342,9 +342,9 @@ namespace Mmogick
 
 				if (req.result != UnityWebRequest.Result.Success)
 				{
-					Debug.LogWarning("TileCache: ошибка загрузки тайлсета " + tilesetId + ": " + GameCache.ExtractError(req));
+					onError?.Invoke("TileCache: ошибка загрузки тайлсета " + tilesetId + ": " + GameCache.ExtractError(req));
 					req.Dispose();
-					continue;
+					yield break;
 				}
 
 				string json = req.downloadHandler.text;

@@ -12,12 +12,14 @@ namespace Mmogick
     // и LootPutResponse (те же ui/inventory: очередь одна на все операции игрока с предметами).
     public class InventoryResponse : Response
     {
+        public const string GROUP = "ui/inventory";
+
         // снимок слотов: позиция → предмет либо null (пустая позиция)
         public Dictionary<int, ItemSlotRecive?>? inventory = null;
 
         public override string group
         {
-            get { return "ui/inventory"; }
+            get { return GROUP; }
         }
     }
 }

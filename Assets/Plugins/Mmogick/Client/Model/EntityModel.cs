@@ -624,26 +624,22 @@ namespace Mmogick
 		// для action'ов, которых нет у скелета конкретного prefab'а. Lazy-load один раз, шарится между сущностями.
 		// Подробнее — CLAUDE.md «Архитектура анимаций».
 		private static RuntimeAnimatorController _universalController;
-		private static bool _universalControllerMissing = false;
 
 		/// <summary>
-		/// Lazy-load Universal-контроллера (общий для всех сущностей). null — ассета нет в Resources,
-		/// предупреждение выдаётся один раз, эффекты отключены.
+		/// Lazy-load Universal-контроллера (общий для всех сущностей). null — ассета нет в Resources: это
+		/// ошибка клиента, эффекты отключены.
 		/// </summary>
 		private RuntimeAnimatorController GetUniversalController()
 		{
-			if (_universalControllerMissing) return null;
 			if (_universalController == null)
 			{
 				_universalController = Resources.Load<RuntimeAnimatorController>("Animations/Universal");
 				if (_universalController == null)
 				{
-					_universalControllerMissing = true;
-					// Инвариант СБОРКИ: ассет либо лежит в проекте, либо нет — состояние это не игровое, и
-					// подробным журналом его гасить нельзя (LogWarning молчит при verbose = false, а
-					// докблок обещает предупреждение). Сигналим тем же каналом, что и прочие нехватки
-					// сборки (WeaponMount.Apply).
-					LogError("GetUniversalController: Resources/Animations/Universal не найден — fallback-эффекты отключены");
+					// Инвариант СБОРКИ: ассет либо лежит в проекте, либо нет — состояние это не игровое. Сигналим
+					// тем же каналом, что и прочие нехватки сборки (WeaponMount.Apply).
+					ConnectController.Error("GetUniversalController: Resources/Animations/Universal не найден — fallback-эффекты отключены");
+					return null;
 				}
 			}
 			return _universalController;

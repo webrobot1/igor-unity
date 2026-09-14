@@ -102,13 +102,18 @@ namespace Mmogick
             if (variants == null)
                 return;   // не image-prefab: визуала предмета нет
 
-            // Спрайты всех вариантов из локального кеша (битый файл — пропуск с warning, не валим экип).
+            // Спрайты всех вариантов из локального кеша. Битую картинку кеш уже снял, а следующий вход перекачает:
+            // сейчас это ошибка, как у картинки самого тела (UpdateController.ApplyVisualPrefab).
             var sources = new List<VariantSource>();
             foreach (AnimationCacheService.ImageVariant v in variants)
             {
                 Sprite s;
                 try { s = AnimationCacheService.TryGetSprite(BaseController.GAME_ID, v.File); }
-                catch (System.Exception ex) { Debug.LogWarning("WeaponMount " + itemPrefab + " вариант " + v.angle + "°: " + ex.Message); Debug.LogException(ex); continue; }
+                catch (System.Exception ex)
+                {
+                    ConnectController.Error("WeaponMount " + itemPrefab + " вариант " + v.angle + "°", ex);
+                    return;
+                }
                 if (s == null) continue;
                 sources.Add(new VariantSource { angle = v.angle, sprite = s, pivotX = v.pivotX, pivotY = v.pivotY });
             }

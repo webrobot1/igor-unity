@@ -21,14 +21,16 @@ namespace Mmogick
         // шесть яблок торговцу нужны не всегда), и остаток обязан остаться у него.
         public int? count = null;
 
+        public const string ACTION = "put";
+
         public LootPutResponse()
         {
-            action = "put";
+            action = ACTION;
         }
 
         public override string group
         {
-            get { return "ui/inventory"; }
+            get { return InventoryResponse.GROUP; }
         }
     }
 }

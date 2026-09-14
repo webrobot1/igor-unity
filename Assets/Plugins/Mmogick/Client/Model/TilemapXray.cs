@@ -44,7 +44,6 @@ namespace Mmogick
 		private const float ViewMargin = 0.2f;
 
 		private static Material _material;
-		private static bool _materialMissing;
 
 		/// <summary>
 		/// Ширина мягкого края окна в клетках — берётся у материала, а не задаётся здесь вторым числом:
@@ -153,18 +152,18 @@ namespace Mmogick
 
 		private static Material GetMaterial()
 		{
-			if (_material != null || _materialMissing)
+			if (_material != null)
 				return _material;
 
 			_material = Resources.Load<Material>(MaterialResource);
 			if (_material == null)
 			{
-				_materialMissing = true;
-				Debug.LogError("TilemapXray: не найден Resources/" + MaterialResource + ".mat (шейдер Mmogick/TilemapXray) — "
+				ConnectController.Error("TilemapXray: не найден Resources/" + MaterialResource + ".mat (шейдер Mmogick/TilemapXray) — "
 					+ "сущности под кронами и крышами останутся невидимыми");
+				return null;
 			}
-			else
-				_softness = _material.GetFloat(SoftnessId);
+
+			_softness = _material.GetFloat(SoftnessId);
 
 			return _material;
 		}

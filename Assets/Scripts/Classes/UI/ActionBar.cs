@@ -184,7 +184,8 @@ namespace Mmogick
 
                 _item.Use();
             }
-            else if (_meleeOnEmpty)
+            // В игре без команды ближней атаки пустой слот бездействует, как у обычных слотов панели.
+            else if (_meleeOnEmpty && ConnectController.HasPublicEvent(MeleeResponse.GROUP, Response.ACTION_INDEX))
             {
                 if (MeleeRemain() > 0)
                     return;

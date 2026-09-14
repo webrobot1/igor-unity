@@ -68,6 +68,15 @@ namespace Mmogick
             get { return _inventorySlotNum > 0 ? InventoryController.GetItemBySlot(_inventorySlotNum) : null; }
         }
 
+        /// <summary>
+        /// Надетую вещь берут в курсор, чтобы снять, а снимается она той же командой надевания: в игре без
+        /// неё брать вещь незачем.
+        /// </summary>
+        public override bool CanTake
+        {
+            get { return base.CanTake && ConnectController.HasPublicEvent(EquipmentResponse.GROUP, Response.ACTION_INDEX); }
+        }
+
         // Установка ярлыка на конкретный slot инвентаря (или 0 = снять экипировку).
         public void SetInventorySlotNum(int slotNum)
         {
@@ -145,7 +154,7 @@ namespace Mmogick
                     EquipmentController.ClearHighlight();
                 }
             }
-            else if (CursorController.MyMoveable == null && Item != null)
+            else if (CanTake)
             {
                 // Берём экипированный item в курсор для перетаскивания и помечаем источник —
                 // Item.Use потом по этому маркеру отправит unequip при drop'е в инвентарь.

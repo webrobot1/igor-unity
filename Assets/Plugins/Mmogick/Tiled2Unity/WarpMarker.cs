@@ -49,13 +49,6 @@ namespace Mmogick
 		private static Sprite _sprite;
 
 		/// <summary>
-		/// Картинки нет в сборке — искать её больше незачем. Своим полем картинки промах не выражается:
-		/// пустым оно бывает и до первого поиска, и когда движок выгрузил ассет, — а метки строятся заново на
-		/// каждой выкладываемой карте, и без этого признака каждая повторяла бы и поиск, и запись об отказе.
-		/// </summary>
-		private static bool _spriteMissing;
-
-		/// <summary>
 		/// Место перехода в координатах СЦЕНЫ — тех, в которых стоят сущности и считаны проходы
 		/// (<see cref="MapController.Gate"/>). Нужно показам, кладущим метку в один ряд с точками сущностей
 		/// (радар): сам объект метки лежит иначе — он накрывает КВАДРАТ клетки нарисованного полотна, а
@@ -208,14 +201,14 @@ namespace Mmogick
 
 		private static Sprite GetSprite()
 		{
-			if (_sprite != null || _spriteMissing)
+			if (_sprite != null)
 				return _sprite;
 
 			_sprite = Resources.Load<Sprite>(SpriteResource);
 			if (_sprite == null)
 			{
-				_spriteMissing = true;
-				Debug.LogError("WarpMarker: нет картинки Resources/" + SpriteResource + " — метки переходов не рисуются");
+				ConnectController.Error("WarpMarker: нет картинки Resources/" + SpriteResource + " — метки переходов не рисуются");
+				return null;
 			}
 
 			return _sprite;

@@ -26,14 +26,16 @@ namespace Mmogick
         // остаток остаётся в лавке. Обычному контейнеру не шлём вовсе — там перенос идёт позициями.
         public int? count = null;
 
+        public const string ACTION = "take";
+
         public LootTakeResponse()
         {
-            action = "take";
+            action = ACTION;
         }
 
         public override string group
         {
-            get { return "ui/inventory"; }
+            get { return InventoryResponse.GROUP; }
         }
     }
 }

@@ -2829,6 +2829,7 @@ GameObject:
   - component: {fileID: 358045721}
   - component: {fileID: 358045720}
   - component: {fileID: 358045719}
+  - component: {fileID: 358045722}
   m_Layer: 5
   m_Name: OpenSpellBook
   m_TagString: Untagged
@@ -2949,6 +2950,23 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 358045717}
   m_CullTransparentMesh: 1
+--- !u!114 &358045722
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 358045717}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - fight/bolt/index
+  - magic/heal/index
+  components:
+  - spell_book
 --- !u!1 &367726814
 GameObject:
   m_ObjectHideFlags: 0
@@ -4377,6 +4395,7 @@ GameObject:
   - component: {fileID: 538313459}
   - component: {fileID: 538313458}
   - component: {fileID: 538313460}
+  - component: {fileID: 538313461}
   m_Layer: 5
   m_Name: MainActionBars
   m_TagString: Untagged
@@ -4469,6 +4488,23 @@ MonoBehaviour:
   m_Spacing: {x: 20.6, y: 0}
   m_Constraint: 0
   m_ConstraintCount: 2
+--- !u!114 &538313461
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 538313456}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - ui/actionbars/index
+  - fight/melee/index
+  components:
+  - actionbars
 --- !u!1 &540221985
 GameObject:
   m_ObjectHideFlags: 0
@@ -4990,6 +5026,7 @@ GameObject:
   - component: {fileID: 576463166}
   - component: {fileID: 576463165}
   - component: {fileID: 576463167}
+  - component: {fileID: 576463168}
   m_Layer: 0
   m_Name: LootWindow
   m_TagString: Untagged
@@ -5070,6 +5107,25 @@ CanvasGroup:
   m_Interactable: 1
   m_BlocksRaycasts: 0
   m_IgnoreParentGroups: 0
+--- !u!114 &576463168
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 576463163}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - ui/loot/open
+  - ui/inventory/take
+  - ui/inventory/put
+  components:
+  - loot
+  - trade
 --- !u!1 &580027233
 GameObject:
   m_ObjectHideFlags: 0
@@ -7269,6 +7325,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 802655360}
+  - component: {fileID: 802655361}
   m_Layer: 0
   m_Name: EquipmentArea
   m_TagString: Untagged
@@ -7302,6 +7359,22 @@ RectTransform:
   m_AnchoredPosition: {x: 5, y: -35}
   m_SizeDelta: {x: -10, y: 410}
   m_Pivot: {x: 0, y: 1}
+--- !u!114 &802655361
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 802655359}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - ui/equip/index
+  components:
+  - equip
 --- !u!1 &815108705
 GameObject:
   m_ObjectHideFlags: 0
@@ -8229,6 +8302,7 @@ GameObject:
   - component: {fileID: 878297137}
   - component: {fileID: 878297136}
   - component: {fileID: 878297135}
+  - component: {fileID: 878297138}
   m_Layer: 5
   m_Name: SaveButton
   m_TagString: Untagged
@@ -8339,6 +8413,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 878297133}
   m_CullTransparentMesh: 1
+--- !u!114 &878297138
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 878297133}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - ui/settings/index
+  components: []
 --- !u!1 &909457141
 GameObject:
   m_ObjectHideFlags: 0
@@ -9712,6 +9801,7 @@ GameObject:
   - component: {fileID: 1101012256}
   - component: {fileID: 1101012255}
   - component: {fileID: 1101012257}
+  - component: {fileID: 1101012258}
   m_Layer: 5
   m_Name: SpellBook
   m_TagString: Untagged
@@ -9795,6 +9885,23 @@ CanvasGroup:
   m_Interactable: 1
   m_BlocksRaycasts: 1
   m_IgnoreParentGroups: 0
+--- !u!114 &1101012258
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1101012253}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - fight/bolt/index
+  - magic/heal/index
+  components:
+  - spell_book
 --- !u!1 &1110377377
 GameObject:
   m_ObjectHideFlags: 0
@@ -12141,12 +12248,10 @@ MonoBehaviour:
   minimapRoot: {fileID: 1832113098}
   minimapMaps: {fileID: 159562681}
   minimapMapPrefab: {fileID: 2308588240216992777, guid: 593a9d2328dfc704dbb6df74b3921270, type: 3}
-  mainCamera: {fileID: 290111638}
   markerArea: {fileID: 1641096544}
   entityMarkerPrefab: {fileID: 89719019923747395, guid: 12567129d109ff642b0ec4e5e250a9c5, type: 3}
   playerMarker: {fileID: 1922030636}
   mapNameLabel: {fileID: 1197489436}
-  minimapZoomFactor: 4
   parentGroup: {fileID: 743352525}
   tooltip: {fileID: 265379428}
   spellGroup: {fileID: 1101012257}
@@ -12900,7 +13005,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1391205570}
   m_HandleRect: {fileID: 1391205569}
   m_Direction: 2
-  m_Value: 0
+  m_Value: 1
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -13960,6 +14065,7 @@ GameObject:
   - component: {fileID: 1633090941}
   - component: {fileID: 1633090940}
   - component: {fileID: 1633090939}
+  - component: {fileID: 1633090942}
   m_Layer: 5
   m_Name: Inventory
   m_TagString: Untagged
@@ -14040,6 +14146,22 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1633090937}
   m_CullTransparentMesh: 1
+--- !u!114 &1633090942
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1633090937}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - ui/inventory/index
+  components:
+  - inventory
 --- !u!1 &1636557498
 GameObject:
   m_ObjectHideFlags: 0
@@ -14920,6 +15042,7 @@ GameObject:
   - component: {fileID: 1744564787}
   - component: {fileID: 1744564786}
   - component: {fileID: 1744564785}
+  - component: {fileID: 1744564788}
   m_Layer: 5
   m_Name: OpenInventory
   m_TagString: Untagged
@@ -15040,6 +15163,22 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1744564782}
   m_CullTransparentMesh: 1
+--- !u!114 &1744564788
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1744564782}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands:
+  - ui/inventory/index
+  components:
+  - inventory
 --- !u!1 &1750130877
 GameObject:
   m_ObjectHideFlags: 0
@@ -17861,6 +18000,7 @@ GameObject:
   - component: {fileID: 3046298429581186876}
   - component: {fileID: 3046298429581186877}
   - component: {fileID: 3046298429581186874}
+  - component: {fileID: 3046298429581186880}
   m_Layer: 5
   m_Name: Mask
   m_TagString: Untagged
@@ -17969,6 +18109,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3046298429581186872}
   m_CullTransparentMesh: 1
+--- !u!114 &3046298429581186880
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3046298429581186872}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands: []
+  components:
+  - settings
 --- !u!222 &3046298429839130025
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -18093,6 +18248,7 @@ GameObject:
   - component: {fileID: 3046298429928724900}
   - component: {fileID: 3046298429928724901}
   - component: {fileID: 3046298429928724898}
+  - component: {fileID: 3046298429928724902}
   m_Layer: 5
   m_Name: Scrollbar
   m_TagString: Untagged
@@ -18207,6 +18363,21 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &3046298429928724902
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3046298429928724896}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4a5a01a48f3523469959bfa42e5a618, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Game::Mmogick.GameElementMarker
+  commands: []
+  components:
+  - settings
 --- !u!224 &3046298430399257458
 RectTransform:
   m_ObjectHideFlags: 0

@@ -284,7 +284,8 @@ namespace Mmogick
                             // Мёртвым не шлём вовсе: подбор сервер исполняет только живому (тот же гейт, что у
                             // применения предмета из курсора выше).
                             if (!string.IsNullOrEmpty(new_target.prefab)
-                                && AnimationCacheService.IsGroundItem(new_target.prefab))
+                                && AnimationCacheService.IsGroundItem(new_target.prefab)
+                                && HasPublicEvent(PickupResponse.GROUP, Response.ACTION_INDEX))
                             {
                                 Target = new_target;
                                 persist_target = false;
@@ -304,11 +305,11 @@ namespace Mmogick
                                 persist_target = true;
                                 LootWindowController.CancelPending();
                             }
-                            // Сущность без добычи — объект без неё (портал, алтарь) либо труп существа,
-                            // с которого нечего взять: взаимодействия нет, поэтому клик заодно трактуем
-                            // как клик по земле — иначе кликабельная зона объекта работала бы «мёртвой»
-                            // клеткой, на которую персонажа не отправить. Целью выбираем и её: рассказать
-                            // о выбранном окно сведений может о ком угодно.
+                            // Сущность без добычи — объект без неё (портал, алтарь), труп существа, с которого
+                            // нечего взять, либо вещь в игре без команды подбора: взаимодействия нет, поэтому
+                            // клик заодно трактуем как клик по земле — иначе кликабельная зона объекта работала
+                            // бы «мёртвой» клеткой, на которую персонажа не отправить. Целью выбираем и её:
+                            // рассказать о выбранном окно сведений может о ком угодно.
                             else
                             {
                                 Target = new_target;
@@ -517,11 +518,11 @@ namespace Mmogick
         /// <summary>
         /// Отправить персонажа в точку под курсором. Клик в упор (ближе шага) движения не даёт — иначе
         /// сервер получал бы команду на клетку, где игрок уже стоит. Заведомо холостой клик не шлётся вовсе
-        /// (см. <see cref="CanServerWalkTo"/>).
+        /// (см. <see cref="CanServerWalkTo"/>), как и клик в игре без команды движения к точке.
         /// </summary>
         private void WalkToCursor()
         {
-            if (player == null) return;
+            if (player == null || !HasPublicEvent(WalkResponse.GROUP, WalkResponse.ACTION_TO)) return;
 
             move_to = Camera.main.ScreenToWorldPoint(InputSource.MousePosition);
             if (Vector3.Distance(player.position, move_to) < 1.15f || !CanServerWalkTo(move_to))
@@ -581,6 +582,10 @@ namespace Mmogick
                     vertical = InputSource.GetAxis("Vertical") != 0 ? InputSource.GetAxis("Vertical") : joystick.Vertical;
                     horizontal = InputSource.GetAxis("Horizontal") != 0 ? InputSource.GetAxis("Horizontal") : joystick.Horizontal;
 
+                    // Шаг и остановка — одна команда (move/walk/index): в игре без неё клавиши и джойстик не
+                    // шлют ничего.
+                    bool canStep = HasPublicEvent(WalkResponse.GROUP, Response.ACTION_INDEX);
+
                     // Палец лёг на джойстик, а с места его не повели — игрок просит ВСТАТЬ: шаг с нулевым
                     // направлением снимает на сервере действующую команду движения, и маршрут по клику, и
                     // ход джойстиком. Иначе встать, не сделав шага, нечем — отпущенный джойстик оставляет
@@ -590,7 +595,7 @@ namespace Mmogick
                     {
                         joystick_touched = false;
 
-                        if (Math.Abs(horizontal) <= WALK_THRESHOLD && Math.Abs(vertical) <= WALK_THRESHOLD)
+                        if (canStep && Math.Abs(horizontal) <= WALK_THRESHOLD && Math.Abs(vertical) <= WALK_THRESHOLD)
                         {
                             WalkResponse stop = new WalkResponse();
 
@@ -630,7 +635,7 @@ namespace Mmogick
                                 // Опираться на факт НЕПОДВИЖНОСТИ (позиция не сдвинулась с прошлой отправки)
                                 // нельзя: эхо позиции приходит с задержкой и ложно читается как «упёрлись» —
                                 // застревание у стен и углов. Решает только геометрия преград.
-                                if (CanServerStep(vector))
+                                if (canStep && CanServerStep(vector))
                                 {
                                     WalkResponse response = new WalkResponse();
 
@@ -644,7 +649,7 @@ namespace Mmogick
                         {
                             WalkResponse response = new WalkResponse();
 
-                            response.action = "to";
+                            response.action = WalkResponse.ACTION_TO;
                             response.x = Math.Round(move_to.x, position_precision);
                             response.y = Math.Round(move_to.y, position_precision);
                             response.z = player.transform.position.z;
@@ -818,14 +823,16 @@ namespace Mmogick
 
         /// <summary>
         /// Есть ли у сущности СВОЁ действие по клику — то, ради чего игроку в неё целиться: лежащая вещь
-        /// подбирается, живой враг либо NPC становится целью. У прочего (портал, алтарь, труп без добычи)
-        /// клик равен клику по земле, и кольцо там обещало бы взаимодействие, которого нет. Контейнеры сюда
+        /// подбирается (если у игры есть команда подбора), живой враг либо NPC становится целью. У прочего
+        /// (портал, алтарь, труп без добычи) клик равен клику по земле, и кольцо там обещало бы
+        /// взаимодействие, которого нет. Контейнеры сюда
         /// не идут: их отбирает вызывающий — у них своё правило выбора ближайшего.
         /// Зеркало веток разбора нажатия в <see cref="Update"/> — правится парно.
         /// </summary>
         private static bool HasOwnClickAction(EntityModel e)
         {
-            if (!string.IsNullOrEmpty(e.prefab) && AnimationCacheService.IsGroundItem(e.prefab))
+            if (!string.IsNullOrEmpty(e.prefab) && AnimationCacheService.IsGroundItem(e.prefab)
+                && HasPublicEvent(PickupResponse.GROUP, Response.ACTION_INDEX))
                 return true;
 
             return e is EnemyModel && e.action != "dead";

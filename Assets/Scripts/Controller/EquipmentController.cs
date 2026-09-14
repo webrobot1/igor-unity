@@ -193,13 +193,14 @@ namespace Mmogick
         /// Гард equipable_slot ЗЕРКАЛИТ серверную валидацию: невалидный слот сервер считает
         /// контрактным нарушением и снимает игрока с карты, поэтому заведомо негодную команду не шлём.
         /// Контракт ui/equip/index требует inventory_idx > 0 — предмет обязан лежать в инвентаре
-        /// (у вещи чужого контейнера SlotNum == 0, надеть её напрямую нельзя).
+        /// (у вещи чужого контейнера SlotNum == 0, надеть её напрямую нельзя). В игре без самой команды
+        /// надевать нечем.
         ///
         /// false — команда НЕ ушла; вызывающему тогда нечего доделывать (курсор не отпускать).
         /// </summary>
         public static bool SendEquip(Item item, string slug)
         {
-            if (item == null || item.SlotNum <= 0)
+            if (item == null || item.SlotNum <= 0 || !HasPublicEvent(EquipmentResponse.GROUP, Response.ACTION_INDEX))
                 return false;
 
             var allowed = AnimationCacheService.GetEquipableSlots(item.Prefab);
@@ -216,13 +217,15 @@ namespace Mmogick
         // Подсветить equipment-слоты, в которые можно положить этот item (по prefab.equipable_slot).
         // Невалидные/несовместимые слоты гасятся (восстанавливают original-цвет рамки) — это позволяет
         // безопасно звать метод с любым Item при «перехвате» курсора через chain-swap, не накапливая
-        // подсветку с предыдущего предмета.
+        // подсветку с предыдущего предмета. В игре без команды надевания подсветка не обещает ничего.
         public static void HighlightForItem(Item item)
         {
             if (_equipSlots == null)
                 return;
 
-            var allowed = item != null ? AnimationCacheService.GetEquipableSlots(item.Prefab) : null;
+            var allowed = item != null && HasPublicEvent(EquipmentResponse.GROUP, Response.ACTION_INDEX)
+                ? AnimationCacheService.GetEquipableSlots(item.Prefab)
+                : null;
 
             foreach (var kv in _equipSlots)
                 kv.Value.SetHighlighted(allowed != null && allowed.Contains(kv.Key));

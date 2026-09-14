@@ -105,9 +105,9 @@ namespace Mmogick
         /// Каким движением быть значку, решает игра: клип приходит вместе с адресом существа. Не пришёл —
         /// отбирать было не из чего, и клип берёт сам сборщик скелета.
         ///
-        /// false — значка нет: у пункта его не бывает вовсе (маркер списка), у компонента он не задан,
-        /// картинка битая либо пакета скелета ещё нет в кеше. Качать пакет тут нечем — его кладёт
-        /// предзагрузка перед входом в игру.
+        /// false — значка нет: у пункта его не бывает вовсе (маркер списка), у компонента он не задан либо
+        /// пакета скелета ещё нет в кеше. Качать пакет тут нечем — его кладёт предзагрузка перед входом в
+        /// игру. Битая картинка либо не разобравшийся пакет — ошибка клиента.
         /// </summary>
         private bool ApplyIcon(string component)
         {
@@ -136,7 +136,10 @@ namespace Mmogick
                     BaseController.GAME_ID, animation.animation, animation.entity, out string failure);
 
                 if (failure != null)
-                    Debug.LogWarning("Значок компонента " + component + ": " + failure);
+                {
+                    ConnectController.Error("Значок компонента " + component + ": " + failure);
+                    return false;
+                }
 
                 _skeleton = asset != null
                     && VisualBuilder.CreateGraphic(icon.gameObject, asset, animation.clip) != null

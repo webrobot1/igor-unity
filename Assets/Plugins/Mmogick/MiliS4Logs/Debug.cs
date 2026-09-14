@@ -35,5 +35,28 @@ namespace Mmogick
         {
             UnityEngine.Debug.LogWarning(Stamp() + obj);
         }
+
+        /// <summary>
+        /// Идёт запись исключения, которое код клиента перехватил сам (<see cref="LogException"/>). Такую запись
+        /// перехват неперехваченных исключений (ConnectController.OnLogMessage) пропускает: игроку её показал либо
+        /// сознательно не показал тот, кто перехватил. Признак на поток: обработчик журнала движок зовёт внутри
+        /// самой записи и в том же потоке.
+        /// </summary>
+        [ThreadStatic]
+        internal static bool loggingCaught;
+
+        new public static void LogException(Exception exception)
+        {
+            loggingCaught = true;
+
+            try
+            {
+                UnityEngine.Debug.LogException(exception);
+            }
+            finally
+            {
+                loggingCaught = false;
+            }
+        }
     }
 }

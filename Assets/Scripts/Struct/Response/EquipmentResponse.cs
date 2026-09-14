@@ -8,11 +8,13 @@ namespace Mmogick
     // Сервер каскадом обновит компоненты equip и inventory (см. components/equip.php).
     public class EquipmentResponse : Response
     {
+        public const string GROUP = "ui/equip";
+
         public Dictionary<string, int?> items = new Dictionary<string, int?>();
 
         public override string group
         {
-            get { return "ui/equip"; }
+            get { return GROUP; }
         }
     }
 }

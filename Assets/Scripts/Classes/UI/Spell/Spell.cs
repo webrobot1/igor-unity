@@ -207,12 +207,22 @@ namespace Mmogick
             }
         }
 
+        /// <summary>
+        /// Команды, которой заклинание применяется, у игры нет: книга показывает заклинание данными компонента,
+        /// а применить его нечем.
+        /// </summary>
+        private bool NoCommand
+        {
+            get { return !ConnectController.HasPublicEvent(@event, Response.ACTION_INDEX); }
+        }
+
         public override bool IsUnavailable()
         {
             return PlayerController.Player == null
                 || PlayerController.Player.hp <= 0
                 || ManaCost > PlayerController.Player.mp
-                || NothingToHeal;
+                || NothingToHeal
+                || NoCommand;
         }
 
         public override (float fillAmount, float remainSeconds) GetCooldownProgress()
@@ -254,7 +264,8 @@ namespace Mmogick
                 // в нём лежит (см. CursorController.Update, chain-swap), — заклинание берётся и так.
                 return PlayerController.Player != null
                     && ManaCost <= PlayerController.Player.mp
-                    && PlayerController.Player.GetEventRemain(@event) <= 0;
+                    && PlayerController.Player.GetEventRemain(@event) <= 0
+                    && !NoCommand;
             }
         }
 
@@ -270,6 +281,9 @@ namespace Mmogick
         {
             if(obj != null && obj.GetComponent<ActionBar>())
             {
+                if (!ConnectController.HasPublicEvent(ActionBarsResponse.GROUP, Response.ACTION_INDEX))
+                    return;
+
                 ActionBar bar = obj.GetComponent<ActionBar>();
                 ActionBarsResponse response = new ActionBarsResponse();
 
@@ -291,6 +305,9 @@ namespace Mmogick
             }
             else
             {
+                if (NoCommand)
+                    return;
+
                 if(ManaCost <= PlayerController.Player.mp)
                 {
 #if UNITY_EDITOR

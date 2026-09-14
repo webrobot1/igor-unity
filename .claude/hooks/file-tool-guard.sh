@@ -24,7 +24,10 @@
 # кусок и затирает чужое без сигнала.
 #
 # ЧТО ловится:
-#   чтение — `cat`, `head`, `tail`, `less`, `more`, `nl`, `bat`, `sed` с файлом-исходником;
+#   чтение — `cat`, `head`, `tail`, `less`, `more`, `nl`, `bat`, `sed` с файлом-исходником; поиск
+#     `grep`/`rg` по исходнику шаблоном, совпадающим с каждой строкой (`''`, `^`), без флагов счёта,
+#     перечня файлов, тишины и обращения совпадения; открытие исходника на чтение кодом интерпретатора —
+#     инлайн-флагом и телом heredoc (адреса отдаёт lib/write_targets.py, code_read_paths);
 #   правка — in-place (`sed -i`, `perl -i`, `awk -i`), `tee`, редирект из `cat`/`echo`/`printf`
 #     (создание файла руками), запись из кода интерпретатора — инлайн-флагом и телом heredoc.
 # ЦЕЛИ записи разбирает общий носитель lib/write_targets.py, форму вызова (разрез цепочки,
@@ -32,8 +35,9 @@
 # нет, она разошлась бы с соседним гейтом молча.
 #
 # Что проходит МИМО, осознанно:
-#   поиск (`grep`, `rg`), метрики (`wc`, `ls`, `find`), проверки и команды проекта (`php -l`,
-#     `node --check`, `bin/run …`) — файловый тул этого не делает;
+#   поиск (`grep`, `rg`) содержательным шаблоном, метрики (`wc`, `ls`, `find`), проверки и команды
+#     проекта (`php -l`, `node --check`, `bin/run …`) — файловый тул этого не делает; код
+#     интерпретатора, поданный файлом-скриптом, — что он читает, из вызова не видно;
 #   редирект вывода САМОЙ команды в файл (`bin/run php bin/console … > отчёт.md`) — правило прямо
 #     оставляет такую запись оболочке; ловится лишь редирект из `cat`/`echo`/`printf`, где
 #     содержимое пишет человек, а не команда;
@@ -65,14 +69,36 @@ import json, os, re, sys, tempfile
 HOOKS_DIR = os.path.realpath(os.environ.get("HOOKS_DIR") or ".")
 sys.path.insert(0, os.path.join(HOOKS_DIR, "lib"))
 from chain_parser import split_parts, tokens, command_index, name, strip_redirects, _bare
-from write_targets import normalize, scan_command
+from write_targets import code_read_paths, normalize, scan_command
 
 PROJ = os.path.realpath(os.path.join(HOOKS_DIR, "..", ".."))
 BRIEF = os.environ.get("BRIEF", "")
 
-# Команды, чей смысл — выложить содержимое файла. `grep`/`rg` сюда не входят: поиск локализует, а
-# не читает, и файловый тул его не заменяет. `sed` тут по обеим осям — и окно `-n`, и in-place.
+# Команды, чей смысл — выложить содержимое файла. `sed` тут по обеим осям — и окно `-n`, и in-place.
 READ_CMDS = {"cat", "head", "tail", "less", "more", "nl", "bat", "sed"}
+# Поиск содержательным шаблоном локализует, а не читает, и файловый тул его не заменяет. Шаблон,
+# совпадающий с каждой строкой, места не локализует: такой поиск выкладывает файл целиком, то есть
+# читает. Флаги счёта, перечня файлов, тишины и обращения совпадения содержимого не выкладывают —
+# с ними вызов остаётся поиском.
+SEARCH_CMDS = {"grep", "egrep", "fgrep", "rg"}
+MATCH_ALL = {"", "^", "$", ".", ".*", "^.*", "^.*$"}
+NO_CONTENT_LONG = {"--count", "--count-matches", "--files-with-matches", "--files-without-match",
+                   "--quiet", "--silent", "--files", "--invert-match"}
+# Короткие флаги без выкладки и опции со значением у `rg` и `grep` свои: `-L` у `rg` — переход по
+# ссылкам, у `grep` — перечень файлов без совпадений; `-E` у `rg` — кодировка со значением, у `grep` —
+# расширенный шаблон без значения.
+NO_CONTENT_SHORT = {"rg": set("clqv"), "grep": set("clLqv")}
+SEARCH_VALUE_OPTS = {
+    "rg": {"-g", "--glob", "--iglob", "-t", "--type", "-T", "--type-not", "-A", "--after-context",
+           "-B", "--before-context", "-C", "--context", "-m", "--max-count", "-j", "--threads",
+           "-M", "--max-columns", "-E", "--encoding", "-r", "--replace", "-d", "--max-depth",
+           "--max-filesize", "--context-separator", "--field-match-separator", "--path-separator",
+           "--pre", "--pre-glob", "--sort", "--sortr", "--type-add", "--type-clear", "--ignore-file",
+           "--colors", "--color", "--engine"},
+    "grep": {"-A", "--after-context", "-B", "--before-context", "-C", "--context", "-m",
+             "--max-count", "-d", "--directories", "-D", "--devices", "--include", "--exclude",
+             "--exclude-dir", "--exclude-from", "--label", "--group-separator"},
+}
 # Команды, чей редирект пишет НЕ вывод работы, а набранный человеком текст: файл создаётся руками.
 # Прочие команды под редиректом законны — правило прямо оставляет оболочке запись, чьё содержимое
 # есть вывод самой команды.
@@ -124,9 +150,67 @@ def is_source(path):
     return not any(rel.startswith(d) or ("/" + d) in ("/" + rel) for d in NOT_SOURCE)
 
 
+def search_read_targets(args, kind, cwd):
+    """Исходники, которые поиск выкладывает целиком: шаблон из MATCH_ALL и ни одного флага без
+    выкладки содержимого. Шаблон — значение `-e`/`--regexp`, иначе первый позиционный аргумент;
+    шаблоны из файла (`-f`) из вызова не видны — такой поиск не судится."""
+    long_values = SEARCH_VALUE_OPTS[kind]
+    short_values = {o[1] for o in long_values if len(o) == 2}
+    patterns, from_file, plain, k = [], False, [], 0
+    while k < len(args):
+        a = args[k]
+        if a == "--":
+            plain += args[k + 1:]
+            break
+        if a.startswith("--"):
+            opt, eq, val = a.partition("=")
+            if opt in NO_CONTENT_LONG:
+                return []
+            if (opt in ("--regexp", "--file") or opt in long_values) and not eq:
+                val = args[k + 1] if k + 1 < len(args) else ""
+                k += 1
+            if opt == "--regexp":
+                patterns.append(val)
+            from_file = from_file or opt == "--file"
+            k += 1
+            continue
+        if a.startswith("-") and len(a) > 1:
+            body = a[1:]
+            for pos, ch in enumerate(body):
+                if ch in NO_CONTENT_SHORT[kind]:
+                    return []
+                if ch in "ef" or ch in short_values:
+                    val = body[pos + 1:]
+                    if not val and k + 1 < len(args):
+                        val = args[k + 1]
+                        k += 1
+                    if ch == "e":
+                        patterns.append(val)
+                    from_file = from_file or ch == "f"
+                    break
+            k += 1
+            continue
+        plain.append(a)
+        k += 1
+    if not patterns and not from_file and plain:
+        patterns, plain = [plain[0]], plain[1:]
+    if from_file or not any(p in MATCH_ALL for p in patterns):
+        return []
+    res = []
+    for arg in plain:
+        arg = _bare(arg)
+        if not arg or "$" in arg or "`" in arg or "*" in arg:
+            continue
+        path = normalize(os.path.expanduser(arg), cwd)
+        if is_source(path):
+            res.append(path)
+    return res
+
+
 def read_targets(command, cwd):
-    """Файлы-исходники, которые команда ЧИТАЕТ: позиционные аргументы команд чтения. Опции и их
-    значения пропускаются, цель с подстановкой — тоже (значение приходит извне)."""
+    """Файлы-исходники, которые команда ЧИТАЕТ: позиционные аргументы команд чтения и поиска,
+    выкладывающего файл целиком. Опции и их значения пропускаются, цель с подстановкой — тоже
+    (значение приходит извне)."""
     res = []
     for part in split_parts(command):
         toks = strip_redirects(tokens(part))
@@ -134,6 +218,10 @@ def read_targets(command, cwd):
         if i >= len(toks):
             continue
         cmd = name(_bare(toks[i]))
+        if cmd in SEARCH_CMDS:
+            kind = "rg" if cmd == "rg" else "grep"
+            res += [(path, part) for path in search_read_targets(toks[i + 1:], kind, cwd)]
+            continue
         if cmd not in READ_CMDS:
             continue
         for arg in toks[i + 1:]:
@@ -190,7 +278,8 @@ if not command:
 cwd = data.get("cwd") or PROJ
 
 try:
-    hits = read_targets(command, cwd) + write_targets_src(command, cwd)
+    hits = (read_targets(command, cwd) + write_targets_src(command, cwd)
+            + [(path, frag) for path, frag in code_read_paths(command, cwd) if is_source(path)])
 except Exception as e:
     out({"additionalContext": "file-tool-guard: команда не разобрана (%s). Вызов не блокирован. "
                               "Проверь сам: %s." % (e, BRIEF)})

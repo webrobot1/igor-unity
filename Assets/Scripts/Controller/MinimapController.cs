@@ -758,7 +758,7 @@ namespace Mmogick
         /// Оно же решает, показана ли сущность на картах ВООБЩЕ: есть значение — метка есть, нет значения —
         /// метки нет. Отбор целиком лежит в контенте игры, потому вида сущности этот код не спрашивает
         /// вовсе: у другой игры виды свои, а правка отбора либо цвета не должна стоить пересборки клиента.
-        /// Пусто — значения нет (компонент виду не положен) либо оно записано не как #RRGGBB.
+        /// Пусто — значения нет (компонент виду не положен). Значение, записанное не как #RRGGBB, — ошибка.
         /// </summary>
         protected static Color? MarkerColor(string prefab)
         {
@@ -772,10 +772,13 @@ namespace Mmogick
 
             if (!string.IsNullOrEmpty(hex))
             {
-                if (ColorUtility.TryParseHtmlString(hex, out Color parsed))
-                    color = parsed;
-                else
-                    Debug.LogError("Карты: цвет метки «" + hex + "» у prefab'а " + prefab + " записан не как #RRGGBB");
+                if (!ColorUtility.TryParseHtmlString(hex, out Color parsed))
+                {
+                    Error("Карты: цвет метки «" + hex + "» у prefab'а " + prefab + " записан не как #RRGGBB");
+                    return null;
+                }
+
+                color = parsed;
             }
 
             _markerColors[key] = color;

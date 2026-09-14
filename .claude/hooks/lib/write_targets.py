@@ -5,7 +5,8 @@
 
 """Цели ЗАПИСИ в команде оболочки — общий носитель хуков, которым нужно знать, какие файлы правит
 вызов: гейт владения путями (skill-guard.sh), гейт границы записи каталогами проекта
-(write-scope-guard.sh) и напоминание о своде домена (mcp-context-reminder.sh).
+(write-scope-guard.sh), гейт канала работы с исходником (file-tool-guard.sh) и напоминание о своде
+домена (mcp-context-reminder.sh).
 Копия разбора у каждого следующего разошлась бы с первым молча — перехватываемые формы живут здесь.
 Владения, зон и политики отказа модуль не знает: он отдаёт абсолютные пути, решение принимает
 вызывающий.
@@ -29,7 +30,9 @@ heredoc (`python3 - <<'PY'`) читаются одинаково; тело hered
 первым в строковом литерале (текст, строка-команда чужому инструменту); запись через
 запущенный из оболочки СКРИПТ либо чужой инструмент, чей аргумент путём не выглядит; `install`
 с целью-каталогом, вычисляемым на месте.
-Чтение целей не даёт вовсе: `grep`, `cat`, `sed -n`, `head`, `awk` без редиректа. Запуск наравне
+Чтение целей записи не даёт вовсе: `grep`, `cat`, `sed -n`, `head`, `awk` без редиректа. Адреса, которые
+ЧИТАЕТ код интерпретатора, отдаёт отдельно code_read_paths — гейту канала работы с исходником, у
+которого чтение исходника кодом то же, что `cat`; в цели записи они не входят. Запуск наравне
 с чтением: имя запускаемой команды и путь скрипта, поданный оболочке либо интерпретатору, целью
 не бывают ни в основном разборе, ни в запасном проходе — исполнение файла его правкой не является.
 
@@ -606,7 +609,7 @@ def _code_targets(code, cwd, found, unresolved):
     names = set()
     for stmt in writing:
         for m in re.finditer(CODE_PATH, stmt):
-            if not _glued_right(stmt, m.start()):
+            if _address_literal(stmt, m):
                 _record(m.group(), stmt[:200], found, unresolved, cwd)
         names.update(ADDR_VAR.findall(stmt))
 
@@ -618,18 +621,31 @@ def _code_targets(code, cwd, found, unresolved):
         if not m or m.group(1) not in names:
             continue
         for lit in re.finditer(CODE_PATH, m.group(2)):
-            if not _glued_right(m.group(2), lit.start()):
+            if _address_literal(m.group(2), lit):
                 _record(lit.group(), stmt[:200], found, unresolved, cwd)
 
 
-def _glued_right(code, start):
-    """Литерал приклеен справа к выражению (`D + '/x.png'`, `$d.'/x.png'`): это хвост адреса, чьё начало
-    приходит подстановкой, а не адрес от корня файловой системы. `start` — первый символ внутри литерала,
-    перед ним стоит кавычка."""
-    k = start - 2
+def _address_literal(code, m):
+    """Совпадение CODE_PATH стоит адресом, а не хвостом адреса либо содержимым.
+    Литерал, приклеенный справа к выражению (`D + '/x.png'`, `D + f'/x{n}.png'`, `$d.'/x.png'`), — хвост
+    адреса, чьё начало приходит подстановкой. Префикс строки (`f`, `r`, `b`) перед кавычкой приклейки не
+    прячет.
+    Имя файла без каталога — адрес лишь в позиции адреса: первым аргументом вызова, значением
+    присваивания либо именованного параметра. Тем же голым именем код несёт содержимое — имя члена
+    архива (`z.write(D + 'C.tsx', 'C.tsx')`), ключ, подпись, — и вторым аргументом оно склеивается с
+    каталогом вызова в выдуманный путь."""
+    k = m.start() - 2          # перед первым символом литерала стоит кавычка
+    p = k
+    while p >= 0 and k - p < 2 and code[p] in 'rRbBuUfF':
+        p -= 1
+    if p < k and (p < 0 or not (code[p].isalnum() or code[p] == '_')):
+        k = p
     while k >= 0 and code[k] in ' \t':
         k -= 1
-    return k >= 0 and code[k] in '+.'
+    before = code[k] if k >= 0 else ''
+    if before in ('+', '.'):
+        return False
+    return '/' in m.group() or before in ('', '(', '=')
 
 
 def _inline_code(command):
@@ -980,4 +996,39 @@ def written_paths(command, cwd):
     res = [p for p, _ in found]
     if unresolved:
         res.extend(sweep(stripped, eff_cwd, unresolved))
+    return res
+
+
+# Признаки ЧТЕНИЯ файла в коде интерпретатора. `open(` — только самостоятельным вызовом либо методом
+# (`io.open(`): в `Popen(` оно стоит подстрокой, а запуск процесса чтением файла не является.
+READ_CALL = re.compile(r"(?:(?<![\w.])|\.)open\(|\.read_text\(|\.read_bytes\(|\bfile_get_contents\("
+                       r"|\breadfile\(|\breadFileSync\(|\breadFile\(|\bfopen\(")
+
+
+def code_read_paths(command, cwd, depth=0):
+    """Адреса, которые КОД интерпретатора читает: литерал-путь в выражении с признаком чтения и без
+    признака записи — выражение с записью разбирает scan_command. Что считается адресом в коде, тем же
+    правилом, что у записи (CODE_PATH, _address_literal). Формы подачи те же: инлайн-флаг и тело
+    heredoc; тело, поданное оболочке, разбирается тем же порядком. Адрес из подстановки пропускается:
+    значение приходит извне."""
+    if depth > 3:
+        return []
+    stripped, bodies = split_heredocs(command or "")
+    codes, res = [], []
+    inline = _inline_code(stripped)
+    if inline is not None:
+        codes.append(inline)
+    for kind, body in bodies:
+        if kind == 'code':
+            codes.append(body)
+        else:
+            res += code_read_paths(body, cwd, depth + 1)
+    for code in codes:
+        for stmt in code_statements(code):
+            if not READ_CALL.search(stmt) or any(m in stmt for m in WRITE_MARKS) or WRITE_MODE.search(stmt):
+                continue
+            for m in re.finditer(CODE_PATH, stmt):
+                t = bare(m.group())
+                if _address_literal(stmt, m) and '$' not in t and '`' not in t and not t.startswith('~'):
+                    res.append((normalize(t, cwd), stmt[:200]))
     return res

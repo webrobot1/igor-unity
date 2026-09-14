@@ -44,7 +44,7 @@ namespace Mmogick
 		// Бампится и на смену ПРАВИЛА заполнения поля при прежних составе и форме: лежалая запись несёт
 		// значение, которого сервер уже не кладёт, разбор на ней не падает, и расхождение молчит — так с
 		// полем size, которое приходит только у носителя со своим размером (умолчание едет конвертом ответа).
-		private const int CACHE_SCHEMA_VERSION = 9;
+		private const int CACHE_SCHEMA_VERSION = 10;
 
 		// Разбор серверного payload: сервер шлёт скаляры всегда, включая null (null ≡ дефолт поля), а без
 		// Ignore Newtonsoft пишет null в не-nullable поле (version, animation, angle, pivotX/Y, id) и роняет
@@ -501,15 +501,19 @@ namespace Mmogick
 
 		// Готовый Sprite иконки компонента — пара к GetPrefabSprite: то же чтение картинки из локального
 		// кеша, только имя файла берётся из справочника компонентов, а не из entry префаба.
-		// null — иконки у компонента нет либо картинка битая (битый кеш чистится TryGetSprite,
-		// перекачается на следующем sync); показу этого довольно, чтобы остаться текстовым.
+		// null — иконки у компонента нет; показу этого довольно, чтобы остаться текстовым. Битая картинка —
+		// ошибка клиента (битый кеш чистится TryGetSprite, перекачается на следующем входе).
 		// Контракт по справочнику — через ComponentCacheService.GetImage (throw на вызове до его загрузки).
 		public static Sprite GetComponentSprite(int gameId, string component)
 		{
 			string imageFile = ComponentCacheService.GetImage(component);
 			if (imageFile == null) return null;
 			try { return TryGetSprite(gameId, imageFile); }
-			catch (Exception ex) { Debug.LogWarning("GetComponentSprite '" + component + "': " + ex.Message); return null; }
+			catch (Exception ex)
+			{
+				ConnectController.Error("Иконка компонента " + component, ex);
+				return null;
+			}
 		}
 
 		// Подбираемый ли это «предмет на земле» (для подсветки/надписи лежащих вещей в мире).
@@ -1105,8 +1109,8 @@ namespace Mmogick
 		}
 
 		// Готовый Sprite иконки для image-prefab. null — если prefab не image (animation
-		// или отсутствует в library) или картинка битая (битый кеш чистится TryGetSprite,
-		// перекачается на следующем sync). Используется UI-кодом (Spell, Item) — они передают
+		// или отсутствует в library). Битая картинка — ошибка клиента (битый кеш чистится TryGetSprite,
+		// перекачается на следующем входе). Используется UI-кодом (Spell, Item) — они передают
 		// BaseController.GAME_ID (public static, глобальный конфиг проекта).
 		// Контракт: вызывать только после SigninController.LoadMain (т.е. _library != null).
 		public static Sprite GetPrefabSprite(int gameId, string prefab)
@@ -1116,7 +1120,11 @@ namespace Mmogick
 			string imageFile = GetPrefabImage(prefab);
 			if (imageFile == null) return null;
 			try { return TryGetSprite(gameId, imageFile); }
-			catch (Exception ex) { Debug.LogWarning("GetPrefabSprite '" + prefab + "': " + ex.Message); return null; }
+			catch (Exception ex)
+			{
+				ConnectController.Error("Иконка префаба " + prefab, ex);
+				return null;
+			}
 		}
 	}
 }

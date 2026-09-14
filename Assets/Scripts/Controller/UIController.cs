@@ -98,6 +98,12 @@ namespace Mmogick
         /// </summary>
         public void OpenClose(CanvasGroup canvasGroup)
         {
+            // Выключенное окно не открываем: невидимым оно осталось бы и открытым, а прочие меню общее закрытие
+            // ниже погасило бы. Выключает окно маркер, когда в игре нет ни одной его команды и ни одного его
+            // компонента (GameElementMarker).
+            if (!canvasGroup.gameObject.activeInHierarchy)
+                return;
+
             // закроем все меню
             CloseAllMenu(canvasGroup);
 

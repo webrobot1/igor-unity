@@ -5,11 +5,13 @@ namespace Mmogick
     /// </summary>
     abstract public class Response
     {
+        public const string ACTION_INDEX = "index";
+
         /// <summary>
         /// значение action события. По умолчанию index; уходит на сервер ВСЕГДА — сервер требует явный
         /// action (иначе вложенную группу событий не отличить от пары «группа/событие»).
         /// </summary>
-        private string _action = "index";
+        private string _action = ACTION_INDEX;
 
         /// <summary>
         /// группа события которое которое мы хотим что бы наш игрок сделал на сервер

@@ -140,7 +140,7 @@ namespace Mmogick
                         InventoryController.LocalPlace(freeSlot, this);
                 }
 
-                if (SlotNum > 0)
+                if (SlotNum > 0 && ConnectController.HasPublicEvent(ActionBarsResponse.GROUP, Response.ACTION_INDEX))
                 {
                     ActionBar bar = obj.GetComponent<ActionBar>();
                     ActionBarsResponse response = new ActionBarsResponse();
@@ -170,6 +170,7 @@ namespace Mmogick
                 // Если предмет взят из equip-slot — drop в любой инвентарный слот = unequip.
                 // Отправляем явный ui/equip/index {slug: null}, и дальше идёт обычная логика swap/place,
                 // если целевой slot отличается от текущего (чтобы можно было одновременно снять и переложить).
+                // Слот-источник есть лишь у игры с командой надевания (EquipmentSlot.CanTake).
                 if (CursorController.SourceEquipmentSlot != null)
                 {
                     var slug = CursorController.SourceEquipmentSlot.SlotSlug;
@@ -178,7 +179,9 @@ namespace Mmogick
                     equipResponse.Send();
                 }
 
-                if (targetSlot.SlotNum != SlotNum)
+                // Раскладка уходит серверу снимком (ui/inventory/index): в игре без этой команды предмет не
+                // перекладывается вовсе — иначе на экране он лежал бы не там, где у сервера.
+                if (targetSlot.SlotNum != SlotNum && ConnectController.HasPublicEvent(InventoryResponse.GROUP, Response.ACTION_INDEX))
                 {
                     Item displaced = targetSlot.Item;
                     int originalSlot = SlotNum;
@@ -203,9 +206,13 @@ namespace Mmogick
                     }
                 }
             }
-            // Дроп в мир — выбросить предмет
+            // Дроп в мир — выбросить предмет. Выброс уходит тем же снимком раскладки (ui/inventory/index): в игре
+            // без этой команды предмет не выбрасывается.
             else if (obj == null)
             {
+                if (!ConnectController.HasPublicEvent(InventoryResponse.GROUP, Response.ACTION_INDEX))
+                    return;
+
                 // Стак уходит на землю столько, сколько назвал игрок: выброшенного не вернуть, и
                 // терять весь запас из-за одного движения он не должен. Одна единица вопроса не стоит.
                 if (SlotNum > 0 && Count > 1)

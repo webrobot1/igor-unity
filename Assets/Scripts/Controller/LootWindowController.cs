@@ -259,12 +259,15 @@ namespace Mmogick
 		/// Открываемый ли это контейнер — труп существа с дропом, объект-сундук либо лавка торговца. UX-фильтр
 		/// перед отправкой открытия: зеркалит серверные гейты ui/loot/open (живую цель и сущность без добычи
 		/// сервер отбивает молча) — без него клик по любому объекту без запаса здоровья (портал, алтарь)
-		/// слал бы заведомо отбиваемую команду. Тем же признаком решается и подсветка кликабельного:
-		/// кольцо обещает открытие ровно там, где оно состоится.
+		/// слал бы заведомо отбиваемую команду. В игре без самой команды открытия контейнеров нет вовсе.
+		/// Тем же признаком решается и подсветка кликабельного: кольцо обещает открытие ровно там, где оно
+		/// состоится.
 		/// </summary>
 		public static bool IsContainer(EntityModel entity)
 		{
 			if (entity == null || string.IsNullOrEmpty(entity.prefab)) return false;
+
+			if (!HasPublicEvent(LootOpenResponse.GROUP, LootOpenResponse.ACTION)) return false;
 
 			// живая цель добычи не отдаёт (труп существа лутается только мёртвым); у объекта-сундука
 			// запаса здоровья нет вовсе — hp остаётся null и гейт его не трогает
@@ -563,10 +566,11 @@ namespace Mmogick
 			// Пустой контейнер («обыскал — пусто») кнопку не показывает вовсе: забирать нечего, а сама
 			// кнопка лежит поверх сетки и мешала бы класть в него своё. У лавки кнопки нет ни при каком
 			// составе — скупать прилавок целиком одним нажатием игроку незачем (решение пользователя),
-			// а денег на это не хватало бы почти всегда.
+			// а денег на это не хватало бы почти всегда. В игре без команды забора кнопке забирать нечем.
 			if (_takeAllButton != null)
 			{
-				_takeAllButton.gameObject.SetActive(marker.HasLoot && trade == null);
+				_takeAllButton.gameObject.SetActive(marker.HasLoot && trade == null
+					&& HasPublicEvent(InventoryResponse.GROUP, LootTakeResponse.ACTION));
 				_takeAllButton.interactable = true;
 			}
 
@@ -742,10 +746,13 @@ namespace Mmogick
 			return item != null && !string.IsNullOrEmpty(item.prefab) ? item : null;
 		}
 
-		/// <summary>Разрешает ли право на добычу забирать из ОТКРЫТОГО трупа (нет открытого — нет и забора).</summary>
+		/// <summary>
+		/// Можно ли забирать из ОТКРЫТОГО трупа: у игры есть команда забора и право на добычу разрешает (нет
+		/// открытого — нет и забора).
+		/// </summary>
 		public static bool CanTakeFromOpen()
 		{
-			if (_containerKey == null) return false;
+			if (_containerKey == null || !HasPublicEvent(InventoryResponse.GROUP, LootTakeResponse.ACTION)) return false;
 
 			CorpseLootMarker marker = FindOnEntity<CorpseLootMarker>(_containerKey);
 			return marker != null && marker.CanTake(PlayerController.Player != null ? PlayerController.Player.key : null);
@@ -860,7 +867,7 @@ namespace Mmogick
 		// то же укладывание и есть продажа.
 		public static void SendPut(int idx, int? to = null)
 		{
-			if (_containerKey == null) return;
+			if (_containerKey == null || !HasPublicEvent(InventoryResponse.GROUP, LootPutResponse.ACTION)) return;
 
 			// Укладывание в лавку — продажа: даром вещь не уходит. Сервер молча отбивает и вещь без цены
 			// скупки, и сделку, на которую у торговца не хватает кассы, — оба условия зеркалим, иначе

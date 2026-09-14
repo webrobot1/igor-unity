@@ -7,6 +7,9 @@ namespace Mmogick
     {
         public const string GROUP = "move/walk";
 
+        /// <summary>Движение к точке (x, y, z); действие по умолчанию — шаг в направлении.</summary>
+        public const string ACTION_TO = "to";
+
         public override string group
         {
             get { return GROUP; }

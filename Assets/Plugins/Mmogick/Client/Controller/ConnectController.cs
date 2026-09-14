@@ -10,6 +10,10 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
+#if UNITY_EDITOR
+	using System.Diagnostics;
+#endif
+
 #if UNITY_WEBGL && !UNITY_EDITOR
 	using WebGLWebsocket;
 #else
@@ -88,6 +92,14 @@ namespace Mmogick
 		/// для рисования ровно этих ячеек. Контракт: непустое (хотя бы один slug). Установка — в SigninController.LoadMain.
 		/// </summary>
 		public static Dictionary<string, bool> equipment_slot;
+
+		/// <summary>
+		/// Команды, которые игрок этой игры вправе отдать (приходят в /auth): группа → {действие: true}. Пару вне
+		/// перечня сервер не принимает и отключает игрока. Контракт: приходит всегда, пустой законен — у игры нет
+		/// команд, доступных игроку. Установка — в SigninController.LoadMain ДО загрузки игровой сцены; спрашивать —
+		/// через <see cref="HasPublicEvent"/>.
+		/// </summary>
+		internal static Dictionary<string, Dictionary<string, bool>> public_event;
 
 		/// <summary>
 		/// поулченный хост для нового соединения
@@ -655,17 +667,45 @@ namespace Mmogick
 		}
 
 		/// <summary>
+		/// Есть ли пара «группа/действие» среди команд, которые игрок этой игры вправе отдать (<see cref="public_event"/>).
+		/// Перечень кладёт вход в игру до загрузки игровой сцены: спросить раньше — ошибка порядка у вызывающего,
+		/// а не «команды нет», потому бросок.
+		/// </summary>
+		public static bool HasPublicEvent(string group, string action)
+		{
+			if (public_event == null)
+				throw new InvalidOperationException("Перечень команд игры не загружен: команда " + group + "/" + action + " спрошена до разбора пакета входа (SigninController.LoadMain)");
+
+			return public_event.TryGetValue(group, out Dictionary<string, bool> actions) && actions.ContainsKey(action);
+		}
+
+		/// <summary>
 		/// Отправить команду, если группа её событий свободна (условия — у проверки ниже); иначе пакет
-		/// отбрасывается: очереди нет, повтор — забота вызывающего (движение шлёт команду каждый кадр, пока
-		/// зажата клавиша), а в журнал отброс попадает только под <see cref="EntityModel.verbose"/> — он идёт
-		/// по многу раз в секунду.
+		/// отбрасывается: очереди нет, повтор — забота вызывающего (движение шлёт команду каждый кадр, пока зажата
+		/// клавиша), а в журнал отброс попадает только под <see cref="EntityModel.verbose"/> — он идёт по многу
+		/// раз в секунду.
+		///
+		/// Команду, которой нет среди команд игры (<see cref="HasPublicEvent"/>), сюда не шлют: пару вне перечня
+		/// сервер не принимает и отключает игрока, а клиент один на все игры. Отбор стоит у каждого отправителя, до
+		/// сборки команды: элемент интерфейса гаснет либо действие не выполняется. Маркер элементов игры
+		/// (GameElementMarker) этого отбора не заменяет — он гасит элемент, лишь когда у игры нет НИ ОДНОЙ его
+		/// команды, а живой элемент шлёт каждую свою. Дошедшая сюда команда вне перечня — промах такого отбора,
+		/// то есть ошибка клиента: игрок уходит на экран входа (<see cref="Error"/>).
 		///
 		/// Возвращает, передан ли пакет соединению на отправку; false — пакет не ушёл и сам не уйдёт: нет своего
-		/// существа, идёт загрузка мира либо переподключение, соединение не открыто, существо снято с карты,
-		/// либо группа занята прежней командой. Отправка асинхронна: доставки и ответа сервера значение не обещает.
+		/// существа, идёт загрузка мира либо переподключение, соединение не открыто, существо снято с карты, группа
+		/// занята прежней командой либо команды нет среди команд игры. Отправка асинхронна: доставки и ответа
+		/// сервера значение не обещает.
 		/// </summary>
 		public static bool Send(Response data)
 		{
+			// Загрузка мира — служебная команда узла, не команда игры: в перечне её нет, а уходить она обязана.
+			if (data.group != LoadResponse.GROUP && !HasPublicEvent(data.group, data.action))
+			{
+				Error("WebSocket: команды " + data.group + "/" + data.action + " нет среди команд игрока в этой игре");
+				return false;
+			}
+
 			// если нет паузы или мы загружаем иир и не ждем предыдущей загрузки
 			if (player != null && loading == null  && reload == ReloadStatus.None && connect!=null && connect.ReadyState == WebSocketState.Open && player.action!=ACTION_REMOVE)
 			{
@@ -903,7 +943,53 @@ namespace Mmogick
 				Debug.LogException(ex);
 
 			Debug.LogError(text);
-			Close();	
+			Close();
+		}
+
+		/// <summary>
+		/// Исключение, которого код клиента не перехватил, уходит игроку тем же путём, что и <see cref="Error"/>:
+		/// брошенное в корутине, Awake либо колбэке движка тот лишь пишет в консоль и обрывает вызов, а игра
+		/// застывает на полпути. Общего пути у таких исключений нет, кроме журнала движка, — по нему и узнаём.
+		///
+		/// Подписка одна на запуск игры и переживает смену сцен. Перезагрузка домена при входе в игру выключена:
+		/// подписка доживает и до режима правки, где её гасит проверка идущей игры, а новый запуск её не удваивает.
+		/// </summary>
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+		private static void CatchUnhandledExceptions()
+		{
+			Application.logMessageReceived -= OnLogMessage;
+			Application.logMessageReceived += OnLogMessage;
+		}
+
+		/// <summary>
+		/// Журнал зовёт обработчик внутри самой записи и только из главного потока; записи, сделанные внутри
+		/// обработчика, он не принимает вовсе — ни в консоль, ни в обработчики, — потому своя запись в
+		/// <see cref="Error"/> по кругу сюда не вернётся.
+		/// </summary>
+		private static void OnLogMessage(string condition, string stackTrace, LogType type)
+		{
+			// Исключение, перехваченное и записанное самим кодом клиента (Debug.LogException), уже обработано
+			// тем, кто его перехватил.
+			if (type != LogType.Exception || Debug.loggingCaught || !Application.isPlaying)
+				return;
+
+			#if UNITY_EDITOR
+				// Исключение редакторного инструмента в идущей игре — окна, инспектора, скрипта, собирающего или
+				// включающего объекты сцены, — ошибкой игры не является, и выбрасывать за него играющего нельзя.
+				// Свой код редактор зовёт через типы UnityEditor, и они стоят в стеке этого вызова; игровой цикл
+				// зовёт код игры без них.
+				foreach (StackFrame frame in new StackTrace().GetFrames())
+					if (frame.GetMethod()?.DeclaringType?.Namespace?.StartsWith("UnityEditor") == true)
+						return;
+			#endif
+
+			string text = "Ошибка клиента: " + condition;
+
+			// Из идущей игры — на экран входа; до неё, со сцены входа, — надписью на ней самой.
+			if (FindAnyObjectByType<ConnectController>() != null)
+				Error(text);
+			else if (FindAnyObjectByType<SigninController>() != null)
+				BaseController.Error(text);
 		}
 
 		public void Logout()

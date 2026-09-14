@@ -17,6 +17,9 @@ import re
 import shlex
 
 CHAIN = ';|&\n()'
+# Разделитель в паре части цепочки, когда `&` либо `|` — знак перенаправления (`2>&1`, `&>файл`,
+# `>|файл`): разрез по нему идёт, как по прочим, но ни подоболочки, ни фона он не значит.
+REDIRECT_SEP = '>'
 ASSIGN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*=')
 SHELLS = {'sh', 'bash', 'zsh', 'dash', 'ksh'}
 INTERPRETERS = {'python', 'python3', 'perl', 'php', 'node', 'ruby'}
@@ -61,17 +64,20 @@ def _bare(token):
     return token.strip('"\'').strip('();,')
 
 
-def _raw_parts(command):
+def _raw_links(command):
     """Разрез цепочки на команды, ЧТУЩИЙ кавычки: разделитель внутри строки — данные, не граница.
     Иначе команда, несущая чужой текст аргументом (`sed -i "s|A|B|"`, `grep -E "a|b"`, сборка ТЗ,
-    тест-набор), прочлась бы вызовом, которым не является. Части возвращаются стрипнутыми,
-    пустые отфильтрованы.
+    тест-набор), прочлась бы вызовом, которым не является.
     `\\` перед переносом строки границы не даёт: оболочка склеивает такие строки в одну команду.
     Без склейки перенос доезжает до токенизатора и встаёт в части ОТДЕЛЬНЫМ токеном, а дальше
     цена его двусторонняя: гейт, читающий цели, берёт его целью без абсолютного пути — отказ
     вызову, у которого все цели полные; гейт, читающий подкоманду по позиции, получает его на
-    месте подкоманды — запрещённая подкоманда проходит молча."""
-    parts, buf, quote, i, n = [], [], None, 0, len(command)
+    месте подкоманды — запрещённая подкоманда проходит молча.
+    Возвращает пары (часть, разделитель ЗА ней): `&&`, `||`, `|`, `&`, `;`, `(`, `)`, перенос строки;
+    у `&` и `|` перенаправления (`2>&1`, `&>файл`, `>|файл`) — REDIRECT_SEP, у последней части —
+    пустая строка. Части стрипнуты, пустые НЕ отфильтрованы: разделитель за пустой частью (`(` в
+    начале подоболочки) значит, в какой оболочке исполнится следующая часть."""
+    links, buf, quote, i, n = [], [], None, 0, len(command)
     while i < n:
         ch = command[i]
         if ch == '\\' and i + 1 < n and command[i + 1] == '\n' and quote != "'":
@@ -98,14 +104,25 @@ def _raw_parts(command):
             i += 1
             continue
         if ch in CHAIN:
-            parts.append(''.join(buf))
+            sep, step = ch, 1
+            if ch in '&|' and i + 1 < n and command[i + 1] == ch:
+                sep, step = ch * 2, 2
+            elif ch in '&|' and ((i > 0 and command[i - 1] in '<>')
+                                 or (ch == '&' and i + 1 < n and command[i + 1] == '>')):
+                sep = REDIRECT_SEP
+            links.append((''.join(buf).strip(), sep))
             buf = []
-            i += 1
+            i += step
             continue
         buf.append(ch)
         i += 1
-    parts.append(''.join(buf))
-    return [p for p in (part.strip() for part in parts) if p]
+    links.append((''.join(buf).strip(), ''))
+    return links
+
+
+def _raw_parts(command):
+    """Части цепочки без разделителей, пустые отфильтрованы."""
+    return [p for p, _ in _raw_links(command) if p]
 
 
 def tokens(part):
@@ -211,20 +228,29 @@ def heredoc_bodies(command):
     return split_heredocs(command)[1]
 
 
-def split_parts(command, depth=0):
-    """Части цепочки команд. Тело heredoc, поданное чужой команде данными (`cat > файл <<EOF`,
-    ввод `sed`), частью не является: текст в нём остаётся текстом, и вызов, ПРИВЕДЁННЫЙ в нём
-    примером, командой не считается ни одним гейтом. Тело, поданное оболочке (`bash <<SH`),
-    разбирается своей цепочкой — оно исполняется, и гейт обязан видеть его вызовы. Тело, поданное
-    интерпретатору (`python3 - <<PY`), частями не даёт вовсе — это код, не цепочка; кому он нужен,
-    берёт его heredoc_bodies и разбирает как код."""
+def split_links(command, depth=0):
+    """Части цепочки команд, каждая с разделителем за ней (_raw_links), пустые не отфильтрованы.
+    Тело heredoc, поданное чужой команде данными (`cat > файл <<EOF`, ввод `sed`), частью не
+    является: текст в нём остаётся текстом, и вызов, ПРИВЕДЁННЫЙ в нём примером, командой не
+    считается ни одним гейтом. Тело, поданное оболочке (`bash <<SH`), разбирается своей цепочкой —
+    оно исполняется, и гейт обязан видеть его вызовы; его части идут за частями всей команды в паре
+    `(` … `)`: исполняет тело дочерняя оболочка. Тело, поданное интерпретатору (`python3 - <<PY`),
+    частями не даёт вовсе — это код, не цепочка; кому он нужен, берёт его heredoc_bodies и разбирает
+    как код."""
     text, bodies = split_heredocs(command)
-    parts = _raw_parts(text)
+    links = _raw_links(text)
     if depth < HEREDOC_DEPTH:
         for kind, body in bodies:
             if kind == 'shell':
-                parts.extend(split_parts(body, depth + 1))
-    return parts
+                links.append(('', '('))
+                links.extend(split_links(body, depth + 1))
+                links.append(('', ')'))
+    return links
+
+
+def split_parts(command, depth=0):
+    """Части цепочки команд без разделителей, пустые отфильтрованы; состав — split_links."""
+    return [p for p, _ in split_links(command, depth) if p]
 
 
 def command_index(toks, wrappers=WRAPPER_VALUE_OPTS):

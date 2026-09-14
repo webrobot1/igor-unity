@@ -23,7 +23,9 @@
 # файловый тул — fail-closed (одна правка, отказ дёшев, границу установить нечем); Bash — fail-open
 # с уведомлением: хук висит на КАЖДОМ вызове оболочки, отказ разбора не смеет ронять работу.
 #
-# РАЗРЕШЁННОЕ множество каталогов берётся из носителей, не литералами:
+# РАЗРЕШЁННОЕ множество каталогов берётся из носителей, не литералами. Корни проекта (первые три
+# пункта) — общий носитель lib/project_scope.py: той же зоной git-state-guard.sh сужает отказ;
+# деревья сессий (четвёртый) — только здесь:
 #   корень проекта — два уровня над каталогом самого хука. У копии хука в другом репозитории это
 #     его корень: литерал тут не нужен, и зеркалирование тела не правит. В сессии клиента либо узла
 #     множество тем самым сужается до их репозитория и дерева его сессий — принято пользователем;
@@ -79,9 +81,9 @@ import json, os, re, sys, tempfile
 HOOKS_DIR = os.path.realpath(os.environ.get("HOOKS_DIR") or ".")
 sys.path.insert(0, os.path.join(HOOKS_DIR, "lib"))
 from write_targets import normalize, scan_command
+from project_scope import distinct, inside, project_roots
 
 PROJ = os.path.realpath(os.path.join(HOOKS_DIR, "..", ".."))
-SETTINGS = ("settings.json",)
 # Файловые тулы с готовым путём в поле вызова: у Edit и Write — `file_path`, у NotebookEdit —
 # `notebook_path`. Правится парно с matcher регистрации хука — в `.claude/settings.json` проекта и в
 # реестрах контуров, куда хук зеркалируется.
@@ -116,49 +118,6 @@ def deny(reason):
     sys.exit(2)
 
 
-def settings_dirs():
-    """`permissions.additionalDirectories` из настроек проекта, обоих файлов."""
-    dirs = []
-    for fname in SETTINGS:
-        try:
-            with open(os.path.join(PROJ, ".claude", fname), encoding="utf-8") as fh:
-                data = json.load(fh)
-        except (OSError, ValueError):
-            continue
-        for d in ((data.get("permissions") or {}).get("additionalDirectories") or []):
-            if isinstance(d, str) and d:
-                dirs.append(os.path.normpath(os.path.expanduser(d)))
-    return dirs
-
-
-def repo_of(path):
-    """Корень репозитория, которому принадлежит путь: ближайший каталог вверх с `.git` (каталог
-    либо файл у рабочего дерева). None — не в репозитории либо каталог не смонтирован."""
-    cur = path
-    while True:
-        if os.path.exists(os.path.join(cur, ".git")):
-            return cur
-        up = os.path.dirname(cur)
-        if up == cur:
-            return None
-        cur = up
-
-
-def links():
-    """Реальные каталоги за симлинками бандлов узла и каталога артефактов."""
-    res = []
-    build = os.path.join(PROJ, "Build")
-    try:
-        names = [os.path.join(build, n) for n in os.listdir(build)]
-    except OSError:
-        names = []
-    names.append(os.path.join(PROJ, ".playwright-mcp"))
-    for p in names:
-        if os.path.islink(p):
-            res.append(os.path.realpath(p))
-    return res
-
-
 def slug(path):
     return re.sub(r"[^A-Za-z0-9]", "-", path)
 
@@ -175,26 +134,8 @@ def session_trees(data):
     return res
 
 
-def inside(path, roots):
-    return any(path == r or path.startswith(r + "/") for r in roots)
-
-
 def allowed_roots(data):
-    res = [PROJ]
-    for d in settings_dirs():
-        res.append(d)
-        top = repo_of(d)
-        if top:
-            res.append(top)
-    res += links()
-    res += session_trees(data)
-    roots = []
-    for r in res:
-        r = r.rstrip("/") or "/"
-        if r not in roots:
-            roots.append(r)
-    # Каталог внутри другого разрешённого границы не меняет — в перечне отказа он лишний.
-    return [r for r in roots if not inside(r, [o for o in roots if o != r])]
+    return distinct(project_roots(PROJ) + session_trees(data))
 
 
 def expand_home(raw):
