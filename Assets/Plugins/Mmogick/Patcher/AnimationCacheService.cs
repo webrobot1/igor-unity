@@ -55,6 +55,10 @@ namespace Mmogick
 		private static SyncManifest _manifest;
 		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
 
+		// Игра, чьи файлы разобраны в память этого кеша — отметка, каталог, умолчания размера, спрайты и скелеты
+		// (см. GameCache).
+		private static int _gameId;
+
 		// Умолчания размера тела — одно на игру у каждого рода визуала (набор картинок, скелет), в той же форме
 		// делителя, что size записи. Действуют у записи, своего size не приславшей (см. PrefabEntry.size).
 		// Приходят КОНВЕРТОМ /prefabs на каждый запрос каталога, включая пустую дельту: их источник — константа
@@ -77,11 +81,10 @@ namespace Mmogick
 			"AnimationCache", ImagesPath, "", new Vector2(0.5f, 0.5f), _ => 100f, SpriteMeshType.Tight,
 			gameId =>
 			{
-				if (_manifest != null)
-				{
-					_manifest.archive_last_modified = null;
-					SaveManifest(gameId);
-				}
+				// Отметка той игры, чья картинка оказалась битой: память кеша держит одну игру (см. GameCache).
+				EnsureLoaded(gameId);
+				_manifest.archive_last_modified = null;
+				SaveManifest(gameId);
 			});
 
 		/// <summary>
@@ -593,6 +596,12 @@ namespace Mmogick
 		// Загружает manifest + library + files с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
+			if (_gameId != gameId)
+			{
+				Forget();
+				_gameId = gameId;
+			}
+
 			string mp = ManifestPath(gameId);
 			GameCache.RequireManifestOnDisk("AnimationCache", _manifest, mp);
 			if (_manifest == null)
@@ -634,38 +643,39 @@ namespace Mmogick
 
 		private static void SaveLibrary(int gameId) => GameCache.WriteJson(LibraryPath(gameId), _library);
 
-		// Полный сброс локального кеша анимаций игры: manifest, library, structures/, images/.
-		// Вызывается при обнаружении рассинхронизации (например, сервер отвечает 404 на animation_id из library).
-		// После сброса следующий SyncAll пересобирает всё с нуля.
-		public static void ResetCache(int gameId)
+		// Забыть разобранное в памяти, файлы оставив: зовут сброс кеша (файлы он снимает сам) и загрузка кеша
+		// другой игрой (EnsureLoaded). null, а не пустые объекты: EnsureLoaded бросает на «отметка в памяти
+		// есть, файла нет», и следующий SyncAll в той же сессии (повторный логин после Error) упал бы на нём.
+		private static void Forget()
 		{
-			Debug.LogWarning("AnimationCache: сброс кеша игры " + gameId);
-			// null, а не пустые объекты: EnsureLoaded проверяет «_manifest != null && !File.Exists(mp)»
-			// и бросает исключение. Если оставить здесь new SyncManifest() — следующий SyncAll в той же
-			// сессии (повторный логин после Error) упадёт на этом guard'е.
 			_manifest = null;
 			_library = null;
-			// Умолчания размера снимаются вместе с каталогом: они его часть, а не отдельное состояние —
-			// оставшись, они отвечали бы по снесённому каталогу.
+			// Умолчания размера забываются вместе с каталогом: они его часть, а не отдельное состояние —
+			// оставшись, они отвечали бы по забытому каталогу.
 			_imageSizeDefault = null;
 			_animationSizeDefault = null;
 			_sprites.Clear();
-			// Каталог структур сносится ниже целиком — разобранное из него в памяти пережило бы снос и
-			// осталось бы отвечать по снятым файлам (память живёт до остановки игры, не до сброса кеша).
+			// Скелеты разобраны из пакетов этого кеша: оставшись, они отвечали бы по файлам, снятым сбросом, и
+			// лежали бы, пока идёт другая игра (память живёт до остановки игры, не до сброса кеша).
 			SpineCacheService.Reset();
+		}
 
-			try
-			{
-				if (File.Exists(ManifestPath(gameId)))       File.Delete(ManifestPath(gameId));
-				if (File.Exists(LibraryPath(gameId)))        File.Delete(LibraryPath(gameId));
-				if (Directory.Exists(StructPath(gameId))) Directory.Delete(StructPath(gameId), true);
-				if (Directory.Exists(ImagesPath(gameId))) Directory.Delete(ImagesPath(gameId), true);
-			}
-			catch (Exception ex) { Debug.LogWarning("AnimationCache: ошибка при сбросе кеша: " + ex.Message); }
+		// Полный сброс локального кеша анимаций игры: manifest, library, structures/, images/.
+		// Вызывается при обнаружении рассинхронизации (например, сервер отвечает 404 на animation_id из library).
+		// После сброса следующий SyncAll пересобирает всё с нуля.
+		// Возвращает причину, по которой файлы кеша не снялись, либо null (см. GameCache.Reset).
+		public static string ResetCache(int gameId)
+		{
+			Debug.LogWarning("AnimationCache: сброс кеша игры " + gameId);
+			Forget();
+
+			string failure = GameCache.Reset("AnimationCache",
+				ManifestPath(gameId), LibraryPath(gameId), StructPath(gameId), ImagesPath(gameId));
 
 			Directory.CreateDirectory(StructPath(gameId));
 			Directory.CreateDirectory(ImagesPath(gameId));
 			GameCache.Flush();
+			return failure;
 		}
 
 		// Полная синхронизация перед входом в игру: архив картинок + library + версии анимаций + предзагрузка скелетов. Вызывать ДО Connect.
@@ -724,7 +734,13 @@ namespace Mmogick
 			foreach (var id in toRemove)
 			{
 				_manifest.animation_versions.Remove(id);
-				SpineCacheService.Drop(gameId, id);
+
+				string dropped = SpineCacheService.Drop(gameId, id);
+				if (dropped != null)
+				{
+					onError?.Invoke(dropped);
+					yield break;
+				}
 			}
 
 			Debug.Log("AnimationCache: анимаций у сервера " + versions.Count + ", удалено " + toRemove.Count);
@@ -760,7 +776,16 @@ namespace Mmogick
 			{
 				versions.TryGetValue(animationId, out long remote);
 				if (!_manifest.animation_versions.TryGetValue(animationId, out long local) || local != remote)
-					SpineCacheService.Drop(gameId, animationId);
+				{
+					// Прежний пакет не снялся — не качаем и отметку не ставим: докачка приняла бы оставшийся
+					// файл за скачанный, а отметка выдала бы его за свежий.
+					string dropped = SpineCacheService.Drop(gameId, animationId);
+					if (dropped != null)
+					{
+						onError?.Invoke(dropped);
+						continue;
+					}
+				}
 
 				string failure = null;
 				yield return SpineCacheService.Ensure(host, gameId, animationId, token, error =>

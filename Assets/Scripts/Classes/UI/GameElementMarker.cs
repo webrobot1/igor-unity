@@ -12,6 +12,10 @@ namespace Mmogick
 	/// Решение принимается один раз, в Awake: код, который позже сам включает объект, его перекрывает, —
 	/// маркер ставится на объект, чью активность код не ведёт. Оба источника к Awake готовы: их кладёт вход
 	/// в игру до загрузки игровой сцены (SigninController.LoadMain).
+	///
+	/// Объект, чью активность ведёт код, а функционал тот же, что у элемента с маркером, своего маркера не
+	/// несёт: код сам спрашивает <see cref="IsNeeded"/> у маркера того элемента и без его согласия объект не
+	/// включает. Перечень команд и компонентов так остаётся одним на оба. Якорь: ActionBarsController.ShowMobileActions.
 	/// </summary>
 	[DisallowMultipleComponent]
 	public class GameElementMarker : MonoBehaviour
@@ -26,10 +30,20 @@ namespace Mmogick
 
 		private void Awake()
 		{
+			if (!IsNeeded())
+				gameObject.SetActive(false);
+		}
+
+		/// <summary>
+		/// Нужен ли элемент этой игре: есть ли у неё хоть одна его команда либо хоть один его компонент.
+		/// Негодно заданный маркер уводит игрока на экран входа (ConnectController.Error) и отвечает false.
+		/// </summary>
+		public bool IsNeeded()
+		{
 			if (commands.Length == 0 && components.Length == 0)
 			{
 				ConnectController.Error("Маркеру элементов игры на объекте " + name + " не задано ни команд, ни компонентов");
-				return;
+				return false;
 			}
 
 			// Все записи проверяются на форму до решения: опечатка в любой из них иначе пряталась бы за
@@ -43,7 +57,7 @@ namespace Mmogick
 				if (slash <= 0 || slash == command.Length - 1)
 				{
 					ConnectController.Error("Маркер элементов игры на объекте " + name + ": команда «" + command + "» задана не полным адресом «группа/действие»");
-					return;
+					return false;
 				}
 
 				needed |= ConnectController.HasPublicEvent(command.Substring(0, slash), command.Substring(slash + 1));
@@ -54,14 +68,13 @@ namespace Mmogick
 				if (string.IsNullOrEmpty(component))
 				{
 					ConnectController.Error("Маркер элементов игры на объекте " + name + ": пустое имя компонента");
-					return;
+					return false;
 				}
 
 				needed |= ComponentCacheService.GetSlugs().Contains(component);
 			}
 
-			if (!needed)
-				gameObject.SetActive(false);
+			return needed;
 		}
 	}
 }

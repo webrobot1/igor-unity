@@ -113,7 +113,7 @@ namespace Mmogick
 		}
 
 		/// <summary>Окно сейчас спрашивает — второй вопрос поверх первого не задаём.</summary>
-		public static bool IsOpen
+		private static bool IsAsking
 		{
 			get { return _group != null && _group.alpha > 0; }
 		}
@@ -129,7 +129,7 @@ namespace Mmogick
 		public static void Ask(string title, int max, Action<int> onConfirm, Func<int, string> priceHint = null)
 		{
 			if (_group == null || _input == null || onConfirm == null || max <= 0) return;
-			if (IsOpen) return;
+			if (IsAsking) return;
 
 			_max = max;
 			_onConfirm = onConfirm;
@@ -183,7 +183,7 @@ namespace Mmogick
 		/// </summary>
 		private static void OnSubmit()
 		{
-			if (!IsOpen || (_ok != null && !_ok.interactable))
+			if (!IsAsking || (_ok != null && !_ok.interactable))
 				return;
 
 			Confirm();

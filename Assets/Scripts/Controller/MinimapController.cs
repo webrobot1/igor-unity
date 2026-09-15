@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
@@ -492,16 +493,18 @@ namespace Mmogick
                 return null;
             }
 
-            Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            texture.LoadImage(png);
-            // Без сглаживания — см. обзорную карту: фильтрация подмешивает прозрачность из-за края карты,
-            // и стык соседних карт читается тёмной полосой.
-            texture.filterMode = FilterMode.Point;
-            texture.wrapMode = TextureWrapMode.Clamp;
+            // Битая картинка кеша снимается разбором, а игроку о ней говорит канал ошибки: тайла на радаре
+            // в этом кадре просто нет.
+            Sprite image = null;
+            try { image = TileCacheService.GetWorldMapSprite(GAME_ID, mapId, png); }
+            catch (Exception ex) { Error("Картинка карты " + mapId + " на радаре", ex); }
+
+            if (image == null)
+                return null;
 
             GameObject tile = Instantiate(minimapMapPrefab, minimapMaps);
             tile.name = mapId.ToString();
-            tile.GetComponent<Image>().sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), Vector2.zero);
+            tile.GetComponent<Image>().sprite = image;
 
             RectTransform rect = tile.GetComponent<RectTransform>();
             // Якорь — середина панели: раскладка считается от игрока, который стоит ровно в центре.

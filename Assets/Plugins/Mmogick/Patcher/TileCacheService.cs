@@ -47,6 +47,9 @@ namespace Mmogick
 		private static Dictionary<string, TilesetMeta> _tilesets;
 		private static Dictionary<string, Tile> _meta;
 
+		// Игра, чьи файлы разобраны в память этого кеша — отметка, мета наборов, отбор мира, спрайты (см. GameCache).
+		private static int _gameId;
+
 		// Графика тайлов: точка отсчёта в левом нижнем углу, пикселей на единицу — ширина самой текстуры.
 		// Вместе это даёт «один тайл = одна клетка мира» при любом разрешении картинки, и на этот pivot
 		// опирается раскладка карты (MapDecodeModel.BuildTileMatrix крутит тайл вокруг центра ячейки).
@@ -55,11 +58,10 @@ namespace Mmogick
 			"TileCache", TilesPath, ".png", new Vector2(0, 0), tex => tex.width, SpriteMeshType.FullRect,
 			gameId =>
 			{
-				if (_manifest != null)
-				{
-					_manifest.archive_last_modified = null;
-					SaveManifest(gameId);
-				}
+				// Отметка той игры, чья картинка оказалась битой: память кеша держит одну игру (см. GameCache).
+				EnsureLoaded(gameId);
+				_manifest.archive_last_modified = null;
+				SaveManifest(gameId);
 			});
 
 		// Шапка скачанной карты: мир, имя и место в открытом мире. Держится в манифесте, а не читается из
@@ -114,6 +116,12 @@ namespace Mmogick
 
 		private static void EnsureLoaded(int gameId)
 		{
+			if (_gameId != gameId)
+			{
+				Forget();
+				_gameId = gameId;
+			}
+
 			string mp = ManifestPath(gameId);
 			GameCache.RequireManifestOnDisk("TileCache", _manifest, mp);
 			if (_manifest == null)
@@ -189,33 +197,33 @@ namespace Mmogick
 
 		private static void SaveManifest(int gameId) => GameCache.WriteJson(ManifestPath(gameId), _manifest);
 
-		public static void ResetCache(int gameId)
+		// Забыть разобранное в памяти, файлы оставив: зовут сброс кеша (файлы он снимает сам) и загрузка кеша
+		// другой игрой (EnsureLoaded). null, а не пустые объекты: EnsureLoaded бросает на «отметка в памяти
+		// есть, файла нет», и следующий SyncAll в той же сессии (повторный логин после Error) упал бы на нём.
+		private static void Forget()
 		{
-			Debug.LogWarning("TileCache: сброс кеша игры " + gameId);
-			// null, а не пустые объекты: EnsureLoaded проверяет «_manifest != null && !File.Exists(mp)»
-			// и бросает исключение. Если оставить здесь new SyncManifest() — следующий SyncAll в той же
-			// сессии (повторный логин после Error) упадёт на этом guard'е.
 			_manifest = null;
 			_tilesets = null;
 			_meta = null;
-			_worldMaps = null;   // набор карт снесён — прежний отбор мира устарел (см. GetWorldMaps)
+			_worldMaps = null;   // набор карт забыт — прежний отбор мира устарел (см. GetWorldMaps)
 			_sprites.Clear();
+		}
 
-			try
-			{
-				if (File.Exists(ManifestPath(gameId))) File.Delete(ManifestPath(gameId));
-				if (Directory.Exists(TilesPath(gameId)))   Directory.Delete(TilesPath(gameId), true);
-				if (Directory.Exists(TilesetPath(gameId))) Directory.Delete(TilesetPath(gameId), true);
-				if (Directory.Exists(MapsPath(gameId)))    Directory.Delete(MapsPath(gameId), true);
-				if (Directory.Exists(WorldMapPath(gameId))) Directory.Delete(WorldMapPath(gameId), true);
-			}
-			catch (Exception ex) { Debug.LogWarning("TileCache: ошибка при сбросе кеша: " + ex.Message); }
+		// Возвращает причину, по которой файлы кеша не снялись, либо null (см. GameCache.Reset).
+		public static string ResetCache(int gameId)
+		{
+			Debug.LogWarning("TileCache: сброс кеша игры " + gameId);
+			Forget();
+
+			string failure = GameCache.Reset("TileCache",
+				ManifestPath(gameId), TilesPath(gameId), TilesetPath(gameId), MapsPath(gameId), WorldMapPath(gameId));
 
 			Directory.CreateDirectory(TilesPath(gameId));
 			Directory.CreateDirectory(TilesetPath(gameId));
 			Directory.CreateDirectory(MapsPath(gameId));
 			Directory.CreateDirectory(WorldMapPath(gameId));
 			GameCache.Flush();
+			return failure;
 		}
 
 		// Полная синхронизация перед входом в игру: архив PNG + мета. Вызывать ДО Connect.
@@ -228,7 +236,7 @@ namespace Mmogick
 		}
 
 		// Архив: GET с If-Modified-Since. 304 → ничего. 200 → unzip в tiles/.
-		public static IEnumerator SyncArchive(string host, int gameId, string token, Action<string> onError, Action<float> onProgress = null)
+		private static IEnumerator SyncArchive(string host, int gameId, string token, Action<string> onError, Action<float> onProgress = null)
 		{
 			string url = "http://" + host + "/map/patch/" + gameId + "/" + token + "/archive";
 			Debug.Log("Запрашиваю архив изображения карт "+url);
@@ -299,7 +307,7 @@ namespace Mmogick
 		}
 
 		// Tileset meta: 1) GET /tileset → список {id: timestamp}  2) GET /tileset/{id} для изменившихся
-		public static IEnumerator SyncMeta(string host, int gameId, string token, Action<string> onError)
+		private static IEnumerator SyncMeta(string host, int gameId, string token, Action<string> onError)
 		{
 			string listUrl = "http://" + host + "/map/patch/" + gameId + "/" + token + "/tileset";
 			Debug.Log("Запрашиваю список тайлсетов " + listUrl);
@@ -490,8 +498,8 @@ namespace Mmogick
 		// нему каждый кадр), а меняется он только с приходом новой карты в кеш — потому отбор считается один
 		// раз и держится до правки манифеста. Без этого каждый кадр стоил бы обхода всех скачанных карт с
 		// новым словарём на выброс: канон клиента («Замер производительности клиента») мерит покадровый код
-		// именно мусором за кадр. Снимают отбор все три точки правки набора карт: приход карты (RememberMap),
-		// сброс кеша (ResetCache) и миграция схемы.
+		// именно мусором за кадр. Снимают отбор все точки правки набора карт в памяти: приход карты (RememberMap),
+		// забвение разобранного (Forget — сброс кеша и загрузка кеша другой игрой) и миграция схемы.
 		private static int _worldMapsWorld = -1;
 		private static Dictionary<int, CachedMap> _worldMaps;
 
@@ -506,7 +514,7 @@ namespace Mmogick
 			// четырёх каталогов кеша — около десятка обращений к файловой системе и полтора десятка
 			// строк-мусора за кадр. Диск нужен лишь тому, кто кеш ЧИТАЕТ либо ПИШЕТ, — сюда он попадает
 			// только на пересчёте отбора, то есть при первом спросе и после смены набора карт.
-			if (_worldMaps != null && _worldMapsWorld == worldId)
+			if (_worldMaps != null && _gameId == gameId && _worldMapsWorld == worldId)
 				return _worldMaps;
 
 			EnsureLoaded(gameId);
@@ -596,6 +604,57 @@ namespace Mmogick
 			File.WriteAllBytes(WorldMapImagePath(gameId, mapId), png);
 			cached.render = WorldMapStamp(mapId);
 			SaveManifest(gameId);
+		}
+
+		/// <summary>
+		/// Миниатюра карты, разобранная в спрайт по общей конвенции показа: её показывают и радар, и обзорная
+		/// карта, и вид у них один. Байты — те, что лежат в кеше: взятые оттуда (<see cref="GetWorldMapImage"/>)
+		/// либо только что нарисованные и туда положенные (<see cref="SaveWorldMapImage"/>).
+		///
+		/// Разбор не удался — картинка снимается с кеша вместе со своим отпечатком (следующий показ нарисует её
+		/// заново) и летит исключение: текстура остаётся заготовкой, и карта показалась бы мусором, причём молча
+		/// (см. <see cref="SpriteCache"/> — там же разбор графики тайлов и анимаций). Вызыватель ловит и решает,
+		/// что сказать игроку (обычно <see cref="ConnectController.Error"/>).
+		///
+		/// Спрайт и его текстуру создал код: снимает их тот, кто их показывал.
+		/// </summary>
+		public static Sprite GetWorldMapSprite(int gameId, int mapId, byte[] png)
+		{
+			EnsureLoaded(gameId);
+
+			Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+
+			if (!texture.LoadImage(png))
+			{
+				// Заготовка создана кодом и в кеш не легла: снятой ссылки движку мало, сносим явно.
+				UnityEngine.Object.Destroy(texture);
+
+				// Причину неудачного сноса называем в тексте вместо обещания перерисовки: без неё следующий
+				// показ находит тот же битый файл, снова падает на нём и снова не может его снять.
+				string outcome = "снята с кеша, нарисуется заново";
+				try { File.Delete(WorldMapImagePath(gameId, mapId)); }
+				catch (Exception drop)
+				{
+					Debug.LogException(drop);
+					outcome = "не снята с кеша (" + drop.Message + ")";
+				}
+
+				if (_manifest.maps.TryGetValue(mapId, out CachedMap cached))
+				{
+					cached.render = null;
+					SaveManifest(gameId);
+				}
+
+				throw new Exception("TileCache: миниатюра карты " + mapId + " не разобралась ("
+					+ png.Length + " байт), " + outcome);
+			}
+
+			// Без сглаживания: за краем карты в картинке прозрачность, и фильтрация подмешивает её в крайние
+			// пиксели — на стыке двух карт это читается тёмной полосой. Графика и так пиксельная.
+			texture.filterMode = FilterMode.Point;
+			texture.wrapMode = TextureWrapMode.Clamp;
+
+			return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), Vector2.zero);
 		}
 
 		// Sprite тайла по его отпечатку: PNG локального кеша, разобранный по конвенции тайла (см. _sprites).

@@ -220,11 +220,11 @@ namespace Mmogick
 
 			if (refusal != null)
 			{
-				// retry — повторимый отказ (сервер карты ещё поднимается): ждём названное сервером время и заходим
-				// снова. Для игрока это затянувшийся вход, а не ошибка, потому Error() тут не зовём — он увёл бы на
-				// экран входа с текстом. Отказ по существу (не прошедший проверку ввод, неверный логин, слишком
-				// частые входы) сервер повторимым не метит: повтор его не изменит, а игрок ждал бы впустую до
-				// общего предела.
+				// retry — повторимый отказ (сервер карты ещё поднимается, слишком частые входы — в том числе вход
+				// сразу после регистрации): ждём названное сервером время и заходим снова. Для игрока это
+				// затянувшийся вход, а не ошибка, потому Error() тут не зовём — он увёл бы на экран входа с текстом.
+				// Отказ по существу (не прошедший проверку ввод, неверный логин) сервер повторимым не метит: повтор
+				// его не изменит, а игрок ждал бы впустую до общего предела.
 				if (refusal.retry > 0 && DateTime.Now < retryDeadline)
 				{
 					Debug.Log("Авторизация: " + refusal.error + ", повтор через " + refusal.retry + " сек.");
@@ -323,12 +323,16 @@ namespace Mmogick
 				// Content-addressable кеш тайлов: архив графики + мета (If-Modified-Since) ДО входа в игру.
 				// При ошибке — чистим локальный кеш: рассинхрон с сервером самовосстанавливается при следующем заходе.
 				string syncError = null;
+
+				// Кеш, снятый не до конца, следующий заход прочтёт тем же, и самовосстановления не будет: неудача
+				// сброса уходит игроку вместе с ошибкой синхронизации.
+				void Fail(string resetFailure) => Error(resetFailure == null ? syncError : syncError + "\n" + resetFailure);
+
 				yield return StartCoroutine(TileCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err,
 					part => LoadingScreen.SetStage(LoadingScreen.Stage.Tiles, part)));
 				if (syncError != null)
 				{
-					TileCacheService.ResetCache(GAME_ID);
-					Error(syncError);
+					Fail(TileCacheService.ResetCache(GAME_ID));
 					yield break;
 				}
 
@@ -341,8 +345,7 @@ namespace Mmogick
 				yield return StartCoroutine(ComponentCacheService.Sync(SERVER, GAME_ID, data.token, err => syncError = err));
 				if (syncError != null)
 				{
-					ComponentCacheService.ResetCache(GAME_ID);
-					Error(syncError);
+					Fail(ComponentCacheService.ResetCache(GAME_ID));
 					yield break;
 				}
 
@@ -351,8 +354,7 @@ namespace Mmogick
 					part => LoadingScreen.SetStage(LoadingScreen.Stage.Animations, part)));
 				if (syncError != null)
 				{
-					AnimationCacheService.ResetCache(GAME_ID);
-					Error(syncError);
+					Fail(AnimationCacheService.ResetCache(GAME_ID));
 					yield break;
 				}
 				
@@ -361,19 +363,20 @@ namespace Mmogick
 				// проверен на входе (см. Contract).
 				ConnectController.public_event = data.public_event;
 
-				if (!SceneManager.GetSceneByName(SCENE_MAIN).IsValid())
-				{
-					Debug.Log("Загружаю сцену игры ");
-					AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(SCENE_MAIN, new LoadSceneParameters(LoadSceneMode.Additive));
-					// asyncLoad.allowSceneActivation = false;
+				// Ввод и звук переходят к игровой сцене (см. SetSceneFocus): свои гасим до её загрузки.
+				SetSceneFocus(gameObject.scene, false);
 
-					// Wait until the asynchronous scene fully loads
-					while (!asyncLoad.isDone)
-					{
-						LoadingScreen.SetStage(LoadingScreen.Stage.Scene, asyncLoad.progress);
-						yield return null;
-					}
+				Debug.Log("Загружаю сцену игры ");
+				AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(SCENE_MAIN, new LoadSceneParameters(LoadSceneMode.Additive));
+				// asyncLoad.allowSceneActivation = false;
+
+				// Wait until the asynchronous scene fully loads
+				while (!asyncLoad.isDone)
+				{
+					LoadingScreen.SetStage(LoadingScreen.Stage.Scene, asyncLoad.progress);
+					yield return null;
 				}
+
 				// idle_action задаём ДО Connect, чтобы первый же спавн мог сразу резолвить idle-клип через
 				// ConnectController.idle_action. Контракт поля проверен на входе в метод (см. Contract).
 				ConnectController.idle_action = data.idle_action;

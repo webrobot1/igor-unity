@@ -189,8 +189,14 @@ namespace Mmogick
                             // недостающую запись уже не принесёт. Тот же приём, что у ошибок самой синхронизации
                             // (SigninController: ResetCache + Error). Ошибку всё равно показываем — рассинхрон
                             // чинится у источника, здесь только снимается тупик.
-                            AnimationCacheService.ResetCache(GAME_ID);
-                            Error("У заклинания " + spell.Key + " не задана группа команды (компонент " + COMPONENT_EVENT + "). Каталог сброшен — повторите вход");
+                            // Каталог не снялся — обещать вход заново нечем: тот же каталог прочтёт и он.
+                            string reset = AnimationCacheService.ResetCache(GAME_ID);
+                            Error("У заклинания " + spell.Key + " не задана группа команды (компонент " + COMPONENT_EVENT + ")"
+                                + (reset == null ? ". Каталог сброшен — повторите вход" : ""));
+
+                            if (reset != null)
+                                Error(reset);
+
                             return;
                         }
 

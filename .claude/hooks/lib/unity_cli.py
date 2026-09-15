@@ -39,7 +39,8 @@ def options(toks):
 
 
 def tool_calls(command, tool):
-    """Опции каждого вызова `unity-mcp-cli run-tool <tool>` в команде оболочки.
+    """Опции каждого вызова `unity-mcp-cli run-tool <tool>` в команде оболочки; tool None — вызов
+    любого тула (работа с редактором вообще, не одна смена его состояния).
 
     Имя тула у этого канала — позиционный аргумент команды, а не имя вызываемого тула MCP.
     """
@@ -52,7 +53,7 @@ def tool_calls(command, tool):
         names = [name(t) for t in toks[start:]]
         if names[0] not in ("npx", CLI) or CLI not in names:
             continue
-        if RUN not in names or tool not in names:
+        if RUN not in names or (tool is not None and tool not in names):
             continue
 
         yield options(toks[start:])

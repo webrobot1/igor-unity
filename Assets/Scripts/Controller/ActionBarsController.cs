@@ -38,7 +38,15 @@ namespace Mmogick
         /// дополнительные кнокпки быстрого доступа (скрваемые)
         /// </summary>
         [SerializeField]
-        protected GameObject onlyMobileActions;
+        private GameObject onlyMobileActions;
+
+        /// <summary>
+        /// Маркер основной панели быстрого доступа. Мобильные кнопки — её продолжение: их слоты идут следом за
+        /// слотами основной панели, — потому игре они нужны по тому же признаку. Своего маркера у мобильных кнопок
+        /// нет: их активность ведёт настройка игрока (см. <see cref="ShowMobileActions"/>).
+        /// </summary>
+        [SerializeField]
+        private GameElementMarker mainActionBarsMarker;
 
         protected override void Awake()
         {
@@ -56,6 +64,12 @@ namespace Mmogick
                 return;
             }
 
+            if (mainActionBarsMarker == null)
+            {
+                Error("не указан маркер основной панели быстрого доступа (MainActionBars)");
+                return;
+            }
+
             if (actionButtonPrefab == null)
             {
                 Error("не указан префаб кнопки быстрого доступа (ActionButton)");
@@ -70,6 +84,19 @@ namespace Mmogick
                     return;
                 }
             }
+
+            // До настройки игрока мобильные кнопки стоят, как в сцене, — но и так лишь у игры, которой нужна панель.
+            ShowMobileActions(onlyMobileActions.activeSelf);
+        }
+
+        /// <summary>
+        /// Показать либо скрыть мобильные кнопки быстрого доступа. Показ идёт, лишь пока панель нужна игре, —
+        /// признак берётся у маркера основной панели: выбор игрока в настройках не показывает кнопок, которые игре
+        /// не нужны.
+        /// </summary>
+        protected void ShowMobileActions(bool shown)
+        {
+            onlyMobileActions.SetActive(shown && mainActionBarsMarker.IsNeeded());
         }
 
         /// <summary>

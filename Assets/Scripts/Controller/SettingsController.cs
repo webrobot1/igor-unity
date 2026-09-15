@@ -238,7 +238,7 @@ namespace Mmogick
                         joystick.gameObject.SetActive(int.Parse(settings["joystick"]) > 0);
 
                     if (settings.ContainsKey("actions"))
-                        onlyMobileActions.gameObject.SetActive(settings["actions"] == "mobile");
+                        ShowMobileActions(settings["actions"] == "mobile");
 
                     if (settings.ContainsKey("minimap"))
                         SetMinimapEnabled(int.Parse(settings["minimap"]) > 0);

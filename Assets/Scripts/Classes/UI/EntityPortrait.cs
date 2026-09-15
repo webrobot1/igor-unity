@@ -20,16 +20,10 @@ namespace Mmogick
 	public abstract class EntityPortrait : MonoBehaviour
 	{
 		/// <summary>
-		/// Пропорция отдаления камеры для НЕанимированных целей: множитель мирового размера спрайта.
-		/// У анимированных целей отдаление считается по фактическим границам зеркала (см. CameraUpdate).
-		/// </summary>
-		[SerializeField]
-		protected float aspect = 30;
-
-		/// <summary>
 		/// Насколько кадр шире показанной сущности. 1 — кадр ровно по её границам, больше — с полями вокруг,
 		/// меньше — приближение вплотную. Приближают потому, что границы считаются по частям скелета, а те
 		/// нарисованы с запасом прозрачного поля: по ним фигура выходит заметно мельче, чем видит игрок.
+		/// Картинку неанимированной цели кадр держит по тем же правилам, по границам её спрайта.
 		/// </summary>
 		[SerializeField]
 		protected float frameMargin = 1.111f;
@@ -296,30 +290,34 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Мировые границы фигуры зеркала в её текущей позе — по ним и наводится кадр. Меряет их сам скелет
-		/// по своим кускам: спрайтов у него нет вовсе, и общий замер по спрайтам дал бы пустоту.
-		/// Включённость частей не спрашиваем: клип на отдельных кадрах гасит часть деталей, и кадр
-		/// портрета от этого прыгал бы.
+		/// Мировые границы показанного — по ним и наводится кадр. У зеркала их меряет сам скелет по своим
+		/// кускам: спрайтов у него нет вовсе, и общий замер по спрайтам дал бы пустоту. Включённость частей
+		/// не спрашиваем: клип на отдельных кадрах гасит часть деталей, и кадр портрета от этого прыгал бы.
+		/// У неанимированной цели границы даёт её спрайт. false — показывать нечего.
 		/// </summary>
-		private bool TryGetMirrorBounds(out Bounds bounds)
+		private bool TryGetFigureBounds(out Bounds bounds)
 		{
 			if (_mirrorSkeleton != null)
 				return VisualBuilder.TryGetWorldBounds(_mirrorSkeleton, out bounds);
+
+			if (spriteRender != null && spriteRender.enabled && spriteRender.sprite != null)
+			{
+				bounds = spriteRender.bounds;
+				return true;
+			}
 
 			bounds = new Bounds();
 			return false;
 		}
 
-		// если изображения анимации с сильно отличабщимеся pivot to возможно надо будет каждый FixedUpdate делать этот метод для пересчета положения камеры и объекта что бы он не выходил за рамки
 		protected void CameraUpdate()
 		{
-			// Анимированная цель: показана зеркалом её тела.
-			// Центрируем портрет по world-AABB mirror-спрайтов (иначе pivot fallback-спрайта смещает
-			// камеру и видны только ноги) и ставим fov по честной перспективной формуле, учитывающей
-			// фактическое расстояние от камеры до контента: fov_v = 2*atan(H / (2*D)) в градусах,
-			// с полем frameMargin. Формула `aspect * size` (из оригинала) не масштабируется под
-			// разные расстояния — здесь камера рядом с контентом, и прежняя формула давала крайности.
-			// Content занимает ~1/frameMargin ширины/высоты рамки. 1.111 → content ~90% рамки.
+			// Центрируем портрет по мировым границам показанного (иначе точка привязки спрайта смещает
+			// камеру и видны только ноги) и ставим угол обзора по перспективной формуле от фактического
+			// расстояния камеры до фигуры: fov_v = 2*atan(H / (2*D)) в градусах, с полем frameMargin.
+			// Фигура занимает около 1/frameMargin ширины и высоты рамки. Правило одно на скелет и на
+			// картинку: множитель размера картинки расстояния не учитывает, и у рамок с разной камерой
+			// одна и та же заглушка выходила бы то впору, то за края окна.
 			// Кадр уже замерен и закреплён: держим его, что бы фигура ни вытворяла. Иначе замах оружием
 			// расширил бы габариты, камера отъехала — и тело съёжилось бы на время удара.
 			if (_frameLocked)
@@ -329,9 +327,12 @@ namespace Mmogick
 				return;
 			}
 
-			if (TryGetMirrorBounds(out Bounds agg))
+			// Guard: у цели может вообще не быть спрайта (например когда серверный prefab не определён в
+			// library — визуал не создан). Кадр пустой, рендерить нечего, но цепочка не валится: обрыв
+			// здесь каждый кадр блокировал бы остальную работу портрета (в рамке цели — обновление HP).
+			if (TryGetFigureBounds(out Bounds agg))
 			{
-				// Смещаем объект портрета так, чтобы центр mirror-AABB стал в точке камеры (parent.position).
+				// Смещаем объект портрета так, чтобы центр границ стал в точке камеры (parent.position).
 				Vector3 localCenter = transform.parent.InverseTransformPoint(agg.center);
 				Vector3 lp = transform.localPosition;
 				transform.localPosition = new Vector3(lp.x - localCenter.x, lp.y - localCenter.y, 1);
@@ -352,7 +353,9 @@ namespace Mmogick
 				float needVFromW = 2f * Mathf.Atan(targetW / (camAspect * 2f * worldDistance)) * Mathf.Rad2Deg;
 				face_camera.fieldOfView = Mathf.Clamp(Mathf.Max(needV, needVFromW), 1f, 179f);
 
-				if (lockFrame)
+				// Закрепляется только кадр скелета: картинка неанимированной цели позы не меняет, зато
+				// сменяется целиком (заглушка → кадр смерти), и закреплённый кадр держал бы размер прежней.
+				if (lockFrame && _mirrorSkeleton != null)
 				{
 					// Габариты те же, что кадром раньше — фигура собралась; поехали — счёт заново.
 					if (_measuredHeight > 0
@@ -370,26 +373,7 @@ namespace Mmogick
 						_frameLocked = true;
 					}
 				}
-
-				return;
 			}
-
-			// Зеркала нет (статичный fallback-спрайт, warrior для player, unknow для объектов без анимации):
-			// формула ниже сместит изображение выделелнного предмета так что бы оно оставалось в центре (смещаться будет если pivot отличается от (0.5, 0.5) )
-			// Guard: у цели может вообще не быть SpriteRenderer (например когда server-side prefab не
-			// определён в library — visual не создан). NRE каждый кадр блокирует остальную работу портрета
-			// (в рамке цели — обновление HP), выглядит как "HP не двигается". Молча выходим — кадр пустой,
-			// рендерить нечего, но цепочка не валится.
-			if (spriteRender == null || spriteRender.sprite == null)
-				return;
-			Bounds bounds = spriteRender.sprite.bounds;
-			Vector2 vector = new Vector2(-bounds.center.x / bounds.extents.x / 2, -bounds.center.y / bounds.extents.y / 2);
-			transform.localPosition = new Vector3(vector.x * (spriteRender.sprite.rect.size.x / spriteRender.sprite.pixelsPerUnit) * transform.localScale.y, vector.y * (spriteRender.sprite.rect.size.y / spriteRender.sprite.pixelsPerUnit) * transform.localScale.y, 1);
-
-			float max = Mathf.Max(spriteRender.sprite.rect.size.x / spriteRender.sprite.pixelsPerUnit, spriteRender.sprite.rect.size.y / spriteRender.sprite.pixelsPerUnit);
-
-			// эта пропорция изменит отдаленность камерыб число aspect  это контента которая была выситана с учетом размера окна на 1х1 unit размера изображения умножается как раз на юниты размера (считаюстя как текущий размер деленый на pixelsPerUnit)
-			face_camera.fieldOfView = aspect * max;
 		}
 	}
 }

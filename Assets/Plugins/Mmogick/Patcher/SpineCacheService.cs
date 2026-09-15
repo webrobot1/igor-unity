@@ -178,8 +178,12 @@ namespace Mmogick
 			failure = Build(gameId, packageFile, entity, out SkeletonDataAsset asset);
 			if (failure != null)
 			{
-				// Кеш мог протухнуть (картинки архива сменились) — сносим, следующий заход перекачает.
-				DeletePackage(packageFile);
+				// Кеш мог протухнуть (картинки архива сменились) — сносим, следующий заход перекачает. Не снялся —
+				// перекачки не будет: следующий заход прочтёт тот же файл, и помеха называет это.
+				string drop = DeletePackage(packageFile);
+				if (drop != null)
+					failure += "; " + drop;
+
 				return null;
 			}
 
@@ -330,8 +334,9 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Забыть всё разобранное: зовёт сброс кеша анимаций, сносящий сами файлы пакетов. Память переживает
-		/// остановку игры, и без этого выдача отвечала бы по снятым файлам до конца сеанса.
+		/// Забыть всё разобранное: зовёт кеш анимаций, забывая своё, — при сбросе, сносящем сами файлы пакетов,
+		/// и при загрузке кеша другой игрой. Память переживает остановку игры, и без этого выдача отвечала бы по
+		/// снятым файлам до конца сеанса, а скелеты прежней игры лежали бы, пока идёт другая.
 		/// Собранное создано кодом, и снятой ссылки движку мало: без явного сноса скелеты, их атласы,
 		/// материалы страниц и пиксели текстур лежали бы до конца сеанса. Зовут сброс вне игры (синхронизация
 		/// перед входом) либо на выходе из неё — оттого сносим здесь и то, что <see cref="Forget"/> сносить
@@ -356,24 +361,34 @@ namespace Mmogick
 		/// Снять кеш пакета анимации — версия разошлась с серверной. Зовёт синхронизация перед входом, а она
 		/// идёт при выгруженной игровой сцене: сущностей, на которых стоял бы снимаемый скелет, в этот момент
 		/// нет — потому собранное сносим совсем, а не только забываем.
+		/// Возвращает причину, по которой файл пакета не снялся, либо null: оставшийся файл синхронизация приняла
+		/// бы за скачанный заново и пометила свежим, и старый скелет шёл бы в игру на каждом следующем входе.
 		/// </summary>
-		public static void Drop(int gameId, int animationId)
+		public static string Drop(int gameId, int animationId)
 		{
 			string packageFile = PackageFile(gameId, animationId);
-			if (File.Exists(packageFile))
-				DeletePackage(packageFile);
+			string failure = File.Exists(packageFile) ? DeletePackage(packageFile) : null;
 
 			Forget(animationId, destroy: true);
+			return failure;
 		}
 
 		/// <summary>
-		/// Снять файл пакета. Причину неудачи называем вслух: снаружи видно лишь «пакет не разбирается», а
-		/// следующий заход упрётся в тот же файл и повторит тот же отказ — и так каждый вход.
+		/// Снять файл пакета. Возвращает причину неудачи либо null — назвать её обязан вызывающий: снаружи видно
+		/// лишь «пакет не разбирается», а следующий заход упрётся в тот же файл и повторит тот же отказ.
 		/// </summary>
-		private static void DeletePackage(string packageFile)
+		private static string DeletePackage(string packageFile)
 		{
-			try { File.Delete(packageFile); }
-			catch (Exception ex) { Debug.LogWarning("SpineCache: пакет " + packageFile + " не снят: " + ex.Message); }
+			try
+			{
+				File.Delete(packageFile);
+				return null;
+			}
+			catch (Exception ex)
+			{
+				Debug.LogException(ex);
+				return "SpineCache: пакет " + packageFile + " не снят: " + ex.Message;
+			}
 		}
 
 		private static string PackageFile(int gameId, int animationId)
@@ -466,8 +481,12 @@ namespace Mmogick
 			// Исход разбора картинки смотрим, как и общий кеш спрайтов обоих соседей, читающих те же файлы
 			// (SpriteCache): на битом PNG движок возвращает false, текстура остаётся
 			// заготовкой, и скелет молча рисуется мусором. Отдаём null — вызывающий назовёт страницу.
+			// Заготовка создана кодом и в кеш не легла: снятой ссылки движку мало, сносим явно.
 			if (!texture.LoadImage(File.ReadAllBytes(file)))
+			{
+				UnityEngine.Object.Destroy(texture);
 				return null;
+			}
 
 			texture.name = Path.GetFileNameWithoutExtension(page);
 			_textures[page] = texture;

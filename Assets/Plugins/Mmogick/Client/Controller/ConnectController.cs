@@ -246,9 +246,9 @@ namespace Mmogick
 		/// Ошибки, ждущие показа игроку. Наполняет их <see cref="Error"/>, а зовётся он из колбэков
 		/// библиотеки соединения — то есть из СЕТЕВОГО потока (см. <see cref="CloseSocket"/>: библиотека
 		/// вызывает их из своего конечного автомата); читает и чистит главный, каждый кадр в
-		/// <see cref="Update"/>. Оттого носитель потокобезопасный — тот же, что у очереди пришедших
-		/// пакетов выше: обычный список рвался бы на одновременных записи и чистке, теряя сообщение либо
-		/// падая на несогласованном внутреннем массиве.
+		/// <see cref="Update"/> и разбором <see cref="ErrorReturn"/>. Оттого носитель потокобезопасный — тот же,
+		/// что у очереди пришедших пакетов выше: обычный список рвался бы на одновременных записи и чистке, теряя
+		/// сообщение либо падая на несогласованном внутреннем массиве.
 		/// </summary>
 		private static ConcurrentQueue<string> errors = new ConcurrentQueue<string>();
 
@@ -363,20 +363,36 @@ namespace Mmogick
 					}
 				}
 				else
-				{
-					Close();
-
-					// Начатые загрузки (графика карт и смежных локаций, докачка визуала) снимаем: их результат
-					// ляжет в мир, который уже разбирается с ошибкой и через кадр выгружается вместе со сценой.
-					// Пока корутины доигрывают, они разбирают карты и валятся вторичными ошибками поверх исходной.
-					// Все контроллеры клиента — одна цепочка на этом объекте, потому снятие общее; LoadRegister
-					// ниже стартует уже после него.
-					StopAllCoroutines();
-
-					coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
-					errors.Clear();   // очередь потокобезопасна: снимок для текста снят строкой выше
-				}
+					LeaveWithErrors();
 			}
+		}
+
+		/// <summary>
+		/// Разбор очереди ошибок снаружи цикла связи: зовёт его компонент <see cref="ErrorReturn"/> — там же,
+		/// почему он живёт отдельно от контроллера.
+		/// </summary>
+		internal void LeaveIfErrors()
+		{
+			if (coroutine == null && errors.Count > 0)
+				LeaveWithErrors();
+		}
+
+		/// <summary>
+		/// Увести игрока на экран входа с накопленными ошибками.
+		/// </summary>
+		private void LeaveWithErrors()
+		{
+			Close();
+
+			// Начатые загрузки (графика карт и смежных локаций, докачка визуала) снимаем: их результат
+			// ляжет в мир, который уже разбирается с ошибкой и через кадр выгружается вместе со сценой.
+			// Пока корутины доигрывают, они разбирают карты и валятся вторичными ошибками поверх исходной.
+			// Все контроллеры клиента — одна цепочка на этом объекте, потому снятие общее; LoadRegister
+			// ниже стартует уже после него.
+			StopAllCoroutines();
+
+			coroutine = StartCoroutine(LoadRegister(String.Join(", ", errors)));
+			errors.Clear();   // очередь потокобезопасна: снимок для текста снят строкой выше
 		}
 
 		abstract protected void Handle(string json);
@@ -470,11 +486,11 @@ namespace Mmogick
 
 								CloseSocket(ws);
 							}
+							// Ссылку на соединение ставит сам Connect ещё до установки; здесь её не повторяем. Проверка
+							// выше и продолжение идут в сетевом потоке не атомарно: между ними главный поток может
+							// снять ссылку, уводя игрока на экран входа, и повтор вернул бы её закрываемому сокету.
 							else
-							{
-								connect = ws;
 								reload = ReloadStatus.None;
-							}
 						};
 						ws.OnClose += (sender, ev)  =>
 						{
@@ -660,9 +676,17 @@ namespace Mmogick
 				if (EntityModel.verbose)
 					Debug.Log("WebSocket: пакет пришёл в начатом переходе на другую карту — отброшен");
 			}
-			else
+			// Дальше — возврат на экран входа уже идёт (coroutine). Ошибка снимает ссылку на соединение сразу, а
+			// само закрытие асинхронно: пакеты, бывшие в пути, доходят и после него, и этот хвост штатен. Живая
+			// ссылка здесь исправному клиенту недостижима — её снимает закрытие до начала возврата, — потому это
+			// ошибка клиента; Error заодно закрывает оставшееся соединение.
+			else if (connect != null)
 			{
-				Debug.LogError("WebSocket: Пакеты продолжают приходить" + (connect != null ? " при отсутвующем ссылке на соединение" : ", но ссылка на соединение до сих пор есть"));
+				Error("WebSocket: пакеты продолжают приходить при возврате на экран входа, а ссылка на соединение до сих пор есть");
+			}
+			else if (EntityModel.verbose)
+			{
+				Debug.Log("WebSocket: пакет пришёл после закрытия соединения — отброшен");
 			}
 		}
 
@@ -932,7 +956,8 @@ namespace Mmogick
 			return false;
 		}
 
-		// этот метод по типу exception только выбросит в следующем кадре тк добавляет errors  и выведет в UI ошибку 
+		// Не бросает: кладёт текст в errors и закрывает соединение, а на экран входа с ним уводит разбор очереди
+		// в конце этого кадра (ErrorReturn) либо в начале следующего (Update)
 		public static new void Error(string text, Exception ex = null)
 		{
 			// Текст уходит игроку на экран входа, потому от исключения берём сообщение, а не весь ToString со стеком;
@@ -981,6 +1006,13 @@ namespace Mmogick
 				foreach (StackFrame frame in new StackTrace().GetFrames())
 					if (frame.GetMethod()?.DeclaringType?.Namespace?.StartsWith("UnityEditor") == true)
 						return;
+
+				// Продолжение async-кода инструмента либо пакета движок исполняет своим контекстом синхронизации, и
+				// кадров UnityEditor в стеке у такого вызова нет. Узнаём его по месту броска — стеку самого
+				// исключения. Посылка: код игры клиента async-продолжений не заводит; заведёт — брошенное в них в
+				// редакторе игрока с экрана игры не уведёт.
+				if (stackTrace != null && stackTrace.Contains("UnityEngine.UnitySynchronizationContext"))
+					return;
 			#endif
 
 			string text = "Ошибка клиента: " + condition;
@@ -988,8 +1020,18 @@ namespace Mmogick
 			// Из идущей игры — на экран входа; до неё, со сцены входа, — надписью на ней самой.
 			if (FindAnyObjectByType<ConnectController>() != null)
 				Error(text);
-			else if (FindAnyObjectByType<SigninController>() != null)
+			else
+			{
+				SigninController signin = FindAnyObjectByType<SigninController>();
+				if (signin == null)
+					return;
+
+				// Вход при этом снимается: исключение вложенной корутины (синхронизация кешей перед входом) движок
+				// гасит по-разному — брошенное на её первом шаге отпускает внешнюю корутину дальше, и игра грузилась
+				// бы поверх показанной ошибки, брошенное после ожидания оставляет внешнюю висеть навсегда.
+				signin.StopAllCoroutines();
 				BaseController.Error(text);
+			}
 		}
 
 		public void Logout()
@@ -1005,12 +1047,29 @@ namespace Mmogick
 		{
 			Debug.LogWarning("WebSocket: загружаем сцену регистрации");
 
-			const string REGISTER_SCENE = SCENE_REGISTER;
+			// Вход, начатый на сцене входа, здесь и кончается: его корутины живут на SigninController, и снимает
+			// их возврат. Иначе вход доходит до Connect и открывает соединение под уже показанным экраном входа —
+			// сервер держит по нему игрока в игре, а следующий вход срывается ошибкой авторизации с другого
+			// устройства. Сцены входа ещё нет (возврат из игры) — снимать нечего.
+			SigninController entry = FindAnyObjectByType<SigninController>();
+			if (entry != null)
+				entry.StopAllCoroutines();
 
-			if (!SceneManager.GetSceneByName(REGISTER_SCENE).IsValid())
+			// Ввод и звук отдаём сцене входа (см. SetSceneFocus): игровая сцена гасит свои до её загрузки, а сцена
+			// входа включает свои, когда показана (ShowRegister ниже).
+			SetSceneFocus(gameObject.scene, false);
+
+			// Вход прервался сразу за снятием сцены входа, и она ещё выгружается: в списке сцен она есть, а загруженной
+			// уже не числится. Показать на ней нечего, а выгрузить игровую сцену движок не даст — та осталась бы
+			// последней. Ждём, пока сцена входа уйдёт, и грузим её заново. Иной загрузки сцены входа в это время нет:
+			// грузит её только этот возврат.
+			while (SceneManager.GetSceneByName(SCENE_REGISTER).IsValid() && !SceneManager.GetSceneByName(SCENE_REGISTER).isLoaded)
+				yield return null;
+
+			if (!SceneManager.GetSceneByName(SCENE_REGISTER).IsValid())
 			{
 				//SceneManager.UnloadScene("MainScene");
-				AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(REGISTER_SCENE, new LoadSceneParameters(LoadSceneMode.Additive));
+				AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(SCENE_REGISTER, new LoadSceneParameters(LoadSceneMode.Additive));
 
 				// Unity отказалась начинать загрузку и вернула пустую операцию вместо неё. Отказ штатен, пока
 				// игра сворачивается — остановлен Play Mode либо закрывается приложение: экран входа показывать
@@ -1020,10 +1079,10 @@ namespace Mmogick
 				// игроку: показать её негде, надпись ошибки живёт на той же не загрузившейся сцене.
 				if (asyncLoad == null)
 				{
-					if (Application.CanStreamedLevelBeLoaded(REGISTER_SCENE))
+					if (Application.CanStreamedLevelBeLoaded(SCENE_REGISTER))
 						yield break;
 
-					throw new Exception("WebSocket: сцены входа " + REGISTER_SCENE + " нет в сборке клиента — вернуть игрока на экран входа нечем");
+					throw new Exception("WebSocket: сцены входа " + SCENE_REGISTER + " нет в сборке клиента — вернуть игрока на экран входа нечем");
 				}
 
 				// Wait until the asynchronous scene fully loads
@@ -1041,13 +1100,19 @@ namespace Mmogick
 			// входа, которых на выгруженной сцене быть уже не должно.
 			void ShowRegister()
 			{
+				SigninController signin = FindAnyObjectByType<SigninController>();
+
+				// Сцена входа, оставшаяся загруженной под прерванным входом, свои ввод и звук погасила перед загрузкой
+				// игровой — показанная снова, включает их обратно.
+				SetSceneFocus(signin.gameObject.scene, true);
+
 				if (error != null)
 					// Панель загрузки снимает сам показ ошибки: дальше игрок читает её и входит сам. В соседней
 					// ветке она остаётся поднятой — переход на карту без своего адреса идёт через эту же сцену
 					// входа, и закрыть её собой ровно то, ради чего панель заведена.
 					BaseController.Error(error);
 				else
-					FindAnyObjectByType<SigninController>().Auth();
+					signin.Auth();
 			}
 
 			// Выгрузка АСИНХРОННАЯ: синхронный вызов движок объявил устаревшим и небезопасным.

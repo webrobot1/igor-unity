@@ -1,6 +1,8 @@
 using System;
 using Newtonsoft.Json;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 namespace Mmogick
@@ -42,6 +44,27 @@ namespace Mmogick
 		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
 		protected static string login;
 		protected static string password;
+
+		/// <summary>
+		/// Включить либо погасить у сцены то, что движок держит одним экземпляром на показанное игроку: ввод
+		/// интерфейса (EventSystem) и слушателя звука (AudioListener). Они у каждой сцены клиента свои, а на
+		/// переходе между сценами обе загружены разом: второй включённый движок встречает сообщением в журнале
+		/// и повторяет его, пока включены оба. Потому уходящая сцена гасит своё ДО загрузки сменяющей. Загруженная
+		/// сцена приходит со своими включёнными, а сцена, оставшаяся загруженной под прерванным переходом, включает
+		/// их обратно, когда снова показана игроку.
+		/// </summary>
+		protected static void SetSceneFocus(Scene scene, bool focused)
+		{
+			Toggle<EventSystem>();
+			Toggle<AudioListener>();
+
+			void Toggle<T>() where T : Behaviour
+			{
+				foreach (T behaviour in FindObjectsByType<T>(FindObjectsInactive.Exclude))
+					if (behaviour.gameObject.scene == scene)
+						behaviour.enabled = focused;
+			}
+		}
 
 		public static void  Error(string error = null, Exception ex = null)
 		{

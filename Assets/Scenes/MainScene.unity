@@ -12129,6 +12129,7 @@ GameObject:
   - component: {fileID: 1342826444}
   - component: {fileID: 1342826443}
   - component: {fileID: 1342826448}
+  - component: {fileID: 1342826449}
   m_Layer: 5
   m_Name: UI
   m_TagString: Untagged
@@ -12275,6 +12276,7 @@ MonoBehaviour:
   mainActionBarsContainer: {fileID: 538313457}
   actionButtonPrefab: {fileID: 5750596226409506845, guid: 0e5eac81ac24c9a40b090bf61ae8b68c, type: 3}
   onlyMobileActions: {fileID: 1782924110}
+  mainActionBarsMarker: {fileID: 538313461}
   lootGroup: {fileID: 576463167}
   lootSlotArea: {fileID: 1664737982}
   lootSlotPrefab: {fileID: 6204887223752283507, guid: 0f99c673708f89447bb57c22113a9d67, type: 3}
@@ -12339,6 +12341,19 @@ MonoBehaviour:
   garbageLabel: {fileID: 722929402}
   entities: {fileID: 407075680}
   ground: {fileID: 2066561469}
+--- !u!114 &1342826449
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1342826442}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 98a9d3da04aace04e9d3a083fd791df1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Mmogick.Client::Mmogick.ErrorReturn
+  controller: {fileID: 1342826448}
 --- !u!1 &1345264160
 GameObject:
   m_ObjectHideFlags: 0

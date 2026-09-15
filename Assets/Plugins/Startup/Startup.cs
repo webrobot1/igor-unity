@@ -59,9 +59,14 @@ public class Startup : ScriptableObject
             if (start == null)
                 throw new InvalidOperationException("Первой сцены списка сборки " + path + " нет в проекте — Play Mode не с чего стартовать");
 
-            // Сцены игра загружает из их файлов: несохранённая правка в игру не попадёт, поэтому изменённые сцены
-            // предлагается сохранить до старта.
-            EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
+            // Изменённые сцены предлагается сохранить до старта. Открытая стартовая сцена уходит в игру такой, какая
+            // она в редакторе: несохранённая правка в ней видна в игре и после отказа сохранять (Don't Save).
+            // Отказ (Cancel) отменяет и сам старт игры.
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                EditorApplication.isPlaying = false;
+                return;
+            }
 
             EditorSceneManager.playModeStartScene = start;
         };

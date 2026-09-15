@@ -138,6 +138,8 @@ API маршруты:
 В Unity Editor: Edit → Preferences → External Tools → External Script Editor — выбрать VS Code.
 Unity сгенерирует .sln и .csproj файлы — автодополнение, навигация по коду заработают.
 
+Файлы проекта для VS Code пишет пакет `com.unity.ide.visualstudio` (Visual Studio Editor): расширение Unity for Visual Studio Code работает через него. Устаревший пакет `com.unity.ide.vscode` из проекта убран — вдвоём они попеременно перезаписывали `.csproj` в разных форматах и при старте редактора роняли в консоль исключения «Sharing violation».
+
 Если работа ведётся только с Unity-клиентом без серверной части (PHP) — WSL не требуется.
 VS Code открывается на Windows напрямую, все расширения и отладка работают нативно без ограничений.
 

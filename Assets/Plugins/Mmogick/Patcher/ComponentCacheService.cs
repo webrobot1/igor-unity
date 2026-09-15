@@ -40,6 +40,9 @@ namespace Mmogick
 		private static SyncManifest _manifest;
 		private static Dictionary<string, ComponentEntry> _components;
 
+		// Игра, чьи файлы разобраны в память этого кеша — отметка и справочник (см. GameCache).
+		private static int _gameId;
+
 		[Serializable]
 		public class SyncManifest
 		{
@@ -117,6 +120,12 @@ namespace Mmogick
 		// Загружает отметку синхронизации и сам справочник с диска. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
+			if (_gameId != gameId)
+			{
+				Forget();
+				_gameId = gameId;
+			}
+
 			string mp = ManifestPath(gameId);
 			GameCache.RequireManifestOnDisk("ComponentCache", _manifest, mp);
 
@@ -152,23 +161,26 @@ namespace Mmogick
 
 		private static void SaveDirectory(int gameId) => GameCache.WriteJson(DirectoryFile(gameId), _components);
 
-		// Полный сброс кеша справочника: отметка и сам справочник. Следующий Sync соберёт его с нуля.
-		public static void ResetCache(int gameId)
+		// Забыть разобранное в памяти, файлы оставив: зовут сброс кеша (файлы он снимает сам) и загрузка кеша
+		// другой игрой (EnsureLoaded). null, а не пустые объекты: EnsureLoaded бросает на «отметка в памяти
+		// есть, файла нет», и повторный вход в той же сессии упал бы на этом guard'е.
+		private static void Forget()
 		{
-			Debug.LogWarning("ComponentCache: сброс кеша справочника игры " + gameId);
-			// null, а не пустые объекты: EnsureLoaded бросает на «отметка в памяти есть, файла нет», и
-			// повторный вход в той же сессии упал бы на этом guard'е.
 			_manifest = null;
 			_components = null;
+		}
 
-			try
-			{
-				if (File.Exists(ManifestPath(gameId)))  File.Delete(ManifestPath(gameId));
-				if (File.Exists(DirectoryFile(gameId))) File.Delete(DirectoryFile(gameId));
-			}
-			catch (Exception ex) { Debug.LogWarning("ComponentCache: ошибка при сбросе кеша: " + ex.Message); }
+		// Полный сброс кеша справочника: отметка и сам справочник. Следующий Sync соберёт его с нуля.
+		// Возвращает причину, по которой файлы кеша не снялись, либо null (см. GameCache.Reset).
+		public static string ResetCache(int gameId)
+		{
+			Debug.LogWarning("ComponentCache: сброс кеша справочника игры " + gameId);
+			Forget();
+
+			string failure = GameCache.Reset("ComponentCache", ManifestPath(gameId), DirectoryFile(gameId));
 
 			GameCache.Flush();
+			return failure;
 		}
 
 		// Дельта-синхронизация справочника перед входом в игру. Мёржит изменившиеся записи и удаляет slug'и,

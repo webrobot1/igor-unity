@@ -24,7 +24,9 @@
 # кусок и затирает чужое без сигнала.
 #
 # ЧТО ловится:
-#   чтение — `cat`, `head`, `tail`, `less`, `more`, `nl`, `bat`, `sed` с файлом-исходником; поиск
+#   чтение — `cat`, `head`, `tail`, `less`, `more`, `nl`, `bat`, `sed`, `awk` (файлы после программы) с
+#     файлом-исходником; цикл `for` по литеральному перечню исходников, чья переменная идёт в команду
+#     чтения тела (путь со строкой `путь:число` тоже); поиск
 #     `grep`/`rg` по исходнику шаблоном, совпадающим с каждой строкой (`''`, `^`), без флагов счёта,
 #     перечня файлов, тишины и обращения совпадения; открытие исходника на чтение кодом интерпретатора —
 #     инлайн-флагом и телом heredoc (адреса отдаёт lib/write_targets.py, code_read_paths);
@@ -76,6 +78,13 @@ BRIEF = os.environ.get("BRIEF", "")
 
 # Команды, чей смысл — выложить содержимое файла. `sed` тут по обеим осям — и окно `-n`, и in-place.
 READ_CMDS = {"cat", "head", "tail", "less", "more", "nl", "bat", "sed"}
+# `awk` выкладывает файл так же, но первым позиционным аргументом берёт программу, а не файл; опции
+# `-F`, `-v`, `-f` забирают значение. С `-f` программа приходит файлом, и позиционные — все файлы.
+AWK_CMDS = {"awk", "gawk", "mawk", "nawk"}
+AWK_VALUE_OPTS = {"-F", "-v", "-f", "--field-separator", "--assign", "--file"}
+# Цикл по перечню исходников с командой чтения в теле: путь в теле приходит переменной цикла, и
+# разбор одного вызова его не видит, хотя перечень записан литералом в самой команде.
+FOR_LIST = re.compile(r"\bfor\s+([A-Za-z_]\w*)\s+in\s+(.*?)\s*(?:;|\n)\s*do\b(.*)", re.S)
 # Поиск содержательным шаблоном локализует, а не читает, и файловый тул его не заменяет. Шаблон,
 # совпадающий с каждой строкой, места не локализует: такой поиск выкладывает файл целиком, то есть
 # читает. Флаги счёта, перечня файлов, тишины и обращения совпадения содержимого не выкладывают —
@@ -207,6 +216,65 @@ def search_read_targets(args, kind, cwd):
     return res
 
 
+def awk_read_targets(args, cwd):
+    """Исходники, которые `awk` читает: позиционные аргументы после программы (с `-f` — все),
+    кроме присваиваний `имя=значение`; цель с подстановкой пропускается."""
+    res, program_seen, k = [], False, 0
+    while k < len(args):
+        a = args[k]
+        if a == "--":
+            k += 1
+            continue
+        if a.startswith("-") and len(a) > 1:
+            if a in ("-f", "--file") or a.startswith("--file=") or (a.startswith("-f") and not a.startswith("--")):
+                program_seen = True
+            if a in AWK_VALUE_OPTS:
+                k += 1         # значение — следующим токеном; слитное (`-F:`, `--assign=x=1`) уже в токене
+            k += 1
+            continue
+        if not program_seen:
+            program_seen = True
+            k += 1
+            continue
+        arg = _bare(a)
+        k += 1
+        if not arg or "$" in arg or "`" in arg or "*" in arg or re.match(r"^[A-Za-z_]\w*=", arg):
+            continue
+        path = normalize(os.path.expanduser(arg), cwd)
+        if is_source(path):
+            res.append(path)
+    return res
+
+
+def loop_read_targets(command, cwd):
+    """Исходники перечня цикла `for`, чья переменная идёт в команду чтения тела: тело упоминает
+    переменную и несёт команду чтения с подстановкой в аргументе. Перечень — литералы; слово с
+    маской либо подстановкой пропускается, хвост `:число` (путь со строкой) снимается."""
+    res = []
+    for m in FOR_LIST.finditer(command):
+        var, words, body = m.group(1), m.group(2), m.group(3)
+        if not re.search(r"\$\{?" + var + r"\b", body):
+            continue
+        reads = False
+        for part in split_parts(body):
+            toks = strip_redirects(tokens(part))
+            i = command_index(toks)
+            if i < len(toks) and name(_bare(toks[i])) in READ_CMDS | AWK_CMDS \
+                    and any("$" in t for t in toks[i + 1:]):
+                reads = True
+                break
+        if not reads:
+            continue
+        for word in words.split():
+            word = re.sub(r":\d+$", "", _bare(word))
+            if not word or "$" in word or "`" in word or "*" in word:
+                continue
+            path = normalize(os.path.expanduser(word), cwd)
+            if is_source(path):
+                res.append((path, m.group(0)[:100]))
+    return res
+
+
 def read_targets(command, cwd):
     """Файлы-исходники, которые команда ЧИТАЕТ: позиционные аргументы команд чтения и поиска,
     выкладывающего файл целиком. Опции и их значения пропускаются, цель с подстановкой — тоже
@@ -221,6 +289,9 @@ def read_targets(command, cwd):
         if cmd in SEARCH_CMDS:
             kind = "rg" if cmd == "rg" else "grep"
             res += [(path, part) for path in search_read_targets(toks[i + 1:], kind, cwd)]
+            continue
+        if cmd in AWK_CMDS:
+            res += [(path, part) for path in awk_read_targets(toks[i + 1:], cwd)]
             continue
         if cmd not in READ_CMDS:
             continue
@@ -278,7 +349,7 @@ if not command:
 cwd = data.get("cwd") or PROJ
 
 try:
-    hits = (read_targets(command, cwd) + write_targets_src(command, cwd)
+    hits = (read_targets(command, cwd) + loop_read_targets(command, cwd) + write_targets_src(command, cwd)
             + [(path, frag) for path, frag in code_read_paths(command, cwd) if is_source(path)])
 except Exception as e:
     out({"additionalContext": "file-tool-guard: команда не разобрана (%s). Вызов не блокирован. "

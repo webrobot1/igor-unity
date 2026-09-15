@@ -56,7 +56,8 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Забыть разобранное: зовут сброс кеша и приход нового архива, где картинки могли смениться.
+		/// Забыть разобранное: зовут сброс кеша, загрузка кеша другой игрой и приход нового архива, где картинки
+		/// могли смениться.
 		/// Снятой ссылки движку мало — спрайт и его текстура созданы кодом и помечены DontUnloadUnusedAsset,
 		/// то есть выгрузка неиспользуемого их не заберёт: без явного сноса они держали бы свои пиксели до
 		/// конца сеанса (память переживает остановку игры — перезагрузка домена в проекте выключена).
@@ -91,18 +92,23 @@ namespace Mmogick
 			try { return Load(gameId, key); }
 			catch (Exception ex)
 			{
+				string outcome = "удалена из кеша, перекачается на следующем sync";
+
 				if (!string.IsNullOrEmpty(key))
 				{
 					string path = Path.Combine(_folder(gameId), key + _suffix);
-					// Причину неудачного сноса называем вслух: без неё следующий заход находит тот же битый
-					// файл, снова падает на нём и снова молча не может его снять.
+					// Причину неудачного сноса называем в тексте отказа вместо обещания перекачки: без неё
+					// следующий заход находит тот же битый файл, снова падает на нём и снова не может его снять.
 					try { if (File.Exists(path)) File.Delete(path); }
-					catch (Exception drop) { Debug.LogWarning(_owner + ": битую картинку " + key + " не снять: " + drop.Message); }
+					catch (Exception drop)
+					{
+						Debug.LogException(drop);
+						outcome = "не снята с кеша (" + drop.Message + ")";
+					}
 					_cache.Remove(key);
 					_onBroken(gameId);
 				}
-				throw new Exception(_owner + ": битая картинка '" + key
-					+ "' удалена из кеша, перекачается на следующем sync — " + ex.Message, ex);
+				throw new Exception(_owner + ": битая картинка '" + key + "' " + outcome + " — " + ex.Message, ex);
 			}
 		}
 
@@ -121,10 +127,14 @@ namespace Mmogick
 			// LoadImage возвращает false на битых PNG и на тех, что Unity не умеет разобрать (наблюдалось на
 			// валидных файлах с большими iTXt-чанками XMP-метаданных от Photoshop). Текстура при этом остаётся
 			// заготовкой, и картинка тихо отрисовалась бы мусором — потому бросаем: Get снесёт файл из кеша,
-			// а вызыватель решит, показывать ли ошибку.
+			// а вызыватель решит, показывать ли ошибку. Заготовка создана кодом и в кеш не легла: снятой
+			// ссылки движку мало, сносим явно.
 			if (!tex.LoadImage(bytes))
+			{
+				UnityEngine.Object.Destroy(tex);
 				throw new Exception(_owner + ": Unity.Texture2D.LoadImage не справился с " + key
 					+ " (" + bytes.Length + " байт)");
+			}
 			tex.filterMode = FilterMode.Point;
 			tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 			Sprite s = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), _pivot, _pixelsPerUnit(tex), 0, _meshType);

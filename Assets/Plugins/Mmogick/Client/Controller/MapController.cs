@@ -262,8 +262,11 @@ namespace Mmogick
 								}
 								catch (Exception ex)
 								{
-									TileCacheService.ResetCache(GAME_ID);
+									string reset = TileCacheService.ResetCache(GAME_ID);
 									Error("Карты: Ошибка разбора карты", ex);
+
+									if (reset != null)
+										Error(reset);
 								}
 							}
 						}));

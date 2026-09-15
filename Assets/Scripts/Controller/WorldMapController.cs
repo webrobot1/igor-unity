@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
@@ -363,14 +364,18 @@ namespace Mmogick
                     yield return null;
                 }
 
-                Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                texture.LoadImage(png);
-                // Без сглаживания: за краем карты в картинке прозрачность, и фильтрация подмешивает её в
-                // крайние пиксели — на стыке двух карт это читается тёмной полосой. Графика и так пиксельная.
-                texture.filterMode = FilterMode.Point;
-                texture.wrapMode = TextureWrapMode.Clamp;
+                // Битая картинка кеша снимается разбором, а игроку о ней говорит канал ошибки: раскладку
+                // бросаем недособранной — через кадр её и окно унесёт вместе со сценой.
+                Sprite image = null;
+                try { image = TileCacheService.GetWorldMapSprite(GAME_ID, pair.Key, png); }
+                catch (Exception ex) { Error("Картинка карты " + pair.Key + " на обзорной карте", ex); }
 
-                Sprite image = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), Vector2.zero);
+                if (image == null)
+                {
+                    worldMapBuilding = false;
+                    yield break;
+                }
+
                 worldMapImages.Add(image);
 
                 GameObject tile = Instantiate(worldMapTilePrefab, worldMapContent);
