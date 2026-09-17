@@ -1114,7 +1114,7 @@ MonoBehaviour:
   m_CaretBlinkRate: 0.85
   m_CaretWidth: 1
   m_ReadOnly: 0
-  m_ShouldActivateOnSelect: 0
+  m_ShouldActivateOnSelect: 1
 --- !u!114 &974681895
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1379,7 +1379,7 @@ MonoBehaviour:
   m_CaretBlinkRate: 0.85
   m_CaretWidth: 1
   m_ReadOnly: 0
-  m_ShouldActivateOnSelect: 0
+  m_ShouldActivateOnSelect: 1
 --- !u!114 &1108215133
 MonoBehaviour:
   m_ObjectHideFlags: 0
