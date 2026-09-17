@@ -115,7 +115,7 @@ namespace Mmogick
                 return false;
 
             Sprite sprite = component != null
-                ? AnimationCacheService.GetComponentSprite(BaseController.GAME_ID, component)
+                ? AnimationCacheService.GetComponentSprite(ConnectController.game, component)
                 : null;
 
             ComponentCacheService.IconAnimation animation = sprite == null && component != null
@@ -133,7 +133,7 @@ namespace Mmogick
             else if (_skeleton != component)
             {
                 SkeletonDataAsset asset = SpineCacheService.GetCached(
-                    BaseController.GAME_ID, animation.animation, animation.entity, out string failure);
+                    ConnectController.game, animation.animation, animation.entity, out string failure);
 
                 if (failure != null)
                 {

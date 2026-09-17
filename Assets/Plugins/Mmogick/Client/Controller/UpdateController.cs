@@ -411,7 +411,7 @@ namespace Mmogick
 				// TryGetSprite инвалидирует битый кеш и бросает exception — ловим, выходим
 				// (визуал отменяется, на следующем sync файл перекачается).
 				Sprite sprite;
-				try { sprite = AnimationCacheService.TryGetSprite(GAME_ID, imageFile); }
+				try { sprite = AnimationCacheService.TryGetSprite(game, imageFile); }
 				catch (Exception ex) { Error("Картинка префаба " + newPrefab, ex); return; }
 
 				// Размер целиком ведёт СЕРВЕР: своё значение записи, а нет его — умолчание её рода из конверта
@@ -451,7 +451,7 @@ namespace Mmogick
 					}
 				};
 
-				StartCoroutine(SpineCacheService.GetSkeleton(SERVER, GAME_ID, newPrefab, player_token, (asset, error) =>
+				StartCoroutine(SpineCacheService.GetSkeleton(SERVER, game, newPrefab, player_token, (asset, error) =>
 				{
 					// Скелет качается асинхронно, и за это время сервер мог убрать сущность со сцены (тело по
 					// истечении срока лежания, снаряд после попадания). Это ОЖИДАЕМАЯ гонка, а не сбой:

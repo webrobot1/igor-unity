@@ -20,20 +20,19 @@ Unity 6000.4.0f1. Клиент для 2D MMO RPG сервера.
 
 ### Настройки подключения
 
-В `Assets/Plugins/Mmogick/Client/Controller/BaseController.cs` задаются:
-- `GAME_ID` — ID вашего проекта в личном кабинете (раздел Игры)
-- `SERVER` — адрес сервера по умолчанию (можно переопределить через UI при авторизации)
+- `SERVER` в `Assets/Plugins/Mmogick/Client/Controller/BaseController.cs` — адрес сервера по умолчанию (можно переопределить через UI при авторизации)
+- `REGISTER_GAME_ID` в `Assets/Plugins/Mmogick/Client/Controller/SigninController.cs` — ID вашего проекта в личном кабинете (раздел Игры): в этой игре заводятся игроки, зарегистрированные клиентом. Вход номер игры не использует — игру задаёт учётная запись игрока, поэтому сборка клиента пускает игроков любой игры сервера.
 
 ### Авторизация
 
 Форма авторизации (RegisterScene) содержит поля: сервер, логин, пароль. Адрес сервера предзаполняется из `SERVER`, но может быть изменён пользователем.
 
 API маршруты:
-- `POST /api/game/{gameId}/register` — регистрация (login, password в теле запроса)
-- `POST /api/game/{gameId}/auth` — авторизация (login, password в теле запроса)
-- `GET /maps2d/patch/get_map/{mapId}/{token}` — получение данных карты
+- `POST /api/game/{gameId}/register` — регистрация в игре `REGISTER_GAME_ID` (`slug` — логин, `password` в теле запроса)
+- `POST /api/game/auth` — авторизация (`slug`, `password` в теле запроса), номера игры в адресе нет
+- `GET /map/patch/{gameId}/{token}/map/{mapId}` — получение данных карты
 
-Сервер возвращает `host` (адрес WebSocket), `key`, `token` — после чего клиент подключается по WebSocket к игровой карте.
+Сервер возвращает `game` (игра учётной записи), `host` (адрес WebSocket), `key`, `token` — после чего клиент подключается по WebSocket к игровой карте. Номер `game` клиент подставляет в адреса загрузки карт, графики и справочников игры: сервер отдаёт их, только когда номер в адресе совпадает с игрой, для которой выдан токен.
 
 ### Типы данных в C# структурах
 
@@ -50,7 +49,7 @@ API маршруты:
 	  Assets\Plugins\NuGet					- библиотеки, докачиваемые плагином AI Game Developer (см. ниже)
 	  Assets\Plugins\Mmogick				- интеграция с онлайн-сервером
 		Assets\Plugins\Mmogick\Client			- соединение с сервером и разбор пакетов игрового мира
-		  Controller\BaseController.cs			- GAME_ID, адрес сервера по умолчанию, общий вывод ошибок, инициализация фокуса в WebGL; предок SigninController и ConnectController
+		  Controller\BaseController.cs			- адрес сервера по умолчанию, общий вывод ошибок, инициализация фокуса в WebGL; предок SigninController и ConnectController
 		  Controller\ConnectController.cs		- создаёт WebSocket-соединение, распаковывает пакеты (GZip) и раздаёт данные моделям через SetData
 		  Controller\MapController.cs			- сборка тайловой карты в сцене, выравнивание карты и сущностей
 		  Controller\UpdateController.cs		- создание и обновление сущностей мира, сборка их визуала

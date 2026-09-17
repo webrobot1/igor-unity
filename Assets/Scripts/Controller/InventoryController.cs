@@ -187,7 +187,7 @@ namespace Mmogick
         {
             // Тот же резерв, что у иконок предметов (MoveableObject.ApplyPrefabImage): без него
             // Image с пустым sprite рисует белый прямоугольник, неотличимый от поломки вёрстки.
-            moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(GAME_ID, MONEY_PREFAB)
+            moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(game, MONEY_PREFAB)
                 ?? Resources.Load<Sprite>("unknow");
 
             int money = Money;

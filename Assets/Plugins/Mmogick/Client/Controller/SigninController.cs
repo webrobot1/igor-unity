@@ -12,7 +12,7 @@ namespace Mmogick
     public class SigninController : BaseController
     {
         [SerializeField]
-        protected Text loginField;
+        protected InputField loginField;
 
         [SerializeField]
         protected InputField passwordField;
@@ -23,6 +23,11 @@ namespace Mmogick
         // Действия публичного API входа: та же строка идёт в адрес запроса и различает ветки ниже.
         private const string ACTION_AUTH = "auth";
         private const string ACTION_REGISTER = "register";
+
+        // Игра, в которой регистрируются новые игроки, — ID вашего проекта в личном кабинете (раздел «Игры»).
+        // Номер нужен только регистрации: логина ещё нет, и игру по нему не найти. Вход игру не называет — её
+        // задаёт учётная запись игрока, и приходит она в ответе входа (ConnectController.game).
+        private static readonly int REGISTER_GAME_ID = 1;
 
         // Правила логина — те же, что держит сервер, и отбиваются они здесь ради самого игрока: заведомо
         // негодный ввод не стоит ему похода на сервер и ожидания ответа. Истина остаётся серверной, клиент
@@ -66,12 +71,6 @@ namespace Mmogick
                 return;
             }
 
-            if (GAME_ID == 0)
-            {
-                Error("Не заполнен gameIdField для идентификации в одной из игр сервиса http://mmogick.ru/ и зарегистрируйте новую запись");
-                return;
-            }
-
             if (serverField != null && SERVER.Length > 0)
                 serverField.text = SERVER;
 
@@ -79,6 +78,12 @@ namespace Mmogick
 
         public void Register()
         {
+            if (REGISTER_GAME_ID <= 0)
+            {
+                Error("Регистрация недоступна: в сборке клиента не указана игра, в которой заводится игрок");
+                return;
+            }
+
             login = this.loginField.text;
             password = this.passwordField.text;
 
@@ -139,7 +144,7 @@ namespace Mmogick
 			formData.AddField("slug", login); // поле wire — slug (единая идентичность сущностей на сервере)
 			formData.AddField("password", password);
 
-			string url = "http://" + SERVER + "/api/game/" + GAME_ID + "/" + action;
+			string url = "http://" + SERVER + "/api/game/" + (action == ACTION_REGISTER ? REGISTER_GAME_ID + "/" : "") + action;
 			Debug.Log("Подключение к " + url);
 
 			UnityWebRequest request = UnityWebRequest.Post(url, formData);
@@ -314,6 +319,9 @@ namespace Mmogick
 			else if (string.IsNullOrEmpty(data.token))
 				Error("Не указан token");
 
+			else if (data.game <= 0)
+				Error("Не указана игра игрока");
+
 			else if (Contract(data) != null)
 				Error("Сервер игры настроен не полностью: " + Contract(data));
 
@@ -328,11 +336,14 @@ namespace Mmogick
 				// сброса уходит игроку вместе с ошибкой синхронизации.
 				void Fail(string resetFailure) => Error(resetFailure == null ? syncError : syncError + "\n" + resetFailure);
 
-				yield return StartCoroutine(TileCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err,
+				// Игра сессии — раньше кешей: под её номером они лежат и синхронизируются.
+				ConnectController.game = data.game;
+
+				yield return StartCoroutine(TileCacheService.SyncAll(SERVER, ConnectController.game, data.token, err => syncError = err,
 					part => LoadingScreen.SetStage(LoadingScreen.Stage.Tiles, part)));
 				if (syncError != null)
 				{
-					Fail(TileCacheService.ResetCache(GAME_ID));
+					Fail(TileCacheService.ResetCache(ConnectController.game));
 					yield break;
 				}
 
@@ -342,19 +353,19 @@ namespace Mmogick
 				// При ошибке чистим свой кеш, как у тайлов и анимаций: справочник едет дельтой, и рассинхрон
 				// сам себя вылечит полным ресинком на следующем заходе.
 				LoadingScreen.SetStage(LoadingScreen.Stage.Components);
-				yield return StartCoroutine(ComponentCacheService.Sync(SERVER, GAME_ID, data.token, err => syncError = err));
+				yield return StartCoroutine(ComponentCacheService.Sync(SERVER, ConnectController.game, data.token, err => syncError = err));
 				if (syncError != null)
 				{
-					Fail(ComponentCacheService.ResetCache(GAME_ID));
+					Fail(ComponentCacheService.ResetCache(ConnectController.game));
 					yield break;
 				}
 
 				// Аналогично для анимаций: ZIP картинок (sha256.ext) + per-game library overrides
-				yield return StartCoroutine(AnimationCacheService.SyncAll(SERVER, GAME_ID, data.token, err => syncError = err,
+				yield return StartCoroutine(AnimationCacheService.SyncAll(SERVER, ConnectController.game, data.token, err => syncError = err,
 					part => LoadingScreen.SetStage(LoadingScreen.Stage.Animations, part)));
 				if (syncError != null)
 				{
-					Fail(AnimationCacheService.ResetCache(GAME_ID));
+					Fail(AnimationCacheService.ResetCache(ConnectController.game));
 					yield break;
 				}
 				

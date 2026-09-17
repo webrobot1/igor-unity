@@ -521,7 +521,7 @@ namespace Mmogick
 
 				if (trade != null)
 				{
-					_moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(GAME_ID, MONEY_PREFAB)
+					_moneyIcon.sprite = AnimationCacheService.GetPrefabSprite(game, MONEY_PREFAB)
 						?? Resources.Load<Sprite>("unknow");
 
 					int cash = CashOf(marker);

@@ -310,7 +310,7 @@ namespace Mmogick
 
             // Копия: кеш отдаёт общий отбор только для чтения, а мозаике он нужен просеянным (интерьеры ниже).
             Dictionary<int, TileCacheService.CachedMap> maps = new Dictionary<int, TileCacheService.CachedMap>();
-            foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world))
+            foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in TileCacheService.GetWorldMaps(game, ConnectController.world))
                 maps.Add(pair.Key, pair.Value);
 
             // Что в раскладку мира не идёт, решает единая точка (TileCacheService.InWorldLayout) — тем же
@@ -349,25 +349,25 @@ namespace Mmogick
 
             foreach (KeyValuePair<int, TileCacheService.CachedMap> pair in maps)
             {
-                byte[] png = TileCacheService.GetWorldMapImage(GAME_ID, pair.Key);
+                byte[] png = TileCacheService.GetWorldMapImage(game, pair.Key);
 
                 if (png == null)
                 {
-                    png = WorldMapRenderer.Render(GAME_ID, pair.Key);
+                    png = WorldMapRenderer.Render(game, pair.Key);
 
                     // Карта числится в кеше, а её файла нет — кеш чистили мимо владельца. Пропускаем:
                     // карта перекачается, когда игрок на неё зайдёт.
                     if (png == null)
                         continue;
 
-                    TileCacheService.SaveWorldMapImage(GAME_ID, pair.Key, png);
+                    TileCacheService.SaveWorldMapImage(game, pair.Key, png);
                     yield return null;
                 }
 
                 // Битая картинка кеша снимается разбором, а игроку о ней говорит канал ошибки: раскладку
                 // бросаем недособранной — через кадр её и окно унесёт вместе со сценой.
                 Sprite image = null;
-                try { image = TileCacheService.GetWorldMapSprite(GAME_ID, pair.Key, png); }
+                try { image = TileCacheService.GetWorldMapSprite(game, pair.Key, png); }
                 catch (Exception ex) { Error("Картинка карты " + pair.Key + " на обзорной карте", ex); }
 
                 if (image == null)
@@ -461,7 +461,7 @@ namespace Mmogick
                 return known;
 
             List<Vector2> warps = new List<Vector2>();
-            string json = TileCacheService.ReadCachedMap(GAME_ID, mapId);
+            string json = TileCacheService.ReadCachedMap(game, mapId);
 
             if (json != null)
             {

@@ -121,8 +121,10 @@ DELETE_CMDS = {"rm", "unlink", "shred", "rmdir"}
 SRC_EXT = {".php", ".twig", ".js", ".mjs", ".cjs", ".ts", ".css", ".scss", ".json", ".yaml", ".yml",
            ".neon", ".xml", ".md", ".cs", ".lua", ".sh", ".sql", ".html", ".dist", ".tsx", ".jsx"}
 # Не-исходники по МЕСТУ: журналы и кеш, зависимости, служебное дерево git, артефакты браузера,
-# установленная копия ассетов бандлов. Каталог сессии добавляется отдельно — он вне проекта.
-NOT_SOURCE = ("var/", "vendor/", "node_modules/", ".git/", ".playwright-mcp/", "public/bundles/")
+# установленная копия ассетов бандлов, рабочие данные и кеши приложения (private/: кеши карт, графика, картинки —
+# их пишет php-fpm, а владельца им возвращают chown, таблица core «Файлы»). Каталог сессии добавляется отдельно —
+# он вне проекта.
+NOT_SOURCE = ("var/", "vendor/", "node_modules/", ".git/", ".playwright-mcp/", "public/bundles/", "private/")
 
 
 def out(payload):

@@ -108,7 +108,7 @@ namespace Mmogick
             foreach (AnimationCacheService.ImageVariant v in variants)
             {
                 Sprite s;
-                try { s = AnimationCacheService.TryGetSprite(BaseController.GAME_ID, v.File); }
+                try { s = AnimationCacheService.TryGetSprite(ConnectController.game, v.File); }
                 catch (System.Exception ex)
                 {
                     ConnectController.Error("WeaponMount " + itemPrefab + " вариант " + v.angle + "°", ex);
@@ -441,7 +441,7 @@ namespace Mmogick
             if (animationId == 0 || string.IsNullOrEmpty(entity))
                 return null;
 
-            return SpineCacheService.GetSlots(BaseController.GAME_ID, animationId, entity);
+            return SpineCacheService.GetSlots(ConnectController.game, animationId, entity);
         }
 
         // Слоты-держатели скелета — по именам из якорей ВСЕХ слотов экипировки, не только надетого сейчас:

@@ -218,7 +218,7 @@ namespace Mmogick
 				{
 					if (!_maps.ContainsKey(side.Key))
 					{
-						StartCoroutine(TileCacheService.GetMap(SERVER, GAME_ID, side.Key, player_token, (string json, string error) =>
+						StartCoroutine(TileCacheService.GetMap(SERVER, game, side.Key, player_token, (string json, string error) =>
 						{
 							if (error != null)
 							{
@@ -247,7 +247,7 @@ namespace Mmogick
 										grid.gameObject.AddComponent<Grid>();
 										grid.SetParent(mapObject.transform, false);
 
-										_maps.Add(side.Key, MapDecodeModel.generate(json, grid, GAME_ID));
+										_maps.Add(side.Key, MapDecodeModel.generate(json, grid, game));
 
 										// Пришла разметка ещё одной карты — с ней меняется и то, что клиент
 										// знает о преградах на границах (getGates).
@@ -262,7 +262,7 @@ namespace Mmogick
 								}
 								catch (Exception ex)
 								{
-									string reset = TileCacheService.ResetCache(GAME_ID);
+									string reset = TileCacheService.ResetCache(game);
 									Error("Карты: Ошибка разбора карты", ex);
 
 									if (reset != null)

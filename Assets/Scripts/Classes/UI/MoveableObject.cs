@@ -44,7 +44,7 @@ namespace Mmogick
         /// </summary>
         protected void ApplyPrefabImage(string prefab)
         {
-            Sprite sprite = AnimationCacheService.GetPrefabSprite(BaseController.GAME_ID, prefab)
+            Sprite sprite = AnimationCacheService.GetPrefabSprite(ConnectController.game, prefab)
                 ?? Resources.Load<Sprite>("unknow");
 
             image.sprite = sprite;

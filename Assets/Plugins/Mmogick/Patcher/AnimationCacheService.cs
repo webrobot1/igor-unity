@@ -1135,8 +1135,7 @@ namespace Mmogick
 
 		// Готовый Sprite иконки для image-prefab. null — если prefab не image (animation
 		// или отсутствует в library). Битая картинка — ошибка клиента (битый кеш чистится TryGetSprite,
-		// перекачается на следующем входе). Используется UI-кодом (Spell, Item) — они передают
-		// BaseController.GAME_ID (public static, глобальный конфиг проекта).
+		// перекачается на следующем входе). Используется UI-кодом (Spell, Item).
 		// Контракт: вызывать только после SigninController.LoadMain (т.е. _library != null).
 		public static Sprite GetPrefabSprite(int gameId, string prefab)
 		{

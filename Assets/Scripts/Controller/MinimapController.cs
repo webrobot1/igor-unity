@@ -229,7 +229,7 @@ namespace Mmogick
             // Шапка текущей карты — общий вход обоих рисующих методов (фон и точки): берём ОДИН раз на
             // кадр, а не по разу в каждом — второй проход по тому же словарю карт был бы параллельным
             // обходом тех же данных ради того же вопроса (интерьер это или мозаика открытого мира).
-            IReadOnlyDictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(GAME_ID, ConnectController.world);
+            IReadOnlyDictionary<int, TileCacheService.CachedMap> maps = TileCacheService.GetWorldMaps(game, ConnectController.world);
             maps.TryGetValue(player.map, out TileCacheService.CachedMap current);
 
             UpdateMinimapMaps(playerPos, maps, current);
@@ -484,7 +484,7 @@ namespace Mmogick
             if (_minimapTiles.TryGetValue(mapId, out RectTransform known))
                 return known;
 
-            byte[] png = TileCacheService.GetWorldMapImage(GAME_ID, mapId);
+            byte[] png = TileCacheService.GetWorldMapImage(game, mapId);
             if (png == null)
             {
                 if (!_minimapRendering)
@@ -496,7 +496,7 @@ namespace Mmogick
             // Битая картинка кеша снимается разбором, а игроку о ней говорит канал ошибки: тайла на радаре
             // в этом кадре просто нет.
             Sprite image = null;
-            try { image = TileCacheService.GetWorldMapSprite(GAME_ID, mapId, png); }
+            try { image = TileCacheService.GetWorldMapSprite(game, mapId, png); }
             catch (Exception ex) { Error("Картинка карты " + mapId + " на радаре", ex); }
 
             if (image == null)
@@ -525,9 +525,9 @@ namespace Mmogick
             _minimapRendering = true;
             yield return null;   // отдаём кадр: рисование пойдёт следующим, не в середине текущего
 
-            byte[] png = WorldMapRenderer.Render(GAME_ID, mapId);
+            byte[] png = WorldMapRenderer.Render(game, mapId);
             if (png != null)
-                TileCacheService.SaveWorldMapImage(GAME_ID, mapId, png);
+                TileCacheService.SaveWorldMapImage(game, mapId, png);
 
             _minimapRendering = false;
         }
