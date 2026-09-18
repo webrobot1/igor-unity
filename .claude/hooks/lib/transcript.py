@@ -241,6 +241,51 @@ def compaction_count(event):
     return count
 
 
+# Тело свода, прочитанное файловым тулом, — второй канал загрузки наравне с вызовом `Skill`.
+_SKILL_BODY = re.compile(r"/\.claude/skills/([^/]+)/SKILL\.md$")
+
+
+def skills_loaded(path):
+    """Имена сводов, загруженных в контекст вызывающего после последнего сжатия: вызов тула `Skill`
+    с именем свода либо чтение его тела тулом `Read`. Сжатие переписывает контекст сводкой, и
+    загруженное до него тела в контексте уже не несёт — счёт начинается заново. Транскрипт не
+    читается — None: отсутствие загрузки не наблюдаемо и за отсутствие не выдаётся."""
+    loaded = set()
+    try:
+        fh = open(path, "r", errors="ignore")
+    except OSError:
+        return None
+
+    with fh:
+        for line in fh:
+            if '"compact_boundary"' not in line and '"tool_use"' not in line:
+                continue
+            try:
+                rec = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            if rec.get("type") == "system" and rec.get("subtype") == "compact_boundary":
+                loaded = set()
+                continue
+            content = (rec.get("message") or {}).get("content")
+            if rec.get("type") != "assistant" or not isinstance(content, list):
+                continue
+            for block in content:
+                if not isinstance(block, dict) or block.get("type") != "tool_use":
+                    continue
+                args = block.get("input") or {}
+                if block.get("name") == "Skill" and args.get("skill"):
+                    loaded.add(str(args["skill"]))
+                elif block.get("name") == "Read":
+                    m = _SKILL_BODY.search(str(args.get("file_path") or ""))
+                    if m:
+                        loaded.add(m.group(1))
+
+    return loaded
+
+
 def context_key(event, base):
     """Ключ маркера напоминания о содержимом контекста: `base` плюс номер сжатия вызывающего.
 

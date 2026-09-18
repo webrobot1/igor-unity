@@ -7,8 +7,8 @@ using UnityEngine;
 namespace Mmogick.VideoRig
 {
     /// <summary>
-    /// Оснастка съёмки роликов: прогоняет сценарий действий персонажа и пишет на каждую его сцену свой
-    /// видеофрагмент. Живёт в редакторной сборке — в игру к игроку не попадает.
+    /// Оснастка съёмки роликов: прогоняет сценарий действий персонажа и пишет на каждую снимаемую сцену
+    /// свой видеофрагмент. Живёт в редакторной сборке — в игру к игроку не попадает.
     ///
     /// Порядок прогона: войти в игру обычным путём (Play Mode, кнопка «Войти»), затем позвать
     /// <see cref="Run"/>. Ждать загрузки мира не нужно — прогон ждёт его сам.
@@ -46,12 +46,36 @@ namespace Mmogick.VideoRig
         /// сборщику ролика сразу. Пуст — каталог собирается из <see cref="DefaultOutput"/> и имени файла
         /// сценария.
         /// </summary>
-        public static string Run(string scenarioPath, string outputDir = null)
+        /// <param name="scenes">
+        /// Коды снимаемых сцен. Не передан — снимаются все сцены сценария; передан — только названные, в
+        /// порядке сценария. Сцены одного ролика снимаются в разных состояниях игры, правленой между
+        /// прогонами: прогон всего сценария переснял бы и сцены, чьего состояния в игре уже нет.
+        /// </param>
+        public static string Run(string scenarioPath, string outputDir = null, string[] scenes = null)
         {
             if (!Application.isPlaying)
                 throw new InvalidOperationException("сценарий снимается только в запущенной игре");
 
+            // Два прогона разом водили бы одного персонажа и писали одно окно игры, а отказ любого из них
+            // снёс бы и фрагменты второго: перечень снятого у прогонов общий.
+            if (ScenarioRunner.Running)
+                throw new InvalidOperationException("прогон уже идёт (" + Status + "): второй поверх него не запускается"
+                    + " — дождаться его конца либо остановить игру, остановка снимает оборванный прогон");
+
             ShootScenario scenario = ShootScenario.Load(scenarioPath);
+
+            if (scenes != null)
+            {
+                if (scenes.Length == 0)
+                    throw new ArgumentException("перечень сцен пуст — снимать нечего; все сцены сценария снимаются без перечня");
+
+                string[] unknown = Array.FindAll(scenes, id => !scenario.scenes.Exists(scene => scene.id == id));
+
+                if (unknown.Length > 0)
+                    throw new ArgumentException("в сценарии " + scenarioPath + " нет сцен: " + string.Join(", ", unknown));
+
+                scenario.scenes = scenario.scenes.FindAll(scene => Array.IndexOf(scenes, scene.id) >= 0);
+            }
 
             // Сценарий зовётся именем своего файла: собственного имени документ не несёт.
             string name = Path.GetFileNameWithoutExtension(scenarioPath);

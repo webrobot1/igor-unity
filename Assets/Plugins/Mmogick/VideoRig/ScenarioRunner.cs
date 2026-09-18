@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -51,6 +52,9 @@ namespace Mmogick.VideoRig
         /// <summary>Сколько ждём мир после запуска: вход в игру сетевой, карта грузится не мгновенно.</summary>
         private const float WORLD_TIMEOUT = 90f;
 
+        /// <summary>Действие мёртвого существа — его присылает сервер наравне с прочими действиями.</summary>
+        private const string DEAD = "dead";
+
         /// <summary>
         /// Сколько ждём готовности мира после перехода, когда шаг не сказал иначе. Меньше входного потолка:
         /// карта у сервера к этому времени уже поднята, ждём лишь ответ на переход и графику вокруг игрока.
@@ -77,6 +81,12 @@ namespace Mmogick.VideoRig
         /// статики — зовёт его редакторный хук, о самом прогоне не знающий.
         /// </summary>
         private static ScenarioRunner current;
+
+        /// <summary>Идёт ли прогон — начатый и не дошедший ни до <see cref="Finish"/>, ни до <see cref="Abort"/>.</summary>
+        internal static bool Running
+        {
+            get { return current != null; }
+        }
 
         private ShootScenario scenario;
 
@@ -498,6 +508,10 @@ namespace Mmogick.VideoRig
         /// материал по правилу съёмки, какой бы шаг ни снимался, а нажатие по слоту панели мёртвым клиент
         /// гасит молча (ActionBar), и шаг сошёл бы за выполненный. Снятое на невыполненном условии хуже
         /// неснятого: неподвижное тело в кадре легко принять за годный фрагмент.
+        ///
+        /// Запас здоровья входит в живость, лишь когда игра объявляет компонент здоровья. У игры без него
+        /// запаса нет ни у кого и гибели нет вовсе: признак врага (<see cref="Alive"/>) счёл бы такого
+        /// персонажа мёртвым, и игра не снималась бы ни одним шагом. Там живость держит одно действие.
         /// </summary>
         private bool Ready()
         {
@@ -527,11 +541,13 @@ namespace Mmogick.VideoRig
                 return false;
             }
 
-            if (!Alive(player))
+            bool health = ComponentCacheService.GetSlugs().Contains(EnemyModel.COMPONENT_HP);
+
+            if (health ? !Alive(player) : player.action == DEAD)
             {
-                Fail("персонаж не способен действовать: запас здоровья "
-                    + (player.hp == null ? "неизвестен" : player.hp.Value.ToString())
-                    + ", действие «" + player.action + "»");
+                Fail("персонаж не способен действовать: "
+                    + (health ? "запас здоровья " + (player.hp == null ? "неизвестен" : player.hp.Value.ToString()) + ", " : "")
+                    + "действие «" + player.action + "»");
                 return false;
             }
 
@@ -544,7 +560,7 @@ namespace Mmogick.VideoRig
         /// </summary>
         private static bool Alive(EnemyModel entity)
         {
-            return entity.hp != null && entity.hp.Value > 0 && entity.action != "dead";
+            return entity.hp != null && entity.hp.Value > 0 && entity.action != DEAD;
         }
 
         private bool HasTarget(ShootAction action)
@@ -907,10 +923,7 @@ namespace Mmogick.VideoRig
 
         private void Finish()
         {
-            // Регистрацию снимает только СВОЙ прогон: запуск второго поверх недоигравшего первого
-            // перевешивает её на себя, и чужое завершение оставило бы обрыв нового без сноса.
-            if (current == this)
-                current = null;
+            current = null;
 
             recorder.End();
             Detach();
