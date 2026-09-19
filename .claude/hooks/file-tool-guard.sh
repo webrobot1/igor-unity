@@ -31,7 +31,9 @@
 #     перечня файлов, тишины и обращения совпадения; открытие исходника на чтение кодом интерпретатора —
 #     инлайн-флагом и телом heredoc (адреса отдаёт lib/write_targets.py, code_read_paths);
 #   правка — in-place (`sed -i`, `perl -i`, `awk -i`), `tee`, редирект из `cat`/`echo`/`printf`
-#     (создание файла руками), запись из кода интерпретатора — инлайн-флагом и телом heredoc.
+#     (создание файла руками), запись из кода интерпретатора — инлайн-флагом и телом heredoc;
+#     адрес записи, пришедший в код переменной цикла либо распаковкой (к литералу его не привести),
+#     отправляет в запасной проход по литералам команды вместе с телами heredoc.
 # ЦЕЛИ записи разбирает общий носитель lib/write_targets.py, форму вызова (разрез цепочки,
 # продолжение строки, тела heredoc) — lib/chain_parser.py под ним: своей обработки формы у гейта
 # нет, она разошлась бы с соседним гейтом молча.
@@ -71,7 +73,7 @@ import json, os, re, sys, tempfile
 HOOKS_DIR = os.path.realpath(os.environ.get("HOOKS_DIR") or ".")
 sys.path.insert(0, os.path.join(HOOKS_DIR, "lib"))
 from chain_parser import split_parts, tokens, command_index, name, strip_redirects, _bare
-from write_targets import code_read_paths, normalize, scan_command
+from write_targets import code_read_paths, normalize, scan_command, sweep
 
 PROJ = os.path.realpath(os.path.join(HOOKS_DIR, "..", ".."))
 BRIEF = os.environ.get("BRIEF", "")
@@ -314,7 +316,13 @@ def write_targets_src(command, cwd):
     набирает человек, то есть файл создаётся руками. Цель БЕЗ редиректа порождена самой формой
     правки — in-place, `tee`, запись из кода интерпретатора, — и идёт под отказ."""
     res = []
-    found, _unresolved, _eff_cwd, _stripped = scan_command(command, cwd)
+    found, unresolved, eff_cwd, stripped = scan_command(command, cwd)
+    # Цель, к литералу не приведённая (адрес пришёл переменной цикла либо распаковкой), — запасной
+    # проход по литералам. Проход идёт по ПОЛНОЙ команде, вместе с телами heredoc: перечень правимых
+    # файлов массовая правка несёт в самом теле, а `stripped` тела уже снял.
+    for path in sweep(command, eff_cwd, unresolved) if unresolved else []:
+        if is_source(path):
+            res.append((path, "цель записи из подстановки — путь взят литералом команды"))
     for path, fragment in found:
         if not is_source(path):
             continue

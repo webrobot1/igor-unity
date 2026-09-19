@@ -616,6 +616,7 @@ def _code_targets(code, cwd, found, unresolved):
     if not names:
         return
 
+    resolved = set()
     for stmt in stmts:
         m = CODE_ASSIGN.match(stmt)
         if not m or m.group(1) not in names:
@@ -623,6 +624,14 @@ def _code_targets(code, cwd, found, unresolved):
         for lit in re.finditer(CODE_PATH, m.group(2)):
             if _address_literal(m.group(2), lit):
                 _record(lit.group(), stmt[:200], found, unresolved, cwd)
+                resolved.add(m.group(1))
+
+    # Имя-адрес, к литералу не приведённое: источник значения бывает не присваиванием — переменная
+    # цикла по перечню, распаковка кортежа, аргумент функции, — и разбор такого имени по строкам
+    # кода не строится. Цель без имени (raw=None) отправляет вызывающего в запасной проход по
+    # литералам всей команды: перечень адресов массовая правка обычно несёт прямо в теле.
+    if names - resolved:
+        unresolved.append((None, code[:200]))
 
 
 def _address_literal(code, m):
@@ -981,7 +990,14 @@ def sweep(command, cwd, unresolved):
     """Запасной проход по литералам: пути из области, связанной с неразрешимыми целями."""
     scope = sweep_scope(command, unresolved)
     if scope is None:
-        return literal_sweep(command, cwd)
+        # Тело heredoc разрез цепочки не отдаёт, а неразрешимая цель КОДА живёт именно в нём:
+        # перечень правимых путей массовая правка несёт литералами тела. Тело — не команда, потому
+        # исполняемое в нём по позиции не отсеивается.
+        stripped, bodies = split_heredocs(command or "")
+        res = literal_sweep(stripped, cwd)
+        for _kind, body in bodies:
+            res += literal_sweep(body, cwd, runnable=False)
+        return res
     res = []
     for text in scope:
         res.extend(literal_sweep(text, cwd, runnable=False))

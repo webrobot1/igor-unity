@@ -245,18 +245,10 @@ def compaction_count(event):
 _SKILL_BODY = re.compile(r"/\.claude/skills/([^/]+)/SKILL\.md$")
 
 
-def skills_loaded(path):
-    """Имена сводов, загруженных в контекст вызывающего после последнего сжатия: вызов тула `Skill`
-    с именем свода либо чтение его тела тулом `Read`. Сжатие переписывает контекст сводкой, и
-    загруженное до него тела в контексте уже не несёт — счёт начинается заново. Транскрипт не
-    читается — None: отсутствие загрузки не наблюдаемо и за отсутствие не выдаётся."""
-    loaded = set()
-    try:
-        fh = open(path, "r", errors="ignore")
-    except OSError:
-        return None
-
-    with fh:
+def _tool_use_stream(path):
+    """Вызовы инструментов вызывающего с отметками сжатия: ("compact", None) и ("tool", имя, вход).
+    Файл не читается — StopIteration не наступает вовсе, вызывающий различает это сам."""
+    with open(path, "r", errors="ignore") as fh:
         for line in fh:
             if '"compact_boundary"' not in line and '"tool_use"' not in line:
                 continue
@@ -267,23 +259,54 @@ def skills_loaded(path):
             if not isinstance(rec, dict):
                 continue
             if rec.get("type") == "system" and rec.get("subtype") == "compact_boundary":
-                loaded = set()
+                yield ("compact", None, None)
                 continue
             content = (rec.get("message") or {}).get("content")
             if rec.get("type") != "assistant" or not isinstance(content, list):
                 continue
             for block in content:
-                if not isinstance(block, dict) or block.get("type") != "tool_use":
-                    continue
-                args = block.get("input") or {}
-                if block.get("name") == "Skill" and args.get("skill"):
-                    loaded.add(str(args["skill"]))
-                elif block.get("name") == "Read":
-                    m = _SKILL_BODY.search(str(args.get("file_path") or ""))
-                    if m:
-                        loaded.add(m.group(1))
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    yield ("tool", block.get("name"), block.get("input") or {})
+
+
+def skills_loaded(path):
+    """Имена сводов, загруженных в контекст вызывающего после последнего сжатия: вызов тула `Skill`
+    с именем свода либо чтение его тела тулом `Read`. Сжатие переписывает контекст сводкой, и
+    загруженное до него тела в контексте уже не несёт — счёт начинается заново. Транскрипт не
+    читается — None: отсутствие загрузки не наблюдаемо и за отсутствие не выдаётся."""
+    loaded = set()
+    try:
+        stream = _tool_use_stream(path)
+        for kind, name, args in stream:
+            if kind == "compact":
+                loaded = set()
+            elif name == "Skill" and args.get("skill"):
+                loaded.add(str(args["skill"]))
+            elif name == "Read":
+                m = _SKILL_BODY.search(str(args.get("file_path") or ""))
+                if m:
+                    loaded.add(m.group(1))
+    except OSError:
+        return None
 
     return loaded
+
+
+def carrier_opened(path, needle):
+    """Открывал ли вызывающий носитель после последнего сжатия: его адрес стоит во входе вызова любого
+    инструмента — чтения, поиска, команды оболочки. Транскрипт не читается — None: отсутствие не
+    наблюдаемо и за отсутствие не выдаётся."""
+    opened = False
+    try:
+        for kind, _name, args in _tool_use_stream(path):
+            if kind == "compact":
+                opened = False
+            elif needle in json.dumps(args, ensure_ascii=False):
+                opened = True
+    except OSError:
+        return None
+
+    return opened
 
 
 def context_key(event, base):
