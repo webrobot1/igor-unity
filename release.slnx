@@ -7,6 +7,5 @@
   <Project Path="Mmogick.VideoRig.csproj" />
   <Project Path="GitIntegration.Editor.csproj" />
   <Project Path="Mmogick.VideoRig.Runtime.csproj" />
-  <Project Path="Mmogick.ClientBuild.csproj" />
   <Project Path="Startup.Editor.csproj" />
 </Solution>
