@@ -231,9 +231,157 @@ namespace Mmogick
 		}
 
 		/// <summary>
+		/// Куда сервер поставит существо шагом из серверной позиции position в направлении direction, либо null —
+		/// шага сервер не сделает. Направление — доли шага по осям, как их принимает команда шага (не длиннее
+		/// единицы). Зеркало команды шага игры (move/walk/index) вместе с пределом близости к преграде
+		/// фреймворка (Map2D::clearance), общего у всех команд шага. Ветки — в порядке сервера: прямо на шаг;
+		/// упёрлось — по одной из осей (свободны обе — по большей составляющей направления); у направления вдоль
+		/// оси — обход угла диагональным пробником, засчитанный лишь в СОСЕДНЕЙ клетке; прижатие на creep_depth от
+		/// центра своей клетки. Найденная точка подтягивается к creep_depth по каждой оси, где соседняя клетка —
+		/// преграда, и по паре осей у угловой преграды.
+		///
+		/// Преграды — этажа, который уровень position.z даёт на карте map: стены другого этажа существо не держат.
+		/// И только известные клиенту (MapController.IsColliderCell): клетку без тайла и клетку
+		/// недоступной соседней карты сервер тоже держит непроходимой, а клиент о них отсюда не знает. Незнание
+		/// читается как «пройти можно»: отсев команд ошибается тогда лишь в сторону лишней отправки, а показ —
+		/// в сторону прогноза, который сервер не подтвердит и к позиции которого фигура поправится (Walk).
+		///
+		/// Координаты — местные координаты карты map: в них стоят и сущность, и преграды карты. Клетка точки —
+		/// банковское округление (Mathf.RoundToInt), тем же правилом сервер переводит позицию в клетку; каждое
+		/// значение сервер округляет до position_precision, клиент — так же.
+		/// </summary>
+		public static Vector3? PredictStep(int map, Vector3 position, Vector3 direction)
+		{
+			Vector3? straight = Straight(map, position, direction);
+			if (straight != null)
+				return straight;
+
+			float fx = Round(direction.x);
+			float fy = Round(direction.y);
+			Vector2Int cell = Cell(position);
+
+			Vector3 onlyX = Next(position, fx, 0);
+			Vector3 onlyY = Next(position, 0, fy);
+			bool canX = fx != 0 && !IsWall(map, position.z, Cell(onlyX));
+			bool canY = fy != 0 && !IsWall(map, position.z, Cell(onlyY));
+
+			if (canX && canY)
+				return Clearance(map, Mathf.Abs(fx) >= Mathf.Abs(fy) ? onlyX : onlyY);
+			if (canX)
+				return Clearance(map, onlyX);
+			if (canY)
+				return Clearance(map, onlyY);
+
+			float corner = ConnectController.corner_offset;
+			if (fx == 0 || fy == 0)
+			{
+				Vector3 first;
+				Vector3 second;
+
+				// знак второй оси: сперва та сторона, куда существо уже смещено от центра своей клетки
+				if (fy == 0)
+				{
+					float prefer = position.y >= Mathf.Round(position.y) ? corner : -corner;
+					first = Next(position, fx * corner, prefer);
+					second = Next(position, fx * corner, -prefer);
+				}
+				else
+				{
+					float prefer = position.x >= Mathf.Round(position.x) ? corner : -corner;
+					first = Next(position, prefer, fy * corner);
+					second = Next(position, -prefer, fy * corner);
+				}
+
+				if (Cell(first) != cell && !IsWall(map, position.z, Cell(first)))
+					return Clearance(map, first);
+				if (Cell(second) != cell && !IsWall(map, position.z, Cell(second)))
+					return Clearance(map, second);
+			}
+
+			// Прижатие. Сервер его не засчитывает, когда существо в этой точке уже стоит (дистанция чебышевская).
+			float depth = ConnectController.creep_depth;
+			Vector3 creep = new Vector3(
+				fx > 0 ? cell.x + depth : (fx < 0 ? cell.x - depth : position.x),
+				fy > 0 ? cell.y + depth : (fy < 0 ? cell.y - depth : position.y),
+				position.z);
+
+			if (Mathf.Max(Mathf.Abs(creep.x - position.x), Mathf.Abs(creep.y - position.y)) >= 0.01f && !IsWall(map, position.z, Cell(creep)))
+				return Clearance(map, creep);
+
+			return null;
+		}
+
+		/// <summary>
+		/// Шаг прямо на направление с пределом близости к преграде; null — клетка шага преграда. Общая часть всех
+		/// команд шага: дальше каждая идёт своим путём (<see cref="PredictStep"/> — путь команды шага по направлению).
+		/// </summary>
+		private static Vector3? Straight(int map, Vector3 position, Vector3 direction)
+		{
+			Vector3 point = Next(position, Round(direction.x), Round(direction.y));
+			return IsWall(map, position.z, Cell(point)) ? (Vector3?)null : Clearance(map, point);
+		}
+
+		/// <summary>Предел близости к преграде — зеркало Map2D::clearance фреймворка (см. <see cref="PredictStep"/>).</summary>
+		private static Vector3 Clearance(int map, Vector3 point)
+		{
+			float depth = ConnectController.creep_depth;
+			float tx = Mathf.Round(point.x);
+			float ty = Mathf.Round(point.y);
+			int sx = point.x - tx > depth ? 1 : (point.x - tx < -depth ? -1 : 0);
+			int sy = point.y - ty > depth ? 1 : (point.y - ty < -depth ? -1 : 0);
+
+			if (sx == 0 && sy == 0)
+				return point;
+
+			int cx = (int)tx, cy = (int)ty;
+			float x = point.x;
+			float y = point.y;
+
+			if (sx != 0 && IsWall(map, point.z, new Vector2Int(cx + sx, cy)))
+				x = tx + sx * depth;
+			if (sy != 0 && IsWall(map, point.z, new Vector2Int(cx, cy + sy)))
+				y = ty + sy * depth;
+			if (sx != 0 && sy != 0 && x == point.x && y == point.y && IsWall(map, point.z, new Vector2Int(cx + sx, cy + sy)))
+			{
+				x = tx + sx * depth;
+				y = ty + sy * depth;
+			}
+
+			return new Vector3(Round(x), Round(y), point.z);
+		}
+
+		/// <summary>Шаг из позиции на направление (fx, fy) — Position::next сервера с его округлением.</summary>
+		private static Vector3 Next(Vector3 position, float fx, float fy)
+		{
+			float step = ConnectController.step;
+			return new Vector3(Round(position.x + Round(fx * step)), Round(position.y + Round(fy * step)), position.z);
+		}
+
+		private static float Round(float value)
+		{
+			return (float)Math.Round(value, ConnectController.position_precision);
+		}
+
+		private static Vector2Int Cell(Vector3 point)
+		{
+			return new Vector2Int(Mathf.RoundToInt(point.x), Mathf.RoundToInt(point.y));
+		}
+
+		private static bool IsWall(int map, float z, Vector2Int cell)
+		{
+			return MapController.IsColliderCell(map, z, cell);
+		}
+
+		/// <summary>
 		/// при передижении игрока проигрывается анмиация передвижения по клетке (хотя для сервера мы уже на новой позиции). скорость равна времени паузы между командами на новое движение.
 		/// она вошла в плагин тк движение нужно в любой игре а координаты часть стандартного функционала, вы можете переопределить ее
 		/// корутина подымается не моментально так что остановим внутри нее старую что бы небыло дерганья между запускми и остановками
+		///
+		/// Дойдя до серверной позиции, пока сервер ведёт движение дальше, фигура не ждёт его пакета на месте, а идёт
+		/// прогнозом следующего шага — теми же правилами преград, что у сервера (<see cref="PredictStep"/>). Подтверждение —
+		/// пакет следующего шага: он запускает новую корутину от того места, куда фигура дошла. Не пришёл за
+		/// удвоенный наибольший пинг — сервер шага не сделал, и фигура плавно возвращается на его позицию: остаться
+		/// на прогнозе значит стоять там, куда сервер существо не пускал (у преграды — на её краю).
 		/// </summary>
 		/// <param name="position">куда движемя</param>
 		protected virtual IEnumerator Walk(Vector3 finish, Coroutine old_coroutine)
@@ -285,17 +433,23 @@ namespace Mmogick
 			// Скорость задаётся в клетках В СЕКУНДУ, а пройденное за виток считается по времени самого витка:
 			// шаг перемещения тем самым привязан к частоте отрисовки, а не к частоте расчёта физики. Движение
 			// на экране в 120 герц выходит вдвое плавнее, чем на 60, и не зависит от настройки шага физики.
-			double speed = ConnectController.step / timeout;
+			double stepSpeed = ConnectController.step / timeout;
+			double speed = stepSpeed;
+
+			// Фигура идёт прогнозом следующего шага и ждёт его подтверждения сервером.
 			bool extrapolation = false;
-			// время начала экстраполяции для ограничения по MaxPing * 2
 			DateTime extrapolationStart = DateTime.MinValue;
+
+			// Прогноз сервер не подтвердил — фигура возвращается на его позицию.
+			bool correcting = false;
 
 			while (true)
 			{
 				if (action != "walk" && action != ConnectController.ACTION_REMOVE)
 				{
+					// Встаём на СЕРВЕРНУЮ позицию, а не на цель корутины: целью бывает и прогноз шага.
 					LogWarning("Движение - Сменен action во время движения на " + action+", удаляем корутину");
-					transform.localPosition = finish;
+					transform.localPosition = position;
 					break;
 				}
 
@@ -304,55 +458,61 @@ namespace Mmogick
 				// путь за этот виток отрисовки
 				double distancePerUpdate = speed * Time.deltaTime;
 
-				// если уже подошли но с сервера пришла инфа что следом будет это же событие группы - экстрополируем движение дальше
 				if (distance < distancePerUpdate)
 				{
-					// если ожидается пакет на движение или мы удаляемся — экстраполируем на полный шаг с замедлением
-					Event walking = TryGetEvent(WalkResponse.GROUP);
-					if (((walking != null && walking.action != null && walking.action.Length > 0) || action == ConnectController.ACTION_REMOVE) && !extrapolation)
+					if (correcting)
 					{
-						extrapolation = true;
-						extrapolationStart = DateTime.Now;
-
-						Vector3 nextFinish = finish + Forward * ConnectController.step;
-						int ntx = Mathf.RoundToInt(nextFinish.x);
-						int nty = Mathf.RoundToInt(nextFinish.y);
-
-						if (PlayerController.IsColliderCell(this.map, new Vector2Int(ntx, nty)))
-						{
-							// Не экстраполируем в коллайдер. Snap к (tx±0.49) делал телепорт когда
-							// текущая позиция уже не целая (после серверного creep или диагонали).
-							// Сервер сам подводит игрока к стене через creep в walk/index.php.
-							LogWarning("Движение - следующий тайл коллайдер, останавливаемся на серверной позиции");
-							break;
-						}
-						else
-						{
-							finish = nextFinish;
-							speed *= 0.7;
-							LogWarning("Движение - экстраполируем на полный шаг, замедление 0.7x");
-						}
-					}
-                    else
-					{
-						// проверяем лимит времени экстраполяции — не ждать дольше MaxPing * 2
-						if (extrapolation && DateTime.Compare(extrapolationStart.AddSeconds(ConnectController.MaxPing() * 2), DateTime.Now) < 1)
-						{
-							LogWarning("Движение - лимит времени экстраполяции, останавливаемся");
-							break;
-						}
-
-                        // если экстраполировали расстоянием то остаемся в тех координатах куда мы прошли чуть больше, что бы не отбрасывало назад (на координаты сервера)
-                        if (!extrapolation)
-                        {
-							LogWarning("Движение - дошли, но телепортируеся на "+ Vector3.Distance(transform.localPosition, finish)+" до конечной точки");
-							transform.localPosition = finish;
-						}
-						else
-							LogWarning("Движение - дошли и была экстраполяция расстоянием");
-
+						transform.localPosition = finish;
 						break;
 					}
+
+					if (extrapolation)
+					{
+						// Уход с карты подтверждения не ждёт: существо снимается с неё целиком.
+						if (action == ConnectController.ACTION_REMOVE)
+						{
+							Log("Движение - уход с карты дорисован прогнозом");
+							break;
+						}
+
+						// Подтверждение — пакет следующего шага: он остановит эту корутину и запустит новую.
+						if (DateTime.Now < extrapolationStart.AddSeconds(ConnectController.MaxPing() * 2))
+						{
+							activeLast = DateTime.Now;
+							yield return null;
+							continue;
+						}
+
+						LogWarning("Движение - прогноз шага сервер не подтвердил, возврат с " + transform.localPosition + " на серверную позицию " + position);
+						finish = position;
+						speed = stepSpeed;
+						correcting = true;
+						continue;
+					}
+
+					// Сервер ведёт движение дальше (либо существо уходит с карты) — идём прогнозом его следующего шага.
+					// Направление — Forward как есть: сервер пишет в него фактическое смещение прошлого шага, и его
+					// повтор продолжает ту же ветку (скольжение вдоль преграды — на ту же долю клетки), а после
+					// прижатия к преграде даёт точку, которую предел близости возвращает на место, — шага нет.
+					// Обход преграды по веткам знает только шаг по направлению (index); прочие команды группы
+					// (движение к точке, бегство) идут своим маршрутом, и прогнозу у них остаётся шаг прямо.
+					Event walking = TryGetEvent(WalkResponse.GROUP);
+					bool expected = (walking != null && !string.IsNullOrEmpty(walking.action)) || action == ConnectController.ACTION_REMOVE;
+					Vector3? next = null;
+					if (expected && Forward != Vector3.zero)
+						next = walking != null && walking.action == Response.ACTION_INDEX ? PredictStep(map, finish, Forward) : Straight(map, finish, Forward);
+
+					if (next == null || Vector3.Distance(next.Value, finish) < 0.01f)
+					{
+						transform.localPosition = finish;
+						break;
+					}
+
+					extrapolation = true;
+					extrapolationStart = DateTime.Now;
+					finish = next.Value;
+					speed = stepSpeed * 0.7;
+					Log("Движение - прогноз следующего шага в " + finish + ", замедление 0.7x");
 				}
 
 				activeLast = DateTime.Now;

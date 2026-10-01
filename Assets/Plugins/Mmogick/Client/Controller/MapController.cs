@@ -102,9 +102,9 @@ namespace Mmogick
 			foreach (Transform child in Children(worldObject.transform))
 				DestroyImmediate(child.gameObject);
 
-			// Окно прозрачности в перекрывающих слоях карты: живёт на контейнере карт, центры окон берёт
-			// по сущностям контейнера World. Ставится кодом — отдельного объекта в сцене не требует.
-			TilemapXray.Attach(mapObject, worldObject);
+			// Окно прозрачности вокруг своего игрока в перекрывающих слоях карты: живёт на контейнере карт.
+			// Ставится кодом — отдельного объекта в сцене не требует.
+			TilemapXray.Attach(mapObject);
 
 			// определяем здесь что бы сбросить статичные свойства если мы перезаходили в игру
 			// сбрасываем тк при разработке некие опции у нас стоят что не очищают при отладке эти данные https://youtu.be/sRx14YMbLuw
@@ -253,9 +253,9 @@ namespace Mmogick
 										// знает о преградах на границах (getGates).
 										_gates = null;
 
-										// Слои, способные перекрыть сущность (выше слоя-земли), переводим на
-										// xray-материал — окно прозрачности вокруг сущностей под кронами и крышами.
-										TilemapXray.RegisterMap(grid, _maps[side.Key].spawn_sort);
+										// Слои, способные перекрыть своего игрока (выше земли первого этажа),
+										// переводим на xray-материал — окно прозрачности под кронами и крышами.
+										TilemapXray.RegisterMap(grid, _maps[side.Key].GroundOrder(0));
 
 										SortMap();
 									}
@@ -276,31 +276,69 @@ namespace Mmogick
 		}
 
 		/// <summary>
-		/// Известна ли клиенту преграда в клетке cell на карте mapId. Коллайдеры берутся ПЕР-КАРТА
-		/// (getMaps()[mapId].colliders) — единый источник клиентских проверок проходимости: отсев заведомо
+		/// Известна ли клиенту преграда в клетке cell на карте mapId на этаже сущности с уровнем z. Коллайдеры
+		/// берутся ПЕР-КАРТА (getMaps()[mapId].colliders) и по этажу, который уровень даёт на этой карте
+		/// (<see cref="MapDecode.Floor"/>), — единый источник клиентских проверок проходимости: отсев заведомо
 		/// холостых команд движения (CursorController) и экстраполяция сущностей (ObjectModel). Карта не
 		/// загружена/выгружена (нет в _maps) → false: клетку не знаем, сервер отобьёт сам. Ответ false значит
 		/// «преграды не знаю», а не «проходимо» — непроходимой сервер считает и клетку без тайла в слоях, и
 		/// клетку недоступной соседней карты, а их клиент отсюда не различает.
 		/// НЕ общий статик — он в открытом мире хранил бы коллайдеры случайного соседнего сегмента.
 		/// </summary>
-		public static bool IsColliderCell(int mapId, Vector2Int cell)
+		public static bool IsColliderCell(int mapId, float z, Vector2Int cell)
 		{
-			return _maps.TryGetValue(mapId, out MapDecode m) && m.colliders != null && m.colliders.Contains(cell);
+			return _maps.TryGetValue(mapId, out MapDecode m) && m.IsCollider(z, cell);
 		}
 
 		/// <summary>
 		/// Известно ли клиенту, что в клетке пройти НЕЛЬЗЯ. Ответ true значит «преграду знаю»: клетку накрывает
-		/// преграда, в ней нет тайла (чернота за краем рисунка карты), она лежит на НЕДОСТУПНОЙ соседней карте
+		/// преграда, в ней нет тайла пола (чернота за краем рисунка карты либо тайл только в потолке), она лежит на НЕДОСТУПНОЙ соседней карте
 		/// (<see cref="MapSide.ready"/>) либо не попадает ни в одну известную карту вовсе — все четыре случая
 		/// сервер держит непроходимыми. Разметки карты у клиента ещё нет → false: клетку не знаем, сервер
 		/// отобьёт сам — то же правило, что у <see cref="IsColliderCell"/>, ошибаться допустимо лишь в сторону
 		/// лишней отправки.
 		///
 		/// Клетка приходит в координатах СЦЕНЫ (там же стоят сущности), а преграды и тайлы карта держит в своих:
-		/// перевод — вычитание смещения её стороны, как в <see cref="AddGates"/>.
+		/// перевод — вычитание смещения её стороны, как в <see cref="AddGates"/>. Преграды и тайлы — этажа,
+		/// который уровень z даёт на карте клетки (<see cref="MapDecode.Floor"/>).
 		/// </summary>
-		public static bool IsKnownImpassableCell(Vector2Int cell)
+		public static bool IsKnownImpassableCell(Vector2Int cell, float z)
+		{
+			// Клетка не попала ни в одну известную карту: за пределами своей карты и её соседей мира нет.
+			if (!TryLocate(cell, out KeyValuePair<int, MapSide> side, out Vector2Int local))
+				return true;
+
+			// Недоступную карту сервер не запускает, а её клетки считает непроходимыми целиком — ровно там
+			// игрок и упирается в невидимую стену (см. getGates). Пока доступность НЕИЗВЕСТНА (соседей
+			// ещё не опрашивали, см. MapSide.ready), считаем так же: сервер в это же время держит их
+			// непроходимыми, и команда движения туда всё равно холостая.
+			if (side.Value.ready != true)
+				return true;
+
+			if (!_maps.TryGetValue(side.Key, out MapDecode decoded))
+				return false;
+
+			return decoded.IsCollider(z, local) || !decoded.HasTile(z, local);
+		}
+
+		/// <summary>
+		/// Накрыта ли клетка СЦЕНЫ тайлом слоя, чей порядок отрисовки выше order, — слоя, перекрывающего
+		/// существо этого порядка (<see cref="MapDecode.drawn"/>). Разметки карты клетки ещё нет либо клетка
+		/// вне известных карт — false: накрывать там нечему.
+		/// </summary>
+		public static bool IsCoveredCell(Vector2Int cell, int order)
+		{
+			return TryLocate(cell, out KeyValuePair<int, MapSide> side, out Vector2Int local)
+				&& _maps.TryGetValue(side.Key, out MapDecode decoded)
+				&& decoded.IsCovered(order, local);
+		}
+
+		/// <summary>
+		/// Карта открытого мира, в которую попадает клетка СЦЕНЫ, и та же клетка в координатах этой карты:
+		/// перевод — вычитание смещения её стороны, как в <see cref="AddGates"/>. Ни в одну известную карту
+		/// клетка не попала — false.
+		/// </summary>
+		private static bool TryLocate(Vector2Int cell, out KeyValuePair<int, MapSide> found, out Vector2Int local)
 		{
 			foreach (KeyValuePair<int, MapSide> side in _sides)
 			{
@@ -312,26 +350,14 @@ namespace Mmogick
 				if (cell.x < sx || cell.x >= sx + w || cell.y > sy || cell.y <= sy - h)
 					continue;
 
-				// Недоступную карту сервер не запускает, а её клетки считает непроходимыми целиком — ровно там
-				// игрок и упирается в невидимую стену (см. getGates). Пока доступность НЕИЗВЕСТНА (соседей
-				// ещё не опрашивали, см. MapSide.ready), считаем так же: сервер в это же время держит их
-				// непроходимыми, и команда движения туда всё равно холостая.
-				if (side.Value.ready != true)
-					return true;
-
-				if (!_maps.TryGetValue(side.Key, out MapDecode decoded))
-					return false;
-
-				Vector2Int local = new Vector2Int(cell.x - sx, cell.y - sy);
-
-				if (decoded.colliders != null && decoded.colliders.Contains(local))
-					return true;
-
-				return decoded.tiles != null && !decoded.tiles.Contains(local);
+				found = side;
+				local = new Vector2Int(cell.x - sx, cell.y - sy);
+				return true;
 			}
 
-			// Клетка не попала ни в одну известную карту: за пределами своей карты и её соседей мира нет.
-			return true;
+			found = default;
+			local = default;
+			return false;
 		}
 
 		public static Dictionary<int, MapDecode> getMaps()
@@ -350,11 +376,13 @@ namespace Mmogick
 		/// у сущностей — клетка есть целая точка); участок шириной в клетку даёт from == to.
 		///
 		/// map — карта ДОСТУПНОЙ стороны, которой участок границы принадлежит: ею метка на земле находит своё
-		/// место в иерархии сцены и порядок отрисовки — слой-земля у каждой карты свой.
+		/// место в иерархии сцены и порядок отрисовки — слой-земля у каждой карты свой. z — уровень своего
+		/// игрока, по этажу которого участок считан: упирается в стену он, и метка лежит на его этаже.
 		/// </summary>
 		public struct Gate
 		{
 			public int map;
+			public float z;
 			public Vector2 from;
 			public Vector2 to;
 
@@ -373,19 +401,29 @@ namespace Mmogick
 		/// Считается по ВСЕМ парам сторон, а не только по карте игрока: недоступный сосед граничит и с другой
 		/// выложенной картой, и там та же стена. Разметка соседа неизвестна (карта не загружена) — считаем по
 		/// своей стороне: <see cref="IsColliderCell"/> о незагруженной карте отвечает «преграды не знаю».
+		/// Преграды — этажа своего игрока: упирается в невидимую стену он.
 		/// </summary>
 		public static List<Gate> getGates()
 		{
 			// Пересчитываем не каждый кадр, а по смене входов: стороны приходят пакетом сервера, разметка —
-			// с загрузкой карты, обе точки сбрасывают кеш. Тем же самым сменившийся ЭКЗЕМПЛЯР списка говорит
-			// показам, что выложенные метки устарели, — сравнивать их состав не требуется.
-			return _gates ??= BuildGates();
+			// с загрузкой карты, обе точки сбрасывают кеш; уровень своего игрока сверяется здесь. Тем же самым
+			// сменившийся ЭКЗЕМПЛЯР списка говорит показам, что выложенные метки устарели, — сравнивать их
+			// состав не требуется.
+			float z = player != null ? player.position.z : 0f;
+			if (_gates != null && z != _gatesZ)
+				_gates = null;
+
+			_gatesZ = z;
+			return _gates ??= BuildGates(z);
 		}
 
 		/// <summary>Готовые проходы (см. <see cref="getGates"/>); null — входы сменились, считать заново.</summary>
 		private static List<Gate> _gates;
 
-		private static List<Gate> BuildGates()
+		/// <summary>Уровень своего игрока, по этажу которого считаны <see cref="_gates"/>.</summary>
+		private static float _gatesZ;
+
+		private static List<Gate> BuildGates(float z)
 		{
 			List<Gate> gates = new List<Gate>();
 
@@ -398,7 +436,7 @@ namespace Mmogick
 
 				foreach (KeyValuePair<int, MapSide> open in _sides)
 					if (open.Key != closed.Key)
-						AddGates(gates, open.Key, open.Value, closed.Key, closed.Value);
+						AddGates(gates, z, open.Key, open.Value, closed.Key, closed.Value);
 			}
 
 			return gates;
@@ -412,7 +450,7 @@ namespace Mmogick
 		/// ней. Линия лежит МЕЖДУ рядами клеток, то есть на полуцелой координате: клетка есть целая точка
 		/// (см. <see cref="IsColliderCell"/>), и метка встаёт ровно на стык, а не в клетку одной из карт.
 		/// </summary>
-		private static void AddGates(List<Gate> gates, int openId, MapSide open, int closedId, MapSide closed)
+		private static void AddGates(List<Gate> gates, float z, int openId, MapSide open, int closedId, MapSide closed)
 		{
 			int ox = Mathf.RoundToInt(open.x),   oy = Mathf.RoundToInt(open.y);
 			int ow = Mathf.RoundToInt(open.width), oh = Mathf.RoundToInt(open.height);
@@ -472,7 +510,7 @@ namespace Mmogick
 				Vector2Int openCell   = horizontal ? new Vector2Int(at - ox, openEdge)   : new Vector2Int(openEdge, at - oy);
 				Vector2Int closedCell = horizontal ? new Vector2Int(at - cx, closedEdge) : new Vector2Int(closedEdge, at - cy);
 
-				bool free = !IsColliderCell(openId, openCell) && !IsColliderCell(closedId, closedCell);
+				bool free = !IsColliderCell(openId, z, openCell) && !IsColliderCell(closedId, z, closedCell);
 
 				if (free && !inside)
 				{
@@ -481,21 +519,22 @@ namespace Mmogick
 				}
 				else if (!free && inside)
 				{
-					gates.Add(GateAt(openId, horizontal, line, start, at - step));
+					gates.Add(GateAt(openId, z, horizontal, line, start, at - step));
 					inside = false;
 				}
 			}
 
 			if (inside)
-				gates.Add(GateAt(openId, horizontal, line, start, to));
+				gates.Add(GateAt(openId, z, horizontal, line, start, to));
 		}
 
 		/// <summary>Проход от клетки from до клетки to (включительно) на линии границы line.</summary>
-		private static Gate GateAt(int openId, bool horizontal, float line, int from, int to)
+		private static Gate GateAt(int openId, float z, bool horizontal, float line, int from, int to)
 		{
 			return new Gate
 			{
 				map  = openId,
+				z    = z,
 				from = horizontal ? new Vector2(from, line) : new Vector2(line, from),
 				to   = horizontal ? new Vector2(to, line)   : new Vector2(line, to)
 			};
@@ -523,7 +562,8 @@ namespace Mmogick
 							var model = child.GetComponent<EntityModel>();
 							if (model != null)
 							{
-								int order = _maps[map_id].spawn_sort + model.sort;
+								// Ярус — земля этажа сущности (её уровень z на этой карте).
+								int order = _maps[map_id].GroundOrder(model.position.z);
 
 								// SortingGroup гарантирован на корне каждой сущности (см. UpdateController.UpdateObject).
 								var group = child.GetComponent<UnityEngine.Rendering.SortingGroup>();
@@ -534,7 +574,7 @@ namespace Mmogick
 								if (barCanvas != null)
 									// +100 (а не +1) — запас на дочерние рендереры визуала: они ведут свой порядок
 									// внутри сущности, и холст LifeBar обязан лежать выше любого из них.
-									barCanvas.sortingOrder = _maps[map_id].spawn_sort + 100 + model.sort;
+									barCanvas.sortingOrder = order + 100;
 							}
 						}
 					}

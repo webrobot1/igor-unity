@@ -359,14 +359,18 @@ namespace Mmogick
 				return null;
 			}
 
-			// Сортировку выставляем ПОСЛЕ SetData: иначе model.sort ещё равен 0 (default),
-			// и SortingGroup получает spawn_sort вместо spawn_sort + sort — у объектов с ненулевым
-			// серверным sort это визуально выглядело как «на чужом слое».
+			// Своего игрока перенесли на другой уровень — метки переходов и отладочный показ преград
+			// переходят на его этаж.
+			if (key == player_key)
+				MapDecodeModel.ShowFloor(model.position.z);
+
+			// Ярус — земля этажа сущности, по уровню z из пакета: выставляем ПОСЛЕ SetData, иначе
+			// уровень ещё прежний и сущность, сменившая этаж, рисовалась бы на ярусе старого.
 			// Второе место — MapController.SortMap (при загрузке карты), на случай когда сущность
 			// пришла раньше карты.
 			if (getMaps().ContainsKey(map_id))
 			{
-				int spawn_sort = getMaps()[map_id].spawn_sort;
+				int order = getMaps()[map_id].GroundOrder(model.position.z);
 
 				// Компоненты берутся из кеша модели: их поиск обходит объект (а поиск Canvas — ещё и всех
 				// потомков), и это на каждую сущность каждого пакета. Состав компонентов сущности после
@@ -376,12 +380,12 @@ namespace Mmogick
 				model.EnsureRenderRefs();
 
 				if (model.sortingGroup != null)
-					model.sortingGroup.sortingOrder = spawn_sort + model.sort;
+					model.sortingGroup.sortingOrder = order;
 
 				if (model.barCanvas != null)
 					// +100 (а не +1) чтобы Canvas LifeBar лежал над всем, что рисует сама сущность (скелет и
 					// надетые предметы держат свой порядок внутри группы).
-					model.barCanvas.sortingOrder = spawn_sort + 100 + model.sort;
+					model.barCanvas.sortingOrder = order + 100;
 			}
 
 			return prefab;

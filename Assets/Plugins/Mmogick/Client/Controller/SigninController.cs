@@ -29,6 +29,10 @@ namespace Mmogick
         // задаёт учётная запись игрока, и приходит она в ответе входа (ConnectController.game).
         private static readonly int REGISTER_GAME_ID = 1;
 
+        // Сервер, который форма предлагает игроку и берёт, когда её поле сервера пусто: адрес сервера игры (в сборке —
+        // боевой); игрок вправе переписать его в форме.
+        private const string DEFAULT_SERVER = "localhost";
+
         // Правила логина — те же, что держит сервер, и отбиваются они здесь ради самого игрока: заведомо
         // негодный ввод не стоит ему похода на сервер и ожидания ответа. Истина остаётся серверной, клиент
         // её лишь зеркалит; место у правил одно на обе кнопки формы — обе идут в HttpRequest.
@@ -71,8 +75,8 @@ namespace Mmogick
                 return;
             }
 
-            if (serverField != null && SERVER.Length > 0)
-                serverField.text = SERVER;
+            if (serverField != null)
+                serverField.text = DEFAULT_SERVER;
 
         }
 
@@ -84,18 +88,32 @@ namespace Mmogick
                 return;
             }
 
-            login = this.loginField.text;
-            password = this.passwordField.text;
-
+            ReadForm();
             StartCoroutine(HttpRequest(ACTION_REGISTER));
         }
 
         public void Auth()
         {
-            login = this.loginField.text;
-            password = this.passwordField.text;
-
+            ReadForm();
             StartCoroutine(HttpRequest(ACTION_AUTH));
+        }
+
+        /// <summary>
+        /// Вход заново учётной записью текущего входа, мимо полей формы: так входит на карту без своего адреса
+        /// (интерьер, дальняя, не поднятая соседняя) игрок, переходящий на неё из игры (ConnectController.LoadRegister).
+        /// Форма заново загруженной сцены входа несёт значения, сохранённые в сцене, — вход ими увёл бы игрока в чужую
+        /// учётную запись либо на другой сервер.
+        /// </summary>
+        public void Reauth()
+        {
+            StartCoroutine(HttpRequest(ACTION_AUTH));
+        }
+
+        private void ReadForm()
+        {
+            login = loginField.text;
+            password = passwordField.text;
+            SERVER = serverField != null && serverField.text.Length > 0 ? serverField.text : DEFAULT_SERVER;
         }
 
 		private IEnumerator HttpRequest(string action, bool retrying = false)
@@ -136,9 +154,6 @@ namespace Mmogick
 
 			var canvas = GetComponentInParent<Canvas>();
 			if (canvas != null) canvas.enabled = false;
-
-			if (serverField != null && serverField.text.Length > 0)
-				SERVER = serverField.text;
 
 			WWWForm formData = new WWWForm();
 			formData.AddField("slug", login); // поле wire — slug (единая идентичность сущностей на сервере)
@@ -239,17 +254,7 @@ namespace Mmogick
 					yield break;
 				}
 
-				// Разбор по полям приходит только у не прошедшего проверку ввода, и показываем игроку именно его:
-				// в error сервер кладёт лишь ПЕРВОЕ нарушение, а с ним игрок чинил бы форму по одному полю.
-				string message = refusal.error;
-				if (refusal.violations != null && refusal.violations.Count > 0)
-				{
-					message = "";
-					foreach (var violation in refusal.violations)
-						message += (message.Length > 0 ? "\n" : "") + violation.Key + ": " + violation.Value;
-				}
-
-				Error("Ошибка авторизации к серверу " + SERVER + ": " + message);
+				Error("Ошибка авторизации к серверу " + SERVER + ": " + refusal.error);
 				yield break;
 			}
 
@@ -295,6 +300,9 @@ namespace Mmogick
 
 			if (data.world == 0)
 				return "у карты не указан мир (world)";
+
+			if (string.IsNullOrEmpty(data.ground))
+				return "не пришёл класс слоя-земли (ground)";
 
 			if (data.equipment_slot == null || data.equipment_slot.Count == 0)
 				return "у игры не заведено ни одного слота экипировки (equipment_slot)";
@@ -348,15 +356,14 @@ namespace Mmogick
 				}
 
 				// Справочник компонентов игры — свой канал (компонент к анимации отношения не имеет): умолчания
-				// значений, состав видов, иконки. До кеша анимаций: цепочка разрешения значения у префаба
-				// (AnimationCacheService.GetComponentValue) последним звеном берёт умолчание отсюда.
-				// При ошибке чистим свой кеш, как у тайлов и анимаций: справочник едет дельтой, и рассинхрон
-				// сам себя вылечит полным ресинком на следующем заходе.
+				// значений, состав видов, иконки. До кеша анимаций: его предзагрузка скелетов берёт отсюда значки
+				// компонентов, заданные анимацией. Справочник приходит целиком и на диск не пишется — при ошибке
+				// сбрасывать нечего.
 				LoadingScreen.SetStage(LoadingScreen.Stage.Components);
 				yield return StartCoroutine(ComponentCacheService.Sync(SERVER, ConnectController.game, data.token, err => syncError = err));
 				if (syncError != null)
 				{
-					Fail(ComponentCacheService.ResetCache(ConnectController.game));
+					Error(syncError);
 					yield break;
 				}
 
@@ -401,8 +408,10 @@ namespace Mmogick
 				ConnectController.corner_offset = data.corner_offset;
 				ConnectController.passable_search_radius = data.passable_search_radius;
 
-				// До Connect: карта приходит следом, и её разбор уже должен знать, что помечать свечением.
+				// До Connect: карта приходит следом, и её разбор уже должен знать, что помечать свечением и какой
+				// слой — земля.
 				ConnectController.warp_class = data.warp;
+				ConnectController.ground_class = data.ground;
 
 				// Мир текущей карты — им обзорная карта отбирает свои карты из общего кеша (см. поля).
 				ConnectController.world = data.world;

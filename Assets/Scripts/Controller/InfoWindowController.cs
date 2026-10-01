@@ -938,9 +938,15 @@ namespace Mmogick
         }
 
         /// <summary>
-        /// Число из данных висящей на существе команды. null — команда данных не привезла: величину
-        /// подставлять нечем, и сама строка обойдётся без неё (умолчание живёт на сервере, у клиента
-        /// его нет — выдуманная единица соврала бы молча).
+        /// Число из данных висящей на существе команды. null — числа под этим именем команда не привезла:
+        /// величину подставлять нечем, и сама строка обойдётся без неё (умолчание живёт на сервере, у
+        /// клиента его нет — выдуманная единица соврала бы молча).
+        ///
+        /// Число бывает записано строкой: умолчание параметра сервер хранит текстом и кладёт в данные
+        /// команды как есть, а значение, переданное числом, приходит числом, — один и тот же параметр
+        /// приходит то так, то так. Пустая строка и null — параметр без значения, величины нет. Значение, которое
+        /// числом не читается, — поломка данных игры: типа у параметра нет, и сервер его не проверяет,
+        /// потому сигналим отказом, а не прячем строку.
         /// </summary>
         private static float? CommandData(ObjectModel subject, string group, string key)
         {
@@ -955,10 +961,26 @@ namespace Mmogick
 
             JToken value = data[key];
 
-            if (value == null || (value.Type != JTokenType.Integer && value.Type != JTokenType.Float))
+            if (value == null || value.Type == JTokenType.Null)
                 return null;
 
-            return value.Value<float>();
+            if (value.Type == JTokenType.Integer || value.Type == JTokenType.Float)
+                return value.Value<float>();
+
+            if (value.Type == JTokenType.String && (string)value == "")
+                return null;
+
+            float parsed;
+
+            // NaN и бесконечность числом не считаем: числом, а не строкой, команда их привезти не может —
+            // в JSON таких чисел нет.
+            if (value.Type == JTokenType.String
+                && float.TryParse((string)value, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed)
+                && !float.IsNaN(parsed) && !float.IsInfinity(parsed))
+                return parsed;
+
+            Error("Команда «" + group + "» несёт в параметре «" + key + "» значение «" + value + "», которое не читается числом");
+            return null;
         }
 
         /// <summary>

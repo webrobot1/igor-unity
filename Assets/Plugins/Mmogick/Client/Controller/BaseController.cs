@@ -37,10 +37,11 @@ namespace Mmogick
 		public const string SCENE_REGISTER = "RegisterScene";
 		public const string SCENE_MAIN = "MainScene";
 
-		// Настройки соединения с сервером
-		protected string SERVER = "localhost";			   // это физический адрес удаленного vps сервера где крутится prodiction (дефолтное значение, можно переопределить через UI)
-
-		// закешированный логин и пароль (может пригодится для повтороного входа в игру)
+		// Сервер, логин и пароль ТЕКУЩЕГО входа — те, с которыми игрок вошёл формой входа (SigninController). Статика, а
+		// не поля объекта: сцену входа вход выгружает, а вход заново после перехода на карту без своего адреса грузит её
+		// снова, и поля её формы несут значения, сохранённые в сцене, а не того, кто вошёл. Сервер того же входа нужен и
+		// игровой сцене: с него она докачивает карты и скелеты.
+		protected static string SERVER;
 		protected static string login;
 		protected static string password;
 

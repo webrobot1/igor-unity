@@ -487,8 +487,8 @@ namespace Mmogick
 
                 // Что считать переходом, решает один отбор на весь клиент (WarpMarker): свечение на земле,
                 // точка радара и точка здесь зажигаются от него же.
-                foreach (LayerObject warp in WarpMarker.Objects(map))
-                    warps.Add(WarpMarker.Center(warp, map.tilewidth, map.tileheight));
+                foreach ((LayerObject obj, int floor) warp in WarpMarker.Objects(map))
+                    warps.Add(WarpMarker.Center(warp.obj, map.tilewidth, map.tileheight));
             }
 
             worldMapWarps[mapId] = warps;

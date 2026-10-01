@@ -12,8 +12,8 @@ using UnityEngine.Networking;
 namespace Mmogick
 {
 	// Content-addressable кеш анимаций игры. Endpoint'ы:
-	//   GET /animation/patch/{gameId}/{token}/prefabs?since=  — дельта prefab'ов: {items: slug→entry, all: [slug],
-	//                                                          version, image_size_default, animation_size_default}
+	//   GET /animation/patch/{gameId}/{token}/prefabs         — каталог prefab'ов целиком: {items: slug→entry,
+	//                                                          image_size_default, animation_size_default}
 	//   GET /animation/patch/{gameId}/{token}/animations     — полный список animation_id → updated_timestamp
 	//   GET /animation/patch/{gameId}/{token}/images          — ZIP картинок (sha256.ext) (If-Modified-Since)
 	//
@@ -23,8 +23,10 @@ namespace Mmogick
 	// Локальный кеш: Application.persistentDataPath/games/{gameId}/animations/
 	//   images/{sha256}.{ext}                — распакованные из ZIP /images
 	//   structures/{animationId}.spine.json  — кеш пакета скелета (пишет SpineCacheService)
-	//   library.json                  — prefab.slug → PrefabEntry (дельта-мёрж по ?since, removal по списку all)
 	//   sync.json                     — manifest (archive_last_modified, animation_versions: {id: ts})
+	//
+	// Каталог prefab'ов на диск не пишется: он приходит целиком на каждый вход и живёт только в памяти
+	// (SyncLibrary) — до входа его не читает никто, а на входе он приходит заново.
 	//
 	// Справочник компонентов игры (умолчания, состав видов, иконки) приходит СВОИМ каналом и живёт
 	// в ComponentCacheService: компонент — элемент игры, не анимации. Здесь он нужен последним звеном
@@ -32,19 +34,8 @@ namespace Mmogick
 	public static class AnimationCacheService
 	{
 		private const string MANIFEST_FILE        = "sync.json";
-		private const string LIBRARY_FILE         = "library.json";
 		private const string IMAGES_DIR           = "images";
 		private const string STRUCT_DIR           = "structures";
-
-		// Версия формата локального кеша (PrefabEntry/library.json). Бамп при смене состава entry
-		// (добавление/удаление полей) → EnsureLoaded форсит полный refetch каталога /prefabs (см. cache_schema_version).
-		// Бампится и на смену ФОРМЫ значения компонента внутри component_value: состав entry при этом прежний,
-		// а разбор идёт по форме — на лежалой записи он падает, и дельта по дате её не подменит (сервер шлёт
-		// только записи, изменившиеся с прошлой синхронизации, а у давно не правленного prefab'а дата прежняя).
-		// Бампится и на смену ПРАВИЛА заполнения поля при прежних составе и форме: лежалая запись несёт
-		// значение, которого сервер уже не кладёт, разбор на ней не падает, и расхождение молчит — так с
-		// полем size, которое приходит только у носителя со своим размером (умолчание едет конвертом ответа).
-		private const int CACHE_SCHEMA_VERSION = 10;
 
 		// Разбор серверного payload: сервер шлёт скаляры всегда, включая null (null ≡ дефолт поля), а без
 		// Ignore Newtonsoft пишет null в не-nullable поле (version, animation, angle, pivotX/Y, id) и роняет
@@ -53,19 +44,16 @@ namespace Mmogick
 			new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
 
 		private static SyncManifest _manifest;
-		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry (дельта-мёрж SyncLibrary)
+		private static Dictionary<string, PrefabEntry> _library;                     // prefab.slug → PrefabEntry: каталог целиком из /prefabs (SyncLibrary)
 
-		// Игра, чьи файлы разобраны в память этого кеша — отметка, каталог, умолчания размера, спрайты и скелеты
+		// Игра, чьи данные держит память этого кеша — отметка, каталог, умолчания размера, спрайты и скелеты
 		// (см. GameCache).
 		private static int _gameId;
 
 		// Умолчания размера тела — одно на игру у каждого рода визуала (набор картинок, скелет), в той же форме
 		// делителя, что size записи. Действуют у записи, своего size не приславшей (см. PrefabEntry.size).
-		// Приходят КОНВЕРТОМ /prefabs на каждый запрос каталога, включая пустую дельту: их источник — константа
-		// сервера, отметок правки у неё нет, и дельта по ?since после её смены не пере-шлёт ни одной записи.
-		// На диск не пишутся: канал отдаёт их безусловно перед каждым входом в игру, а лежалая копия молча
-		// разошлась бы с сервером — ровно то расхождение, ради которого поле и заведено. Пусто — каталог этой
-		// сессией не синхронизирован (SyncLibrary не отработал): читатели падают, см. GetPrefabSize.
+		// Приходят конвертом /prefabs вместе с каталогом и, как он, живут только в памяти. Пусто — каталог этой
+		// сессией не получен (SyncLibrary не отработал): читатели падают, см. GetPrefabSize.
 		private static float? _imageSizeDefault;
 		private static float? _animationSizeDefault;
 
@@ -119,14 +107,10 @@ namespace Mmogick
 		{
 			public string archive_last_modified;
 			public Dictionary<int, long> animation_versions = new Dictionary<int, long>();
-			// Версия последней дельта-синхронизации /prefabs (unix-сек, max updated отданных entry).
-			// Шлётся как ?since в следующий заход — сервер вернёт только изменившиеся с этого момента prefab'ы.
-			// 0 (дефолт, в т.ч. для старых sync.json без поля) → холодный старт: полный каталог.
-			public long prefab_version;
 
-			// Версия формата локального кеша на диске. При несовпадении с CACHE_SCHEMA_VERSION EnsureLoaded
-			// сбрасывает prefab_version→0 (разовый полный refetch каталога уже в новом формате PrefabEntry).
-			// 0 (дефолт, в т.ч. старые sync.json без поля) → миграция сработает при первом заходе после апдейта.
+			// Формат, в котором лежат пакеты скелетов (SpineCacheService.CACHE_SCHEMA_VERSION). При несовпадении
+			// EnsureLoaded снимает отметки версий анимаций — пакеты перекачаются уже в новом формате.
+			// 0 (дефолт, отметка без поля) → то же при первом заходе.
 			public int cache_schema_version;
 		}
 
@@ -148,7 +132,6 @@ namespace Mmogick
 			public string extension;
 			public float pivotX = 0.5f;  // хват per-вариант (рукоять на разных ракурсах в разных местах)
 			public float pivotY = 0.5f;
-			[Newtonsoft.Json.JsonIgnore]
 			public string File => sha256 + "." + extension;
 		}
 
@@ -203,8 +186,7 @@ namespace Mmogick
 			/// у неё всегда.
 			/// Ключа нет — своего размера у носителя графики (набор картинок либо вариант скелета) не задано:
 			/// действует умолчание своего рода из конверта ответа (_imageSizeDefault/_animationSizeDefault),
-			/// подставляет его GetPrefabSize. Умолчание живёт константой сервера, и копия его в записи не
-			/// доехала бы до клиента, забравшего каталог до её смены: дельта считается по отметкам правки записей.
+			/// подставляет его GetPrefabSize.
 			/// </summary>
 			public float? size;
 			public bool h_mirror;
@@ -231,7 +213,7 @@ namespace Mmogick
 
 			/// <summary>
 			/// Описание prefab'а (Prefab.description из админки) для UI-тултипов/деталей предмета.
-			/// Null — описание не задано. Приходит в /prefabs вместе с name (дельтой по ?since).
+			/// Null — описание не задано. Приходит в /prefabs вместе с name.
 			/// </summary>
 			public string description;
 
@@ -305,7 +287,6 @@ namespace Mmogick
 			public bool IsImage => !string.IsNullOrEmpty(sha256);
 
 			/// <summary>Полное имя файла спрайта (sha256.extension) или null если у prefab'а скелет.</summary>
-			[Newtonsoft.Json.JsonIgnore]
 			public string ImageFile => IsImage ? sha256 + "." + extension : null;
 		}
 
@@ -591,9 +572,8 @@ namespace Mmogick
 		public static string ImagesDirPath(int gameId)        => ImagesPath(gameId);
 		public static string StructuresPath(int gameId)       => StructPath(gameId);
 		private static string ManifestPath(int gameId)        => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), MANIFEST_FILE);
-		private static string LibraryPath(int gameId)         => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), LIBRARY_FILE);
 
-		// Загружает manifest + library + files с диска. Идемпотентно.
+		// Загружает отметку синхронизации с диска и заводит каталоги кеша. Идемпотентно.
 		private static void EnsureLoaded(int gameId)
 		{
 			if (_gameId != gameId)
@@ -606,33 +586,23 @@ namespace Mmogick
 			GameCache.RequireManifestOnDisk("AnimationCache", _manifest, mp);
 			if (_manifest == null)
 			{
+				// Отметку пишет только этот кеш, и файл, оставленный прежней версией клиента, несёт поля, которых
+				// нынешняя не знает. Строгий разбор редактора и отладочной сборки (BaseController) валил бы на
+				// таком файле каждый вход — переписать файл некому, пишет его тот же вход. Лишние ключи
+				// пропускаем: годность лежащего под отметкой ведёт метка формата ниже, не строгость разбора.
 				_manifest = File.Exists(mp)
-					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
+					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp),
+						new JsonSerializerSettings { MissingMemberHandling = MissingMemberHandling.Ignore })
 					: new SyncManifest();
-				// Миграция схемы кеша: состав PrefabEntry расширился (напр. поле actions), а since-дельта
-				// /prefabs для НЕизменившихся prefab'ов вернула бы пустоту — старый library.json остался бы
-				// без новых полей (actions=null → анимации не резолвятся). При смене версии формата разово
-				// форсим полный refetch каталога: prefab_version→0 (since=0 в SyncLibrary тянет весь каталог).
-				if (_manifest.cache_schema_version != CACHE_SCHEMA_VERSION)
+
+				// Пакеты скелетов лежат в прежнем формате: их свежесть — версия анимации с сервера, она строится
+				// по датам данных и смену формата не выражает. Снимаем отметки версий — предзагрузка снимет
+				// пакеты и скачает их заново.
+				if (_manifest.cache_schema_version != SpineCacheService.CACHE_SCHEMA_VERSION)
 				{
-					_manifest.cache_schema_version = CACHE_SCHEMA_VERSION;
-					_manifest.prefab_version = 0;
-					// Отметки версий анимаций сбрасываем вместе с каталогом: они говорят, ЧТО лежит в кеше
-					// анимации, а смена формата этого кеша делает лежащее негодным — без сброса отметка
-					// считала бы годным файл прежней формы.
+					_manifest.cache_schema_version = SpineCacheService.CACHE_SCHEMA_VERSION;
 					_manifest.animation_versions.Clear();
 					SaveManifest(gameId);
-				}
-			}
-			if (_library == null)
-			{
-				string lp = LibraryPath(gameId);
-				_library = new Dictionary<string, PrefabEntry>();
-				if (File.Exists(lp))
-				{
-					// Старый формат (string→int) не парсится на новый — catch, начнём с пустого; SyncLibrary всё равно перезальёт целиком.
-					try { _library = JsonConvert.DeserializeObject<Dictionary<string, PrefabEntry>>(File.ReadAllText(lp)) ?? new Dictionary<string, PrefabEntry>(); }
-					catch { _library = new Dictionary<string, PrefabEntry>(); }
 				}
 			}
 			if (!Directory.Exists(ImagesPath(gameId))) Directory.CreateDirectory(ImagesPath(gameId));
@@ -641,9 +611,7 @@ namespace Mmogick
 
 		private static void SaveManifest(int gameId) => GameCache.WriteJson(ManifestPath(gameId), _manifest);
 
-		private static void SaveLibrary(int gameId) => GameCache.WriteJson(LibraryPath(gameId), _library);
-
-		// Забыть разобранное в памяти, файлы оставив: зовут сброс кеша (файлы он снимает сам) и загрузка кеша
+		// Забыть то, что держит память, файлы оставив: зовут сброс кеша (файлы он снимает сам) и загрузка кеша
 		// другой игрой (EnsureLoaded). null, а не пустые объекты: EnsureLoaded бросает на «отметка в памяти
 		// есть, файла нет», и следующий SyncAll в той же сессии (повторный логин после Error) упал бы на нём.
 		private static void Forget()
@@ -660,7 +628,7 @@ namespace Mmogick
 			SpineCacheService.Reset();
 		}
 
-		// Полный сброс локального кеша анимаций игры: manifest, library, structures/, images/.
+		// Полный сброс локального кеша анимаций игры: manifest, structures/, images/ и то, что держит память.
 		// Вызывается при обнаружении рассинхронизации (например, сервер отвечает 404 на animation_id из library).
 		// После сброса следующий SyncAll пересобирает всё с нуля.
 		// Возвращает причину, по которой файлы кеша не снялись, либо null (см. GameCache.Reset).
@@ -670,7 +638,7 @@ namespace Mmogick
 			Forget();
 
 			string failure = GameCache.Reset("AnimationCache",
-				ManifestPath(gameId), LibraryPath(gameId), StructPath(gameId), ImagesPath(gameId));
+				ManifestPath(gameId), StructPath(gameId), ImagesPath(gameId));
 
 			Directory.CreateDirectory(StructPath(gameId));
 			Directory.CreateDirectory(ImagesPath(gameId));
@@ -678,22 +646,30 @@ namespace Mmogick
 			return failure;
 		}
 
-		// Полная синхронизация перед входом в игру: архив картинок + library + версии анимаций + предзагрузка скелетов. Вызывать ДО Connect.
+		// Полная синхронизация перед входом в игру: архив картинок + каталог prefab'ов + версии анимаций + предзагрузка скелетов. Вызывать ДО Connect.
 		// Привязки action→clip приходят per-prefab в /prefabs (PrefabEntry.actions списком), качаются здесь через SyncLibrary.
+		// Сорвавшийся шаг обрывает синхронизацию: предзагрузка стоит на каталоге и версиях, а вход после ошибки
+		// всё равно прерывается сбросом кеша (SigninController) — дальнейшие шаги качали бы в него впустую.
 		// onProgress — доля пройденных шагов (0..1) для полосы загрузки. Доля ВНУТРИ шага здесь не считается:
 		// шагов четыре, и полоса движется их сменой; долю принятых байт отдаёт кеш тайлов, качающий один
 		// большой архив, где без неё полоса стояла бы всё скачивание.
 		public static IEnumerator SyncAll(string host, int gameId, string token, Action<string> onError = null, Action<float> onProgress = null)
 		{
+			bool failed = false;
+			Action<string> fail = error => { failed = true; onError?.Invoke(error); };
+
 			EnsureLoaded(gameId);
-			yield return SyncImagesArchive(host, gameId, token, onError);
+			yield return SyncImagesArchive(host, gameId, token, fail);
+			if (failed) yield break;
 			onProgress?.Invoke(0.25f);
-			yield return SyncLibrary(host, gameId, token, onError);
+			yield return SyncLibrary(host, gameId, token, fail);
+			if (failed) yield break;
 			onProgress?.Invoke(0.5f);
 			var versions = new Dictionary<int, long>();
-			yield return SyncAnimations(host, gameId, token, versions, onError);
+			yield return SyncAnimations(host, gameId, token, versions, fail);
+			if (failed) yield break;
 			onProgress?.Invoke(0.75f);
-			yield return PreFetchSkeletons(host, gameId, token, versions, onError);
+			yield return PreFetchSkeletons(host, gameId, token, versions, fail);
 			onProgress?.Invoke(1f);
 		}
 
@@ -876,13 +852,11 @@ namespace Mmogick
 			GameCache.Flush();
 		}
 
-		// Конверт дельта-ответа /prefabs?since= (см. серверный Animation/PatchController::prefabs).
+		// Конверт ответа /prefabs (см. серверный Animation/PatchController::prefabs).
 		[Serializable]
 		private class PrefabSyncResponse
 		{
-			public Dictionary<string, PrefabEntry> items;  // только изменившиеся с since (slug → entry)
-			public List<string> all;                       // все текущие slug игры (для детекции удалений)
-			public long version;                            // max updated отданных items — клиент шлёт как since далее
+			public Dictionary<string, PrefabEntry> items;  // slug → entry каждого живого prefab'а игры
 
 			// Умолчания размера по роду визуала — общий канал, приходят на каждый запрос каталога и делятся
 			// на все записи без своего size (см. _imageSizeDefault/_animationSizeDefault). Nullable, чтобы
@@ -891,14 +865,10 @@ namespace Mmogick
 			public float? animation_size_default;
 		}
 
-		// Дельта-синхронизация библиотеки prefab'ов. Мёржит изменившиеся entry в _library и удаляет slug'и,
-		// которых больше нет в all. since = prefab_version из манифеста, НО только если _library не пуста:
-		// при потере кэша (library.json удалён мимо ResetCache, манифест уцелел) since=0 форсит полный ресинк,
-		// иначе дельта прислала бы только изменившиеся, а неизменные prefab'ы остались бы потеряны.
+		// Каталог prefab'ов целиком: ответ заменяет прежний каталог в памяти.
 		private static IEnumerator SyncLibrary(string host, int gameId, string token, Action<string> onError)
 		{
-			long since = (_library != null && _library.Count > 0) ? _manifest.prefab_version : 0;
-			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs?since=" + since;
+			string url = "http://" + host + "/animation/patch/" + gameId + "/" + token + "/prefabs";
 			Debug.Log("Запрашиваю список префабов " + url);
 
 			UnityWebRequest req = UnityWebRequest.Get(url);
@@ -918,13 +888,18 @@ namespace Mmogick
 			try { parsed = JsonConvert.DeserializeObject<PrefabSyncResponse>(text, SERVER_JSON); }
 			catch (Exception ex) { onError?.Invoke("AnimationCache library parse: " + ex.Message); yield break; }
 
-			if (parsed == null) { onError?.Invoke("AnimationCache library: пустой ответ /prefabs"); yield break; }
+			// Ответ не конверт либо конверт без каталога — контракт нарушен: вход в игру прерывается ошибкой
+			// (SigninController).
+			if (parsed == null || parsed.items == null)
+			{
+				onError?.Invoke("AnimationCache library: ответ /prefabs без каталога (items)");
+				yield break;
+			}
 
-			// Умолчания размера — часть КАЖДОГО ответа каталога, включая пустую дельту: ими разрешается размер
-			// записи без своего size, и без них рисовать её нечем. Отсутствие ключа либо неположительный
-			// делитель — негодные данные: отказываем ответу целиком, кеш остаётся прежним, вход в игру
-			// прерывается ошибкой (SigninController). Тихая подстановка своего числа развела бы размер тела
-			// с серверным и молчала бы об этом.
+			// Умолчания размера — часть ответа каталога: ими разрешается размер записи без своего size, и без
+			// них рисовать её нечем. Отсутствие ключа либо неположительный делитель — негодные данные: ответ
+			// не принимается целиком, вход в игру прерывается ошибкой (SigninController). Тихая подстановка
+			// своего числа развела бы размер тела с серверным и молчала бы об этом.
 			float? imageDefault     = parsed.image_size_default;
 			float? animationDefault = parsed.animation_size_default;
 			if (!imageDefault.HasValue || imageDefault.Value <= 0f
@@ -936,32 +911,11 @@ namespace Mmogick
 				yield break;
 			}
 
+			_library              = parsed.items;
 			_imageSizeDefault     = imageDefault;
 			_animationSizeDefault = animationDefault;
-
-			if (_library == null) _library = new Dictionary<string, PrefabEntry>();
-
-			// Мёрж изменившихся entry (replace по slug).
-			int changed = 0;
-			if (parsed.items != null)
-				foreach (var kv in parsed.items) { _library[kv.Key] = kv.Value; changed++; }
-
-			// Удаление: всё, чего нет в all (full-pack семантика removal). all шлётся всегда.
-			if (parsed.all != null)
-			{
-				var keep = new HashSet<string>(parsed.all);
-				var toRemove = new List<string>();
-				foreach (var slug in _library.Keys)
-					if (!keep.Contains(slug)) toRemove.Add(slug);
-				foreach (var slug in toRemove) _library.Remove(slug);
-			}
-
-			_manifest.prefab_version = parsed.version;
-			Debug.Log("AnimationCache: библиотека синхронизирована (since=" + since + "), изменено " + changed
-				+ ", всего " + _library.Count + ", умолчание размера: картинка " + imageDefault.Value
-				+ ", скелет " + animationDefault.Value);
-			SaveLibrary(gameId);
-			SaveManifest(gameId);
+			Debug.Log("AnimationCache: каталог префабов получен, префабов " + _library.Count
+				+ ", умолчание размера: картинка " + imageDefault.Value + ", скелет " + animationDefault.Value);
 		}
 
 		// Резолв action → имя клипа для данного prefab с учётом направления (angle).

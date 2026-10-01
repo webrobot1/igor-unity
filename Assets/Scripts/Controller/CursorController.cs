@@ -543,7 +543,10 @@ namespace Mmogick
         {
             Vector2Int cell = Cell(point);
 
-            if (!IsKnownImpassableCell(cell))
+            // Этаж — своего игрока: клик ведёт его по стенам его этажа.
+            float z = player.position.z;
+
+            if (!IsKnownImpassableCell(cell, z))
                 return true;
 
             Vector2Int me = Cell(player.position);
@@ -561,7 +564,7 @@ namespace Mmogick
                     if (candidate == me)
                         continue;
 
-                    if (!IsKnownImpassableCell(candidate))
+                    if (!IsKnownImpassableCell(candidate, z))
                         return true;
                 }
 
@@ -627,15 +630,20 @@ namespace Mmogick
                                 // Направление клиент не подправляет: обтеканием преграды заведует СЕРВЕР
                                 // (move/walk/index — шаг прямо, по одной оси, обход угла диагональю,
                                 // подползание вплотную). Не шлём лишь заведомо холостое: направление, где
-                                // КАЖДАЯ серверная ветка упирается в известную клиенту преграду (CanServerStep) —
-                                // такую команду сервер молча отбрасывает, а слались бы они каждый шаг упора.
+                                // КАЖДАЯ серверная ветка упирается в известную клиенту преграду (прогноз шага
+                                // ObjectModel.PredictStep пуст) — такую команду сервер молча отбрасывает, а
+                                // слались бы они каждый шаг упора.
+                                // Прогноз считается от СЕРВЕРНОЙ позиции (EntityModel.position): от неё сервер
+                                // и ведёт свой расчёт шага. Позиция аватара в transform — сглаженная, её догоняет
+                                // корутина движения и двигает прогноз показа, и на ней ответ был бы про точку,
+                                // где сервера уже (или ещё) нет.
                                 // Проверка считается по геометрии заново на каждой отправке и состояния
                                 // «заблокировано» не держит: смена направления и любой сдвиг позиции (в том
                                 // числе серверные подползание и обход угла) сами открывают её обратно.
                                 // Опираться на факт НЕПОДВИЖНОСТИ (позиция не сдвинулась с прошлой отправки)
                                 // нельзя: эхо позиции приходит с задержкой и ложно читается как «упёрлись» —
                                 // застревание у стен и углов. Решает только геометрия преград.
-                                if (canStep && CanServerStep(vector))
+                                if (canStep && ObjectModel.PredictStep(player.map, player.position, vector) != null)
                                 {
                                     WalkResponse response = new WalkResponse();
 
@@ -664,96 +672,6 @@ namespace Mmogick
                     Error("Ошибка управелния игроком: ", ex);
                 }
             }
-        }
-
-        /// <summary>
-        /// Пройдёт ли шаг в направлении vector хоть одной веткой серверного шага (move/walk/index): прямо на
-        /// шаг, по одной из осей, обходом угла по диагонали (её сервер пробует только у ортогонального
-        /// направления и засчитывает лишь в СОСЕДНЕЙ клетке), подползанием вплотную к преграде.
-        ///
-        /// false — все ветки упираются в ИЗВЕСТНУЮ клиенту преграду. Клиент знает только преграды
-        /// (IsColliderCell): непроходимой сервер считает и клетку без тайла в слоях, и клетку недоступной
-        /// соседней карты, о чём клиенту неизвестно. Потому ветка закрывается ТОЛЬКО известной преградой, а
-        /// любое незнание читается как «пройти можно»: ошибаться допустимо лишь в сторону лишней отправки,
-        /// никогда — в сторону пропущенного шага.
-        ///
-        /// Точка отсчёта — авторитетная серверная позиция сущности, в той же местной системе координат карты,
-        /// что и коллайдеры. Округление до клетки — банковское (Mathf.RoundToInt), тем же правилом сервер
-        /// переводит позицию в тайл.
-        /// </summary>
-        private bool CanServerStep(Vector3 vector)
-        {
-            // сервер считает шаг по тем же округлённым составляющим, что клиент кладёт в пакет
-            float fx = (float)Math.Round(vector.x, position_precision);
-            float fy = (float)Math.Round(vector.y, position_precision);
-
-            int map = player.map;
-
-            // Считаем от СЕРВЕРНОЙ позиции (EntityModel.position): от неё сервер и ведёт свой расчёт шага.
-            // Позиция аватара в transform — сглаженная, её догоняет корутина движения и двигает экстраполяция,
-            // и на ней предикат отвечал бы про точку, где сервера уже (или ещё) нет.
-            Vector3 position = player.position;
-            Vector2Int cell = Cell(position);
-
-            // шаг прямо в направлении
-            if (!IsKnownCollider(map, position + new Vector3(fx, fy, 0) * step))
-                return true;
-
-            // только по X либо только по Y
-            if (fx != 0 && !IsKnownCollider(map, position + new Vector3(fx, 0, 0) * step))
-                return true;
-
-            if (fy != 0 && !IsKnownCollider(map, position + new Vector3(0, fy, 0) * step))
-                return true;
-
-            // обход угла — только у ортогонального направления
-            if (fx == 0 || fy == 0)
-            {
-                Vector3 first;
-                Vector3 second;
-
-                // знак второй оси: сперва та сторона, куда игрок уже смещён относительно центра своей клетки
-                if (fy == 0)
-                {
-                    float prefer = position.y >= Mathf.Round(position.y) ? corner_offset : -corner_offset;
-
-                    first = position + new Vector3(fx * corner_offset, prefer, 0) * step;
-                    second = position + new Vector3(fx * corner_offset, -prefer, 0) * step;
-                }
-                else
-                {
-                    float prefer = position.x >= Mathf.Round(position.x) ? corner_offset : -corner_offset;
-
-                    first = position + new Vector3(prefer, fy * corner_offset, 0) * step;
-                    second = position + new Vector3(-prefer, fy * corner_offset, 0) * step;
-                }
-
-                if (Cell(first) != cell && !IsKnownCollider(map, first))
-                    return true;
-
-                if (Cell(second) != cell && !IsKnownCollider(map, second))
-                    return true;
-            }
-
-            // подползание: по каждой упирающейся оси встаём на creep_depth от центра своей клетки в сторону
-            // преграды. Сервер отбивает его, когда игрок в этой точке уже стоит (дистанция чебышевская).
-            Vector3 creep = new Vector3(
-                fx > 0 ? cell.x + creep_depth : (fx < 0 ? cell.x - creep_depth : position.x),
-                fy > 0 ? cell.y + creep_depth : (fy < 0 ? cell.y - creep_depth : position.y),
-                position.z);
-
-            if (Mathf.Max(Mathf.Abs(creep.x - position.x), Mathf.Abs(creep.y - position.y)) >= 0.01f
-                && !IsKnownCollider(map, creep))
-                return true;
-
-            return false;
-        }
-
-        // Известна ли клиенту преграда в клетке точки. Ответ false значит «преграды не знаю», а не «проходимо»
-        // (см. CanServerStep).
-        private bool IsKnownCollider(int map, Vector3 point)
-        {
-            return IsColliderCell(map, Cell(point));
         }
 
         private Vector2Int Cell(Vector3 point)

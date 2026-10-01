@@ -23,8 +23,7 @@ namespace Mmogick
 		public float? forwardX = null;
 		public float? forwardY = null;
 		public float? forwardZ = null;
-	
-		public int? sort = null;
+
 		public int? lifeRadius = null;
 
 		/// <summary>

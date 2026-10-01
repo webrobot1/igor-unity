@@ -11,12 +11,6 @@ namespace Mmogick
 	/// </summary>
 	public class EntityModel : MonoBehaviour
 	{
-		/// <summary>
-		/// для того что бы менять сортировку при загрузке карты
-		/// </summary>
-		[NonSerialized]
-		public int sort;
-
 		[NonSerialized]
 		public int lifeRadius;
 
@@ -441,9 +435,6 @@ namespace Mmogick
 			{
 				position.z = (float)recive.z;
 			}
-
-			if (recive.sort != null)
-				this.sort = (int)recive.sort;
 
 			if (recive.lifeRadius != null)
 				this.lifeRadius = (int)recive.lifeRadius;

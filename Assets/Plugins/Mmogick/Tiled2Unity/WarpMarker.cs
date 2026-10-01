@@ -20,6 +20,10 @@ namespace Mmogick
 	/// Метка одна на объект и растянута на всю его площадь: широкий проход светится полосой, дверь —
 	/// пятном в клетку. Компонент на самой метке гасит и разгорается — неподвижное пятно на полу
 	/// теряется среди тайлов.
+	///
+	/// Переход принадлежит этажу слоя своего объекта: сервер переносит сущность, лишь стоящую на этом
+	/// этаже, — дверь второго этажа не уводит проходящего под ней. Потому и метка видна, только пока свой
+	/// игрок на её этаже (<see cref="ShowFloor"/>), и рисуется на порядке земли своего этажа.
 	/// </summary>
 	public class WarpMarker : MonoBehaviour
 	{
@@ -64,23 +68,26 @@ namespace Mmogick
 		private SpriteRenderer _renderer;
 		private float _halfCell;   // полклетки карты — из самого Tilemap, не хардкодом (см. BuildLayer)
 		private float _phase;      // разводит соседние метки по фазе — иначе вся карта мигает разом
+		private int _floor;        // этаж слоя объекта-перехода (см. Objects)
 
 		/// <summary>
-		/// Построить слой меток карты. sortingOrder берётся у слоя-земли карты (spawn_sort) — тот же,
-		/// по которому сортируются существа: метка лежит с ними в одной плоскости, а не поверх крыш.
-		/// Оттого метку под аркой или крышей перекрывает верхний слой — видимой её держит то же окно
-		/// прозрачности, что и существа: TilemapXray собирает центры окон и по слою LAYER.
+		/// Построить слой меток карты. Порядок отрисовки метки — земля её этажа (decoded.GroundOrder) — тот же,
+		/// по которому сортируются существа этого этажа: метка лежит с ними в одной плоскости, а не поверх крыш.
+		/// Оттого метку под аркой или крышей перекрывает верхний слой: своего окна прозрачности у метки нет,
+		/// её открывает окно своего игрока, когда он подходит (TilemapXray).
+		///
+		/// Строятся метки всех этажей, видимость по этажу своего игрока выставляет <see cref="ShowFloor"/>.
 		///
 		/// Слой строится заново при каждом вызове: карту перекладывают целиком, второго такого слоя быть
 		/// не должно.
 		/// </summary>
-		public static void BuildLayer(Transform grid, Map map, int sortingOrder)
+		public static void BuildLayer(Transform grid, Map map, MapDecode decoded)
 		{
 			Transform existing = grid.Find(LAYER);
 			if (existing != null)
 				DestroyImmediate(existing.gameObject);
 
-			List<LayerObject> warps = Objects(map);
+			List<(LayerObject obj, int floor)> warps = Objects(map);
 			if (warps.Count == 0)
 				return;
 
@@ -101,9 +108,24 @@ namespace Mmogick
 			layerGo.transform.localPosition = new Vector3(tileAnchor.x, tileAnchor.y, -cellSize.y * DepthBehindGround);
 
 			for (int i = 0; i < warps.Count; i++)
-				Create(layerGo.transform, sprite, warps[i], map.tilewidth, map.tileheight, cellSize.y * 0.5f, sortingOrder, i);
+				Create(layerGo.transform, sprite, warps[i].obj, warps[i].floor, map.tilewidth, map.tileheight, cellSize.y * 0.5f, decoded.GroundOrder(warps[i].floor), i);
 
 			Debug.Log("Карта: меток перехода " + warps.Count);
+		}
+
+		/// <summary>
+		/// Оставить видимыми метки одного этажа карты — того, на котором стоит свой игрок (floor — номер этажа
+		/// ЭТОЙ карты, <see cref="MapDecode.Floor"/>). Скрытая метка пропадает и с радара: он обходит только
+		/// видимые.
+		/// </summary>
+		public static void ShowFloor(Transform grid, int floor)
+		{
+			Transform layer = grid.Find(LAYER);
+			if (layer == null)
+				return;   // игра переходами по разметке не пользуется либо переходов у карты нет
+
+			foreach (Transform warp in layer)
+				warp.gameObject.SetActive(warp.GetComponent<WarpMarker>()._floor == floor);
 		}
 
 		/// <summary>
@@ -115,12 +137,15 @@ namespace Mmogick
 		/// лишь коллизии. Разметке, легшей на бесшовную границу, сервер ставит пустой класс, и переходом
 		/// она быть перестаёт. Точка и линия площади не имеют — переходом они не считаются.
 		///
+		/// Этаж перехода — этаж слоя его объекта (<see cref="Layer.offsetz"/>: сервер считает его по слоям-землям,
+		/// слой после последней земли идёт верхним этажом), тем же счётом сервер раскладывает переходы по этажам.
+		///
 		/// Игра переходами по разметке не пользуется (<see cref="ConnectController.warp_class"/> пуст) либо
 		/// разметки у карты нет — список пуст.
 		/// </summary>
-		public static List<LayerObject> Objects(Map map)
+		public static List<(LayerObject obj, int floor)> Objects(Map map)
 		{
-			List<LayerObject> warps = new List<LayerObject>();
+			List<(LayerObject obj, int floor)> warps = new List<(LayerObject obj, int floor)>();
 
 			string warpClass = ConnectController.warp_class;
 			if (string.IsNullOrEmpty(warpClass) || map.layer == null)
@@ -133,13 +158,13 @@ namespace Mmogick
 
 				foreach (LayerObject obj in layer.@object)
 					if (obj.type == warpClass && obj.width > 0 && obj.height > 0)
-						warps.Add(obj);
+						warps.Add((obj, (int) layer.offsetz));
 			}
 
 			return warps;
 		}
 
-		private static void Create(Transform parent, Sprite sprite, LayerObject obj, int tileWidth, int tileHeight, float halfCell, int sortingOrder, int index)
+		private static void Create(Transform parent, Sprite sprite, LayerObject obj, int floor, int tileWidth, int tileHeight, float halfCell, int sortingOrder, int index)
 		{
 			// Координаты объекта приходят в пикселях (в клетки их переводит потребитель — так же считает
 			// отладочный контур объекта).
@@ -163,6 +188,7 @@ namespace Mmogick
 			marker._renderer = sr;
 			marker._halfCell = halfCell;
 			marker._phase = index * 0.6f;
+			marker._floor = floor;
 		}
 
 		/// <summary>

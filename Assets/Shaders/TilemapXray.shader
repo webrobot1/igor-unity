@@ -1,12 +1,12 @@
-// Полупрозрачное «окно» в слоях карты, которые перекрывают сущность (кроны деревьев, крыши):
-// сущность, зашедшая под такой слой, остаётся видна сквозь него.
+// Полупрозрачное «окно» в слоях карты, которые перекрывают своего игрока (кроны деревьев, крыши,
+// верхние этажи): игрок, зашедший под такой слой, остаётся виден сквозь него.
 //
-// Слой перекрывает сущность ⟺ его порядок отрисовки больше порядка сущности (_LayerOrder > center.z).
-// Порядок сущности — spawn_sort + серверный sort (UpdateController), то есть окно следует за
-// этажностью: сервер поднял сущность на этаж (больший sort) — набор гасимых слоёв сузился сам.
+// Слой перекрывает игрока ⟺ его порядок отрисовки больше порядка игрока (_LayerOrder > center.z).
+// Порядок игрока — земля его этажа (UpdateController), то есть окно следует за этажностью: игрок
+// поднялся на этаж — набор гасимых слоёв сузился сам.
 //
-// Центры окон — глобальный массив _XrayCenters (мировые xy, z = порядок сущности, w = радиус в
-// клетках), заполняет TilemapXray каждый кадр. Гасится только то, что реально нарисовано: на
+// Центр окна — глобальный вектор _XrayCenter (мировые xy, z = порядок своего игрока, w = радиус в
+// клетках; 0 — окна нет), пишет TilemapXray каждый кадр. Гасится только то, что реально нарисовано: на
 // открытом месте у перекрывающих слоёв в этой клетке тайлов нет, поэтому проплешины не видно.
 Shader "Mmogick/TilemapXray"
 {
@@ -15,8 +15,8 @@ Shader "Mmogick/TilemapXray"
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
         [HideInInspector] _RendererColor ("RendererColor", Color) = (1,1,1,1)
-        // Порядок отрисовки слоя — ставится на рендерер слоя через MaterialPropertyBlock
-        // (материал общий на все слои, батчинг сохраняется).
+        // Порядок отрисовки слоя — пишется в экземпляр материала, общий на пару «порядок и оттенок»
+        // (TilemapXray.Instance); почему не MaterialPropertyBlock — там же.
         [PerRendererData] _LayerOrder ("Layer Order", Float) = 0
         _XrayMinAlpha ("Прозрачность в центре окна", Range(0,1)) = 0.35
         _XraySoftness ("Ширина мягкого края (клетки)", Float) = 0.8
@@ -46,10 +46,6 @@ Shader "Mmogick/TilemapXray"
             #pragma target 3.0
             #include "UnityCG.cginc"
 
-            // Держать синхронно с TilemapXray.MaxCenters — размер массива задаётся здесь,
-            // C# шлёт ровно столько элементов (Unity фиксирует длину глобального массива).
-            #define XRAY_MAX 16
-
             struct appdata
             {
                 float4 vertex : POSITION;
@@ -70,8 +66,7 @@ Shader "Mmogick/TilemapXray"
             fixed4 _RendererColor;
             float _LayerOrder;
 
-            float4 _XrayCenters[XRAY_MAX];
-            int    _XrayCount;
+            float4 _XrayCenter;
             float  _XrayMinAlpha;
             float  _XraySoftness;
 
@@ -85,25 +80,16 @@ Shader "Mmogick/TilemapXray"
                 return o;
             }
 
-            // Множитель альфы пикселя: 1 вне окон, _XrayMinAlpha в центре ближайшего окна.
-            // Из нескольких перекрывающихся окон берём самое сильное (min).
+            // Множитель альфы пикселя: 1 вне окна, _XrayMinAlpha в его центре.
             float XrayAlpha(float2 world)
             {
-                float a = 1;
+                float4 c = _XrayCenter;
 
-                for (int k = 0; k < _XrayCount; k++)
-                {
-                    float4 c = _XrayCenters[k];
+                // окна нет либо слой ниже игрока или на его уровне — он игрока не перекрывает, гасить нечего
+                if (c.w <= 0 || _LayerOrder <= c.z)
+                    return 1;
 
-                    // слой ниже сущности либо на её уровне — он её не перекрывает, гасить нечего
-                    if (_LayerOrder <= c.z)
-                        continue;
-
-                    float d = distance(world, c.xy);
-                    a = min(a, lerp(_XrayMinAlpha, 1, smoothstep(c.w - _XraySoftness, c.w, d)));
-                }
-
-                return a;
+                return lerp(_XrayMinAlpha, 1, smoothstep(c.w - _XraySoftness, c.w, distance(world, c.xy)));
             }
 
             fixed4 frag (v2f i) : SV_Target

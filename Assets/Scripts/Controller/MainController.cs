@@ -70,8 +70,8 @@ namespace Mmogick
         private Text entities;
 
         /// <summary>
-        /// Имя слоя-земли карты, на которой стоит игрок: им задаётся порядок отрисовки сущностей и граница
-        /// Chunk-режима у слоёв (см. MapDecode.spawn). Разбирающему карту нужно видеть, какой слой им стал.
+        /// Имя слоя-земли этажа, на котором стоит игрок: им задаётся порядок отрисовки сущностей этажа
+        /// (см. MapDecode.grounds). Разбирающему карту нужно видеть, какой слой им стал.
         /// </summary>
         [SerializeField]
         private Text ground;
@@ -244,14 +244,21 @@ namespace Mmogick
             if (map.text != label)
                 map.text = label;
 
-            // Слой-земля: имя показываем только когда его назвала сама карта и такой слой у неё нашёлся.
-            // Иначе слой выбран не картой — клиент подставил запасной индекс, и это должно быть видно, а не
-            // выглядеть заданным значением (см. MapDecode.spawn).
-            string layer = "Земля: " + (decoded == null
-                ? "карта не загружена"
-                : string.IsNullOrEmpty(decoded.spawn)
-                    ? "не задана, запасной слой " + decoded.spawn_sort
-                    : decoded.spawn);
+            // Слой-земля этажа игрока: имя показываем только когда его назвала сама карта. Иначе слой выбран
+            // не картой — клиент подставил запасной порядок, и это должно быть видно, а не выглядеть заданным
+            // значением (см. MapDecode.grounds). При нескольких этажах — и номер этажа из их числа.
+            string layer = "Земля: ";
+            if (decoded == null)
+                layer += "карта не загружена";
+            else if (decoded.grounds.Length == 0)
+                layer += "не задана, запасной слой " + MapDecode.FallbackGroundOrder;
+            else
+            {
+                int floor = decoded.Floor(PlayerController.Player.position.z);
+                layer += decoded.grounds[floor].name;
+                if (decoded.grounds.Length > 1)
+                    layer += " (этаж " + floor + " из " + decoded.grounds.Length + ")";
+            }
 
             if (ground.text != layer)
                 ground.text = layer;

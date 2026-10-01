@@ -21,18 +21,60 @@ namespace Mmogick
 		/// сбрасывается — картинки там другие.
 		/// </summary>
 		/// <summary>
-		/// Данные карты, из которых строятся слои поверх неё: сама карта, её непроходимые клетки и слой
-		/// сортировки. Отладочные слои по ним создаются лишь при включении галочки (см. EnsureDebugLayer),
-		/// Ключ — корень карты на сцене; уничтоженные карты отсеиваются при появлении новой.
+		/// Данные карты, из которых строятся слои поверх неё: сама карта, её разбор (непроходимые клетки по
+		/// этажам) и слой сортировки. Отладочные слои по ним создаются лишь при включении галочки (см.
+		/// EnsureDebugLayer), Ключ — корень карты на сцене; уничтоженные карты отсеиваются при появлении новой.
 		/// </summary>
 		private class MapSource
 		{
 			public Map map;
-			public HashSet<Vector2Int> colliders;
+			public MapDecode decoded;
 			public int sort;
 		}
 
 		private static readonly Dictionary<Transform, MapSource> mapSources = new Dictionary<Transform, MapSource>();
+
+		/// <summary>
+		/// Уровень своего игрока — от него отладочный слой преград выбирает этажи, чьи стены показать, а слой
+		/// меток переходов — этаж, чьи метки видны (см. <see cref="ShowFloor"/>). До входа игрока — первый этаж.
+		/// </summary>
+		private static float shownZ;
+
+		/// <summary>
+		/// Своего игрока перенесли на другой уровень (вход, переход, смена этажа): у выложенных карт видны метки
+		/// переходов его нового этажа, а отладочный слой преград показывает стены этого этажа и этажа над ним.
+		/// Слои меняются только у карт, где этаж и правда сменился, — у соседа с одной землёй любой уровень
+		/// остаётся первым этажом.
+		/// </summary>
+		public static void ShowFloor(float z)
+		{
+			if (z == shownZ)
+				return;
+
+			float previous = shownZ;
+			shownZ = z;
+
+			foreach (KeyValuePair<Transform, MapSource> source in mapSources)
+			{
+				if (source.Key == null)
+					continue;
+
+				int floor = source.Value.decoded.Floor(z);
+				if (source.Value.decoded.Floor(previous) == floor)
+					continue;
+
+				WarpMarker.ShowFloor(source.Key, floor);
+
+				Transform built = source.Key.Find(DebugLayers.COLLISION);
+				if (built == null)
+					continue;
+
+				// Немедленно: следующая строка ищет слой по имени и должна его не найти.
+				UnityEngine.Object.DestroyImmediate(built.gameObject);
+				if (DebugLayers.ShowCollision)
+					EnsureDebugLayer(source.Key, DebugLayers.COLLISION);
+			}
+		}
 
 		private static readonly Dictionary<string, TilemapModel> tileAssets = new Dictionary<string, TilemapModel>();
 		private static int tileAssetsGame;
@@ -126,31 +168,35 @@ namespace Mmogick
 
 		public static MapDecode generate(string json, Transform grid, int gameId)
 		{
+			// Класс слоя-земли приходит при входе и контрактом не пуст (SigninController.Contract). Пустой здесь —
+			// разбор позван до входа: сравнение с пустым классом взяло бы землёй любой слой без класса.
+			if (string.IsNullOrEmpty(ConnectController.ground_class))
+				throw new InvalidOperationException("Разбор карты до входа в игру: класс слоя-земли не получен");
+
 			Map map = parse(json);
 
 			// grid.localPosition здесь НЕ трогаем: MapController.SortMap выставляет его сразу после generate
 			// (позиция карты в открытом мире + TILE_OFFSET). Прежняя установка -0.5 тут была мёртвой (затиралась).
 
-			// Преграды приходят прямоугольниками (см. Map.colliders) — разворачиваем в клетки: проверка шага
-			// спрашивает конкретную клетку, а z-уровни схлопнуты (клиентская проверка плоская).
-			HashSet<Vector2Int> colliders = new HashSet<Vector2Int>();
+			MapDecode decoded = new MapDecode(map);
 
-			// Клетки, где лежит хоть один тайл (см. MapDecode.tiles): их сервер и берёт в матрицу проходимости,
-			// а клетку без тайла держит непроходимой наравне с преградой. Собираем попутно с раскладкой слоёв —
-			// отдельного прохода по карте это не стоит.
-			HashSet<Vector2Int> tileCells = new HashSet<Vector2Int>();
+			// Преграды приходят прямоугольниками по этажам (см. Map.colliders) — разворачиваем в клетки своего
+			// этажа: проверка шага спрашивает конкретную клетку на этаже сущности.
 			if (map.colliders != null)
 			{
-				foreach (var zLevel in map.colliders.Values)
+				foreach (KeyValuePair<int, List<int[]>> floor in map.colliders)
 				{
-					foreach (int[] rect in zLevel)
+					HashSet<Vector2Int> cells = new HashSet<Vector2Int>();
+					foreach (int[] rect in floor.Value)
 					{
 						for (int row = 0; row < rect[3]; row++)
 						{
 							for (int col = 0; col < rect[2]; col++)
-								colliders.Add(new Vector2Int(rect[0] + col, rect[1] - row));
+								cells.Add(new Vector2Int(rect[0] + col, rect[1] - row));
 						}
 					}
+
+					decoded.colliders[floor.Key] = cells;
 				}
 			}
 			// Пересчёт позиционных полей объектов (тайлы слоёв декодируются из CSV ниже)
@@ -171,16 +217,11 @@ namespace Mmogick
 				}
 			}
 
-			// Слой-земля (граница спавна игроков) задаётся на уровне КАРТЫ свойством spawn = имя слоя,
-			// один на карту (прежде — property spawn на самом слое, где в Tiled легко задвоить на двух слоях).
-			// Его 0-based индекс при итерации ниже → spawn_sort (сортировка игрока + граница Chunk-режима).
-			string spawnLayerName = null;
-			if (map.property != null && map.property.TryGetValue("spawn", out LayerProperty spawnProp))
-				spawnLayerName = spawnProp.value;
-
-			// Имя слоя, который слоем-землёй ФАКТИЧЕСКИ стал: названный картой слой у неё может и не найтись,
-			// и тогда индекс подставляется запасной. Наружу (MapDecode.spawn) уходит только найденное.
-			string spawnLayerFound = null;
+			// Слои-земли — корневые слои с классом ConnectController.ground_class, по одной на этаж, в порядке
+			// слоёв (см. MapDecode.grounds). Порядок отрисовки земли — порядок её этажа у сущностей; первая
+			// земля ещё и граница Chunk-режима. Земли у карты может не быть — тогда этаж один, а порядок
+			// сущностей запасной (MapDecode.FallbackGroundOrder).
+			List<MapDecode.Ground> grounds = new List<MapDecode.Ground>();
 
 			int sort = 0;
 
@@ -199,9 +240,27 @@ namespace Mmogick
 
 				Tilemap tilemap = newLayer.GetComponent<Tilemap>();
 
+				// Клетки слоя, способного перекрыть существо (см. MapDecode.drawn): слои под первой землёй существ не
+				// перекрывают, скрытый слой не рисуется вовсе.
+				HashSet<Vector2Int> drawnCells = null;
+				if (layer.visible && (grounds.Count > 0 || sort > MapDecode.FallbackGroundOrder))
+					decoded.drawn[sort] = drawnCells = new HashSet<Vector2Int>();
+
 				if (!string.IsNullOrEmpty(layer.tile))
 				{
 					List<LayerTile> tiles = DecodeTileCsv(map, layer);
+
+					// Клетки с тайлом (см. MapDecode.tiles) — на этаже слоя, как их раскладывает игра: сервер берёт
+					// их в матрицу проходимости этого этажа, а клетку без тайла держит непроходимой наравне с
+					// преградой. Потолок полом клетки не служит — его тайлы только рисуются. Собираем попутно с
+					// раскладкой — отдельного прохода по карте это не стоит.
+					HashSet<Vector2Int> tileCells = null;
+					if (!layer.ceiling)
+					{
+						int floor = Mathf.RoundToInt(layer.offsetz);
+						if (!decoded.tiles.TryGetValue(floor, out tileCells))
+							decoded.tiles[floor] = tileCells = new HashSet<Vector2Int>();
+					}
 
 					// Плитка на клетку не создаётся: одна и та же картинка с тем же поворотом повторяется на карте
 					// тысячи раз, а объект плитки от места не зависит — берём готовый из общего набора (см. tileAssets).
@@ -216,9 +275,12 @@ namespace Mmogick
 						LayerTile tile = tiles[i];
 
 						positions[i] = new Vector3Int(tile.x, tile.y, 0);
-						assets[i] = getTileAsset(gameId, tile.tile, tile.flipH, tile.flipV, tile.flipD, tile.rotHex120);
+						TilemapModel asset = getTileAsset(gameId, tile.tile, tile.flipH, tile.flipV, tile.flipD, tile.rotHex120);
+						assets[i] = asset;
 
-						tileCells.Add(new Vector2Int(tile.x, tile.y));
+						tileCells?.Add(new Vector2Int(tile.x, tile.y));
+						if (drawnCells != null)
+							AddCovered(drawnCells, asset, tile.x, tile.y);
 					}
 
 					tilemap.SetTiles(positions, assets);
@@ -239,20 +301,21 @@ namespace Mmogick
 						TilemapModel newTile = getTileAsset(gameId, obj.tile, obj.flipH, obj.flipV, obj.flipD, obj.rotHex120, obj.rotation);
 
 						tilemap.SetTile(new Vector3Int((int)obj.x, (int)obj.y, 0), newTile);
+						if (drawnCells != null)
+							AddCovered(drawnCells, newTile, (int)obj.x, (int)obj.y);
 					}
 				}
 
 				if (layer.opacity < 1f)
 					ApplyOpacity(newLayer, layer.opacity);
 
-				if (spawnLayerName != null && layer.name == spawnLayerName)
+				if (layer.@class == ConnectController.ground_class)
 				{
-					Debug.Log(layer.name + "- слой Земля (spawn)");
-					map.spawn_sort = sort;
-					spawnLayerFound = layer.name;
+					Debug.Log(layer.name + " — слой-земля этажа " + grounds.Count + " (класс " + ConnectController.ground_class + ")");
+					grounds.Add(new MapDecode.Ground { order = sort, name = layer.name });
 
-					// Слой-земля делит порядок отрисовки с существами (spawn_sort уходит им в SortingGroup,
-					// см. MapController.SortMap), а внутри одного порядка их разводит ось прозрачной
+					// Слой-земля делит порядок отрисовки с существами своего этажа (порядок уходит им в
+					// SortingGroup, см. MapController.SortMap), а внутри одного порядка их разводит ось прозрачной
 					// сортировки камеры: она вычитает глубину из высоты, и кто по этой мере дальше, тот
 					// позади. Точка сортировки тайла — низ его картинки, то есть НИЖНИЙ край клетки, и там
 					// же стоит сущность этой клетки: та привязана ногами (см. MapController.TILE_OFFSET).
@@ -265,27 +328,27 @@ namespace Mmogick
 					newLayer.transform.localPosition = new Vector3(0f, 0f, -tilemap.cellSize.y * 0.5f);
 				}
 
-				if (map.spawn_sort == null)
+				// Слои под первой землёй существ не перекрывают никогда — им хватает дешёвой отрисовки кусками.
+				if (grounds.Count == 0)
 					newLayer.GetComponent<TilemapRenderer>().mode = TilemapRenderer.Mode.Chunk;
 
 				sort++;
 			}
 
-			if (map.spawn_sort == null)
-				map.spawn_sort = 1;
+			decoded.grounds = grounds.ToArray();
 
 			// Отладочные слои (сетка, непроходимые клетки, объекты-разметка) сразу НЕ строятся. Вместе они
 			// накрывают карту трижды — у карты 140×120 это больше тридцати тысяч клеток плюс все контуры объектов, —
 			// а нужны, только когда их включают галочкой в тестовом режиме. Потому здесь лишь запоминаем данные,
 			// из которых слой можно построить, а строит его EnsureDebugLayer в момент включения.
-			mapSources[grid] = new MapSource { map = map, colliders = colliders, sort = sort };
+			mapSources[grid] = new MapSource { map = map, decoded = decoded, sort = sort };
 
 			// Метки переходов — обычный слой карты, не отладочный: их видит игрок, а не разработчик, и строятся
 			// они сразу. Соседей учитывать не нужно: разметке на бесшовной границе класс перехода снимает сервер,
 			// собирая карту, — какая метка горит, решают только данные самой карты.
-			// sortingOrder — слой-земля карты (spawn_sort), тот же, по которому сортируются существа: метка лежит
-			// с ними в одной плоскости, крыши её закрывают. Не sort источника — там слоёв всего.
-			WarpMarker.BuildLayer(grid, map, (int)map.spawn_sort);
+			// Переход срабатывает лишь на этаже слоя своего объекта — видны метки этажа своего игрока.
+			WarpMarker.BuildLayer(grid, map, decoded);
+			WarpMarker.ShowFloor(grid, decoded.Floor(shownZ));
 
 			// Уничтоженные карты выпадают отсюда же: их корни на сцене снесены, а ключи остались бы навсегда.
 			foreach (Transform key in new List<Transform>(mapSources.Keys))
@@ -300,10 +363,6 @@ namespace Mmogick
 			if (DebugLayers.ShowObjects)
 				EnsureDebugLayer(grid, DebugLayers.OBJECTS);
 
-			MapDecode decoded = new MapDecode(map);
-			decoded.colliders = colliders;   // per-map коллайдеры (не общий статик — см. MapDecode.colliders)
-			decoded.tiles = tileCells;       // клетки с тайлами: клетка без тайла для сервера непроходима
-			decoded.spawn = spawnLayerFound; // имя слоя-земли; пусто — индекс подставлен запасной (см. MapDecode.spawn)
 			return decoded;
 		}
 
@@ -422,51 +481,87 @@ namespace Mmogick
 			debugTilemap.SetTiles(gridPositions, gridTiles);
 		}
 
+		/// <summary>
+		/// Непрозрачность стен этажа над своим: его стены видны, но от стен своего этажа отличимы.
+		/// </summary>
+		private const float UpperFloorAlpha = 0.35f;
+
 		private static void buildDebugCollision(Transform grid, MapSource src)
 		{
-			if (src.colliders.Count == 0)
-				return;
-
-			// Отладочный слой непроходимых тайлов. Видимость — галочка «Коллизии» debug-панели
+			// Отладочный слой непроходимых клеток. Видимость — галочка «Коллизии» debug-панели
 			// (DebugLayers.ShowCollision); её блок открывает настройка игрока «Тестовый режим», а сами слои
 			// стартуют выключенными — их зажигает только сама галочка. Применяется и к картам, загружаемым позже.
-				GameObject debugCollision = NewTilemapLayer();
-				debugCollision.name = DebugLayers.COLLISION;
-				debugCollision.transform.SetParent(grid, false);
-				debugCollision.GetComponent<TilemapRenderer>().sortingOrder = src.sort + 1;
-				debugCollision.SetActive(DebugLayers.ShowCollision);
+			// Показаны стены этажа своего игрока и, полупрозрачно, этажа над ним; стены нижних этажей не
+			// показываются, пока игрок на них не спустится (смена этажа перестраивает слой — ShowFloor).
+			int floor = src.decoded.Floor(shownZ);
+			src.decoded.colliders.TryGetValue(floor, out HashSet<Vector2Int> own);
+			HashSet<Vector2Int> upper = null;
+			if (floor + 1 < src.decoded.grounds.Length)
+				src.decoded.colliders.TryGetValue(floor + 1, out upper);
 
-				Texture2D colTex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
-				colTex.filterMode = FilterMode.Point;
-				Color32 fill = new Color32(255, 50, 50, 80);
-				Color32 edge = new Color32(255, 50, 50, 180);
-				var colPixels = new Color32[32 * 32];
-				for (int i = 0; i < colPixels.Length; i++)
+			int ownCount = own?.Count ?? 0;
+			int upperCount = upper?.Count ?? 0;
+			if (ownCount + upperCount == 0)
+				return;
+
+			GameObject debugCollision = NewTilemapLayer();
+			debugCollision.name = DebugLayers.COLLISION;
+			debugCollision.transform.SetParent(grid, false);
+			debugCollision.GetComponent<TilemapRenderer>().sortingOrder = src.sort + 1;
+			debugCollision.SetActive(DebugLayers.ShowCollision);
+
+			UnityEngine.Tilemaps.Tile ownTile = DebugCollisionTile(1f);
+			UnityEngine.Tilemaps.Tile upperTile = DebugCollisionTile(UpperFloorAlpha);
+
+			// Клетка со стеной на обоих этажах рисуется как стена своего: она держит игрока.
+			Vector3Int[] colPositions = new Vector3Int[ownCount + upperCount];
+			TileBase[] colTiles = new TileBase[colPositions.Length];
+			int colIndex = 0;
+			if (upper != null)
+				foreach (Vector2Int pos in upper)
 				{
-					int px = i % 32;
-					int py = i / 32;
-					colPixels[i] = (px == 0 || py == 0 || px == 31 || py == 31) ? edge : fill;
-				}
-				colTex.SetPixels32(colPixels);
-				colTex.Apply();
+					if (own != null && own.Contains(pos))
+						continue;
 
-				Sprite colSprite = Sprite.Create(colTex, new Rect(0, 0, 32, 32), Vector2.zero, 32);
-				UnityEngine.Tilemaps.Tile colTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
-				colTile.sprite = colSprite;
-
-				Tilemap colTilemap = debugCollision.GetComponent<Tilemap>();
-				Vector3Int[] colPositions = new Vector3Int[src.colliders.Count];
-				TileBase[] colTiles = new TileBase[src.colliders.Count];
-				int colIndex = 0;
-				foreach (Vector2Int pos in src.colliders)
-				{
 					colPositions[colIndex] = new Vector3Int(pos.x, pos.y, 0);
-					colTiles[colIndex] = colTile;
+					colTiles[colIndex] = upperTile;
 					colIndex++;
 				}
-				colTilemap.SetTiles(colPositions, colTiles);
+			if (own != null)
+				foreach (Vector2Int pos in own)
+				{
+					colPositions[colIndex] = new Vector3Int(pos.x, pos.y, 0);
+					colTiles[colIndex] = ownTile;
+					colIndex++;
+				}
 
-				Debug.Log("DebugCollision: " + src.colliders.Count + " непроходимых тайлов");
+			Array.Resize(ref colPositions, colIndex);
+			Array.Resize(ref colTiles, colIndex);
+			debugCollision.GetComponent<Tilemap>().SetTiles(colPositions, colTiles);
+
+			Debug.Log("DebugCollision: этаж " + floor + " — " + ownCount + " непроходимых клеток, этаж над ним — " + upperCount);
+		}
+
+		/// <summary>Плитка непроходимой клетки: красная заливка с каймой, прозрачность — множитель alpha.</summary>
+		private static UnityEngine.Tilemaps.Tile DebugCollisionTile(float alpha)
+		{
+			Texture2D colTex = new Texture2D(32, 32, TextureFormat.RGBA32, false);
+			colTex.filterMode = FilterMode.Point;
+			Color32 fill = new Color32(255, 50, 50, (byte)(80 * alpha));
+			Color32 edge = new Color32(255, 50, 50, (byte)(180 * alpha));
+			var colPixels = new Color32[32 * 32];
+			for (int i = 0; i < colPixels.Length; i++)
+			{
+				int px = i % 32;
+				int py = i / 32;
+				colPixels[i] = (px == 0 || py == 0 || px == 31 || py == 31) ? edge : fill;
+			}
+			colTex.SetPixels32(colPixels);
+			colTex.Apply();
+
+			UnityEngine.Tilemaps.Tile colTile = ScriptableObject.CreateInstance<UnityEngine.Tilemaps.Tile>();
+			colTile.sprite = Sprite.Create(colTex, new Rect(0, 0, 32, 32), Vector2.zero, 32);
+			return colTile;
 		}
 
 		private static void buildDebugObjects(Transform grid, MapSource src)
@@ -558,7 +653,7 @@ namespace Mmogick
 					continue;
 
 				string[] cellParts = cell.Split('|');
-				if (!int.TryParse(cellParts[0], out int idx))
+				if (!int.TryParse(cellParts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int idx))
 					throw new Exception(CellAddress(map, layer, i) + ": номер тайла «" + cellParts[0] + "» не число");
 
 				if (idx < 1 || idx > legend.Length)
@@ -566,7 +661,7 @@ namespace Mmogick
 						+ " вне легенды слоя — в ней " + legend.Length + " записей");
 
 				int flags = 0;
-				if (cellParts.Length > 1 && !int.TryParse(cellParts[1], out flags))
+				if (cellParts.Length > 1 && !int.TryParse(cellParts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out flags))
 					throw new Exception(CellAddress(map, layer, i) + ": флаги разворота «" + cellParts[1] + "» не число");
 
 				result.Add(new LayerTile
@@ -707,6 +802,34 @@ namespace Mmogick
 				case "particle_effect": return new Color(1f, 0.4f, 1f, 1f);     // розовый — частицы
 				default:                return new Color(1f, 0.9f, 0.2f, 1f);   // жёлтый — прочее
 			}
+		}
+
+		/// <summary>
+		/// Клетки, которые накрывает картинка плитки, поставленной в клетку (x, y): угол картинки стоит в углу
+		/// клетки, и крупная плитка (крона, крыша) накрывает и соседние — окно прозрачности должно открываться
+		/// под любой из них (см. MapDecode.drawn). Разворот плитки сдвигает картинку — углы берутся после него.
+		/// </summary>
+		private static void AddCovered(HashSet<Vector2Int> cells, TilemapModel tile, int x, int y)
+		{
+			if (tile.sprite == null)
+			{
+				cells.Add(new Vector2Int(x, y));
+				return;
+			}
+
+			Bounds bounds = tile.sprite.bounds;
+			Vector3 a = tile.transform.MultiplyPoint3x4(bounds.min);
+			Vector3 b = tile.transform.MultiplyPoint3x4(bounds.max);
+			Vector3 c = tile.transform.MultiplyPoint3x4(new Vector3(bounds.min.x, bounds.max.y, 0f));
+			Vector3 d = tile.transform.MultiplyPoint3x4(new Vector3(bounds.max.x, bounds.min.y, 0f));
+			Vector3 min = Vector3.Min(Vector3.Min(a, b), Vector3.Min(c, d));
+			Vector3 max = Vector3.Max(Vector3.Max(a, b), Vector3.Max(c, d));
+
+			// Запас на дробную погрешность границы: картинка ровно в клетку соседнюю задевать не должна.
+			const float edge = 0.01f;
+			for (int dx = Mathf.FloorToInt(min.x + edge); dx < Mathf.CeilToInt(max.x - edge); dx++)
+				for (int dy = Mathf.FloorToInt(min.y + edge); dy < Mathf.CeilToInt(max.y - edge); dy++)
+					cells.Add(new Vector2Int(x + dx, y + dy));
 		}
 
 		/// <summary>

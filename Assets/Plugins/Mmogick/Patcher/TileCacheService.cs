@@ -41,7 +41,9 @@ namespace Mmogick
 		// v4: CachedMap.hasOpenworldPosition — новое bool-поле; у записей, лежавших в sync.json ДО этой
 		// версии, его нет в JSON вовсе, и десериализатор молча кладёт туда false (C#-дефолт bool) —
 		// ранее закешированные карты ОТКРЫТОГО мира читались бы как интерьеры и выпадали из мозаики.
-		private const int CACHE_SCHEMA_VERSION = 4;
+		// v5: значение свойства (TileProperty/LayerProperty.value) приходит формой объявленного типа — bool
+		// и число JSON-типом, не строкой.
+		private const int CACHE_SCHEMA_VERSION = 5;
 
 		private static SyncManifest _manifest;
 		private static Dictionary<string, TilesetMeta> _tilesets;
@@ -564,7 +566,7 @@ namespace Mmogick
 		// Отпечаток миниатюры карты: версия самой карты, версия архива графики и версия правил отрисовки.
 		// Первые две двигает сервер по датам данных, и обе меняют картинку — перерисованный тайл виден на
 		// миниатюре так же, как правка самой карты. Третья — наша: смену правил рисования даты данных не
-		// выражают, без неё уже нарисованное осталось бы навсегда (php «Свежесть производного артефакта»).
+		// выражают, без неё уже нарисованное осталось бы навсегда (code «Свежесть производного артефакта»).
 		private static string WorldMapStamp(int mapId)
 		{
 			_manifest.map_versions.TryGetValue(mapId, out string mapVersion);

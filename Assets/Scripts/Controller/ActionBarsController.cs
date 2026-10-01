@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 // Только контекст аннотаций: поле пакета объявлено nullable (ActionBarsResponse), а полный nullable-режим
 // на весь контроллер поднял бы предупреждения по каждому неаннотированному полю цепочки.
@@ -189,7 +190,7 @@ namespace Mmogick
                                     Log("Быстрая клавиша "+ action.Key + ": обновили данные заклинанием с сервера " + action.Value.id);
                                 break;
                                 case "item":
-                                    int slotNum = int.Parse(action.Value.id);
+                                    int slotNum = int.Parse(action.Value.id, CultureInfo.InvariantCulture);
                                     Item item = GetItemBySlot(slotNum);
                                     if (item != null)
                                     {

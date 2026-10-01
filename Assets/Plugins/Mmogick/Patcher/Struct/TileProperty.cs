@@ -1,4 +1,5 @@
 using System;
+using Newtonsoft.Json.Linq;
 
 namespace Mmogick
 {
@@ -6,7 +7,9 @@ namespace Mmogick
     public class TileProperty
     {
         public string name;
-        public string value;
+
+        // Значение приходит формой своего type: bool — логическим, int и float — числом, прочие — строкой.
+        public JToken value;
         public string type;
         public string propertytype;
     }

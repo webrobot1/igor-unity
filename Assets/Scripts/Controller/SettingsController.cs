@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 using UnityEngine.UI;
 using WebGLSupport;
@@ -229,26 +230,26 @@ namespace Mmogick
                         BuildSettingsSchema(recive.prefab);
 
                     if (settings.ContainsKey("fps"))
-                        Application.targetFrameRate = int.Parse(settings["fps"]);
+                        Application.targetFrameRate = int.Parse(settings["fps"], CultureInfo.InvariantCulture);
 
                     // Джойстик скрыт с запуска (CursorController.Awake) — тот же случай, что у галочки
                     // «Тестовый режим» ниже: пришедшее значение решает, а не пришедшее у НЕ объявленной
                     // игрой настройки оставляет блок скрытым, тогда как просто не менявшееся — как было.
                     if (settings.ContainsKey("joystick"))
-                        joystick.gameObject.SetActive(int.Parse(settings["joystick"]) > 0);
+                        joystick.gameObject.SetActive(int.Parse(settings["joystick"], CultureInfo.InvariantCulture) > 0);
 
                     if (settings.ContainsKey("actions"))
                         ShowMobileActions(settings["actions"] == "mobile");
 
                     if (settings.ContainsKey("minimap"))
-                        SetMinimapEnabled(int.Parse(settings["minimap"]) > 0);
+                        SetMinimapEnabled(int.Parse(settings["minimap"], CultureInfo.InvariantCulture) > 0);
 
                     // Пакет несёт РАЗНИЦУ значений, поэтому отсутствие ключа тут значит «не менялось» —
                     // объявлена настройка игрой или нет, говорит схема. Для галочки «Тестовый режим» это
                     // важно: вход в игру включает логи собранного билда (BaseController), и не объявленная
                     // игрой галочка обязана их погасить, а просто не пришедшая — оставить как было.
                     if (settings.ContainsKey("debug"))
-                        SetTestMode(int.Parse(settings["debug"]) > 0);
+                        SetTestMode(int.Parse(settings["debug"], CultureInfo.InvariantCulture) > 0);
                     else if (!_types.ContainsKey("debug"))
                         SetTestMode(false);
 
@@ -263,11 +264,11 @@ namespace Mmogick
                         {
                             case "checkbox":
                                 Toggle toggle = settingArea.Find(setting.Key).GetComponentInChildren<Toggle>();
-                                toggle.isOn = (int.Parse(setting.Value) != 0 ? true : false);
+                                toggle.isOn = (int.Parse(setting.Value, CultureInfo.InvariantCulture) != 0 ? true : false);
                                 break;
                             case "slider":
                                 Slider slider = settingArea.Find(setting.Key).GetComponentInChildren<Slider>();
-                                slider.value = float.Parse(setting.Value);
+                                slider.value = float.Parse(setting.Value, NumberStyles.Float, CultureInfo.InvariantCulture);
                                 slider.onValueChanged.Invoke(slider.value);
                                 break;
                             case "dropdown":
@@ -290,7 +291,7 @@ namespace Mmogick
             if (text!=null)
                 text.text = slider.value.ToString();
 
-            _settings[key] = slider.value.ToString();
+            _settings[key] = slider.value.ToString(CultureInfo.InvariantCulture);
         }       
         
         private void CheckboxOnChange(string key, Toggle obj)

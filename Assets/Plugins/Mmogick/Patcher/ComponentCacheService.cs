@@ -3,7 +3,6 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -12,12 +11,10 @@ namespace Mmogick
 	// Справочник компонентов игры — умолчание значения, состав видов, иконка и описание каждого компонента.
 	// Endpoint (свой канал данных игры, не анимационный: компонент — элемент игры, к скелетам и картинкам
 	// отношения не имеющий):
-	//   GET /game/patch/{gameId}/{token}/component?since=  — дельта справочника:
-	//       {items: slug→запись (изменившиеся), all: [все slug], version}
+	//   GET /game/patch/{gameId}/{token}/component  — справочник целиком: {items: slug→запись}
 	//
-	// Локальный кеш: Application.persistentDataPath/games/{gameId}/component/
-	//   component.json — slug → ComponentEntry (дельта-мёрж по ?since, removal по списку all)
-	//   sync.json      — отметка синхронизации (component_version, cache_schema_version)
+	// Справочник приходит целиком на каждый вход в игру и живёт только в памяти: до входа его не читает
+	// никто, а на входе он приходит заново — копия на диске не пригодилась бы ни разу.
 	//
 	// Кто чем пользуется: умолчание — последнее звено цепочки разрешения значения у префаба
 	// (AnimationCacheService.GetComponentValue), состав видов — источник компонентов, префабу не заданных,
@@ -26,42 +23,13 @@ namespace Mmogick
 	// кладёт та же предзагрузка, что и скелеты тел (AnimationCacheService).
 	public static class ComponentCacheService
 	{
-		private const string MANIFEST_FILE  = "sync.json";
-		private const string DIRECTORY_FILE = "component.json";
-
-		// Подкаталог кеша игры под справочник компонентов.
-		private const string ROOT_DIR       = "component";
-
-		// Версия формата локального кеша (ComponentEntry/component.json). Бамп при смене состава записи либо
-		// ФОРМЫ значения внутри неё: дельта везёт только изменившееся, у давно не правленного компонента дата
-		// прежняя, и его лежалая запись осталась бы в старой форме — разбор упал бы на ней.
-		private const int CACHE_SCHEMA_VERSION = 3;
-
-		private static SyncManifest _manifest;
 		private static Dictionary<string, ComponentEntry> _components;
 
-		// Игра, чьи файлы разобраны в память этого кеша — отметка и справочник (см. GameCache).
-		private static int _gameId;
-
-		[Serializable]
-		public class SyncManifest
-		{
-			// Версия последней дельта-синхронизации справочника (unix-сек, max updated отданных записей).
-			// Шлётся как ?since в следующий заход. 0 (дефолт) → холодный старт: весь справочник.
-			public long component_version;
-
-			// Версия формата локального кеша на диске. При несовпадении с CACHE_SCHEMA_VERSION EnsureLoaded
-			// сбрасывает component_version→0 — разовый полный refetch уже в новом формате.
-			public int cache_schema_version;
-		}
-
-		// Конверт дельта-ответа (см. серверный Game\Controller\Api\PatchController::component).
+		// Конверт ответа (см. серверный Game\Controller\Api\PatchController::component).
 		[Serializable]
 		private class DirectoryResponse
 		{
-			public Dictionary<string, ComponentEntry> items;  // только изменившиеся с since (slug → запись)
-			public List<string> all;                          // все живые slug игры (для детекции удалений)
-			public long version;                              // max updated отданных items — клиент шлёт как since далее
+			public Dictionary<string, ComponentEntry> items;  // slug → запись каждого живого компонента игры
 		}
 
 		/// <summary>
@@ -114,87 +82,15 @@ namespace Mmogick
 			public string clip;
 		}
 
-		private static string ManifestPath(int gameId)  => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), MANIFEST_FILE);
-		private static string DirectoryFile(int gameId) => Path.Combine(GameCache.RootPath(gameId, ROOT_DIR), DIRECTORY_FILE);
-
-		// Загружает отметку синхронизации и сам справочник с диска. Идемпотентно.
-		private static void EnsureLoaded(int gameId)
-		{
-			if (_gameId != gameId)
-			{
-				Forget();
-				_gameId = gameId;
-			}
-
-			string mp = ManifestPath(gameId);
-			GameCache.RequireManifestOnDisk("ComponentCache", _manifest, mp);
-
-			if (_manifest == null)
-			{
-				_manifest = File.Exists(mp)
-					? JsonConvert.DeserializeObject<SyncManifest>(File.ReadAllText(mp))
-					: new SyncManifest();
-
-				if (_manifest.cache_schema_version != CACHE_SCHEMA_VERSION)
-				{
-					_manifest.cache_schema_version = CACHE_SCHEMA_VERSION;
-					_manifest.component_version = 0;
-					SaveManifest(gameId);
-				}
-			}
-
-			if (_components == null)
-			{
-				string dp = DirectoryFile(gameId);
-				_components = new Dictionary<string, ComponentEntry>();
-				if (File.Exists(dp))
-				{
-					// Битый либо недописанный файл не разбирается — начнём с пустого, Sync перезальёт целиком
-					// (since=0 при пустом справочнике, см. ниже).
-					try { _components = JsonConvert.DeserializeObject<Dictionary<string, ComponentEntry>>(File.ReadAllText(dp)) ?? new Dictionary<string, ComponentEntry>(); }
-					catch { _components = new Dictionary<string, ComponentEntry>(); }
-				}
-			}
-		}
-
-		private static void SaveManifest(int gameId) => GameCache.WriteJson(ManifestPath(gameId), _manifest);
-
-		private static void SaveDirectory(int gameId) => GameCache.WriteJson(DirectoryFile(gameId), _components);
-
-		// Забыть разобранное в памяти, файлы оставив: зовут сброс кеша (файлы он снимает сам) и загрузка кеша
-		// другой игрой (EnsureLoaded). null, а не пустые объекты: EnsureLoaded бросает на «отметка в памяти
-		// есть, файла нет», и повторный вход в той же сессии упал бы на этом guard'е.
-		private static void Forget()
-		{
-			_manifest = null;
-			_components = null;
-		}
-
-		// Полный сброс кеша справочника: отметка и сам справочник. Следующий Sync соберёт его с нуля.
-		// Возвращает причину, по которой файлы кеша не снялись, либо null (см. GameCache.Reset).
-		public static string ResetCache(int gameId)
-		{
-			Debug.LogWarning("ComponentCache: сброс кеша справочника игры " + gameId);
-			Forget();
-
-			string failure = GameCache.Reset("ComponentCache", ManifestPath(gameId), DirectoryFile(gameId));
-
-			GameCache.Flush();
-			return failure;
-		}
-
-		// Дельта-синхронизация справочника перед входом в игру. Мёржит изменившиеся записи и удаляет slug'и,
-		// которых больше нет в all. since = отметка прошлой синхронизации, НО только если справочник не пуст:
-		// при потере файла (удалён мимо ResetCache, отметка уцелела) since=0 форсит полный ресинк — иначе
-		// дельта прислала бы лишь изменившееся, а неизменные компоненты остались бы потеряны.
-		// Вызывать ДО AnimationCacheService.SyncAll: цепочка разрешения значений префаба опирается на умолчания
-		// отсюда.
+		// Справочник перед входом в игру: ответ заменяет прежний целиком. Вызывать ДО AnimationCacheService.SyncAll:
+		// его предзагрузка скелетов берёт отсюда значки компонентов, заданные анимацией.
 		public static IEnumerator Sync(string host, int gameId, string token, Action<string> onError = null)
 		{
-			EnsureLoaded(gameId);
+			// Прежний справочник снимаем до запроса: сорвись запрос — в памяти остался бы справочник прошлого
+			// входа, возможно другой игры, и отвечал бы как текущий.
+			_components = null;
 
-			long since = _components.Count > 0 ? _manifest.component_version : 0;
-			string url = "http://" + host + "/game/patch/" + gameId + "/" + token + "/component?since=" + since;
+			string url = "http://" + host + "/game/patch/" + gameId + "/" + token + "/component";
 			Debug.Log("Запрашиваю справочник компонентов " + url);
 
 			UnityWebRequest req = UnityWebRequest.Get(url);
@@ -214,28 +110,16 @@ namespace Mmogick
 			try { parsed = JsonConvert.DeserializeObject<DirectoryResponse>(text); }
 			catch (Exception ex) { onError?.Invoke("ComponentCache parse: " + ex.Message); yield break; }
 
-			// null — сервер вернул не конверт: контракт нарушен, дальше цепочка разрешения значений молча
-			// отдавала бы «умолчания нет» на каждом компоненте. Сигналим, вызывающий уводит на экран входа.
-			if (parsed == null) { onError?.Invoke("ComponentCache: пустой ответ /component"); yield break; }
-
-			int changed = 0;
-			if (parsed.items != null)
-				foreach (var kv in parsed.items) { _components[kv.Key] = kv.Value; changed++; }
-
-			// Удаление: всё, чего нет в all (снятый компонент исчезает у клиента независимо от version).
-			if (parsed.all != null)
+			// Ответ не конверт либо конверт без справочника — контракт нарушен. Сигналим, вызывающий уводит
+			// на экран входа.
+			if (parsed == null || parsed.items == null)
 			{
-				var keep = new HashSet<string>(parsed.all);
-				var drop = new List<string>();
-				foreach (var slug in _components.Keys)
-					if (!keep.Contains(slug)) drop.Add(slug);
-				foreach (var slug in drop) _components.Remove(slug);
+				onError?.Invoke("ComponentCache: ответ /component без справочника (items)");
+				yield break;
 			}
 
-			_manifest.component_version = parsed.version;
-			Debug.Log("ComponentCache: справочник синхронизирован (since=" + since + "), изменено " + changed + ", всего " + _components.Count);
-			SaveDirectory(gameId);
-			SaveManifest(gameId);
+			_components = parsed.items;
+			Debug.Log("ComponentCache: справочник получен, компонентов " + _components.Count);
 		}
 
 		// Умолчание компонента — значение, одинаковое для всех, кому компонент положен. Точечный
